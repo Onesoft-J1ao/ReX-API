@@ -16,22 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { getDisplayedBillingPreference } from './billing-preference'
 
 describe('displayed billing preference', () => {
   test('shows subscription only when no subscription is active', () => {
-    assert.equal(
-      getDisplayedBillingPreference('subscription_only', false),
+    expect(getDisplayedBillingPreference('subscription_only', false)).toBe(
       'subscription_only'
     )
   })
 
   test('shows wallet fallback only for subscription first without an active subscription', () => {
-    assert.equal(
-      getDisplayedBillingPreference('subscription_first', false),
+    expect(getDisplayedBillingPreference('subscription_first', false)).toBe(
       'wallet_first'
     )
   })
