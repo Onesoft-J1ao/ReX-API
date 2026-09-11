@@ -44,7 +44,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { api } from '@/lib/api'
+import { useQueryClient } from '@tanstack/react-query'
+
+import { ensureStatus } from '@/lib/status-query'
 
 import {
   getUser,
@@ -161,6 +163,7 @@ function CustomProviderIcon(props: { iconUrl?: string }) {
 
 export function UserBindingDialog(props: Props) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [user, setUser] = useState<User | null>(null)
   const [oauthBindings, setOauthBindings] = useState<OAuthBinding[]>([])
   const [statusInfo, setStatusInfo] = useState<StatusInfo>({})
@@ -179,9 +182,10 @@ export function UserBindingDialog(props: Props) {
           success: false,
           data: [],
         })),
-        api
-          .get('/api/status')
-          .then((r) => r.data)
+        // Shared `/api/status` cache: warm entries cost no request, stale
+        // entries resolve immediately and refresh in the background.
+        ensureStatus(queryClient)
+          .then((data) => ({ success: true, data: data ?? {} }))
           .catch(() => ({
             success: false,
             data: {},
@@ -201,7 +205,7 @@ export function UserBindingDialog(props: Props) {
     } finally {
       setLoading(false)
     }
-  }, [props.userId, t])
+  }, [props.userId, t, queryClient])
 
   useEffect(() => {
     if (props.open && props.userId) {
