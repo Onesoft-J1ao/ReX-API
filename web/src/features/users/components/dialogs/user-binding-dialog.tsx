@@ -44,9 +44,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 
-import { ensureStatus } from '@/lib/status-query'
+import { statusQueryOptions } from '@/lib/status-query'
 
 import {
   getUser,
@@ -163,33 +163,27 @@ function CustomProviderIcon(props: { iconUrl?: string }) {
 
 export function UserBindingDialog(props: Props) {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const [user, setUser] = useState<User | null>(null)
   const [oauthBindings, setOauthBindings] = useState<OAuthBinding[]>([])
-  const [statusInfo, setStatusInfo] = useState<StatusInfo>({})
   const [loading, setLoading] = useState(false)
   const [showBoundOnly, setShowBoundOnly] = useState(true)
   const [unbindTarget, setUnbindTarget] = useState<BindingItem | null>(null)
   const [unbinding, setUnbinding] = useState(false)
+  const { data: statusInfo, isLoading: statusLoading } = useQuery({
+    ...statusQueryOptions,
+    enabled: props.open && !!props.userId,
+  })
 
   const fetchData = useCallback(async () => {
     if (!props.userId) return
     setLoading(true)
     try {
-      const [userRes, oauthRes, statusRes] = await Promise.all([
+      const [userRes, oauthRes] = await Promise.all([
         getUser(props.userId),
         getUserOAuthBindings(props.userId).catch(() => ({
           success: false,
           data: [],
         })),
-        // Shared `/api/status` cache: warm entries cost no request, stale
-        // entries resolve immediately and refresh in the background.
-        ensureStatus(queryClient)
-          .then((data) => ({ success: true, data: data ?? {} }))
-          .catch(() => ({
-            success: false,
-            data: {},
-          })),
       ])
       if (userRes.success && userRes.data) {
         setUser(userRes.data)
@@ -197,15 +191,12 @@ export function UserBindingDialog(props: Props) {
       if (oauthRes.success && oauthRes.data) {
         setOauthBindings(oauthRes.data as OAuthBinding[])
       }
-      if (statusRes.success && statusRes.data) {
-        setStatusInfo(statusRes.data as StatusInfo)
-      }
     } catch {
       toast.error(t('Failed to load'))
     } finally {
       setLoading(false)
     }
-  }, [props.userId, t, queryClient])
+  }, [props.userId, t])
 
   useEffect(() => {
     if (props.open && props.userId) {
@@ -214,12 +205,12 @@ export function UserBindingDialog(props: Props) {
     } else {
       setUser(null)
       setOauthBindings([])
-      setStatusInfo({})
     }
   }, [props.open, props.userId, fetchData])
 
   const allBindings = useMemo<BindingItem[]>(() => {
     const items: BindingItem[] = []
+    const status = statusInfo as StatusInfo | undefined
 
     for (const field of BUILTIN_BINDINGS) {
       const value = user
@@ -227,7 +218,7 @@ export function UserBindingDialog(props: Props) {
         : ''
       const isBound = !!value
       const isEnabled =
-        field.statusKey == null ? true : Boolean(statusInfo[field.statusKey])
+        field.statusKey == null ? true : Boolean(status?.[field.statusKey])
 
       items.push({
         key: field.key,
@@ -244,7 +235,7 @@ export function UserBindingDialog(props: Props) {
       oauthBindings.map((b) => [String(b.provider_id), b])
     )
 
-    const customProviders = statusInfo.custom_oauth_providers || []
+    const customProviders = status?.custom_oauth_providers || []
     const seenProviderIds = new Set<string>()
 
     for (const provider of customProviders) {
@@ -334,7 +325,7 @@ export function UserBindingDialog(props: Props) {
         contentHeight='auto'
         bodyClassName='space-y-4'
       >
-        {loading ? (
+        {loading || statusLoading ? (
           <div className='flex items-center justify-center py-8'>
             <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
           </div>
