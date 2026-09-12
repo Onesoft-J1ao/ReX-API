@@ -5298,5 +5298,7 @@
     "probes ok": "探测成功",
     "Probes": "探测",
     "Failing models": "异常模型"
-  }
+  },
+  "Time range": "时间范围",
+  "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
 }
