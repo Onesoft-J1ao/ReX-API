@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export { Hero } from './sections/hero'
+export { StatsStrip } from './sections/stats-strip'
+export { Quickstart } from './sections/quickstart'
 export { ServiceRoutes } from './sections/service-routes'
 export { ModelCoverage } from './sections/model-coverage'
 export { Exclusive3D } from './sections/exclusive-3d'

@@ -5297,7 +5297,14 @@
     "{{count}} failing": "{{count}} failing",
     "probes ok": "probes ok",
     "Probes": "Probes",
-    "Failing models": "Failing models"
+    "Failing models": "Failing models",
+    "Models routed": "Models routed",
+    "Route groups": "Route groups",
+    "OpenAI-compatible endpoint": "OpenAI-compatible endpoint",
+    "Quickstart": "Quickstart",
+    "One key,": "One key,",
+    "every model.": "every model.",
+    "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

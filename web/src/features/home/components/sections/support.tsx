@@ -27,9 +27,9 @@ export function Support() {
   const { t } = useTranslation()
 
   return (
-    <section className='relative z-10 px-6 py-24 sm:px-10 md:py-32 lg:px-14'>
+    <section className='relative z-10 px-6 py-14 sm:px-10 md:py-20 lg:px-14'>
       <div className='mx-auto max-w-4xl text-center'>
-        <AnimateInView className='mx-auto mb-16 max-w-3xl md:mb-20'>
+        <AnimateInView className='mx-auto mb-10 max-w-3xl md:mb-12'>
           <p className='text-primary mb-5 font-mono text-[11px] tracking-[0.28em] uppercase'>
             05 / {t('Support')}
           </p>

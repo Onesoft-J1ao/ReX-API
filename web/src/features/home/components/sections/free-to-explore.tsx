@@ -50,7 +50,7 @@ export function FreeToExplore() {
   const { t } = useTranslation()
 
   return (
-    <section className='relative z-10 px-6 py-24 sm:px-10 md:py-32 lg:px-14'>
+    <section className='relative z-10 px-6 py-14 sm:px-10 md:py-20 lg:px-14'>
       <div className='mx-auto max-w-7xl'>
         <div className='grid gap-12 lg:grid-cols-[minmax(0,18rem)_1fr] lg:gap-20'>
           <AnimateInView className='lg:sticky lg:top-24 lg:self-start'>
