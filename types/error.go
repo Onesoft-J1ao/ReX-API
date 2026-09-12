@@ -203,6 +203,11 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
 		result.Message = common.MaskSensitiveInfo(result.Message)
+		result.Type = common.MaskSensitiveKeys(result.Type)
+		result.Param = common.MaskSensitiveKeys(result.Param)
+		if s, ok := result.Code.(string); ok {
+			result.Code = common.MaskSensitiveKeys(s)
+		}
 	}
 	if result.Message == "" {
 		result.Message = string(e.errorType)
@@ -232,6 +237,7 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
 		result.Message = common.MaskSensitiveInfo(result.Message)
+		result.Type = common.MaskSensitiveKeys(result.Type)
 	}
 	if result.Message == "" {
 		result.Message = string(e.errorType)
