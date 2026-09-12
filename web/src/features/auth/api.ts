@@ -181,10 +181,27 @@ export async function telegramLogin(
 // Registration
 // ----------------------------------------------------------------------------
 
+// One-time registration ticket: the backend binds it to the client IP and
+// refuses direct POST /register without it (register anti-abuse).
+export async function getRegisterTicket(): Promise<
+  ApiResponse<{ ticket: string; expires_at: number }>
+> {
+  const res = await api.get('/api/user/register_ticket')
+  return res.data
+}
+
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
+  const ticket =
+    payload.register_ticket ??
+    (await getRegisterTicket()
+      .then((res) => res.data?.ticket ?? '')
+      .catch(() => ''))
   const res = await api.post(`/api/user/register`, payload, {
-    params: { turnstile: payload.turnstile ?? '' },
+    params: {
+      turnstile: payload.turnstile ?? '',
+      register_ticket: ticket,
+    },
   })
   return res.data
 }

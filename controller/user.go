@@ -204,6 +204,17 @@ func setupLoginAtAuthVersion(user *model.User, expectedAuthVersion int64, c *gin
 	})
 }
 
+// RegisterTicket issues the one-time registration ticket consumed by
+// middleware.RegisterThrottle. The middleware performs its own rate limiting
+// and signing; this handler only echoes the ticket payload.
+func RegisterTicket(c *gin.Context) {
+	ticket, _ := c.Get("register_ticket")
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    ticket,
+	})
+}
+
 func Register(c *gin.Context) {
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
