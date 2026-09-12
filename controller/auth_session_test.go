@@ -109,20 +109,23 @@ func TestWriteAuthSessionErrorMapsSessionGrowthLimits(t *testing.T) {
 
 func TestSessionLimitDoesNotRecordRejectedLoginAsSuccessful(t *testing.T) {
 	previousDB := model.DB
+	previousLogDB := model.LOG_DB
 	previousRedis := common.RedisEnabled
 	previousActiveLimit := common.UserSessionActiveLimit
 	previousIssuanceLimit := common.UserSessionIssuanceLimit
 	previousIssuanceWindow := common.UserSessionIssuanceWindowSeconds
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.Log{}))
 	model.DB = db
+	model.LOG_DB = db
 	common.RedisEnabled = false
 	common.UserSessionActiveLimit = 1
 	common.UserSessionIssuanceLimit = 100
 	common.UserSessionIssuanceWindowSeconds = int64(common.DefaultUserSessionIssuanceWindowSeconds)
 	t.Cleanup(func() {
 		model.DB = previousDB
+		model.LOG_DB = previousLogDB
 		common.RedisEnabled = previousRedis
 		common.UserSessionActiveLimit = previousActiveLimit
 		common.UserSessionIssuanceLimit = previousIssuanceLimit
@@ -148,8 +151,15 @@ func TestSessionLimitDoesNotRecordRejectedLoginAsSuccessful(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/login", nil)
 	setupLogin(user, c)
 
-	assert.Equal(t, http.StatusConflict, recorder.Code)
+	// With the eviction model, the second login succeeds by revoking the
+	// oldest session instead of being rejected with AUTH_SESSION_LIMIT.
+	assert.Equal(t, http.StatusOK, recorder.Code)
 	var stored model.User
 	require.NoError(t, db.First(&stored, user.Id).Error)
-	assert.Equal(t, previousLastLoginAt, stored.LastLoginAt)
+	assert.NotEqual(t, previousLastLoginAt, stored.LastLoginAt, "successful login must update last_login_at")
+	var activeCount int64
+	require.NoError(t, db.Model(&model.UserSession{}).
+		Where("user_id = ? AND status = ?", user.Id, model.UserSessionStatusActive).
+		Count(&activeCount).Error)
+	assert.Equal(t, int64(1), activeCount, "active count returns to the limit after eviction")
 }
