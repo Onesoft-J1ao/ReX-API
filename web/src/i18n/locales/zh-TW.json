@@ -5304,7 +5304,18 @@
     "Quickstart": "Quickstart",
     "One key,": "One key,",
     "every model.": "every model.",
-    "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes."
+    "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.",
+    "Ban": "Ban",
+    "Delete {{count}} users?": "Delete {{count}} users?",
+    "Disable {{count}} users?": "Disable {{count}} users?",
+    "Enable {{count}} users?": "Enable {{count}} users?",
+    "This will permanently delete {{count}} selected users. This action cannot be undone.": "This will permanently delete {{count}} selected users. This action cannot be undone.",
+    "Selected users will be banned from signing in and consuming quota.": "Selected users will be banned from signing in and consuming quota.",
+    "Selected users will be able to sign in again.": "Selected users will be able to sign in again.",
+    "Export": "Export",
+    "Export selected ({{count}})": "Export selected ({{count}})",
+    "Export all filtered ({{count}})": "Export all filtered ({{count}})",
+    "{{count}} root account(s) skipped for bulk actions": "{{count}} root account(s) skipped for bulk actions"
   },
   "Time range": "時間範圍",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -5304,7 +5304,18 @@
     "Quickstart": "Quickstart",
     "One key,": "One key,",
     "every model.": "every model.",
-    "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes."
+    "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.",
+    "Ban": "封禁",
+    "Delete {{count}} users?": "删除 {{count}} 个用户？",
+    "Disable {{count}} users?": "封禁 {{count}} 个用户？",
+    "Enable {{count}} users?": "解封 {{count}} 个用户？",
+    "This will permanently delete {{count}} selected users. This action cannot be undone.": "将永久删除选中的 {{count}} 个用户。此操作不可撤销。",
+    "Selected users will be banned from signing in and consuming quota.": "选中用户将被禁止登录和消耗额度。",
+    "Selected users will be able to sign in again.": "选中用户将可以重新登录。",
+    "Export": "导出",
+    "Export selected ({{count}})": "导出选中 ({{count}})",
+    "Export all filtered ({{count}})": "导出全部筛选结果 ({{count}})",
+    "{{count}} root account(s) skipped for bulk actions": "已跳过 {{count}} 个 root 账号"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
