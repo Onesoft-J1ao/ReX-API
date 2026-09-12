@@ -33,7 +33,9 @@ import {
   FreeToExplore,
   Hero,
   ModelCoverage,
+  Quickstart,
   ServiceRoutes,
+  StatsStrip,
   Support,
 } from './components'
 import { LandingToneSwitch } from './components/landing-tone-switch'
@@ -165,8 +167,10 @@ export function Home() {
         headerProps={{ rightContent: <LandingToneSwitch /> }}
       >
         <Hero isAuthenticated={isAuthenticated} />
+        <StatsStrip />
         <ServiceRoutes />
         <ModelCoverage />
+        <Quickstart />
         <Exclusive3D />
         <FreeToExplore />
         <Support />

@@ -5297,7 +5297,14 @@
     "{{count}} failing": "{{count}} 个异常",
     "probes ok": "探测成功",
     "Probes": "探测",
-    "Failing models": "异常模型"
+    "Failing models": "异常模型",
+    "Models routed": "Models routed",
+    "Route groups": "Route groups",
+    "OpenAI-compatible endpoint": "OpenAI-compatible endpoint",
+    "Quickstart": "Quickstart",
+    "One key,": "One key,",
+    "every model.": "every model.",
+    "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes."
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
