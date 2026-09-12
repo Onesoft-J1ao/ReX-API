@@ -95,14 +95,14 @@ func cachedLoginSessionKey(t *testing.T, server *miniredis.Miniredis) string {
 	return ""
 }
 
-func TestCreateLoginSessionEnforcesActiveLimitAcrossAuthVersions(t *testing.T) {
+func TestCreateLoginSessionEvictsOldestAtActiveLimit(t *testing.T) {
 	useTestSessionSecret(t)
 	user := setupAuthSessionTestDB(t)
 	common.UserSessionActiveLimit = 50
 	common.UserSessionIssuanceLimit = 100
 	now := time.Now().Unix()
-	rows := make([]model.UserSession, 0, 49)
-	for i := 0; i < 49; i++ {
+	rows := make([]model.UserSession, 0, 50)
+	for i := 0; i < 50; i++ {
 		authVersion := user.AuthVersion
 		if i == 0 {
 			authVersion++
@@ -115,21 +115,27 @@ func TestCreateLoginSessionEnforcesActiveLimitAcrossAuthVersions(t *testing.T) {
 			Status:          model.UserSessionStatusActive,
 			RefreshHash:     fmt.Sprintf("hash-%02d", i),
 			LoginMethod:     "password",
-			CreatedAt:       now - int64(i),
-			LastActiveAt:    now - int64(i),
+			CreatedAt:       now - int64(i+1),
+			LastActiveAt:    now - int64(i+1),
 			ExpiresAt:       now + 3600,
 		})
 	}
 	require.NoError(t, model.DB.Create(&rows).Error)
 
 	_, err := CreateLoginSession(user.Id, "password", "127.0.0.1", "test-agent")
-	require.NoError(t, err, "49 active sessions must allow creation of the 50th")
+	require.NoError(t, err, "the 51st login must succeed by evicting the oldest session")
 
-	_, err = CreateLoginSession(user.Id, "password", "127.0.0.1", "test-agent")
-	assert.ErrorIs(t, err, model.ErrUserSessionLimit)
+	// The newest login stays active; the oldest pre-existing session was
+	// revoked to keep the active count at the limit.
 	var count int64
-	require.NoError(t, model.DB.Model(&model.UserSession{}).Count(&count).Error)
+	require.NoError(t, model.DB.Model(&model.UserSession{}).
+		Where("status = ?", model.UserSessionStatusActive).
+		Count(&count).Error)
 	assert.Equal(t, int64(50), count)
+
+	var oldest model.UserSession
+	require.NoError(t, model.DB.Where("sid = ?", "active-limit-49").First(&oldest).Error)
+	assert.Equal(t, model.UserSessionStatusRevoked, oldest.Status, "oldest session must be evicted")
 }
 
 func TestCreateLoginSessionEnforcesIssuanceLimitAcrossAllStatuses(t *testing.T) {

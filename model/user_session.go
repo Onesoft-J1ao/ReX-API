@@ -195,6 +195,41 @@ func CountUserSessionsCreatedSince(userID int, createdAfter int64) (int64, error
 	return count, err
 }
 
+// RevokeOldestActiveUserSessions revokes the oldest active sessions until the
+// active count is at or below `keep`, returning how many were revoked. The
+// session table filling up must never lock an account out of every device:
+// the newest login evicts the oldest session instead of the whole user being
+// hard-blocked until a session naturally expires.
+func RevokeOldestActiveUserSessions(userID int, keep int, now int64, reason string) (int64, error) {
+	if userID <= 0 || keep <= 0 {
+		return 0, ErrUserSessionInvalid
+	}
+	if now <= 0 {
+		now = time.Now().Unix()
+	}
+	var active []UserSession
+	if err := DB.Where("user_id = ? AND status = ? AND expires_at > ?", userID, UserSessionStatusActive, now).
+		Order("created_at ASC, sid ASC").
+		Find(&active).Error; err != nil {
+		return 0, err
+	}
+	if len(active) <= keep {
+		return 0, nil
+	}
+	excess := active[:len(active)-keep]
+	revoked := int64(0)
+	for _, session := range excess {
+		ok, err := RevokeUserSession(userID, session.SID, reason)
+		if err != nil {
+			return revoked, err
+		}
+		if ok {
+			revoked++
+		}
+	}
+	return revoked, nil
+}
+
 func GetUserSessionBySID(sid string) (*UserSession, error) {
 	if sid == "" {
 		return nil, ErrUserSessionInvalid

@@ -65,13 +65,10 @@ func createLoginSession(userID int, expectedAuthVersion int64, loginMethod, ip, 
 		return nil, ErrLoginSessionRevoked
 	}
 	now := time.Now().Unix()
-	activeCount, err := model.CountActiveUserSessions(userID, now)
-	if err != nil {
-		return nil, err
-	}
-	if activeCount >= int64(common.UserSessionActiveLimit) {
-		return nil, model.ErrUserSessionLimit
-	}
+	// The session table filling up must never lock the account out of every
+	// device: after creating the new session, evict the oldest active ones to
+	// get back under the limit. The 24h issuance window below still hard-bounds
+	// the creation rate.
 	issuanceCount, err := model.CountUserSessionsCreatedSince(userID, now-common.UserSessionIssuanceWindowSeconds)
 	if err != nil {
 		return nil, err
@@ -102,6 +99,16 @@ func createLoginSession(userID int, expectedAuthVersion int64, loginMethod, ip, 
 	}
 	if err := model.CreateUserSession(session); err != nil {
 		return nil, err
+	}
+	// Evict the oldest active sessions (including the one just created in the
+	// ordering) so the active count returns to the limit.
+	if _, err := model.RevokeOldestActiveUserSessions(
+		userID,
+		common.UserSessionActiveLimit,
+		now,
+		"session_limit_eviction",
+	); err != nil {
+		common.SysLog(fmt.Sprintf("failed to evict oldest sessions after login (userId=%d): %s", userID, err.Error()))
 	}
 	bundle, err := issueAuthBundle(session, session.SID+"."+refreshSecret, true)
 	if err != nil {
