@@ -5298,5 +5298,7 @@
     "probes ok": "probes ok",
     "Probes": "Probes",
     "Failing models": "Failing models"
-  }
+  },
+  "Time range": "Time range",
+  "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
 }

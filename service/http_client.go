@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -69,6 +70,10 @@ func ValidateSSRFProtectedFetchURL(urlStr string) error {
 	return validateURLWithCurrentFetchSetting(urlStr, true)
 }
 
+// maxTimeoutSeconds is the largest number of seconds that still converts to a
+// time.Duration without overflowing (~292 years).
+const maxTimeoutSeconds = int(math.MaxInt64 / int64(time.Second))
+
 func newRelayHTTPTransport() *http.Transport {
 	var transport *http.Transport
 	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok && defaultTransport != nil {
@@ -89,6 +94,21 @@ func newRelayHTTPTransport() *http.Transport {
 	transport.MaxIdleConns = common.RelayMaxIdleConns
 	transport.MaxIdleConnsPerHost = common.RelayMaxIdleConnsPerHost
 	transport.IdleConnTimeout = time.Duration(common.RelayIdleConnTimeout) * time.Second
+	// Bound the wait for upstream response headers. Without it, an upstream that
+	// accepts the connection but never responds (and never sends FIN/RST) parks the
+	// goroutine forever, and every buffer that request owns stays reachable.
+	// This only covers the wait for the headers; streaming after the headers arrive
+	// is not affected. Set RELAY_RESPONSE_HEADER_TIMEOUT=0 to restore the old
+	// unbounded behaviour.
+	if seconds := common.RelayResponseHeaderTimeout; seconds > 0 {
+		// Clamp before converting: seconds beyond maxTimeoutSeconds overflow
+		// time.Duration and can wrap into a tiny positive timeout, which would cut
+		// every relay request instead of only the stuck ones.
+		if seconds > maxTimeoutSeconds {
+			seconds = maxTimeoutSeconds
+		}
+		transport.ResponseHeaderTimeout = time.Duration(seconds) * time.Second
+	}
 	transport.ForceAttemptHTTP2 = true
 	if common.TLSInsecureSkipVerify {
 		transport.TLSClientConfig = common.InsecureTLSConfig

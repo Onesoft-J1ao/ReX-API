@@ -19,6 +19,7 @@ export default defineConfig({
     include: [
       'src/lib/__tests__/status-query.test.tsx',
       'src/features/users/components/dialogs/__tests__/user-binding-dialog.test.tsx',
+      'src/features/pricing/lib/__tests__/time-rule-expr.test.ts',
     ],
     coverage: {
       provider: 'v8',
