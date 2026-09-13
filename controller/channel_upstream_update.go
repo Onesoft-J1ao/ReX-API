@@ -23,6 +23,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -242,10 +243,19 @@ func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.Cha
 	if err != nil {
 		return nil, nil, err
 	}
+	// 全局忽略列表与渠道自身的忽略列表取并集：全局列表用于「有意剔除、永不加回」
+	// 的模型，这样自动新增不会把它们重新塞进渠道。
+	ignoredModels := settings.UpstreamModelUpdateIgnoredModels
+	if globalIgnored := operation_setting.GetMonitorSetting().GetUpstreamModelSyncIgnoredModels(); len(globalIgnored) > 0 {
+		merged := make([]string, 0, len(ignoredModels)+len(globalIgnored))
+		merged = append(merged, ignoredModels...)
+		merged = append(merged, globalIgnored...)
+		ignoredModels = normalizeModelNames(merged)
+	}
 	pendingAddModels, pendingRemoveModels = collectPendingUpstreamModelChangesFromModels(
 		channel.GetModels(),
 		upstreamModels,
-		settings.UpstreamModelUpdateIgnoredModels,
+		ignoredModels,
 		normalizeChannelModelMapping(channel),
 	)
 	return pendingAddModels, pendingRemoveModels, nil
@@ -495,7 +505,11 @@ func checkAndPersistChannelUpstreamModelUpdates(
 		return false, 0, fetchErr
 	}
 
-	if allowAutoApply && settings.UpstreamModelUpdateAutoSyncEnabled && len(pendingAddModels) > 0 {
+	// 全局流程只要「同步 + 自动新增」两个开关都开着就自动追加；否则回退到渠道自身的
+	// upstream_model_update_auto_sync_enabled。有意剔除的模型走忽略列表，不靠关开关。
+	monitorSetting := operation_setting.GetMonitorSetting()
+	globalAutoAdd := monitorSetting.UpstreamModelSyncEnabled && monitorSetting.UpstreamModelSyncAutoAdd
+	if allowAutoApply && (settings.UpstreamModelUpdateAutoSyncEnabled || globalAutoAdd) && len(pendingAddModels) > 0 {
 		originModels := normalizeModelNames(channel.GetModels())
 		mergedModels := mergeModelNames(originModels, pendingAddModels)
 		if len(mergedModels) > len(originModels) {
@@ -709,7 +723,10 @@ scanLoop:
 			}
 
 			settings := channel.GetOtherSettings()
-			if !settings.UpstreamModelUpdateCheckEnabled {
+			// 全局开关打开时覆盖所有启用中的渠道，省去逐个渠道配置
+			// upstream_model_update_check_enabled 的成本。
+			if !settings.UpstreamModelUpdateCheckEnabled &&
+				!operation_setting.GetMonitorSetting().UpstreamModelSyncEnabled {
 				continue
 			}
 
@@ -1008,7 +1025,10 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 			}
 
 			settings := channel.GetOtherSettings()
-			if !settings.UpstreamModelUpdateCheckEnabled {
+			// 全局开关打开时覆盖所有启用中的渠道，省去逐个渠道配置
+			// upstream_model_update_check_enabled 的成本。
+			if !settings.UpstreamModelUpdateCheckEnabled &&
+				!operation_setting.GetMonitorSetting().UpstreamModelSyncEnabled {
 				continue
 			}
 

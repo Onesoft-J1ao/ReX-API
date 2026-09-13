@@ -218,7 +218,7 @@ export function SidebarModulesCard() {
           </div>
         </div>
       </CardHeader>
-      <CardContent className='space-y-4 p-3 sm:space-y-5 sm:p-5'>
+      <CardContent className='space-y-4 p-3 sm:p-5'>
         {sectionDefs.map((section) => {
           const sectionEnabled = config[section.key]?.enabled !== false
           return (
@@ -242,7 +242,7 @@ export function SidebarModulesCard() {
                 {section.modules.map((mod) => (
                   <div
                     key={mod.key}
-                    className={`flex min-h-16 items-center justify-between rounded-lg border p-3 ${
+                    className={`flex min-h-16 items-center justify-between rounded-xl border p-3 ${
                       sectionEnabled ? '' : 'opacity-50'
                     }`}
                   >

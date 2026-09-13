@@ -115,7 +115,7 @@ function FilterChip(props: {
       {(props.option.suffix || props.option.count != null) && (
         <span
           className={cn(
-            'rounded-md px-1.5 py-0.5 text-[12px]',
+            'rounded-md px-1.5 py-0.5 text-xs',
             props.active
               ? 'bg-background text-foreground'
               : 'bg-muted text-muted-foreground'
@@ -134,7 +134,7 @@ function FilterSection(props: FilterSectionProps) {
       defaultOpen
       className='border-border/70 border-b pb-3 last:border-b-0'
     >
-      <CollapsibleTrigger className='group flex w-full items-center justify-between py-2.5 text-left'>
+      <CollapsibleTrigger className='group flex w-full items-center justify-between py-2 text-left'>
         <span className='text-foreground text-sm font-semibold'>
           {props.title}
         </span>

@@ -116,7 +116,7 @@ export function FlowNodeFilterControl(props: FlowNodeFilterControlProps) {
             <Filter data-icon='inline-start' aria-hidden='true' />
             {selectedCount > 0 ? t('Selected nodes') : t('All nodes')}
             {selectedCount > 0 && (
-              <Badge variant='secondary' className='rounded-sm px-1'>
+              <Badge variant='secondary' className='rounded-full px-1'>
                 {selectedCount}
               </Badge>
             )}
@@ -201,14 +201,14 @@ export function FlowNodeFilterControl(props: FlowNodeFilterControlProps) {
           <Badge
             key={flowNodeFilterKey(option)}
             variant='secondary'
-            className='max-w-[14rem] rounded-sm pr-1'
+            className='max-w-[14rem] rounded-md pr-1'
           >
             <span className='truncate'>
               {t(props.stageLabels[option.kind])}: {option.label}
             </span>
             <button
               type='button'
-              className='hover:bg-muted-foreground/15 flex size-4 shrink-0 items-center justify-center rounded-sm'
+              className='hover:bg-muted-foreground/15 flex size-4 shrink-0 items-center justify-center rounded-md'
               aria-label={t('Remove node filter')}
               onClick={() =>
                 props.onRemoveNode({ kind: option.kind, id: option.id })

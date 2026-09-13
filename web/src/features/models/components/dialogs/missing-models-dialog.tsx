@@ -169,7 +169,7 @@ export function MissingModelsDialog({
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className='flex-shrink-0 rounded-lg border'>
+            <div className='flex-shrink-0 rounded-xl border'>
               <div className='divide-y'>
                 {paginatedModels.map((modelName) => (
                   <div

@@ -129,13 +129,13 @@ export function usePricingColumns(
           if (dynamicSummary.isSpecialExpression) {
             return (
               <div className='max-w-full min-w-0'>
-                <div className='text-xs font-medium text-amber-700 dark:text-amber-300'>
+                <div className='text-xs font-medium text-warning'>
                   {t('Special billing expression')}
                 </div>
-                <div className='text-muted-foreground text-[11px]'>
+                <div className='text-muted-foreground text-xs'>
                   {t('Unable to parse structured pricing')}
                 </div>
-                <code className='text-muted-foreground/70 mt-1 line-clamp-2 block font-mono text-[10px] leading-relaxed break-all'>
+                <code className='text-muted-foreground mt-1 line-clamp-2 block font-mono text-xs leading-relaxed break-all'>
                   {dynamicSummary.rawExpression}
                 </code>
               </div>
@@ -157,13 +157,13 @@ export function usePricingColumns(
                 {primaryEntries.map((entry, index) => (
                   <span key={entry.key}>
                     {index > 0 && (
-                      <span className='text-muted-foreground/40 mx-1'>/</span>
+                      <span className='text-muted-foreground mx-1'>/</span>
                     )}
                     {stripTrailingZeros(entry.formatted)}
                   </span>
                 ))}
               </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
+              <div className='text-muted-foreground text-xs'>
                 / {tokenUnitLabel} tokens
                 {dynamicSummary.tierCount > 1 &&
                   ` · ${t('{{count}} tiers', {
@@ -204,10 +204,10 @@ export function usePricingColumns(
             <div className='max-w-full min-w-0'>
               <span className='font-mono text-sm tabular-nums'>
                 {inputPrice}
-                <span className='text-muted-foreground/40 mx-1'>/</span>
+                <span className='text-muted-foreground mx-1'>/</span>
                 {outputPrice}
               </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
+              <div className='text-muted-foreground text-xs'>
                 / {tokenUnitLabel} tokens
               </div>
             </div>
@@ -227,7 +227,7 @@ export function usePricingColumns(
         return (
           <div className='max-w-full min-w-0'>
             <span className='font-mono text-sm tabular-nums'>{price}</span>
-            <div className='text-muted-foreground/50 text-[10px]'>
+            <div className='text-muted-foreground text-xs'>
               / {t('request')}
             </div>
           </div>
@@ -257,7 +257,7 @@ export function usePricingColumns(
         if (dynamicSummary) {
           if (dynamicSummary.isSpecialExpression) {
             return (
-              <span className='text-muted-foreground/50 text-xs'>
+              <span className='text-muted-foreground text-xs'>
                 {t('Special billing expression')}
               </span>
             )
@@ -267,7 +267,7 @@ export function usePricingColumns(
             (entry) => entry.field === 'cacheReadPrice'
           )
           if (!cacheEntry) {
-            return <span className='text-muted-foreground/30 text-xs'>—</span>
+            return <span className='text-muted-foreground text-xs'>—</span>
           }
 
           return (
@@ -275,7 +275,7 @@ export function usePricingColumns(
               <span className='font-mono text-sm tabular-nums'>
                 {stripTrailingZeros(cacheEntry.formatted)}
               </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
+              <div className='text-muted-foreground text-xs'>
                 / {tokenUnitLabel}
               </div>
             </div>
@@ -285,7 +285,7 @@ export function usePricingColumns(
         const isTokenBased = isTokenBasedModel(model)
 
         if (!isTokenBased || model.cache_ratio == null) {
-          return <span className='text-muted-foreground/30 text-xs'>—</span>
+          return <span className='text-muted-foreground text-xs'>—</span>
         }
 
         const cachedPrice = stripTrailingZeros(
@@ -305,7 +305,7 @@ export function usePricingColumns(
             <span className='font-mono text-sm tabular-nums'>
               {cachedPrice}
             </span>
-            <div className='text-muted-foreground/50 text-[10px]'>
+            <div className='text-muted-foreground text-xs'>
               / {tokenUnitLabel}
             </div>
           </div>
@@ -322,7 +322,7 @@ export function usePricingColumns(
       cell: ({ row }) => {
         const model = row.original
         if (!model.vendor_name) {
-          return <span className='text-muted-foreground/50 text-xs'>—</span>
+          return <span className='text-muted-foreground text-xs'>—</span>
         }
         const vendorIcon = model.vendor_icon
           ? getLobeIcon(model.vendor_icon, 12)

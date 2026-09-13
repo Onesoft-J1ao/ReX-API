@@ -177,7 +177,7 @@ export function BalanceQueryDialog({
     >
       <div className='space-y-4 py-4'>
         {/* Current Balance Display */}
-        <div className='bg-muted/50 rounded-lg border p-4'>
+        <div className='bg-muted/50 rounded-xl border p-4'>
           <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
             <IconBadge tone='success' size='xs'>
               <DollarSign />

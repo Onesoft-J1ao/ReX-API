@@ -109,7 +109,7 @@ export function WeChatBindDialog(props: WeChatBindDialogProps) {
               <img
                 src={props.qrCodeUrl}
                 alt={t('WeChat login QR code')}
-                className='size-48 rounded-lg border object-contain'
+                className='size-48 rounded-xl border object-contain'
               />
             </div>
           ) : (

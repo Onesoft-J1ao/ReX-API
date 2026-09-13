@@ -479,7 +479,7 @@ export function UpstreamConflictDialog({
     >
       <div className='flex min-h-0 flex-1 flex-col gap-4'>
         {!hasConflicts ? (
-          <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
+          <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed px-4 py-10 text-center text-sm'>
             {t('No conflict entries available.')}
           </div>
         ) : (
@@ -522,7 +522,7 @@ export function UpstreamConflictDialog({
             </div>
 
             {showSearchEmptyState ? (
-              <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
+              <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed px-4 py-10 text-center text-sm'>
                 {t('No conflicts match your search.')}
               </div>
             ) : (

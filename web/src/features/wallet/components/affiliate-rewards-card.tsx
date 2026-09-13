@@ -53,8 +53,8 @@ export function AffiliateRewardsCard({
             <Skeleton className='h-5 w-32' />
             <Skeleton className='mt-2 h-4 w-48' />
           </div>
-          <Skeleton className='h-14 rounded-lg' />
-          <Skeleton className='h-10 rounded-lg' />
+          <Skeleton className='h-14 rounded-xl' />
+          <Skeleton className='h-10 rounded-md' />
         </CardContent>
       </Card>
     )
@@ -88,7 +88,7 @@ export function AffiliateRewardsCard({
             [t('Invites'), String(user?.aff_count ?? 0)],
           ].map(([label, value]) => (
             <div key={label}>
-              <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
+              <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
                 {label}
               </div>
               <div className='mt-0.5 truncate text-sm font-semibold tabular-nums'>

@@ -386,6 +386,7 @@ export function RuleEditorDialog(props: Props) {
                   onClick={() =>
                     setKeySources((prev) => prev.filter((_, i) => i !== idx))
                   }
+                  aria-label={t('Delete')}
                 >
                   <Trash2 className='h-4 w-4' />
                 </Button>

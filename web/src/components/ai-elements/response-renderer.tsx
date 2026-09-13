@@ -93,7 +93,7 @@ function renderNode(node: ParsedNode, key: string): ReactNode {
   if (node.type === 'inline_code' && 'code' in node) {
     return (
       <code
-        className='bg-muted/70 text-foreground rounded px-1 py-0.5 font-mono text-[0.9em]'
+        className='bg-muted/70 text-foreground rounded-md px-1 py-0.5 font-mono text-[0.9em]'
         key={key}
       >
         {String(node.code)}

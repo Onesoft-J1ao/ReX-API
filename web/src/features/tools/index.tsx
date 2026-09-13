@@ -99,7 +99,7 @@ export function ToolsPage() {
       {/* Header */}
       <div className='flex items-center justify-between border-b px-4 py-3 sm:px-6'>
         <div>
-          <h1 className='text-base font-semibold'>{current.name}</h1>
+          <h1 className='text-lg font-semibold'>{current.name}</h1>
           <p className='text-muted-foreground text-xs'>{current.description}</p>
         </div>
         <Button

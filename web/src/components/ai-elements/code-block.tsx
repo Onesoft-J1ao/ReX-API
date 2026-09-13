@@ -405,7 +405,7 @@ export const CodeBlockFrame = ({
 }: CodeBlockFrameProps) => (
   <div
     className={cn(
-      'group/code-block bg-muted/20 text-foreground my-3 w-full max-w-full overflow-hidden rounded-lg border shadow-xs',
+      'group/code-block bg-muted/20 text-foreground my-3 w-full max-w-full overflow-hidden rounded-xl border shadow-xs',
       className
     )}
     {...props}
@@ -413,7 +413,7 @@ export const CodeBlockFrame = ({
     {showToolbar && (
       <div className='bg-muted/35 border-border/70 flex min-h-10 items-center gap-2 border-b px-2 py-1.5'>
         <div className='min-w-0 flex-1'>
-          <div className='text-muted-foreground truncate font-mono text-[11px] font-medium tracking-wide uppercase'>
+          <div className='text-muted-foreground truncate font-mono text-xs font-medium tracking-wide uppercase'>
             {title}
           </div>
         </div>

@@ -191,12 +191,17 @@ function GroupSection(props: GroupSectionProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className='rounded-lg border'>
+      <div className='rounded-xl border'>
         <div className='flex items-center justify-between p-3'>
           <div className='flex items-center gap-2'>
             <CollapsibleTrigger
               render={
-                <Button variant='ghost' size='sm' className='h-6 w-6 p-0' />
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-7 w-7 p-0'
+                  aria-label={t('Details')}
+                />
               }
             >
               {open ? (
@@ -222,6 +227,7 @@ function GroupSection(props: GroupSectionProps) {
               size='sm'
               className='h-7 w-7 p-0'
               onClick={() => props.onAdd(props.groupName)}
+              aria-label={t('Add')}
             >
               <Plus className='h-4 w-4' />
             </Button>
@@ -230,6 +236,7 @@ function GroupSection(props: GroupSectionProps) {
               size='sm'
               className='text-destructive h-7 w-7 p-0'
               onClick={() => props.onRemoveGroup(props.groupName)}
+              aria-label={t('Delete')}
             >
               <Trash2 className='h-4 w-4' />
             </Button>
@@ -311,6 +318,7 @@ function GroupSection(props: GroupSectionProps) {
                   size='sm'
                   className='text-destructive h-8 w-8 p-0'
                   onClick={() => props.onRemove(rule._id)}
+                  aria-label={t('Delete')}
                 >
                   <Trash2 className='h-4 w-4' />
                 </Button>

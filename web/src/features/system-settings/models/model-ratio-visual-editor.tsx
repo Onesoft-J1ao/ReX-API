@@ -716,7 +716,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
           />
 
           {!hasRows ? (
-            <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
+            <div className='text-muted-foreground rounded-xl border border-dashed px-4 py-10 text-center'>
               {emptyStateText}
             </div>
           ) : (

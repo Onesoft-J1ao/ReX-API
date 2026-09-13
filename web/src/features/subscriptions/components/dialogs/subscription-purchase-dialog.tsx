@@ -271,7 +271,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
       bodyClassName='space-y-4'
     >
       <div className='space-y-3 sm:space-y-4'>
-        <div className='bg-muted/50 space-y-2.5 rounded-lg border p-3 sm:space-y-3 sm:p-4'>
+        <div className='bg-muted/50 space-y-2 rounded-xl border p-3 sm:space-y-3 sm:p-4'>
           <div className='flex justify-between'>
             <span className='text-muted-foreground text-sm'>
               {t('Plan Name')}

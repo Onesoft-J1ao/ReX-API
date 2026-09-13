@@ -409,7 +409,7 @@ function configuredAdvancedSectionClassName(
 ) {
   return cn(
     className,
-    'border-border/60 rounded-lg border p-3 transition-colors',
+    'border-border/60 rounded-xl border p-3 transition-colors',
     configured && 'border-primary/35 ring-primary/20 ring-1'
   )
 }
@@ -485,7 +485,7 @@ function ChannelEditorNav(props: {
   return (
     <aside className='hidden self-start lg:sticky lg:top-4 lg:z-20 lg:block'>
       <div className='flex max-h-[calc(100dvh-12rem)] flex-col gap-3 overflow-y-auto overscroll-contain pr-1'>
-        <div className='border-border/60 bg-muted/20 rounded-lg border p-3'>
+        <div className='border-border/60 bg-muted/20 rounded-xl border p-3'>
           <div className='flex min-w-0 items-center gap-2'>
             <span className='bg-background flex size-8 shrink-0 items-center justify-center rounded-md border'>
               {props.providerLogo}
@@ -502,7 +502,7 @@ function ChannelEditorNav(props: {
         </div>
 
         <nav
-          className='border-border/60 bg-background rounded-lg border p-1'
+          className='border-border/60 bg-background rounded-xl border p-1'
           aria-label={props.navigationLabel}
         >
           {props.items.map((item) => {
@@ -1891,7 +1891,7 @@ export function ChannelMutateDrawer({
           </SheetHeader>
 
           {sensitiveLocked && (
-            <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+            <Alert className='border-warning/40 bg-warning/10 text-warning'>
               <AlertDescription>
                 {t(
                   'Sensitive channel settings are read-only for your account.'
@@ -2109,14 +2109,14 @@ export function ChannelMutateDrawer({
                         )}
 
                         {sensitiveLocked && (
-                          <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                          <Alert className='border-warning/40 bg-warning/10 text-warning'>
                             <AlertDescription>
                               {t('No permission to perform this action')}
                             </AlertDescription>
                           </Alert>
                         )}
 
-                        <div className='border-border/60 bg-muted/10 rounded-lg border p-4'>
+                        <div className='border-border/60 bg-muted/10 rounded-xl border p-4'>
                           <fieldset
                             disabled={sensitiveLocked}
                             className='space-y-4 disabled:opacity-60'
@@ -3100,7 +3100,7 @@ export function ChannelMutateDrawer({
                                       )}
                                     </div>
                                   </div>
-                                  <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                                  <Alert className='border-warning/40 bg-warning/10 text-warning'>
                                     <AlertDescription>
                                       {t(
                                         "Disclaimer: Personal use only. Do not distribute or share any credentials. This channel has prerequisites and requires prior setup; use it only if you understand the flow and risks, and comply with OpenAI's terms and policies. Credentials and configuration are for Codex CLI integration only, and are not intended for any other client, platform, or channel."
@@ -3240,8 +3240,8 @@ export function ChannelMutateDrawer({
                       className='scroll-mt-4'
                     >
                       <ChannelModelsSection>
-                        <div className='space-y-5'>
-                          <div className='border-border/60 bg-muted/10 rounded-lg border p-4'>
+                        <div className='space-y-4'>
+                          <div className='border-border/60 bg-muted/10 rounded-xl border p-4'>
                             <FormField
                               control={form.control}
                               name='models'
@@ -3276,7 +3276,7 @@ export function ChannelMutateDrawer({
                                   </FormControl>
                                   {modelMappingGuardrail.exposedTargetModels
                                     .length > 0 && (
-                                    <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                                    <Alert className='border-warning/40 bg-warning/10 text-warning'>
                                       <AlertDescription className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                                         <span>
                                           {t('The mapped upstream model(s)')}{' '}
@@ -3427,7 +3427,7 @@ export function ChannelMutateDrawer({
                             </div>
                           </div>
 
-                          <div className='border-border/60 rounded-lg border p-4'>
+                          <div className='border-border/60 rounded-xl border p-4'>
                             <FormField
                               control={form.control}
                               name='model_mapping'
@@ -3483,7 +3483,7 @@ export function ChannelMutateDrawer({
                                                 )
                                               )}
                                               {remainingMappingCount > 0 && (
-                                                <div className='text-[11px] opacity-70'>
+                                                <div className='text-xs opacity-70'>
                                                   +{remainingMappingCount}{' '}
                                                   {t('more mapping')}
                                                   {remainingMappingCount > 1
@@ -3492,7 +3492,7 @@ export function ChannelMutateDrawer({
                                                 </div>
                                               )}
                                             </div>
-                                            <p className='text-[11px] leading-relaxed opacity-80'>
+                                            <p className='text-xs leading-relaxed opacity-80'>
                                               {t(
                                                 'Users call the model on the left. The platform forwards the request to the upstream model on the right.'
                                               )}
@@ -3533,7 +3533,7 @@ export function ChannelMutateDrawer({
                                   )}
                                   {modelMappingGuardrail.missingSourceModels
                                     .length > 0 && (
-                                    <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                                    <Alert className='border-warning/40 bg-warning/10 text-warning'>
                                       <AlertDescription className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                                         <span>
                                           {t('Add')}{' '}
@@ -3566,7 +3566,7 @@ export function ChannelMutateDrawer({
                             />
                           </div>
 
-                          <div className='border-border/60 rounded-lg border p-4'>
+                          <div className='border-border/60 rounded-xl border p-4'>
                             <FormField
                               control={form.control}
                               name='group'
@@ -4014,11 +4014,11 @@ export function ChannelMutateDrawer({
                                     </FormControl>
                                     <FormDescription className='text-xs'>
                                       {t('Supported variables')}:{' '}
-                                      <code className='bg-muted rounded px-1 py-0.5'>
+                                      <code className='bg-muted rounded-md px-1 py-0.5'>
                                         {'{api_key}'}
                                       </code>{' '}
                                       — {t('Channel key')},{' '}
-                                      <code className='bg-muted rounded px-1 py-0.5'>
+                                      <code className='bg-muted rounded-md px-1 py-0.5'>
                                         {'{client_header:NAME}'}
                                       </code>{' '}
                                       — {t('Client header value')}
@@ -4047,7 +4047,7 @@ export function ChannelMutateDrawer({
                             iconTone='chart-3'
                           />
                           {sensitiveLocked && (
-                            <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                            <Alert className='border-warning/40 bg-warning/10 text-warning'>
                               <AlertDescription>
                                 {t('No permission to perform this action')}
                               </AlertDescription>

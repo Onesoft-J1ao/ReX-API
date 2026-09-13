@@ -394,7 +394,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                           }
                         >
                           <GitBranch
-                            className='size-3.5 text-amber-500'
+                            className='size-3.5 text-warning'
                             aria-hidden='true'
                           />
                         </PopoverTrigger>
@@ -415,7 +415,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     {affinity && (
                       <button
                         type='button'
-                        className='absolute -top-1 -right-1 leading-none text-amber-500'
+                        className='absolute -top-1 -right-1 leading-none text-warning'
                         onClick={(e) => {
                           e.stopPropagation()
                           setAffinityTarget({
@@ -435,7 +435,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     )}
                   </div>
                   {log.channel_name && (
-                    <span className='text-muted-foreground/70 truncate [font-family:var(--font-body)] !text-xs'>
+                    <span className='text-muted-foreground truncate [font-family:var(--font-body)] !text-xs'>
                       {channelName}
                     </span>
                   )}
@@ -502,7 +502,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               <Avatar className='ring-border/60 size-6 ring-1 max-sm:hidden'>
                 <AvatarFallback
                   className={cn(
-                    'text-[11px] font-semibold',
+                    'text-xs font-semibold',
                     !sensitiveVisible && 'bg-muted text-muted-foreground'
                   )}
                   style={
@@ -586,7 +586,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               ) : null}
               {group && groupRatio != null ? ' ' : null}
               {groupRatio != null ? (
-                <span className='text-muted-foreground/60 relative top-px align-baseline tabular-nums'>
+                <span className='text-muted-foreground relative top-px align-baseline tabular-nums'>
                   {formatRatioCompact(groupRatio)}x
                 </span>
               ) : null}
@@ -672,14 +672,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               {completionTokens.toLocaleString()}
             </span>
             {(cacheReadTokens > 0 || cacheWriteTokens > 0) && (
-              <div className='flex items-center gap-1 text-[11px]'>
+              <div className='flex items-center gap-1 text-xs'>
                 {cacheReadTokens > 0 && (
-                  <span className='text-muted-foreground/60'>
+                  <span className='text-muted-foreground'>
                     {t('Cache')}↓ {cacheReadTokens.toLocaleString()}
                   </span>
                 )}
                 {cacheWriteTokens > 0 && (
-                  <span className='text-muted-foreground/60'>
+                  <span className='text-muted-foreground'>
                     ↑ {cacheWriteTokens.toLocaleString()}
                   </span>
                 )}
@@ -736,11 +736,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const hasMore = segments.length > 1
         let primaryTextClass = 'text-foreground'
         if (primary?.muted) {
-          primaryTextClass = 'text-muted-foreground/60'
+          primaryTextClass = 'text-muted-foreground'
         } else if (primary?.danger) {
-          primaryTextClass = 'text-red-600 dark:text-red-400'
+          primaryTextClass = 'text-destructive'
         }
-        let detailPreview = <span className='text-muted-foreground/40'>—</span>
+        let detailPreview = <span className='text-muted-foreground'>—</span>
         if (primary) {
           detailPreview = (
             <span
@@ -751,7 +751,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             >
               {primary.text}
               {hasMore && (
-                <span className='text-muted-foreground/40 ml-0.5'>
+                <span className='text-muted-foreground ml-0.5'>
                   +{segments.length - 1}
                 </span>
               )}

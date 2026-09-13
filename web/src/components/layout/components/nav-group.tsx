@@ -66,7 +66,7 @@ export function NavGroup({ title, items }: NavGroupProps) {
 
   return (
     <SidebarGroup className='px-2 py-1'>
-      <SidebarGroupLabel className='text-muted-foreground/70 px-2 text-[11px] font-medium tracking-wider uppercase'>
+      <SidebarGroupLabel className='text-muted-foreground px-2 text-xs font-medium tracking-wider uppercase'>
         {title}
       </SidebarGroupLabel>
       <SidebarMenu>
@@ -145,7 +145,7 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
         {item.icon && <item.icon className='shrink-0' />}
         <span className='min-w-0 flex-1 truncate'>{item.title}</span>
         {isExternal && (
-          <span className='text-muted-foreground/50 ms-1 text-xs'>↗</span>
+          <span className='text-muted-foreground ms-1 text-xs'>↗</span>
         )}
         {item.badge && <NavBadge>{item.badge}</NavBadge>}
       </SidebarMenuButton>

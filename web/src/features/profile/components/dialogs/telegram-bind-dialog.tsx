@@ -158,9 +158,9 @@ export function TelegramBindDialog({
           </AlertDescription>
         </Alert>
 
-        <div className='flex flex-col items-center justify-center gap-4 rounded-lg border p-6'>
-          <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900'>
-            <Send className='h-6 w-6 text-blue-600 dark:text-blue-400' />
+        <div className='flex flex-col items-center justify-center gap-4 rounded-xl border p-5'>
+          <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-info/10'>
+            <Send className='h-6 w-6 text-info' />
           </div>
 
           <div className='text-center'>
@@ -178,7 +178,7 @@ export function TelegramBindDialog({
           {loading && <Skeleton className='h-10 w-52' />}
           {error && (
             <div className='flex flex-col items-center gap-3 text-center'>
-              <p className='text-destructive text-sm'>{error}</p>
+              <p className='text-destructive text-xs'>{error}</p>
               <Button type='button' variant='outline' onClick={createBindFlow}>
                 {t('Retry')}
               </Button>

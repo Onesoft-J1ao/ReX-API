@@ -107,7 +107,7 @@ export function ResetPasswordConfirm({
 
   return (
     <AuthLayout>
-      <div className='w-full space-y-8'>
+      <div className='w-full space-y-6'>
         <div className='space-y-2'>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
             {t('Reset password')}
@@ -154,6 +154,7 @@ export function ResetPasswordConfirm({
                   size='icon'
                   variant='outline'
                   onClick={handleCopy}
+                  aria-label={t('Copy')}
                 >
                   {copied ? (
                     <CheckIcon className='h-4 w-4' />

@@ -200,10 +200,10 @@ export function TwoFASetupDialog({
                     'Scan this QR code with your authenticator app (Google Authenticator, Microsoft Authenticator, etc.)'
                   )}
                 </p>
-                <div className='flex justify-center rounded-lg bg-white p-4'>
+                <div className='flex justify-center rounded-xl bg-white p-4'>
                   <QRCodeSVG value={setupData.qr_code_data} size={200} />
                 </div>
-                <div className='bg-muted rounded-lg p-3'>
+                <div className='bg-muted rounded-xl p-3'>
                   <div className='flex items-center justify-between'>
                     <div>
                       <p className='text-muted-foreground text-xs'>
@@ -234,7 +234,7 @@ export function TwoFASetupDialog({
                     )}
                   </AlertDescription>
                 </Alert>
-                <div className='rounded-lg border p-4'>
+                <div className='rounded-xl border p-4'>
                   <div className='grid grid-cols-2 gap-2'>
                     {setupData.backup_codes.map((code, index) => (
                       <div

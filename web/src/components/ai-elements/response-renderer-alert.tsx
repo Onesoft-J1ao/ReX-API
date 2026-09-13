@@ -138,7 +138,7 @@ export function renderBlockquote(
     return (
       <aside
         className={cn(
-          'my-4 rounded-lg border px-4 py-3 text-sm',
+          'my-4 rounded-xl border px-4 py-3 text-sm',
           '[&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
           config.className
         )}

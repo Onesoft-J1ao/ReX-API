@@ -72,11 +72,11 @@ function isDisabledApiKeyRow(apiKey: ApiKey) {
 
 function ApiKeysMobileSkeleton() {
   return (
-    <div className='divide-border overflow-hidden rounded-lg border'>
+    <div className='divide-border overflow-hidden rounded-xl border'>
       {API_KEYS_MOBILE_SKELETON_IDS.map((id) => (
         <div
           key={id}
-          className='space-y-2 border-b px-3 py-2.5 last:border-b-0'
+          className='space-y-2 border-b px-3 py-2 last:border-b-0'
         >
           <div className='flex items-center justify-between'>
             <Skeleton className='h-4 w-32' />
@@ -107,7 +107,7 @@ function ApiKeysMobileList({
 
   if (!rows.length) {
     return (
-      <div className='rounded-lg border p-8'>
+      <div className='rounded-xl border px-4 py-10'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
@@ -126,7 +126,7 @@ function ApiKeysMobileList({
   }
 
   return (
-    <div className='divide-border overflow-hidden rounded-lg border'>
+    <div className='divide-border overflow-hidden rounded-xl border'>
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
@@ -136,7 +136,7 @@ function ApiKeysMobileList({
           <div
             key={row.id}
             className={cn(
-              'bg-card space-y-2.5 border-b px-3 py-2.5 last:border-b-0',
+              'bg-card space-y-2.5 border-b px-3 py-2 last:border-b-0',
               isDisabledApiKeyRow(apiKey) && DISABLED_ROW_MOBILE
             )}
           >
@@ -145,7 +145,7 @@ function ApiKeysMobileList({
                 <div className='truncate text-sm font-semibold'>
                   {apiKey.name}
                 </div>
-                <div className='text-muted-foreground text-[11px]'>
+                <div className='text-muted-foreground text-xs'>
                   {t('API Key')}
                 </div>
               </div>

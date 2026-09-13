@@ -106,11 +106,11 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               {formatTimestampToDate(submitTime, 'seconds')}
             </span>
             {log.finish_time ? (
-              <span className='text-muted-foreground/60 truncate font-mono text-[11px] tabular-nums'>
+              <span className='text-muted-foreground truncate font-mono text-xs tabular-nums'>
                 {formatTimestampToDate(log.finish_time, 'seconds')}
               </span>
             ) : (
-              <span className='text-muted-foreground/50 text-[11px]'>-</span>
+              <span className='text-muted-foreground text-xs'>-</span>
             )}
           </div>
         )
@@ -143,7 +143,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             <Avatar className='ring-border/60 size-6 ring-1 max-sm:hidden'>
               <AvatarFallback
                 className={cn(
-                  'text-[11px] font-semibold',
+                  'text-xs font-semibold',
                   !sensitiveVisible && 'bg-muted text-muted-foreground'
                 )}
                 style={
@@ -170,7 +170,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const log = row.original
         const taskId = row.getValue('task_id') as string
         if (!taskId) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return <span className='text-muted-foreground text-xs'>-</span>
         }
         return (
           <div className='flex max-w-[170px] flex-col gap-0.5'>
@@ -181,7 +181,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               size='sm'
               className='border-border/60 bg-muted/30 !text-foreground max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
             />
-            <span className='text-muted-foreground/60 truncate text-[11px]'>
+            <span className='text-muted-foreground truncate text-xs'>
               {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
             </span>
           </div>
@@ -262,7 +262,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         }
 
         if (!failReason) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return <span className='text-muted-foreground text-xs'>-</span>
         }
 
         return (
@@ -273,7 +273,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               onClick={() => setDialogOpen(true)}
               title={t('Click to view full error message')}
             >
-              <span className='truncate leading-snug text-red-600 group-hover:underline dark:text-red-400'>
+              <span className='truncate leading-snug text-destructive group-hover:underline'>
                 {failReason}
               </span>
             </button>

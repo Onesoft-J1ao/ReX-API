@@ -215,7 +215,7 @@ export function DataTableBulkActions<TData>({
           >
             <Badge
               variant='default'
-              className='min-w-8 rounded-lg'
+              className='min-w-8 rounded-full'
               aria-label={`${selectedCount} selected`}
             >
               {selectedCount}

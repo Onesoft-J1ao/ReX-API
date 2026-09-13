@@ -187,7 +187,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			AvgLatencyMs:       avgLatency,
 			SuccessRate:        math.Round(successRate*100) / 100,
 			AvgTps:             math.Round(avgTps*100) / 100,
-			RecentSuccessRates: recentSuccessRates(modelBuckets[name], 3),
+			RecentSuccessRates: recentSuccessRates(modelBuckets[name], recentSuccessRateSlots),
 			RequestCount:       total.requestCount,
 		})
 	}
@@ -230,6 +230,11 @@ func mergeModelBucket(modelBuckets map[string]map[int64]counters, modelName stri
 	current.generationMs += value.generationMs
 	modelBuckets[modelName][bucketTs] = current
 }
+
+// recentSuccessRateSlots is how many of the most recent buckets the model
+// card's status strip renders. Keep in sync with STATUS_SLOT_COUNT in
+// web/src/features/pricing/components/model-perf-badge.tsx.
+const recentSuccessRateSlots = 6
 
 func recentSuccessRates(buckets map[int64]counters, limit int) []float64 {
 	if len(buckets) == 0 || limit <= 0 {

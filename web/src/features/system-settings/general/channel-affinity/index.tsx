@@ -549,7 +549,7 @@ export function ChannelAffinitySection(props: Props) {
           <StaticDataTable
             tableClassName='min-w-max'
             data={rules}
-            emptyClassName='text-muted-foreground py-8'
+            emptyClassName='text-muted-foreground py-10'
             emptyContent={t('No rules yet')}
             columns={[
               {
@@ -630,6 +630,7 @@ export function ChannelAffinitySection(props: Props) {
                         className='h-7 w-7'
                         onClick={() => setClearRuleName(rule.name)}
                         title={t('Clear cache for this rule')}
+                        aria-label={t('Clear cache for this rule')}
                       >
                         <X className='h-3 w-3' />
                       </Button>
@@ -643,6 +644,7 @@ export function ChannelAffinitySection(props: Props) {
                         setRuleTemplateKey(null)
                         setRuleEditorOpen(true)
                       }}
+                      aria-label={t('Edit')}
                     >
                       <Edit className='h-3 w-3' />
                     </Button>
@@ -651,6 +653,7 @@ export function ChannelAffinitySection(props: Props) {
                       size='icon'
                       className='h-7 w-7'
                       onClick={() => handleDeleteRule(idx)}
+                      aria-label={t('Delete')}
                     >
                       <Trash2 className='h-3 w-3' />
                     </Button>

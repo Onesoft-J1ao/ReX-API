@@ -33,7 +33,7 @@ export function LoadingSkeleton(props: LoadingSkeletonProps) {
         <Skeleton className='h-8 w-40' />
         <Skeleton className='h-4 w-52' />
       </div>
-      <Skeleton className='h-10 w-full rounded-lg' />
+      <Skeleton className='h-10 w-full rounded-md' />
       <FilterBarSkeleton />
       {viewMode === VIEW_MODES.TABLE ? (
         <TableContentSkeleton />
@@ -86,16 +86,16 @@ function FilterBarSkeleton() {
           {[80, 90, 75, 85, 70].map((width, i) => (
             <Skeleton
               key={i}
-              className='h-8 rounded-lg'
+              className='h-8 rounded-md'
               style={{ width: `${width}px` }}
             />
           ))}
         </div>
         <div className='flex items-center gap-2'>
-          <Skeleton className='h-8 w-24 rounded-lg' />
-          <Skeleton className='h-8 w-20 rounded-lg' />
+          <Skeleton className='h-8 w-24 rounded-md' />
+          <Skeleton className='h-8 w-20 rounded-md' />
           <Skeleton className='h-8 w-24' />
-          <Skeleton className='h-8 w-20 rounded-lg' />
+          <Skeleton className='h-8 w-20 rounded-md' />
         </div>
       </div>
       <Skeleton className='h-5 w-24' />
@@ -115,7 +115,7 @@ function TableContentSkeleton() {
 
   return (
     <div className='space-y-4'>
-      <div className='overflow-hidden rounded-lg border'>
+      <div className='overflow-hidden rounded-xl border'>
         <div className='bg-muted/30 border-b px-4 py-3'>
           <div className='flex items-center gap-4'>
             {columns.map((col, i) => (

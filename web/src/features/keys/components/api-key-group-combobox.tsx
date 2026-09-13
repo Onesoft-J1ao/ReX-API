@@ -62,19 +62,19 @@ function formatGroupRatio(
 
 function getRatioBadgeClassName(ratio: ApiKeyGroupOption['ratio']) {
   if (typeof ratio !== 'number') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+    return 'border-success/30 bg-success/10 text-success'
   }
 
   if (ratio > 5) {
-    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300'
+    return 'border-destructive/30 bg-destructive/10 text-destructive'
   }
   if (ratio > 3) {
-    return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/40 dark:text-orange-300'
+    return 'border-warning/30 bg-warning/10 text-warning'
   }
   if (ratio > 1) {
-    return 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300'
+    return 'border-info/30 bg-info/10 text-info'
   }
-  return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+  return 'border-success/30 bg-success/10 text-success'
 }
 
 function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
@@ -87,7 +87,7 @@ function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
     <Badge
       variant='outline'
       className={cn(
-        'max-w-24 shrink-0 truncate text-[10px] sm:max-w-none sm:text-xs',
+        'max-w-24 shrink-0 truncate text-xs sm:max-w-none',
         getRatioBadgeClassName(ratio)
       )}
     >
@@ -139,7 +139,7 @@ export function ApiKeyGroupCombobox({
             role='combobox'
             aria-expanded={open}
             disabled={disabled}
-            className='border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 h-auto min-h-14 w-full justify-between gap-2 rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3'
+            className='border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 h-auto min-h-14 w-full justify-between gap-2 rounded-md px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3'
           />
         }
       >
@@ -149,7 +149,7 @@ export function ApiKeyGroupCombobox({
               {selectedOption?.label || placeholder || t('Select a group')}
             </span>
             {selectedOption?.desc && (
-              <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>
+              <span className='text-muted-foreground block truncate text-xs'>
                 {selectedOption.desc}
               </span>
             )}
@@ -180,7 +180,7 @@ export function ApiKeyGroupCombobox({
                   key={option.value}
                   value={option.value}
                   onSelect={() => handleSelect(option.value)}
-                  className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
+                  className='data-[selected=true]:bg-muted items-start gap-3 rounded-md px-3 py-3 transition-colors'
                 >
                   <Check
                     className={cn(

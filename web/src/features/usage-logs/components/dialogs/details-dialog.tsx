@@ -97,9 +97,9 @@ const CHANNEL_FIELD_LABELS: Record<string, string> = {
 function timingTextColorClass(
   variant: 'success' | 'warning' | 'danger'
 ): string {
-  if (variant === 'success') return 'text-emerald-600'
-  if (variant === 'warning') return 'text-amber-600'
-  return 'text-rose-600'
+  if (variant === 'success') return 'text-success'
+  if (variant === 'warning') return 'text-warning'
+  return 'text-destructive'
 }
 
 function DetailRow(props: {
@@ -140,7 +140,7 @@ function DetailSection(props: {
       <Label
         className={cn(
           'flex items-center gap-1.5 text-xs font-semibold',
-          isDanger && 'text-red-500'
+          isDanger && 'text-destructive'
         )}
       >
         {props.icon && (
@@ -154,7 +154,7 @@ function DetailSection(props: {
         className={cn(
           'min-w-0 space-y-1 overflow-hidden rounded-md border p-2.5 max-sm:p-2',
           isDanger
-            ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20'
+            ? 'border-destructive/40 bg-destructive/10'
             : 'bg-muted/30'
         )}
       >
@@ -695,7 +695,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               label={t('IP Address')}
               value={
                 <span className='flex items-center gap-1'>
-                  <Globe className='size-3 text-amber-500' aria-hidden='true' />
+                  <Globe className='size-3 text-warning' aria-hidden='true' />
                   {props.log.ip}
                 </span>
               }
@@ -753,7 +753,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 aria-label={t('Copy to clipboard')}
               >
                 {copiedText === conversionLabel ? (
-                  <Check className='size-3 text-green-600' />
+                  <Check className='size-3 text-success' />
                 ) : (
                   <Copy className='size-3' />
                 )}
@@ -882,7 +882,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               />
             ))}
             {showLegacyTopupWarning && (
-              <div className='flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400'>
+              <div className='flex items-start gap-1.5 text-xs text-warning'>
                 <Info className='mt-0.5 size-3.5 shrink-0' aria-hidden='true' />
                 <span>
                   {t(
@@ -1095,9 +1095,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
               value={
                 <span className='flex items-center gap-1'>
                   {isUsageBillingPathLocal(other.admin_info) ? (
-                    <Monitor className='size-3 text-blue-500' />
+                    <Monitor className='size-3 text-info' />
                   ) : (
-                    <Cloud className='size-3 text-emerald-500' />
+                    <Cloud className='size-3 text-success' />
                   )}
                   <span className='text-xs'>
                     {getUsageBillingPathLabel(t, other.admin_info)}
@@ -1143,7 +1143,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               )}
               {Array.isArray(other.stream_status.errors) &&
                 other.stream_status.errors.length > 0 && (
-                  <pre className='bg-background/60 mt-1 max-h-32 overflow-y-auto rounded border p-2 font-mono text-[11px] leading-relaxed wrap-break-word whitespace-pre-wrap'>
+                  <pre className='bg-background/60 mt-1 max-h-32 overflow-y-auto rounded-md border p-2 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap'>
                     {other.stream_status.errors.join('\n')}
                   </pre>
                 )}
@@ -1211,7 +1211,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               return (
                 <div
                   key={`${parsed.action}-${parsed.content}`}
-                  className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
+                  className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded-md border p-2 sm:flex-row sm:items-start sm:gap-2'
                 >
                   <StatusBadge
                     variant='neutral'
@@ -1219,7 +1219,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     className='shrink-0 font-medium'
                     copyable={false}
                   />
-                  <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:wrap-break-word'>
+                  <span className='min-w-0 font-mono text-xs leading-relaxed break-all sm:wrap-break-word'>
                     {parsed.content}
                   </span>
                 </div>
@@ -1242,7 +1242,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 aria-label={t('Copy to clipboard')}
               >
                 {copiedText === details ? (
-                  <Check className='size-3 text-green-600' />
+                  <Check className='size-3 text-success' />
                 ) : (
                   <Copy className='size-3' />
                 )}

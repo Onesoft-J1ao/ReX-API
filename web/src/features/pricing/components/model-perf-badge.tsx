@@ -33,6 +33,24 @@ export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement
   perf: ModelPerfBadgeData | undefined
 }
 
+/**
+ * How many recent buckets the status strip shows. Keep in sync with
+ * recentSuccessRateSlots in pkg/perf_metrics/metrics.go, which decides how
+ * many rates the summary endpoint actually returns.
+ */
+const STATUS_SLOT_COUNT = 6
+
+// Oldest to newest, each step one notch taller so the strip reads as a
+// timeline. Sized to fit the h-4 strip.
+const STATUS_BAR_HEIGHTS = [
+  'h-1.5',
+  'h-2',
+  'h-2.5',
+  'h-3',
+  'h-3.5',
+  'h-4',
+] as const
+
 function formatCompactNumber(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '—'
   return value > 1 ? String(Math.round(value)) : value.toFixed(1)
@@ -65,32 +83,34 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
     props.perf.recent_success_rates?.filter((rate) => Number.isFinite(rate)) ??
     []
   const statusRates =
-    recentRates.length > 0 ? recentRates.slice(-3) : [success_rate]
+    recentRates.length > 0
+      ? recentRates.slice(-STATUS_SLOT_COUNT)
+      : [success_rate]
   const statusBars = [
-    ...Array(Math.max(0, 3 - statusRates.length)).fill(null),
+    ...Array(Math.max(0, STATUS_SLOT_COUNT - statusRates.length)).fill(null),
     ...statusRates,
-  ].slice(-3)
+  ].slice(-STATUS_SLOT_COUNT)
 
   return (
     <div
       className={cn(
-        'hidden w-[132px] grid-cols-[38px_48px_30px] gap-x-2 text-right tabular-nums min-[460px]:grid',
+        'hidden w-[140px] grid-cols-[38px_48px_38px] gap-x-2 text-right tabular-nums min-[460px]:grid',
         props.className
       )}
     >
       <div title={t('Average latency')} className='min-w-0'>
-        <div className='text-muted-foreground/55 text-[10px] leading-4'>
+        <div className='text-muted-foreground text-xs leading-4'>
           {t('Latency short')}
         </div>
-        <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
+        <div className='text-muted-foreground font-mono text-xs leading-4 tabular-nums whitespace-nowrap'>
           {formatCompactLatency(avg_latency_ms)}
         </div>
       </div>
       <div title={t('Throughput')} className='min-w-0'>
-        <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
+        <div className='text-muted-foreground truncate text-xs leading-4'>
           {t('Throughput short')}
         </div>
-        <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
+        <div className='text-muted-foreground font-mono text-xs leading-4 tabular-nums whitespace-nowrap'>
           {formatCompactThroughput(avg_tps)}
         </div>
       </div>
@@ -98,7 +118,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         title={`${t('Success rate')}: ${success_rate.toFixed(1)}%`}
         className='min-w-0'
       >
-        <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
+        <div className='text-muted-foreground truncate text-xs leading-4'>
           {t('Status short')}
         </div>
         <div className='flex h-4 items-center justify-end gap-0.5'>
@@ -107,9 +127,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
               key={`${index}-${rate ?? 'empty'}`}
               className={cn(
                 'w-1 rounded-full',
-                index === 0 && 'h-2',
-                index === 1 && 'h-2.5',
-                index === 2 && 'h-3',
+                STATUS_BAR_HEIGHTS[index] ?? 'h-4',
                 rate == null
                   ? index === 0
                     ? 'bg-muted-foreground/10'

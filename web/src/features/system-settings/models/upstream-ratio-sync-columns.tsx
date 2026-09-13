@@ -82,8 +82,12 @@ export function useUpstreamRatioSyncColumns(
               {row.original.billingConflict && (
                 <TooltipProvider>
                   <Tooltip>
-                    <TooltipTrigger>
-                      <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-amber-500' />
+                    <TooltipTrigger
+                      aria-label={t(
+                        'This model has both fixed price and ratio billing conflicts'
+                      )}
+                    >
+                      <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-warning' />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>
@@ -199,7 +203,7 @@ export function useUpstreamRatioSyncColumns(
                   {displayName}
                 </span>
                 {selectableCount > 0 && (
-                  <span className='bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[11px] leading-none font-normal tabular-nums'>
+                  <span className='bg-muted text-muted-foreground shrink-0 rounded-md px-1.5 py-0.5 text-xs leading-none font-normal tabular-nums'>
                     {selectedCount}/{selectableCount}
                   </span>
                 )}
@@ -360,8 +364,10 @@ function renderUpstreamValue(args: RenderUpstreamValueArgs) {
       {!isConfident && (
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger>
-              <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-amber-500' />
+            <TooltipTrigger
+              aria-label={t('This data may be unreliable, use with caution')}
+            >
+              <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-warning' />
             </TooltipTrigger>
             <TooltipContent>
               <p>{t('This data may be unreliable, use with caution')}</p>

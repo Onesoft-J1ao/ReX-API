@@ -329,7 +329,7 @@ export function WaffoSettingsSection({
 
         <StaticDataTable
           data={payMethods}
-          emptyClassName='text-muted-foreground py-8'
+          emptyClassName='text-muted-foreground py-10'
           emptyContent={t('No payment methods configured')}
           columns={[
             {
@@ -345,7 +345,7 @@ export function WaffoSettingsSection({
                   <img
                     src={m.icon}
                     alt={m.name}
-                    className='h-6 w-6 rounded object-contain'
+                    className='h-6 w-6 rounded-md object-contain'
                   />
                 ) : (
                   <span className='text-muted-foreground'>-</span>
@@ -424,10 +424,10 @@ export function WaffoSettingsSection({
                 <img
                   src={methodForm.icon}
                   alt={methodForm.name || t('Icon')}
-                  className='h-10 w-10 rounded border object-contain p-1'
+                  className='h-10 w-10 rounded-md border object-contain p-1'
                 />
               ) : (
-                <div className='bg-muted text-muted-foreground flex h-10 w-10 items-center justify-center rounded border text-xs'>
+                <div className='bg-muted text-muted-foreground flex h-10 w-10 items-center justify-center rounded-md border text-xs'>
                   {t('Icon')}
                 </div>
               )}

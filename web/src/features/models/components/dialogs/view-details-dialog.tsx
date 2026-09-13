@@ -198,7 +198,7 @@ export function ViewDetailsDialog({
         {showDetailsContent ? (
           <>
             <div className='grid gap-3 sm:grid-cols-2'>
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Status')}
                 </div>
@@ -206,7 +206,7 @@ export function ViewDetailsDialog({
                   {String(details?.status ?? '-')}
                 </div>
               </div>
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Hardware')}
                 </div>
@@ -215,7 +215,7 @@ export function ViewDetailsDialog({
                   {String(details?.hardware_name ?? '')}
                 </div>
               </div>
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Total GPUs')}
                 </div>
@@ -223,7 +223,7 @@ export function ViewDetailsDialog({
                   {String(details?.total_gpus ?? details?.hardware_qty ?? '-')}
                 </div>
               </div>
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Containers')}
                 </div>
@@ -232,7 +232,7 @@ export function ViewDetailsDialog({
             </div>
 
             {locations.length ? (
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Locations')}
                 </div>
@@ -247,7 +247,7 @@ export function ViewDetailsDialog({
             ) : null}
 
             {containers.length ? (
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground mb-2 text-xs'>
                   {t('Containers')}
                 </div>
@@ -289,7 +289,7 @@ export function ViewDetailsDialog({
               </div>
             ) : null}
 
-            <Collapsible className='rounded-lg border p-3'>
+            <Collapsible className='rounded-xl border p-3'>
               <CollapsibleTrigger className='cursor-pointer text-sm font-medium'>
                 {t('Raw JSON')}
               </CollapsibleTrigger>

@@ -133,12 +133,12 @@ function ModelRow(props: { model: StatusModel }) {
         </span>
       </div>
       {errorText && !model.ok && (
-        <p className='text-destructive/80 pl-5 font-mono text-[11px] leading-5'>
+        <p className='text-destructive pl-5 font-mono text-xs leading-5'>
           {errorText}
         </p>
       )}
       {!model.has_active && (model.passive_requests ?? 0) > 0 && (
-        <p className='text-muted-foreground pl-5 font-mono text-[11px]'>
+        <p className='text-muted-foreground pl-5 font-mono text-xs'>
           {t('Passive traffic only')} · {model.passive_success ?? 0}/
           {model.passive_requests}
         </p>
@@ -155,7 +155,7 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
   const failed = group.models.filter((model) => !model.ok).length
 
   return (
-    <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
+    <div className='bg-card overflow-hidden rounded-xl border shadow-xs'>
       <div className='border-b px-4 py-3 sm:px-5'>
         <div className='flex items-center justify-between gap-3'>
           <div className='flex min-w-0 items-center gap-3'>
@@ -166,7 +166,7 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
               {group.group}
             </h3>
             {failed > 0 && (
-              <span className='text-destructive bg-destructive/10 rounded-full px-2 py-0.5 font-mono text-[10px] tracking-wide uppercase'>
+              <span className='text-destructive bg-destructive/10 rounded-full px-2 py-0.5 font-mono text-xs tracking-wide uppercase'>
                 {t('{{count}} failing', { count: failed })}
               </span>
             )}
@@ -185,7 +185,7 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
             </span>
           </div>
         </div>
-        <div className='text-muted-foreground mt-1 flex items-center justify-between font-mono text-[11px] tabular-nums'>
+        <div className='text-muted-foreground mt-1 flex items-center justify-between font-mono text-xs tabular-nums'>
           <span>
             {group.ok_probes}/{group.total_probes} {t('probes ok')}
           </span>
@@ -315,7 +315,7 @@ export function StatusPanel() {
       )}
 
       {dataUpdatedAt > 0 && hasData && (
-        <p className='text-muted-foreground font-mono text-[11px] tabular-nums'>
+        <p className='text-muted-foreground font-mono text-xs tabular-nums'>
           {t('Updated')} {new Date(dataUpdatedAt).toLocaleTimeString()}
         </p>
       )}
@@ -361,7 +361,7 @@ export function StatusPanel() {
           <GroupCard key={group.group} group={group} index={idx} />
         ))}
         {groupList.every((g) => g.models.length === 0) && (
-          <div className='text-muted-foreground/80 flex items-start gap-2 rounded-xl border border-dashed px-4 py-3 text-xs leading-6'>
+          <div className='text-muted-foreground flex items-start gap-2 rounded-xl border border-dashed px-4 py-3 text-xs leading-6'>
             <Info className='mt-0.5 size-3.5 shrink-0' />
             <span>
               {t(

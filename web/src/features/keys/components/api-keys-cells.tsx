@@ -79,7 +79,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
     copyIcon = <Loader2 className='size-3.5 animate-spin' />
     copyTooltip = t('Loading...')
   } else if (isCopied) {
-    copyIcon = <Check className='size-3.5 text-green-600' />
+    copyIcon = <Check className='size-3.5 text-success' />
     copyTooltip = t('Copied!')
   }
 
@@ -116,7 +116,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
                 value={resolvedFullKey || maskedKey}
                 autoFocus
                 onFocus={(e) => e.target.select()}
-                className='bg-muted/50 w-full min-w-[280px] rounded-md border px-3 py-2 font-mono text-xs outline-none'
+                className='bg-muted/50 w-full min-w-[280px] rounded-md border px-3 py-2 font-mono text-xs outline-none focus-visible:ring-ring focus-visible:ring-[3px]'
               />
             )}
           </div>
@@ -131,6 +131,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
               className='size-7 shrink-0'
               onClick={handleCopy}
               disabled={isLoading}
+              aria-label={copyTooltip}
             />
           }
         >
@@ -156,7 +157,7 @@ export function UnlimitedQuotaBadge(props: UnlimitedQuotaBadgeProps) {
         render={
           <button
             type='button'
-            className='focus-visible:ring-ring/50 -ml-1.5 cursor-help rounded-4xl focus-visible:ring-[3px] focus-visible:outline-none'
+            className='focus-visible:ring-ring -ml-1.5 cursor-help rounded-full focus-visible:ring-[3px] focus-visible:outline-none'
             aria-label={`${t('Unlimited')}; ${t('Used:')} ${formattedUsed}`}
           />
         }
