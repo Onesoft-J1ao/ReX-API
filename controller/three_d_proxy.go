@@ -33,7 +33,7 @@ func ThreeDProxy(c *gin.Context) {
 		return
 	}
 
-	task, exists, err := model.GetByPublicTaskId(taskID)
+	task, exists, err := model.GetByOnlyTaskId(taskID)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to query 3D task %s: %s", taskID, err.Error()))
 		threeDProxyError(c, http.StatusInternalServerError, "server_error", "Failed to query task")

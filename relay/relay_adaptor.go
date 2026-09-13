@@ -9,6 +9,7 @@ import (
 	_ "github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
+	"github.com/QuantumNous/new-api/relay/channel/agnes"
 	"github.com/QuantumNous/new-api/relay/channel/ali"
 	"github.com/QuantumNous/new-api/relay/channel/aws"
 	"github.com/QuantumNous/new-api/relay/channel/baidu"
@@ -36,7 +37,9 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/sub2api"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
+	taskagnes "github.com/QuantumNous/new-api/relay/channel/task/agnes"
 	jspluginadaptor "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
+	"github.com/QuantumNous/new-api/relay/channel/task/meshy"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
@@ -49,6 +52,8 @@ import (
 
 func GetAdaptor(apiType int) channel.Adaptor {
 	switch apiType {
+	case constant.APITypeAgnes:
+		return &agnes.Adaptor{}
 	case constant.APITypeAli:
 		return &ali.Adaptor{}
 	case constant.APITypeAnthropic:
@@ -186,6 +191,17 @@ func TaskPlatformUnavailableError(platform constant.TaskPlatform) (string, strin
 }
 
 func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
+	// Agnes and Meshy are implemented in-process, so they resolve before the JS
+	// plugin registry. Agnes in particular uses a numeric channel type, which is
+	// also a valid task platform, so the registry would never claim it.
+	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
+		switch int(channelType) {
+		case constant.ChannelTypeAgnes:
+			return &taskagnes.TaskAdaptor{}
+		case constant.ChannelTypeMeshy2API:
+			return &meshy.TaskAdaptor{}
+		}
+	}
 	plugin, ok := ResolveTaskPluginForPlatform(pluginruntime.DefaultRegistry.Generation(), platform)
 	if !ok {
 		return nil
