@@ -5306,7 +5306,9 @@
     "every model.": "every model.",
     "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.",
     "Lane": "线路",
-    "Live": "实时"
+    "Live": "实时",
+    "Recent availability by hour": "最近可用性（按小时）",
+    "No traffic this hour": "该小时无流量"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -5306,7 +5306,9 @@
     "every model.": "every model.",
     "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.",
     "Lane": "Lane",
-    "Live": "Live"
+    "Live": "Live",
+    "Recent availability by hour": "Recent availability by hour",
+    "No traffic this hour": "No traffic this hour"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
