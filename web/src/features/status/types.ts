@@ -19,6 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 
 export type HealthLevel = 'excellent' | 'good' | 'warning' | 'critical'
 
+/**
+ * One observed traffic bucket for a model. The gateway buckets passive traffic
+ * hourly, so a 24h window yields up to 24 of these and the card renders them as
+ * a per-model history strip.
+ */
+export interface StatusBucket {
+  ts: number
+  requests: number
+  ok_pct: number
+  latency_ms: number
+}
+
 export interface StatusModel {
   model: string
   group: string
@@ -32,6 +44,7 @@ export interface StatusModel {
   has_active: boolean
   passive_requests?: number
   passive_success?: number
+  series?: StatusBucket[]
 }
 
 export interface StatusGroup {

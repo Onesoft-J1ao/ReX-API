@@ -37,13 +37,59 @@ import {
 import { cn } from '@/lib/utils'
 
 import { getStatusCheck } from '../api'
-import type { HealthLevel, StatusGroup, StatusModel } from '../types'
+import type {
+  HealthLevel,
+  StatusBucket,
+  StatusGroup,
+  StatusModel,
+} from '../types'
 
 const LEVEL_RANK: Record<HealthLevel, number> = {
   critical: 0,
   warning: 1,
   good: 2,
   excellent: 3,
+}
+
+/** Hours of history the strip keeps; the gateway buckets traffic hourly. */
+const STRIP_BUCKETS = 24
+
+/**
+ * Per-model history strip: one hairline bar per observed hour, newest on the
+ * right. Bars are fixed-width so the strip reads as a timeline rather than
+ * stretching to fill the row, and the container right-aligns with overflow
+ * hidden so a narrow card drops the oldest hours instead of the newest.
+ */
+function HealthStrip(props: { series?: StatusBucket[] }) {
+  const { t } = useTranslation()
+  const buckets = props.series?.slice(-STRIP_BUCKETS) ?? []
+  if (buckets.length === 0) return null
+
+  return (
+    <div
+      role='img'
+      aria-label={t('Recent availability by hour')}
+      className='flex min-w-0 items-end justify-end gap-1 overflow-hidden'
+    >
+      {buckets.map((bucket) => {
+        const idle = bucket.requests === 0
+        return (
+          <span
+            key={bucket.ts}
+            title={
+              idle
+                ? t('No traffic this hour')
+                : `${bucket.ok_pct}% · ${bucket.requests} · ${formatLatency(bucket.latency_ms)}`
+            }
+            className={cn(
+              'h-4 w-[3px] shrink-0 rounded-full',
+              idle ? 'bg-muted' : getSuccessRateDotClass(bucket.ok_pct)
+            )}
+          />
+        )
+      })}
+    </div>
+  )
 }
 
 function sortModels(models: StatusModel[]) {
@@ -73,6 +119,7 @@ function ModelRow(props: { model: StatusModel }) {
         <span className='text-foreground min-w-0 flex-1 truncate text-sm'>
           {model.model}
         </span>
+        <HealthStrip series={model.series} />
         <span className='text-muted-foreground hidden shrink-0 font-mono text-xs tabular-nums sm:inline'>
           {formatLatency(model.latency_ms)}
         </span>

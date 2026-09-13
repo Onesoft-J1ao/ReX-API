@@ -21,19 +21,30 @@ import (
 
 // groupHealthResponse mirrors what fuzzy.vg's /api/status-check returns so the
 // /status page can render announcement + per-group cards + per-model rows.
+// statusBucketDTO is one time bucket of a model's observed traffic, used to
+// draw the per-model history strip. Kept compact because the page renders one
+// series per model.
+type statusBucketDTO struct {
+	Ts        int64 `json:"ts"`
+	Requests  int64 `json:"requests"`
+	OkPct     int   `json:"ok_pct"`
+	LatencyMs int64 `json:"latency_ms"`
+}
+
 type modelHealthDTO struct {
-	ModelName       string  `json:"model"`
-	Group           string  `json:"group"`
-	Availability    float64 `json:"availability"`
-	LatencyMs       int64   `json:"latency_ms"`
-	Level           string  `json:"level"`
-	ChannelId       int     `json:"channel_id,omitempty"`
-	Ok              bool    `json:"ok"`
-	ErrorCode       int     `json:"error_code,omitempty"`
-	ErrorMsg        string  `json:"error_msg,omitempty"`
-	HasActive       bool    `json:"has_active"`
-	PassiveRequests int64   `json:"passive_requests,omitempty"`
-	PassiveSuccess  int64   `json:"passive_success,omitempty"`
+	ModelName       string            `json:"model"`
+	Group           string            `json:"group"`
+	Availability    float64           `json:"availability"`
+	LatencyMs       int64             `json:"latency_ms"`
+	Level           string            `json:"level"`
+	ChannelId       int               `json:"channel_id,omitempty"`
+	Ok              bool              `json:"ok"`
+	ErrorCode       int               `json:"error_code,omitempty"`
+	ErrorMsg        string            `json:"error_msg,omitempty"`
+	HasActive       bool              `json:"has_active"`
+	PassiveRequests int64             `json:"passive_requests,omitempty"`
+	PassiveSuccess  int64             `json:"passive_success,omitempty"`
+	Series          []statusBucketDTO `json:"series,omitempty"`
 }
 
 type groupHealthDTO struct {
@@ -85,6 +96,32 @@ func GetStatusCheck(c *gin.Context) {
 		passive[s.Group+"|"+s.ModelName] = s
 	}
 
+	// Per-model history for the availability strip. One query covers every
+	// model in every group, so the strip costs no extra round-trips per row.
+	buckets, err := model.GetPerfMetricBucketsByGroup(startTs, endTs, groups)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	seriesByModel := map[string][]statusBucketDTO{}
+	for _, b := range buckets {
+		key := b.Group + "|" + b.ModelName
+		okPct := 0
+		if b.RequestCount > 0 {
+			okPct = int(float64(b.SuccessCount) / float64(b.RequestCount) * 100)
+		}
+		latency := int64(0)
+		if b.RequestCount > 0 {
+			latency = b.TotalLatencyMs / b.RequestCount
+		}
+		seriesByModel[key] = append(seriesByModel[key], statusBucketDTO{
+			Ts:        b.BucketTs,
+			Requests:  b.RequestCount,
+			OkPct:     okPct,
+			LatencyMs: latency,
+		})
+	}
+
 	excluded := status_check_setting.GetExcludedModelsMap()
 
 	out := statusCheckResponse{Announcement: cfg.Announcement, Groups: []groupHealthDTO{}}
@@ -122,6 +159,12 @@ func GetStatusCheck(c *gin.Context) {
 				}
 			}
 			dto.Models = append(dto.Models, passiveOnlyRow(s, group))
+		}
+
+		// Attach the observed history strip to every row (probe-backed and
+		// passive-only alike) so the card can render a per-model timeline.
+		for i := range dto.Models {
+			dto.Models[i].Series = seriesByModel[group+"|"+dto.Models[i].ModelName]
 		}
 
 		// group-level roll-up
