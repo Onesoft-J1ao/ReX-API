@@ -13,6 +13,9 @@ import (
 )
 
 func SetRouter(router *gin.Engine, assets WebAssets) {
+	// Applied before any route is registered so it covers every router below,
+	// including the relay and the embedded frontend.
+	router.Use(middleware.BlockedIPGuard())
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
