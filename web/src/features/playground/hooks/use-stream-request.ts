@@ -17,11 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  getPlaygroundFingerprint,
-  PLAYGROUND_FINGERPRINT_HEADER,
-} from '../lib/fingerprint'
-
 import { SSE } from 'sse.js'
 
 import { getFreshAuthHeaders } from '@/lib/api'
@@ -34,6 +29,10 @@ import {
   parseStreamErrorDetails,
   parseStreamMessageUpdates,
 } from '../lib'
+import {
+  getPlaygroundFingerprint,
+  PLAYGROUND_FINGERPRINT_HEADER,
+} from '../lib/fingerprint'
 import type { ChatCompletionRequest } from '../types'
 
 interface StreamEventSource {

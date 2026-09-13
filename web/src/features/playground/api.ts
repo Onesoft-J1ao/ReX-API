@@ -31,6 +31,8 @@ import type {
   ImageWorkbenchConfig,
   ModelOption,
   GroupOption,
+  SpeechWorkbenchConfig,
+  TranscriptionResponse,
 } from './types'
 
 /**
@@ -107,6 +109,58 @@ export async function editImages(
     formData.append('mask', mask)
   }
   const res = await api.post(API_ENDPOINTS.IMAGE_EDITS, formData, {
+    signal,
+    skipErrorHandler: true,
+    headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Synthesize speech. The endpoint answers with audio bytes rather than JSON, so
+ * the response is read as a blob.
+ */
+export async function synthesizeSpeech(
+  config: SpeechWorkbenchConfig,
+  text: string,
+  signal?: AbortSignal
+): Promise<Blob> {
+  const res = await api.post(
+    API_ENDPOINTS.AUDIO_SPEECH,
+    {
+      model: config.model,
+      group: config.group,
+      input: text,
+      voice: config.voice,
+      response_format: config.responseFormat,
+      speed: config.speed,
+    },
+    {
+      signal,
+      skipErrorHandler: true,
+      responseType: 'blob',
+      headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+    } as Record<string, unknown>
+  )
+  return res.data as Blob
+}
+
+/**
+ * Transcribe an audio file. The endpoint expects multipart, so the file is
+ * appended as form data.
+ */
+export async function transcribeAudio(
+  config: SpeechWorkbenchConfig,
+  file: File,
+  signal?: AbortSignal
+): Promise<TranscriptionResponse> {
+  const formData = new FormData()
+  formData.append('model', config.model)
+  if (config.group) {
+    formData.append('group', config.group)
+  }
+  formData.append('file', file)
+  const res = await api.post(API_ENDPOINTS.AUDIO_TRANSCRIPTIONS, formData, {
     signal,
     skipErrorHandler: true,
     headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },

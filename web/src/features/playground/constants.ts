@@ -37,6 +37,8 @@ export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
   IMAGE_GENERATIONS: '/pg/images/generations',
   IMAGE_EDITS: '/pg/images/edits',
+  AUDIO_SPEECH: '/pg/audio/speech',
+  AUDIO_TRANSCRIPTIONS: '/pg/audio/transcriptions',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const
@@ -93,6 +95,38 @@ export const DEFAULT_IMAGE_CONFIG = {
 } as const
 
 export const MAX_REFERENCE_IMAGES = 4
+
+// Common OpenAI-compatible voices, offered as suggestions: the field stays free
+// text because each provider ships its own set.
+export const SPEECH_VOICE_SUGGESTIONS = [
+  'alloy',
+  'echo',
+  'fable',
+  'onyx',
+  'nova',
+  'shimmer',
+] as const
+
+// Playback formats the speech endpoint can return. mp3 is the safe default.
+export const SPEECH_FORMAT_OPTIONS = [
+  'mp3',
+  'opus',
+  'aac',
+  'flac',
+  'wav',
+  'pcm',
+] as const
+
+export const SPEECH_SPEED_MIN = 0.25
+export const SPEECH_SPEED_MAX = 4
+
+export const DEFAULT_SPEECH_CONFIG = {
+  model: '',
+  group: DEFAULT_GROUP,
+  voice: 'alloy',
+  responseFormat: 'mp3',
+  speed: 1,
+} as const
 
 // Storage keys
 export const STORAGE_KEYS = {

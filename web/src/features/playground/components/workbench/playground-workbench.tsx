@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button'
 
 import { PlaygroundChatMode } from '../chat/playground-chat-mode'
 import { ImageWorkbench } from './image-workbench'
+import { SpeechWorkbench } from './speech-workbench'
 
 // Labels are listed in src/i18n/static-keys.ts because they are selected at
 // runtime rather than written as literals next to t().
@@ -31,7 +32,7 @@ const WORKBENCH_MODES = [
   { value: 'chat', label: 'Chat', ready: true },
   { value: 'image', label: 'Image', ready: true },
   { value: 'video', label: 'Video', ready: false },
-  { value: 'audio', label: 'Speech', ready: false },
+  { value: 'audio', label: 'Speech', ready: true },
   { value: '3d', label: '3D', ready: false },
 ] as const
 
@@ -72,6 +73,8 @@ export function PlaygroundWorkbench() {
           <PlaygroundChatMode />
         ) : mode === 'image' ? (
           <ImageWorkbench />
+        ) : mode === 'audio' ? (
+          <SpeechWorkbench />
         ) : (
           <div className='text-muted-foreground flex min-h-0 flex-1 items-center justify-center p-8 text-center text-sm'>
             {t('This workbench mode is on the way.')}

@@ -6609,7 +6609,19 @@
     "Speech": "Speech",
     "Text to image": "Text to image",
     "The provider returned no image": "The provider returned no image",
-    "This workbench mode is on the way.": "This workbench mode is on the way."
+    "This workbench mode is on the way.": "This workbench mode is on the way.",
+    "Audio file": "Audio file",
+    "Choose audio file": "Choose audio file",
+    "Generate speech": "Generate speech",
+    "Generated speech will play here": "Generated speech will play here",
+    "Replace audio file": "Replace audio file",
+    "Speech to text": "Speech to text",
+    "Speed": "Speed",
+    "Text to read aloud": "Text to read aloud",
+    "The transcript will appear here": "The transcript will appear here",
+    "Transcribe": "Transcribe",
+    "Voice": "Voice",
+    "Working": "Working"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

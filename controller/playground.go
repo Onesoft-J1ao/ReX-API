@@ -22,6 +22,12 @@ func PlaygroundImage(c *gin.Context) {
 	playgroundRelay(c, types.RelayFormatOpenAIImage)
 }
 
+// PlaygroundAudio relays speech synthesis and transcription requests from the
+// playground workbench.
+func PlaygroundAudio(c *gin.Context) {
+	playgroundRelay(c, types.RelayFormatOpenAIAudio)
+}
+
 // playgroundRelay runs a relay on behalf of the signed-in user without an API
 // key: the browser only holds a session cookie, so an ephemeral token is built
 // per request and never persisted.

@@ -6609,7 +6609,19 @@
     "Speech": "语音",
     "Text to image": "文生图",
     "The provider returned no image": "上游未返回图片",
-    "This workbench mode is on the way.": "该工作台模式正在开发中。"
+    "This workbench mode is on the way.": "该工作台模式正在开发中。",
+    "Audio file": "音频文件",
+    "Choose audio file": "选择音频文件",
+    "Generate speech": "生成语音",
+    "Generated speech will play here": "生成的语音会在这里播放",
+    "Replace audio file": "替换音频文件",
+    "Speech to text": "语音识别",
+    "Speed": "语速",
+    "Text to read aloud": "要朗读的文本",
+    "The transcript will appear here": "转写结果会显示在这里",
+    "Transcribe": "转写",
+    "Voice": "音色",
+    "Working": "处理中"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
