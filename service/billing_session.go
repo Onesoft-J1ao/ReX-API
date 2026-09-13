@@ -379,6 +379,17 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return nil, types.NewError(fmt.Errorf("relayInfo is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	// The playground free allowance is funded by neither the wallet nor a
+	// subscription, and its balance checks must not run: a new account with no
+	// balance is exactly who the allowance is for.
+	if relayInfo.PlaygroundFreeTier {
+		session := &BillingSession{relayInfo: relayInfo, funding: &FreeFunding{}}
+		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {
+			return nil, apiErr
+		}
+		return session, nil
+	}
+
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
 
 	// 钱包路径需要先检查用户额度

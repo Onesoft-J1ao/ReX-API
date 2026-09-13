@@ -440,8 +440,8 @@ func postConsumeQuotaWithResult(relayInfo *relaycommon.RelayInfo, quota int, pre
 			}
 			relayInfo.SubscriptionPostDelta += delta
 		}
-	} else {
-		// Wallet
+	} else if !relayInfo.PlaygroundFreeTier {
+		// Wallet. A playground request the free allowance covers is not debited.
 		if quota > 0 {
 			err = model.DecreaseUserQuota(relayInfo.UserId, quota, false)
 		} else {

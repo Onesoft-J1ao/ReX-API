@@ -96,6 +96,9 @@ type RelayInfo struct {
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
 	IsPlayground           bool
+	// PlaygroundFreeTier marks a playground request the free allowance covers:
+	// it is served without touching the wallet and settled from the allowance.
+	PlaygroundFreeTier bool
 	UsePrice               bool
 	RelayMode              int
 	OriginModelName        string

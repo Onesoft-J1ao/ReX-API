@@ -20,6 +20,10 @@ import { api } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { API_ENDPOINTS } from './constants'
+import {
+  getPlaygroundFingerprint,
+  PLAYGROUND_FINGERPRINT_HEADER,
+} from './lib/fingerprint'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -39,6 +43,7 @@ export async function sendChatCompletion(
   const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
     signal,
     skipErrorHandler: true,
+    headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
   } as Record<string, unknown>)
   return res.data
 }
@@ -62,7 +67,11 @@ export async function generateImages(
       size: config.size,
       quality: config.quality,
     },
-    { signal, skipErrorHandler: true } as Record<string, unknown>
+    {
+      signal,
+      skipErrorHandler: true,
+      headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+    } as Record<string, unknown>
   )
   return res.data
 }
@@ -100,6 +109,7 @@ export async function editImages(
   const res = await api.post(API_ENDPOINTS.IMAGE_EDITS, formData, {
     signal,
     skipErrorHandler: true,
+    headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
   } as Record<string, unknown>)
   return res.data
 }
