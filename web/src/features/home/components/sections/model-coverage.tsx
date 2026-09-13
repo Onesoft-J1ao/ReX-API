@@ -30,9 +30,6 @@ export function ModelCoverage() {
     <section className='relative z-10 px-6 py-14 sm:px-10 md:py-20 lg:px-14'>
       <div className='mx-auto max-w-7xl'>
         <AnimateInView className='mb-10 max-w-2xl md:mb-12'>
-          <p className='text-primary mb-5 font-mono text-[11px] tracking-[0.28em] uppercase'>
-            02 / {t('Model coverage')}
-          </p>
           <h2 className='text-foreground font-serif text-4xl leading-[1.05] font-medium tracking-[-0.02em] md:text-5xl'>
             {t('Routing does not choose for you,')}
             <br />
@@ -55,7 +52,7 @@ export function ModelCoverage() {
             <AnimateInView
               key={row.family}
               delay={i * 40}
-              animation='fade-up'
+              animation='fade-in'
               className='hover:bg-card/50 grid grid-cols-[3.5rem_1fr] gap-4 px-7 py-5 transition-colors duration-200 sm:grid-cols-[5rem_1fr_1fr] sm:items-center'
             >
               <div className='flex items-center gap-3'>

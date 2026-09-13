@@ -5304,7 +5304,9 @@
     "Quickstart": "Quickstart",
     "One key,": "One key,",
     "every model.": "every model.",
-    "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes."
+    "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.",
+    "Lane": "Lane",
+    "Live": "Live"
   },
   "Time range": "時間範圍",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

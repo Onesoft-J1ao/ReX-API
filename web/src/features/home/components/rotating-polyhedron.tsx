@@ -654,6 +654,17 @@ export function RotatingPolyhedron(props: RotatingPolyhedronProps) {
         aria-hidden='true'
         className='pointer-events-none absolute inset-[8%] rounded-[1.5rem] shadow-[inset_0_0_60px_-30px_var(--primary)]'
       />
+      {/* Orbit rings + satellite nodes — the routing-core metaphor made
+          mechanical: packets (dots) orbit the polyhedron on two tilted rails. */}
+      <div aria-hidden='true' className='pointer-events-none absolute inset-[14%]'>
+        <div className='absolute inset-0 animate-spin [animation-duration:26s] [animation-timing-function:linear] rounded-full border border-dashed border-primary/20 [transform:rotateX(68deg)]'>
+          <span className='bg-primary absolute -top-1 left-1/2 size-2 -translate-x-1/2 rounded-full shadow-[0_0_12px_2px_var(--glow-soft)]' />
+          <span className='bg-primary/60 absolute top-1/2 -right-1 size-1.5 translate-y-1/2 rounded-full' />
+        </div>
+        <div className='absolute inset-[12%] animate-spin [animation-duration:38s] [animation-timing-function:linear] [animation-direction:reverse] rounded-full border border-primary/15 [transform:rotateX(72deg)_rotateY(24deg)]'>
+          <span className='bg-primary absolute -bottom-1 left-1/3 size-1.5 -translate-x-1/2 rounded-full shadow-[0_0_10px_2px_var(--glow-soft)]' />
+        </div>
+      </div>
       {/* Four radiating guide lines + agent labels around the loop. */}
       <div aria-hidden='true' className='pointer-events-none absolute inset-0'>
         {/* Top */}
@@ -690,6 +701,12 @@ export function RotatingPolyhedron(props: RotatingPolyhedronProps) {
       <div
         aria-hidden='true'
         className='pointer-events-none absolute inset-0 bg-[linear-gradient(150deg,color-mix(in_oklch,var(--background)_55%,transparent)_0%,transparent_38%,color-mix(in_oklch,var(--primary)_10%,transparent)_100%)] opacity-60 mix-blend-soft-light'
+      />
+      {/* Horizontal scanline crossing the stage — the dark-world signature
+          motion, echoing the telemetry ticker in the hero footer. */}
+      <div
+        aria-hidden='true'
+        className='landing-scanline pointer-events-none absolute inset-0'
       />
       {props.statusLabel ? (
         <div className='border-border/60 bg-background/70 text-muted-foreground pointer-events-none absolute top-[6%] left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[10px] tracking-[0.18em] uppercase shadow-sm backdrop-blur-md'>
