@@ -21,6 +21,7 @@ import { memo, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -359,22 +360,14 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               </div>
             )}
             {endpoints.length > 0 && (
-              <div className='flex min-w-0 items-baseline gap-1.5'>
+              <div className='flex min-w-0 flex-col gap-1.5'>
                 <dt className='text-muted-foreground shrink-0'>
                   {t('Endpoints')}
                 </dt>
-                <dd className='flex min-w-0 items-baseline gap-1'>
-                  <span className='truncate' title={endpoints.join(', ')}>
-                    {endpoints.slice(0, 2).join(', ')}
-                  </span>
-                  {endpoints.length > 2 && (
-                    <span
-                      className='text-muted-foreground shrink-0'
-                      title={endpoints.slice(2).join(', ')}
-                    >
-                      +{endpoints.length - 2}
-                    </span>
-                  )}
+                <dd className='flex min-w-0 flex-wrap gap-1'>
+                  {endpoints.map((endpoint) => (
+                    <StatusBadge key={endpoint} label={endpoint} size='sm' />
+                  ))}
                 </dd>
               </div>
             )}

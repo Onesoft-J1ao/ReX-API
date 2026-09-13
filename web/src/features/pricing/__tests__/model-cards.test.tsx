@@ -173,7 +173,7 @@ describe('model cards', () => {
     expect(screen.getByRole('button', { name: 'Details' })).toBeEnabled()
   })
 
-  it('keeps group, endpoint and tag overflow counts with their own metadata', () => {
+  it('keeps group and tag overflow counts, and tags every endpoint', () => {
     const groups = ['default-with-a-long-group-name', 'premium', 'internal']
     const endpoints = ['openai-response', 'openai', 'claude', 'gemini', 'jina']
     const tags = [
@@ -206,10 +206,12 @@ describe('model cards', () => {
       'title',
       groups.slice(1).join(', ')
     )
-    expect(
-      within(endpointField).getByText('openai-response, openai')
-    ).toHaveAttribute('title', endpoints.join(', '))
-    expect(within(endpointField).getByText('+3')).toBeVisible()
+    // Endpoints are listed as tags rather than a truncated text summary, so a
+    // model's supported endpoints are all readable on the card.
+    for (const endpoint of endpoints) {
+      expect(within(endpointField).getByText(endpoint)).toBeVisible()
+    }
+    expect(within(endpointField).queryByText('+3')).not.toBeInTheDocument()
     expect(
       within(tagField).getByText('video-generation, high-resolution')
     ).toHaveAttribute('title', tags.join(', '))
