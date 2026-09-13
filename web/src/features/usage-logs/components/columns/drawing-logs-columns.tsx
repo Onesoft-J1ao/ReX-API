@@ -142,7 +142,7 @@ export function useDrawingLogsColumns(
       const mjId = row.getValue('mj_id') as string
 
       if (!mjId) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className='text-muted-foreground text-xs'>-</span>
       }
 
       return (
@@ -199,7 +199,7 @@ export function useDrawingLogsColumns(
         const [dialogOpen, setDialogOpen] = useState(false)
 
         if (!imageUrl) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return <span className='text-muted-foreground text-xs'>-</span>
         }
 
         return (
@@ -233,7 +233,7 @@ export function useDrawingLogsColumns(
         const [dialogOpen, setDialogOpen] = useState(false)
 
         if (!prompt) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return <span className='text-muted-foreground text-xs'>-</span>
         }
 
         return (

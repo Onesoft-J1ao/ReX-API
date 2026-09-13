@@ -120,7 +120,7 @@ export function ConsumptionDistributionChart(
   ].join('-')
 
   return (
-    <div className='overflow-hidden rounded-lg border'>
+    <div className='overflow-hidden rounded-xl border'>
       <div className='flex w-full flex-col gap-1.5 border-b px-3 py-2 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
           <IconBadge tone='success' size='sm'>
@@ -132,7 +132,7 @@ export function ConsumptionDistributionChart(
           </span>
         </div>
 
-        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
+        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-md border p-0.5 sm:h-8 sm:w-auto'>
           {CONSUMPTION_DISTRIBUTION_CHART_OPTIONS.map((item) => {
             const Icon = CHART_TYPE_ICONS[item.value]
             return (

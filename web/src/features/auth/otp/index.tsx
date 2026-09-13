@@ -26,7 +26,7 @@ export function Otp() {
   const { t } = useTranslation()
   return (
     <AuthLayout>
-      <div className='w-full space-y-8'>
+      <div className='w-full space-y-6'>
         <div className='space-y-3'>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
             {t('Two-factor Authentication')}

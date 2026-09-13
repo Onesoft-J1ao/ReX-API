@@ -390,7 +390,7 @@ export function OllamaModelsDialog({
       }
     >
       {!isOllamaChannel ? (
-        <div className='text-muted-foreground py-8 text-center'>
+        <div className='text-muted-foreground py-10 text-center text-sm'>
           {t('This channel is not an Ollama channel.')}
         </div>
       ) : (
@@ -511,7 +511,7 @@ export function OllamaModelsDialog({
             <div className='overflow-hidden rounded-md border'>
               <div className='max-h-[420px] overflow-y-auto'>
                 {filteredModels.length === 0 ? (
-                  <div className='text-muted-foreground p-6 text-center text-sm'>
+                  <div className='text-muted-foreground px-4 py-10 text-center text-sm'>
                     {t('No models found.')}
                   </div>
                 ) : (

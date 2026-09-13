@@ -615,7 +615,7 @@ function VisualTierCard({
   }
 
   return (
-    <div className='space-y-3 rounded-lg border p-3'>
+    <div className='space-y-3 rounded-xl border p-3'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <div className='flex items-center gap-2'>
           <Badge variant='outline'>
@@ -1766,7 +1766,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   }, [])
 
   return (
-    <div className='space-y-5'>
+    <div className='space-y-6'>
       <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end'>
         <Field className='gap-2'>
           <FieldLabel>{t('Editor mode')}</FieldLabel>

@@ -171,7 +171,7 @@ export function SyncWizardDialog({
                 key={option.value}
                 htmlFor={`sync-source-${option.value}`}
                 className={cn(
-                  'flex-col items-start gap-0 rounded-lg border p-4 font-normal transition-all',
+                  'flex-col items-start gap-0 rounded-xl border p-4 font-normal transition-all',
                   isActive && 'border-primary ring-primary ring-1',
                   isDisabled
                     ? 'cursor-not-allowed opacity-60'
@@ -216,7 +216,7 @@ export function SyncWizardDialog({
           {SYNC_LOCALE_OPTIONS.map((option) => (
             <div
               key={option.value}
-              className='flex items-center space-x-2 rounded-lg border p-3'
+              className='flex items-center space-x-2 rounded-xl border p-3'
             >
               <RadioGroupItem
                 value={option.value}
@@ -233,7 +233,7 @@ export function SyncWizardDialog({
         </RadioGroup>
       </div>
 
-      <div className='bg-muted/50 rounded-lg border p-4'>
+      <div className='bg-muted/50 rounded-xl border p-4'>
         <p className='text-muted-foreground text-sm'>
           {t(
             'The sync will fetch missing models and vendors from the selected source. Existing records are updated only when you approve conflicts.'

@@ -40,6 +40,7 @@ import { useColumnsByCategory } from '../lib/columns'
 import { parseLogOther } from '../lib/format'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
+import { CommonLogsExportButton } from './common-logs-export-button'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
@@ -48,13 +49,13 @@ import { useLogsViewScope } from './usage-logs-provider'
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]: 'bg-rose-50/40 dark:bg-rose-950/20',
-  [LOG_TYPE_ENUM.REFUND]: 'bg-blue-50/30 dark:bg-blue-950/15',
+  [LOG_TYPE_ENUM.ERROR]: 'bg-destructive/10',
+  [LOG_TYPE_ENUM.REFUND]: 'bg-info/10',
 }
 
 // Warning tint for logs where a quota conversion saturated (admin-only marker).
 // Takes precedence over the per-type tint since it flags a billing anomaly.
-const quotaSaturationRowTint = 'bg-amber-50/60 dark:bg-amber-950/25'
+const quotaSaturationRowTint = 'bg-warning/10'
 
 function getColumnVisibilityStorageKey(
   logCategory: LogCategory,
@@ -199,11 +200,20 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         />
       }
       toolbar={
-        isCommon ? (
-          <CommonLogsFilterBar table={table} />
-        ) : (
-          <TaskLogsFilterBar table={table} logCategory={logCategory} />
-        )
+        <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2'>
+          {isCommon ? (
+            <CommonLogsFilterBar table={table} />
+          ) : (
+            <TaskLogsFilterBar table={table} logCategory={logCategory} />
+          )}
+          <CommonLogsExportButton
+            table={table}
+            logCategory={logCategory}
+            isAdmin={isAdmin}
+            searchParams={searchParams}
+            columnFilters={columnFilters}
+          />
+        </div>
       }
       renderRow={(row) => {
         const logType = (row.original as Record<string, unknown>).type as
@@ -225,7 +235,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
             key={row.id}
             row={row}
             className={cn('transition-colors', tintClass)}
-            getColumnClassName={() => (isCommon ? 'py-2' : 'py-3.5')}
+            getColumnClassName={() => (isCommon ? 'py-2' : 'py-3')}
           />
         )
       }}

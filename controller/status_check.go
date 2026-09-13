@@ -365,7 +365,7 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 			continue
 		}
 		channelGroups[ch.Id] = relevant
-		totalUnits += len(ch.GetModels())
+		totalUnits++
 	}
 	summary.Channels = len(channelGroups)
 
@@ -388,7 +388,21 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 		if !ok {
 			continue
 		}
+		// One live request per channel is enough to tell whether its group is
+		// healthy. Probing every model multiplied the upstream calls and token
+		// spend by the size of the model list — go-plan alone serves 59 models —
+		// without adding any group-level signal. Prefer the channel's configured
+		// test model, matching what the scheduled channel test uses, and fall
+		// back to the first model the channel serves.
 		models := ch.GetModels()
+		if len(models) == 0 {
+			continue
+		}
+		probeModel := models[0]
+		if ch.TestModel != nil && strings.TrimSpace(*ch.TestModel) != "" {
+			probeModel = strings.TrimSpace(*ch.TestModel)
+		}
+		models = []string{probeModel}
 		for _, modelName := range models {
 			if excluded != nil {
 				if _, skip := excluded[modelName]; skip {

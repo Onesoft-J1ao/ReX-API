@@ -198,7 +198,7 @@ export function ComboboxInput({
       <ChevronsUpDown className='pointer-events-none absolute top-1/2 right-3 size-4 shrink-0 -translate-y-1/2 opacity-50' />
 
       {showDropdown && (
-        <div className='bg-popover text-popover-foreground absolute top-full z-100 mt-1 w-full rounded-md border shadow-md'>
+        <div className='bg-popover text-popover-foreground absolute top-full z-100 mt-1 w-full rounded-xl border shadow-md'>
           {filteredOptions.length > 0 ? (
             <ul
               ref={listRef}
@@ -212,7 +212,7 @@ export function ComboboxInput({
                   aria-selected={value === option.value}
                   data-highlighted={index === highlightedIndex}
                   className={cn(
-                    'relative flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none',
+                    'relative flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm select-none',
                     index === highlightedIndex &&
                       'bg-accent text-accent-foreground',
                     value === option.value && 'font-medium'

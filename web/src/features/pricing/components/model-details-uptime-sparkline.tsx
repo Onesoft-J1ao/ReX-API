@@ -96,7 +96,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
               render={
                 <div
                   className={cn(
-                    'rounded-sm transition-opacity hover:opacity-80',
+                    'rounded-md transition-opacity hover:opacity-80',
                     barWidth,
                     containerHeight,
                     'flex items-end'
@@ -106,7 +106,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
             >
               <div
                 className={cn(
-                  'w-full rounded-sm',
+                  'w-full rounded-full',
                   getSuccessRateDotClass(day.uptime_pct),
                   heightFor(day.uptime_pct)
                 )}
@@ -165,12 +165,12 @@ export function UptimeStatusRow(props: {
 
   const statusColour =
     status === 'operational'
-      ? 'text-emerald-600 dark:text-emerald-400'
+      ? 'text-success'
       : status === 'minor'
-        ? 'text-emerald-600 dark:text-emerald-400'
+        ? 'text-success'
         : status === 'degraded'
-          ? 'text-amber-600 dark:text-amber-400'
-          : 'text-rose-600 dark:text-rose-400'
+          ? 'text-warning'
+          : 'text-destructive'
 
   const statusLabel =
     status === 'operational'
@@ -184,7 +184,7 @@ export function UptimeStatusRow(props: {
   return (
     <div
       className={cn(
-        'border-border/60 bg-muted/30 flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 sm:gap-4 sm:px-4',
+        'border-border/60 bg-muted/30 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 sm:gap-4 sm:px-4',
         props.className
       )}
     >

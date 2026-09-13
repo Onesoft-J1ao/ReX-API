@@ -53,26 +53,23 @@ const STATUS_VARIANT: Record<SystemTaskStatus, 'secondary' | 'destructive'> = {
 }
 
 const STATUS_CLASS_NAME: Record<SystemTaskStatus, string> = {
-  pending:
-    'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  running:
-    'bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300 [&_span]:bg-sky-500',
-  succeeded:
-    'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+  pending: 'bg-warning/10 text-warning',
+  running: 'bg-info/10 text-info [&_span]:bg-info',
+  succeeded: 'bg-success/10 text-success',
   failed: '',
 }
 
 const STATUS_DOT_CLASS_NAME: Record<SystemTaskStatus, string> = {
-  pending: 'bg-amber-500',
-  running: 'bg-sky-500',
-  succeeded: 'bg-emerald-500',
+  pending: 'bg-warning',
+  running: 'bg-info',
+  succeeded: 'bg-success',
   failed: 'bg-destructive',
 }
 
 const PROGRESS_BAR_CLASS_NAME: Record<SystemTaskStatus, string> = {
-  pending: '[&_[data-slot=progress-indicator]]:bg-amber-500',
-  running: '[&_[data-slot=progress-indicator]]:bg-sky-500',
-  succeeded: '[&_[data-slot=progress-indicator]]:bg-emerald-500',
+  pending: '[&_[data-slot=progress-indicator]]:bg-warning',
+  running: '[&_[data-slot=progress-indicator]]:bg-info',
+  succeeded: '[&_[data-slot=progress-indicator]]:bg-success',
   failed: '[&_[data-slot=progress-indicator]]:bg-destructive',
 }
 
@@ -111,7 +108,7 @@ function SystemTasksTable(props: SystemTasksTableProps) {
     <div className='overflow-x-auto rounded-md border'>
       <Table className='min-w-[900px]'>
         <TableHeader>
-          <TableRow className='bg-muted/40 hover:bg-muted/40'>
+          <TableRow className='hover:bg-transparent'>
             <TableHead className='h-9 w-[260px] px-4 text-xs'>
               {t('Type')}
             </TableHead>
@@ -142,7 +139,7 @@ function SystemTasksTable(props: SystemTasksTableProps) {
                     <div className='font-medium'>
                       {t(TYPE_LABEL[task.type] ?? task.type)}
                     </div>
-                    <div className='text-muted-foreground font-mono text-[11px]'>
+                    <div className='text-muted-foreground font-mono text-xs'>
                       {TYPE_DISPLAY_ID[task.type] ?? task.type}
                     </div>
                   </div>
@@ -231,7 +228,7 @@ export function SystemTasksPanel() {
   const historyTasks = tasks.filter((task) => !isActiveStatus(task.status))
 
   return (
-    <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
+    <section className='bg-card overflow-hidden rounded-xl border shadow-xs'>
       <div className='flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5'>
         <div className='min-w-0'>
           <div className='flex items-center gap-2'>
@@ -256,7 +253,7 @@ export function SystemTasksPanel() {
             <span
               className={cn(
                 'size-1.5 rounded-full',
-                hasActiveTasks ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+                hasActiveTasks ? 'bg-success' : 'bg-muted-foreground/40'
               )}
               aria-hidden='true'
             />
@@ -306,7 +303,7 @@ export function SystemTasksPanel() {
           />
         ) : tasks.length === 0 ? (
           <div className='px-4 py-10 text-center sm:px-5'>
-            <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-lg'>
+            <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-xl'>
               <ListChecks
                 className='text-muted-foreground size-5'
                 aria-hidden='true'

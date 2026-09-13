@@ -104,7 +104,7 @@ function SegmentedControl(props: {
     <div
       role='group'
       aria-label={props.ariaLabel}
-      className='bg-muted/60 inline-flex h-8 items-center rounded-lg border p-0.5'
+      className='bg-muted/60 inline-flex h-8 items-center rounded-md border p-0.5'
     >
       {props.options.map((option) => {
         const Icon = option.icon
@@ -115,8 +115,9 @@ function SegmentedControl(props: {
             type='button'
             onClick={() => props.onChange(option.value)}
             aria-pressed={isActive}
+            aria-label={option.label ?? option.tooltip}
             className={cn(
-              'inline-flex h-full items-center justify-center rounded-md text-xs font-medium transition-all',
+              'focus-visible:ring-ring inline-flex h-full items-center justify-center rounded-md text-xs font-medium transition-all focus-visible:ring-2 focus-visible:outline-none',
               Icon && !option.label ? 'w-7' : 'gap-1.5 px-3',
               isActive
                 ? 'bg-primary text-primary-foreground shadow-sm'
@@ -179,7 +180,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             <Filter className='size-4' />
             {t('Filter')}
             {props.activeFilterCount > 0 && (
-              <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
+              <Badge className='ml-0.5 size-5 justify-center p-0 text-xs'>
                 {props.activeFilterCount}
               </Badge>
             )}
@@ -191,7 +192,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             </span>
             <span>{props.filteredCount === 1 ? t('model') : t('models')}</span>
             {props.hasActiveFilters && props.totalCount && (
-              <span className='text-muted-foreground/60 text-xs'>
+              <span className='text-muted-foreground text-xs'>
                 / {props.totalCount.toLocaleString()}
               </span>
             )}

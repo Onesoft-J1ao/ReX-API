@@ -121,7 +121,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
     >
       {advancedOpen ? t('Collapse') : t('Expand')}
       {activeAdvancedCount > 0 && (
-        <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
+        <Badge className='ml-0.5 size-5 justify-center p-0 text-xs'>
           {activeAdvancedCount}
         </Badge>
       )}
@@ -138,7 +138,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
     return (
       <Drawer open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
         <div
-          className={cn('bg-card/50 rounded-lg border p-2.5', props.className)}
+          className={cn('bg-card/50 rounded-xl border p-2.5', props.className)}
         >
           {!mobilePanelCollapsed && (
             <div className='grid gap-2'>{props.mobilePinnedFilters}</div>
@@ -183,7 +183,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
                 >
                   {t('Filter')}
                   {activeMobileFilterCount > 0 && (
-                    <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
+                    <Badge className='ml-0.5 size-5 justify-center p-0 text-xs'>
                       {activeMobileFilterCount}
                     </Badge>
                   )}
@@ -245,7 +245,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   return (
     <div
       className={cn(
-        'bg-card/50 rounded-lg border p-2.5 sm:p-3',
+        'bg-card/50 rounded-xl border p-2.5 sm:p-3',
         props.className
       )}
     >

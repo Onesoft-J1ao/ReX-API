@@ -388,6 +388,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                         variant='ghost'
                         size='sm'
                         onClick={() => handleAutoGroupDelete(index)}
+                        aria-label={t('Delete')}
                       >
                         <Trash2 className='h-4 w-4' />
                       </Button>
@@ -657,7 +658,7 @@ function GroupPricingTable({
           />
 
           {duplicateNames.length > 0 && (
-            <p className='text-destructive text-sm'>
+            <p className='text-destructive text-xs'>
               {t('Duplicate group names: {{names}}', {
                 names: duplicateNames.join(', '),
               })}
@@ -816,11 +817,17 @@ function GroupOverrideRules({
             <div className='space-y-3'>
               {groupGroupRatioList.map((userGroupData) => (
                 <Collapsible key={userGroupData.userGroup}>
-                  <div className='rounded-lg border'>
+                  <div className='rounded-xl border'>
                     <div className='flex items-center justify-between p-4'>
                       <div className='flex items-center gap-2'>
                         <CollapsibleTrigger
-                          render={<Button variant='ghost' size='sm' />}
+                          render={
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              aria-label={t('Details')}
+                            />
+                          }
                         >
                           <ChevronDown className='h-4 w-4' />
                         </CollapsibleTrigger>
@@ -846,6 +853,7 @@ function GroupOverrideRules({
                           onClick={() =>
                             handleOverrideAdd(userGroupData.userGroup)
                           }
+                          aria-label={t('Add')}
                         >
                           <Plus className='h-4 w-4' />
                         </Button>
@@ -855,6 +863,7 @@ function GroupOverrideRules({
                           onClick={() =>
                             handleUserGroupDelete(userGroupData.userGroup)
                           }
+                          aria-label={t('Delete')}
                         >
                           <Trash2 className='h-4 w-4' />
                         </Button>

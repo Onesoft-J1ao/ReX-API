@@ -426,7 +426,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                 <GroupBadge
                   key={group}
                   group={group}
-                  className={`cursor-pointer rounded-sm transition-opacity hover:opacity-70 ${
+                  className={`cursor-pointer rounded-full transition-opacity hover:opacity-70 ${
                     selectedGroups.includes(group) ? 'bg-muted/70 px-1' : ''
                   }`}
                   onClick={() => handleToggleGroup(group)}

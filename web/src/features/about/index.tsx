@@ -32,7 +32,7 @@ function EmptyAboutState() {
   const currentYear = new Date().getFullYear()
 
   return (
-    <div className='flex min-h-[60vh] items-center justify-center p-8'>
+    <div className='flex min-h-[60vh] items-center justify-center px-4 py-10'>
       <div className='max-w-2xl space-y-6 text-center'>
         <div className='flex justify-center'>
           <Construction className='text-muted-foreground h-24 w-24' />

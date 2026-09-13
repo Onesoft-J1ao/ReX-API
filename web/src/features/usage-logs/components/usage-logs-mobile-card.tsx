@@ -51,10 +51,8 @@ import { StreamTpsCell, TimingMetricsCell } from './timing-metrics-cell'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]:
-    'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/50 dark:border-rose-900/30',
-  [LOG_TYPE_ENUM.REFUND]:
-    'bg-blue-50/30 dark:bg-blue-950/15 border-blue-200/50 dark:border-blue-900/30',
+  [LOG_TYPE_ENUM.ERROR]: 'bg-destructive/10 border-destructive/30',
+  [LOG_TYPE_ENUM.REFUND]: 'bg-info/10 border-info/30',
 }
 
 interface UsageLogsMobileListProps<TData> {
@@ -67,7 +65,7 @@ interface UsageLogsMobileListProps<TData> {
 
 function UsageLogsMobileSkeleton() {
   return (
-    <div className='border-border/50 bg-card overflow-hidden rounded-lg border'>
+    <div className='border-border/50 bg-card overflow-hidden rounded-xl border'>
       {[1, 2, 3].map((i) => (
         <div
           key={i}
@@ -80,8 +78,8 @@ function UsageLogsMobileSkeleton() {
           <div className='grid grid-cols-2 gap-x-4 gap-y-2'>
             {[1, 2, 3, 4, 5, 6].map((j) => (
               <div key={j} className='min-w-0 space-y-1'>
-                <Skeleton className='h-3 w-10 rounded' />
-                <Skeleton className='h-4 w-full rounded' />
+                <Skeleton className='h-3 w-10 rounded-md' />
+                <Skeleton className='h-4 w-full rounded-md' />
               </div>
             ))}
           </div>
@@ -114,7 +112,7 @@ function CompactCell<TData>({
       {cell ? (
         flexRender(cell.column.columnDef.cell, cell.getContext())
       ) : (
-        <span className='text-muted-foreground/50'>{fallback}</span>
+        <span className='text-muted-foreground'>{fallback}</span>
       )}
     </div>
   )
@@ -140,7 +138,7 @@ function SummaryField<TData>({
       className={cn('bg-muted/20 min-w-0 rounded-md px-2 py-1.5', className)}
     >
       {label != null && label !== '' && (
-        <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
+        <div className='text-muted-foreground mb-1 text-xs leading-none font-medium select-none'>
           {label}
         </div>
       )}
@@ -220,7 +218,7 @@ function MobileTokensField({ log }: { log: UsageLog }) {
           {promptTokens.toLocaleString()} / {completionTokens.toLocaleString()}
         </span>
         {showCache ? (
-          <div className='text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-none'>
+          <div className='text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-none'>
             {cacheReadTokens > 0 && (
               <span>
                 {t('Cache')}↓ {cacheReadTokens.toLocaleString()}
@@ -231,7 +229,7 @@ function MobileTokensField({ log }: { log: UsageLog }) {
             )}
           </div>
         ) : (
-          <span className='text-muted-foreground/50 text-[11px] leading-none'>
+          <span className='text-muted-foreground text-xs leading-none'>
             —
           </span>
         )}
@@ -260,7 +258,7 @@ function MobileUserField({ log }: { log: UsageLog }) {
       <Avatar className='ring-border/60 size-6 shrink-0 ring-1'>
         <AvatarFallback
           className={cn(
-            'text-[11px] font-semibold',
+            'text-xs font-semibold',
             !sensitiveVisible && 'bg-muted text-muted-foreground'
           )}
           style={
@@ -347,7 +345,7 @@ function CommonLogsCard<TData>({
         )}
         <SummaryField
           cell={cells.get('token_name')}
-          valueClassName='[&_.flex-col]:max-w-none [&_.flex-col>*:not(:first-child)]:text-[11px] [&_.flex-col>*:not(:first-child)]:leading-none'
+          valueClassName='[&_.flex-col]:max-w-none [&_.flex-col>*:not(:first-child)]:text-xs [&_.flex-col>*:not(:first-child)]:leading-none'
         />
         {rowData ? (
           <MobileStreamTimingField log={rowData} />
@@ -469,7 +467,7 @@ export function UsageLogsMobileList<TData>({
 
   if (!rows || rows.length === 0) {
     return (
-      <div className='rounded-lg border p-6'>
+      <div className='rounded-xl border p-6'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
@@ -484,7 +482,7 @@ export function UsageLogsMobileList<TData>({
   }
 
   return (
-    <div className='border-border/50 bg-card overflow-hidden rounded-lg border'>
+    <div className='border-border/50 bg-card overflow-hidden rounded-xl border'>
       {rows.map((row) => {
         const cells = new Map(
           row.getVisibleCells().map((cell) => [cell.column.id, cell])

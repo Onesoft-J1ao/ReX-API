@@ -73,17 +73,17 @@ export function ImageDialog({
     >
       <ScrollArea className='max-h-[600px]'>
         <div className='py-4'>
-          <div className='bg-muted/50 relative flex min-h-[300px] items-center justify-center rounded-lg border'>
+          <div className='bg-muted/50 relative flex min-h-[300px] items-center justify-center rounded-xl border'>
             {/* Skeleton - show when loading or error */}
             {(isLoading || hasError) && (
-              <Skeleton className='absolute inset-0 h-full w-full rounded-lg' />
+              <Skeleton className='absolute inset-0 h-full w-full rounded-xl' />
             )}
 
             {/* Actual Image */}
             <img
               src={imageUrl}
               alt={t('Generated image')}
-              className={`max-h-[550px] w-full rounded-lg object-contain ${
+              className={`max-h-[550px] w-full rounded-xl object-contain ${
                 isLoading || hasError ? 'opacity-0' : 'opacity-100'
               }`}
               onLoad={handleImageLoad}

@@ -193,7 +193,7 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
                   {filteredAdd.map((model) => (
                     <label
                       key={model}
-                      className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5'
+                      className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5'
                     >
                       <Checkbox
                         checked={selectedAdd.has(model)}
@@ -206,7 +206,7 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
                   ))}
                 </div>
               ) : (
-                <p className='text-muted-foreground py-8 text-center text-sm'>
+                <p className='text-muted-foreground py-10 text-center text-sm'>
                   {props.addModels.length === 0
                     ? t('No models to add')
                     : t('No matching results')}
@@ -248,7 +248,7 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
                   {filteredRemove.map((model) => (
                     <label
                       key={model}
-                      className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5'
+                      className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5'
                     >
                       <Checkbox
                         checked={selectedRemove.has(model)}
@@ -261,7 +261,7 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
                   ))}
                 </div>
               ) : (
-                <p className='text-muted-foreground py-8 text-center text-sm'>
+                <p className='text-muted-foreground py-10 text-center text-sm'>
                   {props.removeModels.length === 0
                     ? t('No models to remove')
                     : t('No matching results')}

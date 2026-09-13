@@ -400,7 +400,7 @@ type GroupPricingGuideProps = {
 
 function GuideCodeBlock({ children }: { children: string }) {
   return (
-    <pre className='bg-muted/60 overflow-x-auto rounded-lg border px-3 py-2 text-xs leading-6 whitespace-pre-wrap'>
+    <pre className='bg-muted/60 overflow-x-auto rounded-xl border px-3 py-2 text-xs leading-6 whitespace-pre-wrap'>
       {children}
     </pre>
   )
@@ -518,7 +518,7 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
               )}
             </p>
 
-            <div className='overflow-hidden rounded-lg border'>
+            <div className='overflow-hidden rounded-xl border'>
               <div className='bg-muted/40 border-b px-3 py-1.5 text-xs font-medium'>
                 {t('Pricing groups')}
               </div>
@@ -550,13 +550,13 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
               </table>
             </div>
 
-            <div className='overflow-hidden rounded-lg border'>
+            <div className='overflow-hidden rounded-xl border'>
               <div className='bg-muted/40 border-b px-3 py-1.5 text-xs font-medium'>
                 {t('Special ratio rules')}
               </div>
               <div className='p-3 text-sm leading-6'>
                 {t('Users of vip, when billed as premium, pay ratio')}{' '}
-                <span className='bg-primary/10 ring-primary/40 rounded px-1.5 py-0.5 font-semibold ring-1'>
+                <span className='bg-primary/10 ring-primary/40 rounded-md px-1.5 py-0.5 font-semibold ring-1'>
                   0.3
                 </span>{' '}
                 <span className='text-muted-foreground text-xs'>
@@ -572,7 +572,7 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
             </p>
 
             <div className='space-y-3'>
-              <div className='overflow-hidden rounded-lg border'>
+              <div className='overflow-hidden rounded-xl border'>
                 <div className='bg-muted/40 border-b px-3 py-2 text-sm font-medium'>
                   {t('Call 1: the token group is premium')}
                 </div>
@@ -595,7 +595,7 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
                 </div>
               </div>
 
-              <div className='overflow-hidden rounded-lg border'>
+              <div className='overflow-hidden rounded-xl border'>
                 <div className='bg-muted/40 border-b px-3 py-2 text-sm font-medium'>
                   {t('Call 2: the token group is default')}
                 </div>
@@ -618,7 +618,7 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
                 </div>
               </div>
 
-              <div className='overflow-hidden rounded-lg border'>
+              <div className='overflow-hidden rounded-xl border'>
                 <div className='bg-muted/40 border-b px-3 py-2 text-sm font-medium'>
                   {t('Call 3: the token has no group')}
                 </div>
@@ -643,7 +643,7 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
             </div>
           </section>
 
-          <Accordion className='rounded-lg border px-3'>
+          <Accordion className='rounded-xl border px-3'>
             <AccordionItem value='groups'>
               <AccordionTrigger>{t('Pricing group example')}</AccordionTrigger>
               <AccordionContent className='space-y-3'>

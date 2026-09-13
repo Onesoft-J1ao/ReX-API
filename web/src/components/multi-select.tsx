@@ -265,7 +265,7 @@ export function MultiSelect(props: MultiSelectProps) {
           {(values: string[]) => {
             if (props.renderSelectedSummary) {
               return (
-                <span className='bg-muted text-muted-foreground flex h-[calc(--spacing(5.25))] w-fit items-center justify-center rounded-sm px-1.5 font-mono text-xs font-medium whitespace-nowrap'>
+                <span className='bg-muted text-muted-foreground flex h-[calc(--spacing(5.25))] w-fit items-center justify-center rounded-full px-1.5 font-mono text-xs font-medium whitespace-nowrap'>
                   {props.renderSelectedSummary(values)}
                 </span>
               )
@@ -292,7 +292,7 @@ export function MultiSelect(props: MultiSelectProps) {
                           }
                           onPointerDown={(event) => event.stopPropagation()}
                           title={t('Click to copy')}
-                          className='max-w-[16rem] cursor-pointer truncate rounded-sm hover:underline'
+                          className='max-w-[16rem] cursor-pointer truncate rounded-full hover:underline'
                         >
                           {label}
                         </button>
@@ -312,7 +312,7 @@ export function MultiSelect(props: MultiSelectProps) {
                     }}
                     onPointerDown={(event) => event.stopPropagation()}
                     title={t('Show All')}
-                    className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
+                    className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-full px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
                   >
                     {t('+{{count}} more', { count: hiddenCount })}
                   </button>
@@ -329,7 +329,7 @@ export function MultiSelect(props: MultiSelectProps) {
                       }}
                       onPointerDown={(event) => event.stopPropagation()}
                       title={t('Collapse')}
-                      className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
+                      className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-full px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
                     >
                       {t('Collapse')}
                     </button>

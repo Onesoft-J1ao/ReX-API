@@ -37,7 +37,7 @@ export function LoginSessionItem({ session, onRevoke }: LoginSessionItemProps) {
 
   return (
     <div className='flex flex-col gap-3 py-4 sm:flex-row sm:items-center'>
-      <div className='bg-muted flex size-10 shrink-0 items-center justify-center rounded-lg'>
+      <div className='bg-muted flex size-10 shrink-0 items-center justify-center rounded-xl'>
         <HugeiconsIcon icon={LaptopIcon} className='size-5' strokeWidth={2} />
       </div>
       <div className='min-w-0 flex-1'>

@@ -250,7 +250,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   {t('Authorization callback URL')}
                 </span>
                 <span className='flex min-w-0 items-center gap-2'>
-                  <code className='bg-muted text-foreground min-w-0 rounded px-1.5 py-0.5 text-xs break-all'>
+                  <code className='bg-muted text-foreground min-w-0 rounded-md px-1.5 py-0.5 text-xs break-all'>
                     {callbackUrl}
                   </code>
                   <CopyButton

@@ -153,7 +153,7 @@ function CustomProviderIcon(props: { iconUrl?: string }) {
     <img
       src={props.iconUrl}
       alt=''
-      className='h-4 w-4 rounded-sm object-contain'
+      className='h-4 w-4 rounded-md object-contain'
       onError={(e) => {
         e.currentTarget.style.display = 'none'
       }}
@@ -412,6 +412,7 @@ export function UserBindingDialog(props: Props) {
                           size='sm'
                           className='text-destructive hover:text-destructive h-7 w-7 shrink-0 p-0'
                           onClick={() => setUnbindTarget(binding)}
+                          aria-label={t('Unbind')}
                         >
                           <Unlink className='h-3.5 w-3.5' />
                         </Button>

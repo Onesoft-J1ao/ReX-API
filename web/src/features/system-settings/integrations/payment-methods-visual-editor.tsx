@@ -295,7 +295,7 @@ export function PaymentMethodsVisualEditor({
       </div>
 
       {filteredMethods.length === 0 ? (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm'>
+        <div className='text-muted-foreground rounded-xl border border-dashed px-4 py-10 text-center text-sm'>
           {searchText
             ? t('No payment methods match your search')
             : t(
@@ -320,7 +320,7 @@ export function PaymentMethodsVisualEditor({
                 id: 'type',
                 header: t('Payment type key'),
                 cell: (method) => (
-                  <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 text-sm'>
                     {method.type}
                   </code>
                 ),
@@ -396,7 +396,7 @@ export function PaymentMethodsVisualEditor({
                   <div className='mb-3 flex items-start justify-between'>
                     <div className='flex-1'>
                       <div className='mb-1 font-medium'>{method.name}</div>
-                      <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
+                      <code className='bg-muted rounded-md px-1.5 py-0.5 text-xs'>
                         {method.type}
                       </code>
                     </div>
@@ -410,6 +410,7 @@ export function PaymentMethodsVisualEditor({
                           e.stopPropagation()
                           handleEdit(method)
                         }}
+                        aria-label={t('Edit')}
                       >
                         <Pencil className='h-4 w-4' />
                       </Button>
@@ -422,6 +423,7 @@ export function PaymentMethodsVisualEditor({
                           e.stopPropagation()
                           handleDelete(method)
                         }}
+                        aria-label={t('Delete')}
                       >
                         <Trash2 className='h-4 w-4' />
                       </Button>

@@ -146,7 +146,7 @@ export function CacheStatsDialog(props: Props) {
         )}
       </p>
       {loading ? (
-        <div className='text-muted-foreground py-8 text-center text-sm'>
+        <div className='text-muted-foreground py-10 text-center text-sm'>
           {t('Loading...')}
         </div>
       ) : rows.length > 0 ? (
@@ -164,7 +164,7 @@ export function CacheStatsDialog(props: Props) {
           ))}
         </div>
       ) : (
-        <div className='text-muted-foreground py-8 text-center text-sm'>
+        <div className='text-muted-foreground py-10 text-center text-sm'>
           {t('No data available')}
         </div>
       )}

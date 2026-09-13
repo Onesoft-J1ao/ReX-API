@@ -299,11 +299,11 @@ export function SetupWizard() {
           {systemConfigLoading ? (
             <Skeleton className='h-7 w-40' />
           ) : (
-            <h1 className='text-2xl font-semibold tracking-tight'>
+            <h1 className='text-lg font-semibold tracking-tight'>
               {t('Initialize')} {systemName}
             </h1>
           )}
-          <p className='text-muted-foreground text-center text-sm sm:text-base'>
+          <p className='text-muted-foreground text-center text-sm'>
             {t(
               'Follow the guided steps to prepare your workspace before the first login.'
             )}

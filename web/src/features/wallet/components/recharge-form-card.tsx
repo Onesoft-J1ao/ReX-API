@@ -158,7 +158,7 @@ export function RechargeFormCard({
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
                 {Array.from({ length: 8 }, (_, index) => `preset-${index}`).map(
                   (key) => (
-                    <Skeleton key={key} className='h-[72px] rounded-lg' />
+                    <Skeleton key={key} className='h-[72px] rounded-xl' />
                   )
                 )}
               </div>
@@ -175,14 +175,14 @@ export function RechargeFormCard({
               <Skeleton className='h-3 w-32' />
               <div className='flex flex-wrap gap-3'>
                 {['primary', 'secondary', 'tertiary'].map((key) => (
-                  <Skeleton key={key} className='h-10 w-24 rounded-lg' />
+                  <Skeleton key={key} className='h-10 w-24 rounded-md' />
                 ))}
               </div>
             </div>
           </div>
 
           {/* Redemption Code Section Skeleton */}
-          <div className='space-y-3 border-t pt-8'>
+          <div className='space-y-3 border-t pt-4 sm:pt-6'>
             <Skeleton className='h-3 w-24' />
             <div className='flex gap-2'>
               <Skeleton className='h-10 flex-1' />
@@ -248,7 +248,7 @@ export function RechargeFormCard({
                           key={preset.value}
                           variant='outline'
                           className={cn(
-                            'flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
+                            'flex min-h-16 flex-col items-start rounded-md px-3 py-2 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
                             selectedPreset === preset.value
                               ? 'border-foreground bg-foreground/5 dark:border-foreground dark:bg-foreground/10'
                               : 'border-muted'
@@ -256,11 +256,11 @@ export function RechargeFormCard({
                           onClick={() => onSelectPreset(preset)}
                         >
                           <div className='flex w-full items-center justify-between'>
-                            <div className='text-base font-semibold sm:text-lg'>
+                            <div className='font-mono text-base font-semibold tabular-nums sm:text-lg'>
                               {formatNumber(displayValue)}
                             </div>
                             {hasDiscount && (
-                              <div className='text-xs font-medium text-green-600'>
+                              <div className='text-xs font-medium text-success'>
                                 {getDiscountLabel(discount)}
                               </div>
                             )}
@@ -268,7 +268,7 @@ export function RechargeFormCard({
                           <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
                             Pay {formatCurrency(actualPrice)}
                             {hasDiscount && savedAmount > 0 && (
-                              <span className='text-green-600'>
+                              <span className='text-success'>
                                 {' '}
                                 • Save {formatCurrency(savedAmount)}
                               </span>
@@ -305,7 +305,7 @@ export function RechargeFormCard({
                     {calculating ? (
                       <Skeleton className='h-5 w-16' />
                     ) : (
-                      <span className='text-sm font-semibold'>
+                      <span className='font-mono text-sm font-semibold tabular-nums'>
                         {formatCurrency(paymentAmount)}
                       </span>
                     )}
@@ -346,7 +346,7 @@ export function RechargeFormCard({
                               ? `${method.name}. ${disabledReason}`
                               : method.name
                           }
-                          className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
+                          className='min-h-14 min-w-0 justify-start gap-2 rounded-md px-3 py-2 text-left'
                         >
                           {paymentLoading === method.type ? (
                             <Loader2 className='h-4 w-4 animate-spin' />
@@ -363,7 +363,7 @@ export function RechargeFormCard({
                               {method.name}
                             </span>
                             {disabledLabel && (
-                              <span className='text-muted-foreground max-w-full truncate text-[11px] leading-4 font-normal'>
+                              <span className='text-muted-foreground max-w-full truncate text-xs leading-4 font-normal'>
                                 {disabledLabel}
                               </span>
                             )}
@@ -444,7 +444,7 @@ export function RechargeFormCard({
                                 ? `${method.name}. ${disabledReason}`
                                 : method.name
                             }
-                            className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
+                            className='min-h-14 min-w-0 justify-start gap-2 rounded-md px-3 py-2 text-left'
                           >
                             {methodIcon}
                             <span className='flex min-w-0 flex-col items-start gap-0.5'>
@@ -452,7 +452,7 @@ export function RechargeFormCard({
                                 {method.name}
                               </span>
                               {disabledLabel && (
-                                <span className='text-muted-foreground max-w-full truncate text-[11px] leading-4 font-normal'>
+                                <span className='text-muted-foreground max-w-full truncate text-xs leading-4 font-normal'>
                                   {disabledLabel}
                                 </span>
                               )}

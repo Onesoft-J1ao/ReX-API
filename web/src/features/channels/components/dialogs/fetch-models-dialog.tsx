@@ -304,7 +304,7 @@ export function FetchModelsDialog({
 
     return (
       <Collapsible key={categoryName} defaultOpen>
-        <CollapsibleTrigger className='hover:bg-muted/50 flex w-full items-center justify-between rounded-lg border p-3'>
+        <CollapsibleTrigger className='hover:bg-muted/50 flex w-full items-center justify-between rounded-xl border p-3'>
           <div className='flex items-center gap-2'>
             <ChevronDown className='h-4 w-4' />
             <span className='font-medium'>
@@ -342,7 +342,7 @@ export function FetchModelsDialog({
                   {redirectOnlySet.has(normalizeModelName(model)) && (
                     <Tooltip>
                       <TooltipTrigger
-                        render={<Info className='h-3.5 w-3.5 text-amber-500' />}
+                        render={<Info className='h-3.5 w-3.5 text-warning' />}
                        />
                       <TooltipContent>
                         {t('From model redirect, not yet added to models list')}
@@ -399,7 +399,7 @@ export function FetchModelsDialog({
       }
     >
       {!activeChannel && !customFetcher ? (
-        <div className='text-muted-foreground py-8 text-center'>
+        <div className='text-muted-foreground py-10 text-center text-sm'>
           {t('No channel selected')}
         </div>
       ) : isFetching ? (
@@ -407,7 +407,7 @@ export function FetchModelsDialog({
           <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
         </div>
       ) : fetchedModels.length === 0 && removedModels.length === 0 ? (
-        <div className='text-muted-foreground py-8 text-center'>
+        <div className='text-muted-foreground py-10 text-center text-sm'>
           <p>{t('No models fetched yet.')}</p>
           <Button
             className='mt-4'
@@ -499,7 +499,7 @@ export function FetchModelsDialog({
             </Tabs>
 
             {/* Selection Summary */}
-            <div className='bg-muted/50 rounded-lg border p-3 text-sm'>
+            <div className='bg-muted/50 rounded-xl border p-3 text-sm'>
               {t('{{n}} model(s) selected', { n: selectedModels.length })}
             </div>
           </div>

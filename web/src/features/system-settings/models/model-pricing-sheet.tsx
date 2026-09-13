@@ -654,7 +654,7 @@ export const ModelPricingEditorPanel = forwardRef<
                 </Tabs>
               </FieldGroup>
 
-              <aside className='bg-muted/20 sticky top-0 rounded-lg border'>
+              <aside className='bg-muted/20 sticky top-0 rounded-xl border'>
                 <div className='border-b px-3 py-2'>
                   <div className='text-sm font-medium'>{t('Preview')}</div>
                 </div>

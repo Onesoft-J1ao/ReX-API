@@ -126,7 +126,7 @@ function RankingsError(props: { message: string }) {
   const { t } = useTranslation()
   return (
     <div className='bg-card rounded-xl border border-dashed px-6 py-12 text-center'>
-      <h2 className='text-foreground text-base font-semibold'>
+      <h2 className='text-foreground text-sm font-semibold'>
         {t('Unable to load rankings')}
       </h2>
       <p className='text-muted-foreground mx-auto mt-2 max-w-md text-sm'>

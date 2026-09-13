@@ -32,7 +32,7 @@ export function SignIn() {
 
   return (
     <AuthLayout>
-      <div className='w-full space-y-8'>
+      <div className='w-full space-y-6'>
         <div className='space-y-2'>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
             {t('Sign in')}
