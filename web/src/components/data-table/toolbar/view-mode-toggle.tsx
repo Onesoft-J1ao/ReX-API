@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Grid2X2, Table2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -80,8 +81,10 @@ export function DataTableViewModeToggle(props: DataTableViewModeToggleProps) {
           <Tooltip key={segment.value}>
             <TooltipTrigger
               render={
-                <button
+                <Button
                   type='button'
+                  variant={isActive ? 'default' : 'ghost'}
+                  size='icon-sm'
                   onClick={() => props.onChange(segment.value)}
                   aria-label={segment.tooltip}
                   aria-pressed={isActive}
@@ -93,7 +96,7 @@ export function DataTableViewModeToggle(props: DataTableViewModeToggleProps) {
                   )}
                 >
                   <Icon className='size-3.5' />
-                </button>
+                </Button>
               }
             />
             <TooltipContent side='bottom' className='text-xs'>
