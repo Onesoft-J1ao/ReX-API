@@ -33,5 +33,10 @@
   "Text to speech": "Text to speech",
   "Green groups receive priority maintenance and are usually more stable.": "Green groups receive priority maintenance and are usually more stable.",
   "Open-source resources for exploration and lighter workloads.": "Open-source resources for exploration and lighter workloads.",
-  "Low pricing is an extra benefit, not an SLA. Caching, latency, and upstream pools can vary.": "Low pricing is an extra benefit, not an SLA. Caching, latency, and upstream pools can vary."
+  "Low pricing is an extra benefit, not an SLA. Caching, latency, and upstream pools can vary.": "Low pricing is an extra benefit, not an SLA. Caching, latency, and upstream pools can vary.",
+  "Describe the image you want to generate": "Describe the image you want to generate",
+  "Image to image": "Image to image",
+  "Text to image": "Text to image",
+  "The provider returned no image": "The provider returned no image",
+  "This workbench mode is on the way.": "This workbench mode is on the way."
 }

@@ -803,4 +803,14 @@ export const STATIC_I18N_KEYS = [
   'Vendor name and icon must not exceed 128 characters.',
   'Shown',
   'Not shown',
+  // Playground workbench mode labels and image parameter presets, selected at runtime.
+  'Chat',
+  'Image',
+  'Video',
+  'Speech',
+  '3D',
+  'Soon',
+  'Provider default',
+  'Low',
+  'High',
 ] as const

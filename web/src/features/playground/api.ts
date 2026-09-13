@@ -23,6 +23,8 @@ import { API_ENDPOINTS } from './constants'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
+  ImageGenerationResponse,
+  ImageWorkbenchConfig,
   ModelOption,
   GroupOption,
 } from './types'
@@ -35,6 +37,67 @@ export async function sendChatCompletion(
   signal?: AbortSignal
 ): Promise<ChatCompletionResponse> {
   const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Generate images from a text prompt. The wire shape of the image endpoints is
+ * built here so callers pass workbench values, not raw payloads.
+ */
+export async function generateImages(
+  config: ImageWorkbenchConfig,
+  prompt: string,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(
+    API_ENDPOINTS.IMAGE_GENERATIONS,
+    {
+      model: config.model,
+      group: config.group,
+      prompt,
+      n: config.n,
+      size: config.size,
+      quality: config.quality,
+    },
+    { signal, skipErrorHandler: true } as Record<string, unknown>
+  )
+  return res.data
+}
+
+/**
+ * Generate images from a prompt plus reference images. The edits endpoint speaks
+ * multipart, so reference images and the optional mask are appended as files;
+ * axios sets the multipart boundary itself, so no content type is passed here.
+ */
+export async function editImages(
+  config: ImageWorkbenchConfig,
+  prompt: string,
+  images: File[],
+  mask: File | null,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const formData = new FormData()
+  formData.append('model', config.model)
+  if (config.group) {
+    formData.append('group', config.group)
+  }
+  formData.append('prompt', prompt)
+  formData.append('n', String(config.n))
+  formData.append('size', config.size)
+  formData.append('quality', config.quality)
+  if (config.inputFidelity) {
+    formData.append('input_fidelity', config.inputFidelity)
+  }
+  for (const image of images) {
+    formData.append('image[]', image)
+  }
+  if (mask) {
+    formData.append('mask', mask)
+  }
+  const res = await api.post(API_ENDPOINTS.IMAGE_EDITS, formData, {
     signal,
     skipErrorHandler: true,
   } as Record<string, unknown>)

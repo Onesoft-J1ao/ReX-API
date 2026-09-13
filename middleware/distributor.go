@@ -572,6 +572,17 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Group = req.Group
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 	}
+	if strings.HasPrefix(c.Request.URL.Path, "/pg/images/") {
+		// playground workbench image requests. Image edits arrive as multipart,
+		// which getModelFromRequest reads alongside the JSON shape.
+		req, err := getModelFromRequest(c)
+		if err != nil {
+			return nil, false, err
+		}
+		modelRequest.Model = req.Model
+		modelRequest.Group = req.Group
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
+	}
 
 	return &modelRequest, shouldSelectChannel, nil
 }

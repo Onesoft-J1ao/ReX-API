@@ -149,3 +149,26 @@ export interface GroupOption {
   ratio: number
   desc?: string
 }
+
+// Image workbench types
+export type ImageWorkbenchMode = 'text-to-image' | 'image-to-image'
+
+export interface ImageWorkbenchConfig {
+  model: string
+  group: string
+  size: string
+  quality: string
+  n: number
+  inputFidelity: string
+}
+
+export interface GeneratedImage {
+  url?: string
+  b64_json?: string
+  revised_prompt?: string
+}
+
+export interface ImageGenerationResponse {
+  created?: number
+  data?: GeneratedImage[]
+}
