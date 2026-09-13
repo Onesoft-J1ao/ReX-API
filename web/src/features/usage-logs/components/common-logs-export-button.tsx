@@ -139,9 +139,7 @@ export function CommonLogsExportButton(props: CommonLogsExportButtonProps) {
         toast.success(t('Exported {{count}} rows', { count: rows.length }))
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : t('Export failed')
-      )
+      toast.error(error instanceof Error ? error.message : t('Export failed'))
     } finally {
       setExporting(false)
     }
@@ -161,11 +159,7 @@ export function CommonLogsExportButton(props: CommonLogsExportButtonProps) {
           />
         }
       >
-        {exporting ? (
-          <Loader2 className='animate-spin' />
-        ) : (
-          <Download />
-        )}
+        {exporting ? <Loader2 className='animate-spin' /> : <Download />}
       </TooltipTrigger>
       <TooltipContent>
         {exporting ? t('Exporting...') : t('Export as CSV')}

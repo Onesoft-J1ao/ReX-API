@@ -44,7 +44,7 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
     return (
       <Alert className='border-info/30 bg-info/10'>
         <AlertDescription className='flex items-start gap-2'>
-          <ShieldCheck className='mt-0.5 size-4 text-info' />
+          <ShieldCheck className='text-info mt-0.5 size-4' />
           {t(
             'The administrator account is already initialized. You can keep your existing credentials and continue to the next step.'
           )}

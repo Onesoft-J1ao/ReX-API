@@ -54,7 +54,7 @@ export function StatsStrip() {
     <section className='relative z-10 px-6 pb-14 sm:px-10 md:pb-20 lg:px-14'>
       <div className='mx-auto max-w-7xl'>
         <AnimateInView animation='fade-in'>
-          <div className='landing-scanline border-border/60 bg-[var(--surface-sunken)] relative overflow-hidden rounded-xl border'>
+          <div className='landing-scanline border-border/60 relative overflow-hidden rounded-xl border bg-[var(--surface-sunken)]'>
             <div className='flex flex-wrap items-center gap-x-10 gap-y-5 px-6 py-5 sm:px-8'>
               <span className='flex items-center gap-2 font-mono text-[10px] tracking-[0.22em] text-emerald-400 uppercase'>
                 <span className='relative flex size-1.5'>
@@ -65,7 +65,10 @@ export function StatsStrip() {
               </span>
 
               {readings.map((reading, i) => (
-                <div key={reading.label} className='flex items-baseline gap-2.5'>
+                <div
+                  key={reading.label}
+                  className='flex items-baseline gap-2.5'
+                >
                   {i > 0 && (
                     <span
                       aria-hidden='true'

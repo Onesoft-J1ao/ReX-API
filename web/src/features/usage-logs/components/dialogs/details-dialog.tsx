@@ -702,7 +702,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               label={t('IP Address')}
               value={
                 <span className='flex items-center gap-1'>
-                  <Globe className='size-3 text-warning' aria-hidden='true' />
+                  <Globe className='text-warning size-3' aria-hidden='true' />
                   {props.log.ip}
                 </span>
               }
@@ -760,7 +760,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 aria-label={t('Copy to clipboard')}
               >
                 {copiedText === conversionLabel ? (
-                  <Check className='size-3 text-success' />
+                  <Check className='text-success size-3' />
                 ) : (
                   <Copy className='size-3' />
                 )}
@@ -951,7 +951,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               />
             ))}
             {showLegacyTopupWarning && (
-              <div className='flex items-start gap-1.5 text-xs text-warning'>
+              <div className='text-warning flex items-start gap-1.5 text-xs'>
                 <Info className='mt-0.5 size-3.5 shrink-0' aria-hidden='true' />
                 <span>
                   {t(
@@ -1181,9 +1181,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
               value={
                 <span className='flex items-center gap-1'>
                   {isUsageBillingPathLocal(other.admin_info) ? (
-                    <Monitor className='size-3 text-info' />
+                    <Monitor className='text-info size-3' />
                   ) : (
-                    <Cloud className='size-3 text-success' />
+                    <Cloud className='text-success size-3' />
                   )}
                   <span className='text-xs'>
                     {getUsageBillingPathLabel(t, other.admin_info)}
@@ -1326,7 +1326,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 aria-label={t('Copy to clipboard')}
               >
                 {copiedText === details ? (
-                  <Check className='size-3 text-success' />
+                  <Check className='text-success size-3' />
                 ) : (
                   <Copy className='size-3' />
                 )}

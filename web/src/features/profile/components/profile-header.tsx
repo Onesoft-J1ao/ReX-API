@@ -120,7 +120,7 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
         <div className='flex items-center gap-3 text-left sm:gap-4'>
           <Avatar className='ring-background h-12 w-12 rounded-xl text-sm ring-2 sm:h-16 sm:w-16 sm:text-lg sm:ring-4'>
             <AvatarFallback
-              className='rounded-xl font-semibold text-primary-foreground'
+              className='text-primary-foreground rounded-xl font-semibold'
               style={avatarFallbackStyle}
             >
               {avatarFallback}

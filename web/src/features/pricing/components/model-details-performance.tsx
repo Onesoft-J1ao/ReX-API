@@ -65,9 +65,7 @@ function StatCard(props: {
         {props.value}
       </span>
       {props.hint && (
-        <span className='text-muted-foreground text-xs'>
-          {props.hint}
-        </span>
+        <span className='text-muted-foreground text-xs'>{props.hint}</span>
       )}
     </div>
   )
@@ -332,7 +330,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           }
           accent={
             incidentCount > 0 ? (
-              <span className='inline-flex items-center gap-1 text-warning'>
+              <span className='text-warning inline-flex items-center gap-1'>
                 <AlertTriangle className='size-3.5' />
                 {t('{{count}} incidents', {
                   count: incidentCount,
@@ -363,9 +361,7 @@ function SectionHeader(props: {
             {props.title}
           </div>
           {props.description && (
-            <p className='text-muted-foreground text-xs'>
-              {props.description}
-            </p>
+            <p className='text-muted-foreground text-xs'>{props.description}</p>
           )}
         </div>
       </div>

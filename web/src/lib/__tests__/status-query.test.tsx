@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+
 import { useStatus } from '@/hooks/use-status'
 import { api } from '@/lib/api'
 import {
@@ -79,14 +80,16 @@ function wrapper(queryClient: QueryClient) {
 beforeEach(() => {
   statusRequests = []
   window.localStorage.clear()
-  useSystemConfigStore.setState(getInitialSystemConfigState())})
+  useSystemConfigStore.setState(getInitialSystemConfigState())
+})
 
 afterEach(() => {
   cleanup()
   queryClients.splice(0).forEach((client) => client.clear())
   apiClient.get = originalGet
   window.localStorage.clear()
-  useSystemConfigStore.setState(getInitialSystemConfigState())})
+  useSystemConfigStore.setState(getInitialSystemConfigState())
+})
 
 describe('shared status query deduplication', () => {
   test.each(['cold', 'stale'] as const)(
@@ -214,7 +217,8 @@ describe('module guard status freshness', () => {
       'getStatus'
     ) as unknown as ReturnType<typeof vi.fn>
     getStatus.mockResolvedValue({
-      HeaderNavModules: { [scenario.module]: scenario.after },    })
+      HeaderNavModules: { [scenario.module]: scenario.after },
+    })
     expect(
       await getModuleAccessForGuard(
         queryClient,
@@ -222,4 +226,5 @@ describe('module guard status freshness', () => {
       )
     ).toEqual(scenario.after)
     expect(getStatus).toHaveBeenCalledTimes(1)
-  })})
+  })
+})

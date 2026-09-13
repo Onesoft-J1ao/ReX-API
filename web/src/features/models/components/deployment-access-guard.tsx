@@ -74,7 +74,7 @@ function LoadingStep({
       {status === 'loading' && (
         <Loader2 className='text-primary h-5 w-5 animate-spin' />
       )}
-      {status === 'done' && <CheckCircle2 className='h-5 w-5 text-success' />}
+      {status === 'done' && <CheckCircle2 className='text-success h-5 w-5' />}
       {status === 'pending' && (
         <Circle className='text-muted-foreground h-5 w-5' />
       )}
@@ -141,8 +141,8 @@ export function DeploymentAccessGuard({
     return (
       <div className='mx-auto mt-8 max-w-md'>
         <div className='text-center'>
-          <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-warning/10'>
-            <Server className='h-8 w-8 text-warning' />
+          <div className='bg-warning/10 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl'>
+            <Server className='text-warning h-8 w-8' />
           </div>
           <h3 className='mb-6 text-xl font-semibold'>
             {t('Model deployment service is disabled')}
@@ -172,8 +172,8 @@ export function DeploymentAccessGuard({
     return (
       <div className='mx-auto mt-8 max-w-md'>
         <div className='text-center'>
-          <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-destructive/10'>
-            <WifiOff className='h-8 w-8 text-destructive' />
+          <div className='bg-destructive/10 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl'>
+            <WifiOff className='text-destructive h-8 w-8' />
           </div>
           <h3 className='mb-6 text-xl font-semibold'>
             {t('Connection failed')}

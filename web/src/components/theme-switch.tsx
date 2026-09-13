@@ -56,15 +56,24 @@ export function ThemeSwitch() {
       <DropdownMenuContent align='end' className='w-52'>
         <DropdownMenuItem onClick={() => setTheme('light')}>
           {t('Light')}
-          <Check size={14} className={cn('ms-auto', theme !== 'light' && 'hidden')} />
+          <Check
+            size={14}
+            className={cn('ms-auto', theme !== 'light' && 'hidden')}
+          />
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme('dark')}>
           {t('Dark')}
-          <Check size={14} className={cn('ms-auto', theme !== 'dark' && 'hidden')} />
+          <Check
+            size={14}
+            className={cn('ms-auto', theme !== 'dark' && 'hidden')}
+          />
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme('system')}>
           {t('System')}
-          <Check size={14} className={cn('ms-auto', theme !== 'system' && 'hidden')} />
+          <Check
+            size={14}
+            className={cn('ms-auto', theme !== 'system' && 'hidden')}
+          />
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {THEME_PRESETS.map((preset) => (
@@ -85,7 +94,10 @@ export function ThemeSwitch() {
             <span className='flex-1 text-sm'>{preset.name}</span>
             <Check
               size={14}
-              className={cn('ms-auto', customization.preset !== preset.value && 'hidden')}
+              className={cn(
+                'ms-auto',
+                customization.preset !== preset.value && 'hidden'
+              )}
             />
           </DropdownMenuItem>
         ))}

@@ -260,7 +260,7 @@ export function RechargeFormCard({
                               {formatNumber(displayValue)}
                             </div>
                             {hasDiscount && (
-                              <div className='text-xs font-medium text-success'>
+                              <div className='text-success text-xs font-medium'>
                                 {getDiscountLabel(discount)}
                               </div>
                             )}

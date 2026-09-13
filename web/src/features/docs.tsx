@@ -128,11 +128,7 @@ function ParamTable(props: {
   )
 }
 
-function EndpointRow(props: {
-  method: string
-  path: string
-  desc: string
-}) {
+function EndpointRow(props: { method: string; path: string; desc: string }) {
   return (
     <tr className='align-top'>
       <td className='px-4 py-2.5 whitespace-nowrap'>
@@ -169,7 +165,7 @@ function Note(props: { tone?: 'info' | 'warn'; children: ReactNode }) {
     <div
       className={
         warn
-          ? 'rounded-xl border border-warning/20 bg-warning/5 p-4 text-sm leading-6'
+          ? 'border-warning/20 bg-warning/5 rounded-xl border p-4 text-sm leading-6'
           : 'border-border/60 bg-muted/20 rounded-xl border p-4 text-sm leading-6'
       }
     >
@@ -251,8 +247,12 @@ export function DocsPage() {
                 统一 AI 网关，兼容 OpenAI 接口协议
               </h1>
               <p className='text-muted-foreground mt-4 max-w-2xl text-base leading-7'>
-                语言模型、向量、图像、语音、视频与 3D 资产共用同一个密钥和同一个地址。已有
-                OpenAI SDK 的代码只需替换 <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>base_url</code>。
+                语言模型、向量、图像、语音、视频与 3D
+                资产共用同一个密钥和同一个地址。已有 OpenAI SDK 的代码只需替换{' '}
+                <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
+                  base_url
+                </code>
+                。
               </p>
               <div className='mt-6 flex flex-wrap gap-3'>
                 <Button render={<a href='#quick-start' />}>
@@ -278,7 +278,8 @@ export function DocsPage() {
                   <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     /v1
                   </code>{' '}
-                  下。接入只需要三样东西：一个密钥、一个 Base URL、一个可用模型名。
+                  下。接入只需要三样东西：一个密钥、一个 Base
+                  URL、一个可用模型名。
                 </p>
 
                 <div className='border-border/60 bg-muted/20 grid gap-4 rounded-xl border p-5 sm:grid-cols-3'>
@@ -303,7 +304,8 @@ export function DocsPage() {
                   <a href='#models' className='text-primary hover:underline'>
                     模型列表接口
                   </a>{' '}
-                  查出该密钥可用的模型名 → 发起第一次请求 → 按需接流式、向量、图像或语音接口。
+                  查出该密钥可用的模型名 → 发起第一次请求 →
+                  按需接流式、向量、图像或语音接口。
                 </p>
 
                 <CodeBlock language='bash'>{`export REX_API_KEY="sk-your-key"
@@ -331,7 +333,8 @@ print(response.choices[0].message.content)`}</CodeBlock>
 
                 <Note tone='warn'>
                   <strong>密钥安全：</strong>
-                  不要把密钥写进代码、文档或提交到 Git 仓库；不要放在浏览器端或移动端应用里。密钥泄露等同于额度泄露，请立即在控制台吊销并重建。
+                  不要把密钥写进代码、文档或提交到 Git
+                  仓库；不要放在浏览器端或移动端应用里。密钥泄露等同于额度泄露，请立即在控制台吊销并重建。
                 </Note>
               </section>
 
@@ -375,9 +378,17 @@ Content-Type: application/json`}</CodeBlock>
 
                 <div className='grid gap-3 sm:grid-cols-3'>
                   {[
-                    ['Bearer', 'Authorization: Bearer sk-...', '所有 OpenAI 兼容接口'],
+                    [
+                      'Bearer',
+                      'Authorization: Bearer sk-...',
+                      '所有 OpenAI 兼容接口',
+                    ],
                     ['x-api-key', 'x-api-key: sk-...', 'Claude 兼容接口'],
-                    ['x-goog-api-key', 'x-goog-api-key: sk-...', 'Gemini 兼容接口'],
+                    [
+                      'x-goog-api-key',
+                      'x-goog-api-key: sk-...',
+                      'Gemini 兼容接口',
+                    ],
                   ].map(([label, header, scope]) => (
                     <div
                       key={label}
@@ -519,8 +530,11 @@ Content-Type: application/json`}</CodeBlock>
 
                 <Note>
                   路径大小写敏感，且必须带{' '}
-                  <code className='bg-muted rounded-md px-1 font-mono text-xs'>/v1</code>{' '}
-                  前缀。漏掉前缀会命中前端路由而不是接口，表现为 404 或返回 HTML。
+                  <code className='bg-muted rounded-md px-1 font-mono text-xs'>
+                    /v1
+                  </code>{' '}
+                  前缀。漏掉前缀会命中前端路由而不是接口，表现为 404 或返回
+                  HTML。
                 </Note>
               </section>
 
@@ -552,7 +566,11 @@ Content-Type: application/json`}</CodeBlock>
 
                 <ParamTable
                   rows={[
-                    ['model', 'string', '必填。模型名，取值见 GET /v1/models。'],
+                    [
+                      'model',
+                      'string',
+                      '必填。模型名，取值见 GET /v1/models。',
+                    ],
                     [
                       'messages',
                       'array',
@@ -573,11 +591,7 @@ Content-Type: application/json`}</CodeBlock>
                       'number',
                       '采样温度，0 更确定，2 更随机。与 top_p 二选一调整。',
                     ],
-                    [
-                      'top_p',
-                      'number',
-                      '核采样阈值，默认 1。',
-                    ],
+                    ['top_p', 'number', '核采样阈值，默认 1。'],
                     [
                       'tools',
                       'array',
@@ -593,11 +607,7 @@ Content-Type: application/json`}</CodeBlock>
                       'object',
                       '设为 {"type":"json_object"} 可要求返回 JSON。',
                     ],
-                    [
-                      'stop',
-                      'string | array',
-                      '遇到这些字符串停止生成。',
-                    ],
+                    ['stop', 'string | array', '遇到这些字符串停止生成。'],
                   ]}
                 />
 
@@ -623,7 +633,8 @@ Content-Type: application/json`}</CodeBlock>
                   <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     finish_reason: "tool_calls"
                   </code>
-                  ，此时把每个调用结果作为一条 role=tool 的消息发回，再请求一次即可得到最终回答。
+                  ，此时把每个调用结果作为一条 role=tool
+                  的消息发回，再请求一次即可得到最终回答。
                 </p>
 
                 <p className='text-muted-foreground leading-7'>
@@ -691,7 +702,8 @@ for chunk in stream:
        "messages":[{"role":"user","content":"你好"}]}'`}</CodeBlock>
 
                 <Note>
-                  流式连接受网关的空闲超时约束。长时间不产出 token 的上游会被断开，客户端应当对中断做重试或降级处理，不要把流式响应当成一定会完整送达的原子结果。
+                  流式连接受网关的空闲超时约束。长时间不产出 token
+                  的上游会被断开，客户端应当对中断做重试或降级处理，不要把流式响应当成一定会完整送达的原子结果。
                 </Note>
               </section>
 
@@ -703,7 +715,8 @@ for chunk in stream:
                   title='Responses 接口'
                 />
                 <p className='text-muted-foreground leading-7'>
-                  面向新一代 OpenAI 模型（含 Codex 系列）的接口。请求体与官方一致，使用{' '}
+                  面向新一代 OpenAI 模型（含 Codex
+                  系列）的接口。请求体与官方一致，使用{' '}
                   <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     input
                   </code>{' '}
@@ -721,7 +734,8 @@ for chunk in stream:
   "stream": true
 }`}</CodeBlock>
                 <p className='text-muted-foreground leading-7'>
-                  部分模型被限制为只能走 Responses（不提供 chat/completions 别名）。如果某个模型在 chat
+                  部分模型被限制为只能走 Responses（不提供 chat/completions
+                  别名）。如果某个模型在 chat
                   接口返回「不支持该接口」类错误，改用 Responses 再试。
                 </p>
               </section>
@@ -734,8 +748,8 @@ for chunk in stream:
                   title='Claude 兼容'
                 />
                 <p className='text-muted-foreground leading-7'>
-                  网关同时兼容 Anthropic Messages 协议，Claude 官方 SDK 和 Claude Code 可以直接接入，只需把
-                  Base URL 指过来。
+                  网关同时兼容 Anthropic Messages 协议，Claude 官方 SDK 和
+                  Claude Code 可以直接接入，只需把 Base URL 指过来。
                 </p>
                 <CodeBlock language='bash'>{`export ANTHROPIC_BASE_URL=${API_HOST}
 export ANTHROPIC_AUTH_TOKEN=sk-your-key
@@ -751,11 +765,7 @@ curl ${API_BASE}/messages \\
   }'`}</CodeBlock>
                 <ParamTable
                   rows={[
-                    [
-                      'model',
-                      'string',
-                      '必填。Claude 模型名。',
-                    ],
+                    ['model', 'string', '必填。Claude 模型名。'],
                     [
                       'max_tokens',
                       'integer',
@@ -856,7 +866,8 @@ curl ${API_BASE}/messages \\
                   <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     results[].relevance_score
                   </code>
-                  ，按分数降序即为排序结果。注意重排是「输入文档 + 查询」的成对打分，不要和向量相似度混用同一套阈值。
+                  ，按分数降序即为排序结果。注意重排是「输入文档 +
+                  查询」的成对打分，不要和向量相似度混用同一套阈值。
                 </p>
               </section>
 
@@ -872,7 +883,8 @@ curl ${API_BASE}/messages \\
                   <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     /v1/images/edits
                   </code>
-                  （multipart 上传）。不同上游支持的尺寸和参数不同，以模型说明为准。
+                  （multipart
+                  上传）。不同上游支持的尺寸和参数不同，以模型说明为准。
                 </p>
                 <CodeBlock language='bash'>{`curl ${API_BASE}/images/generations \\
   -H "Authorization: Bearer $REX_API_KEY" \\
@@ -906,7 +918,10 @@ curl ${API_BASE}/messages \\
                   ]}
                 />
                 <Note tone='warn'>
-                  图像按张数和分辨率计费，<code className='bg-muted rounded-md px-1 font-mono text-xs'>n</code>{' '}
+                  图像按张数和分辨率计费，
+                  <code className='bg-muted rounded-md px-1 font-mono text-xs'>
+                    n
+                  </code>{' '}
                   和尺寸都会成倍放大消耗。批量调用前先用小参数验证提示词和尺寸是否正确。
                 </Note>
               </section>
@@ -915,7 +930,8 @@ curl ${API_BASE}/messages \\
               <section className='space-y-5'>
                 <SectionHeading id='audio' eyebrow='11' title='语音接口' />
                 <p className='text-muted-foreground leading-7'>
-                  三个接口分别对应合成、转写和翻译。合成返回的是二进制音频流，不是 JSON，客户端必须把响应体写入文件或音频缓冲。
+                  三个接口分别对应合成、转写和翻译。合成返回的是二进制音频流，不是
+                  JSON，客户端必须把响应体写入文件或音频缓冲。
                 </p>
                 <CodeBlock language='bash'>{`# 文本转语音：响应体是二进制音频
 curl ${API_BASE}/audio/speech \\
@@ -958,7 +974,8 @@ curl ${API_BASE}/audio/transcriptions \\
                   title='视频与异步任务'
                 />
                 <p className='text-muted-foreground leading-7'>
-                  视频生成是异步的：先提交拿到任务 ID，再轮询状态，完成后下载内容。轮询不要打得太密，几秒一次足够。
+                  视频生成是异步的：先提交拿到任务
+                  ID，再轮询状态，完成后下载内容。轮询不要打得太密，几秒一次足够。
                 </p>
                 <CodeBlock language='bash'>{`# 1) 提交任务
 curl ${API_BASE}/videos \\
@@ -981,11 +998,7 @@ curl ${API_BASE}/videos/{task_id}/content \\
                       'string',
                       '任务状态，常见取值 queued / processing / succeeded / failed。',
                     ],
-                    [
-                      'progress',
-                      'number',
-                      '进度百分比（部分上游返回）。',
-                    ],
+                    ['progress', 'number', '进度百分比（部分上游返回）。'],
                     [
                       'error / fail_reason',
                       'string',
@@ -1006,7 +1019,8 @@ curl ${API_BASE}/videos/{task_id}/content \\
                   <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     /v1/realtime
                   </code>
-                  ，协议与 OpenAI Realtime 一致。连接需要鉴权，并在查询参数里指定模型。
+                  ，协议与 OpenAI Realtime
+                  一致。连接需要鉴权，并在查询参数里指定模型。
                 </p>
                 <CodeBlock language='javascript'>{`const ws = new WebSocket(
   "wss://ai.j1ao.vip/v1/realtime?model=gpt-4o-realtime-preview",
@@ -1058,7 +1072,9 @@ ws.onmessage = (event) => {
               <section className='space-y-5'>
                 <SectionHeading id='clients' eyebrow='15' title='客户端配置' />
 
-                <h3 className='text-lg font-semibold'>OpenAI SDK（Python / Node）</h3>
+                <h3 className='text-lg font-semibold'>
+                  OpenAI SDK（Python / Node）
+                </h3>
                 <CodeBlock language='python'>{`from openai import OpenAI
 
 client = OpenAI(api_key="sk-your-key", base_url="${API_BASE}")`}</CodeBlock>
@@ -1118,7 +1134,11 @@ codex`}</CodeBlock>
 }`}</CodeBlock>
                 <div className='grid gap-3 sm:grid-cols-2'>
                   {[
-                    ['400', '请求参数错误', '必填字段缺失、类型不对或取值越界。'],
+                    [
+                      '400',
+                      '请求参数错误',
+                      '必填字段缺失、类型不对或取值越界。',
+                    ],
                     ['401', '认证失败', '密钥无效、已吊销或请求头格式不对。'],
                     ['403', '无权限', '密钥无权访问该模型，或账户被禁用。'],
                     [

@@ -26,7 +26,15 @@ export default defineConfig(({ envMode }) => {
         proxyTimeout: 30000,
       },
     ])
-  ) as Record<string, { target: string; changeOrigin: boolean; timeout: number; proxyTimeout: number }>
+  ) as Record<
+    string,
+    {
+      target: string
+      changeOrigin: boolean
+      timeout: number
+      proxyTimeout: number
+    }
+  >
 
   return {
     plugins: [pluginReact(), pluginTailwindcss({ optimize: false })],

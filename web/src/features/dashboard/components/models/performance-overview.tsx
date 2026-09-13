@@ -384,9 +384,7 @@ function PerformanceDetail(props: {
           <tbody className='divide-y'>
             {props.groups.map((group) => (
               <tr key={group.group} className='hover:bg-muted/40'>
-                <td className='px-3 py-2 font-medium sm:px-4'>
-                  {group.group}
-                </td>
+                <td className='px-3 py-2 font-medium sm:px-4'>{group.group}</td>
                 <td className='px-3 py-2 text-right font-mono text-xs tabular-nums'>
                   {formatLatency(group.avg_ttft_ms)}
                 </td>

@@ -91,9 +91,7 @@ describe('buildLogsCsv', () => {
       [{ id: 'token_name' }],
       [{ token_name: 'prod, "main"' }]
     )
-    expect(csv.slice(BOM.length)).toBe(
-      'token_name\r\n"prod, ""main"""'
-    )
+    expect(csv.slice(BOM.length)).toBe('token_name\r\n"prod, ""main"""')
   })
 })
 

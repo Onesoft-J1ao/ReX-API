@@ -842,9 +842,7 @@ export const PromptInputTextarea = ({
     ) {
       e.preventDefault()
       const lastAttachment =
-        attachments.files.length > 0
-          ? attachments.files.at(-1)
-          : undefined
+        attachments.files.length > 0 ? attachments.files.at(-1) : undefined
       if (lastAttachment) {
         attachments.remove(lastAttachment.id)
       }

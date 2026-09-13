@@ -54,7 +54,7 @@ export function CacheTooltip({
       <Tooltip>
         <TooltipTrigger
           render={<Zap className={`size-3 flex-shrink-0 ${color}`} />}
-         />
+        />
         <TooltipContent side='top'>
           <p className='text-xs'>
             {label}: {formatTokens(tokens)}
@@ -223,7 +223,7 @@ export function createFailReasonColumn<T>(config: {
             onClick={() => setDialogOpen(true)}
             title={cellTitle}
           >
-            <span className='truncate leading-snug text-destructive group-hover:underline'>
+            <span className='text-destructive truncate leading-snug group-hover:underline'>
               {failReason}
             </span>
           </button>

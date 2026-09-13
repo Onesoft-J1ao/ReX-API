@@ -31,8 +31,7 @@ export interface CsvColumn {
  */
 export function csvField(value: unknown): string {
   if (value === null || value === undefined) return ''
-  const text =
-    typeof value === 'object' ? JSON.stringify(value) : String(value)
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value)
   if (/[",\r\n]/.test(text)) {
     return `"${text.replaceAll('"', '""')}"`
   }

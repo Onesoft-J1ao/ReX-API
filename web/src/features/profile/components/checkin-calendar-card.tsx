@@ -289,7 +289,7 @@ export function CheckinCalendarCard({
           <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
             <button
               type='button'
-              className='flex min-w-0 flex-1 items-start gap-3 rounded-md text-left whitespace-normal outline-none focus-visible:ring-ring focus-visible:ring-[3px]'
+              className='focus-visible:ring-ring flex min-w-0 flex-1 items-start gap-3 rounded-md text-left whitespace-normal outline-none focus-visible:ring-[3px]'
               onClick={() => setCollapsed((v) => !v)}
             >
               <IconBadge tone='neutral' size='lg' className='sm:size-11'>
@@ -304,7 +304,7 @@ export function CheckinCalendarCard({
                     {t('Daily Check-in')}
                   </h3>
                   {checkedToday && (
-                    <div className='inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success sm:gap-1.5 sm:px-2.5'>
+                    <div className='bg-success/10 text-success inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium sm:gap-1.5 sm:px-2.5'>
                       <Sparkles className='h-2.5 w-2.5 sm:h-3 sm:w-3' />
                       {t('Checked in')}
                     </div>

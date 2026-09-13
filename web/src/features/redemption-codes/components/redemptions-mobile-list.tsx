@@ -51,10 +51,7 @@ function RedemptionsMobileSkeleton() {
   return (
     <div className='divide-border overflow-hidden rounded-xl border'>
       {MOBILE_SKELETON_KEYS.map((key) => (
-        <div
-          key={key}
-          className='space-y-2 border-b px-3 py-2 last:border-b-0'
-        >
+        <div key={key} className='space-y-2 border-b px-3 py-2 last:border-b-0'>
           <div className='flex items-center justify-between'>
             <Skeleton className='h-4 w-32' />
             <Skeleton className='h-5 w-16 rounded-md' />
