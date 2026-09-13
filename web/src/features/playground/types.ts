@@ -168,6 +168,18 @@ export interface GeneratedImage {
   revised_prompt?: string
 }
 
+export interface SpeechWorkbenchConfig {
+  model: string
+  group: string
+  voice: string
+  responseFormat: string
+  speed: number
+}
+
+export interface TranscriptionResponse {
+  text?: string
+}
+
 export interface ImageGenerationResponse {
   created?: number
   data?: GeneratedImage[]

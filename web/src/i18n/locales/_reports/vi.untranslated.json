@@ -38,5 +38,8 @@
   "Image to image": "Image to image",
   "Text to image": "Text to image",
   "The provider returned no image": "The provider returned no image",
-  "This workbench mode is on the way.": "This workbench mode is on the way."
+  "This workbench mode is on the way.": "This workbench mode is on the way.",
+  "Speech to text": "Speech to text",
+  "Text to read aloud": "Text to read aloud",
+  "The transcript will appear here": "The transcript will appear here"
 }
