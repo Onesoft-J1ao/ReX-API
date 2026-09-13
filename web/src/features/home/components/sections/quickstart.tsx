@@ -20,7 +20,10 @@ import { Check, Copy } from 'lucide-react'
 import { AnimateInView } from '@/components/animate-in-view'
 import { Button } from '@/components/ui/button'
 
-const CHAT_SNIPPET = `curl https://your-host/v1/chat/completions \\
+/** Deployment address shown in every snippet — keep in sync with the docs page. */
+const API_BASE = 'https://ai.j1ao.vip/v1'
+
+const CHAT_SNIPPET = `curl ${API_BASE}/chat/completions \\
   -H "Authorization: Bearer $REX_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -28,7 +31,7 @@ const CHAT_SNIPPET = `curl https://your-host/v1/chat/completions \\
     "messages": [{"role": "user", "content": "Hello"}]
   }'`
 
-const IMAGE_SNIPPET = `curl https://your-host/v1/images/generations \\
+const IMAGE_SNIPPET = `curl ${API_BASE}/images/generations \\
   -H "Authorization: Bearer $REX_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
