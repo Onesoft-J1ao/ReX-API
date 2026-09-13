@@ -344,7 +344,7 @@ export function DynamicPricingBreakdown({
       <section className={cn('min-w-0', !compact && 'py-4')}>
         {!compact && (
           <div className='mb-3 flex items-center gap-2'>
-            <span className='inline-flex size-6 items-center justify-center rounded-md bg-warning/10 text-warning'>
+            <span className='bg-warning/10 text-warning inline-flex size-6 items-center justify-center rounded-md'>
               <TagIcon className='size-3.5' />
             </span>
             <div>
@@ -458,7 +458,7 @@ export function DynamicPricingBreakdown({
     <section className={cn('min-w-0', !compact && 'py-3 sm:py-4')}>
       {!compact && !usageSchema && (
         <div className='mb-3 flex items-start gap-2 sm:mb-4'>
-          <span className='mt-0.5 inline-flex size-6 items-center justify-center rounded-md bg-warning/10 text-warning'>
+          <span className='bg-warning/10 text-warning mt-0.5 inline-flex size-6 items-center justify-center rounded-md'>
             <TagIcon className='size-3.5' />
           </span>
           <div>
@@ -598,10 +598,7 @@ export function DynamicPricingBreakdown({
                 matchedBillingUnit,
                 matchedFixedPrice
               )
-              return cn(
-                isMatched &&
-                  'bg-success/10 hover:bg-success/10'
-              )
+              return cn(isMatched && 'bg-success/10 hover:bg-success/10')
             }}
             columns={[
               {

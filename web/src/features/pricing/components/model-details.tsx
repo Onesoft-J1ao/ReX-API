@@ -737,8 +737,8 @@ function PriceSection(props: {
       return (
         <section>
           <SectionTitle>{t('Base Price')}</SectionTitle>
-          <div className='rounded-xl border border-warning/30 bg-warning/10 p-3'>
-            <div className='text-sm font-medium text-warning'>
+          <div className='border-warning/30 bg-warning/10 rounded-xl border p-3'>
+            <div className='text-warning text-sm font-medium'>
               {t('Special billing expression')}
             </div>
             <p className='text-muted-foreground mt-1 text-xs'>
@@ -1142,8 +1142,8 @@ function ProviderGroupPricingSection(
             <SectionTitle>{t('Pricing by Group')}</SectionTitle>
           )}
           <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
-          <div className='rounded-xl border border-warning/30 bg-warning/10 p-3'>
-            <div className='text-sm font-medium text-warning'>
+          <div className='border-warning/30 bg-warning/10 rounded-xl border p-3'>
+            <div className='text-warning text-sm font-medium'>
               {t('Special billing expression')}
             </div>
             <p className='text-muted-foreground mt-1 text-xs'>
@@ -1519,7 +1519,10 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
           })}
         </TabsList>
 
-        <TabsContent value='overview' className='focus-visible:ring-ring space-y-6 outline-none focus-visible:ring-2'>
+        <TabsContent
+          value='overview'
+          className='focus-visible:ring-ring space-y-6 outline-none focus-visible:ring-2'
+        >
           <OverviewSummaryGrid model={props.model} />
 
           <section className='bg-card/60 space-y-5 rounded-xl border p-4 shadow-sm'>
@@ -1559,11 +1562,17 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
           <ModelBackendDetailsSection model={props.model} />
         </TabsContent>
 
-        <TabsContent value='performance' className='focus-visible:ring-ring outline-none focus-visible:ring-2'>
+        <TabsContent
+          value='performance'
+          className='focus-visible:ring-ring outline-none focus-visible:ring-2'
+        >
           <ModelDetailsPerformance model={props.model} />
         </TabsContent>
 
-        <TabsContent value='api' className='focus-visible:ring-ring outline-none focus-visible:ring-2'>
+        <TabsContent
+          value='api'
+          className='focus-visible:ring-ring outline-none focus-visible:ring-2'
+        >
           <ModelDetailsApi
             model={props.model}
             endpointMap={props.endpointMap}
@@ -1665,9 +1674,7 @@ export function ModelDetails() {
     return (
       <PublicLayout>
         <div className='mx-auto max-w-2xl px-4 py-10 text-center sm:px-6'>
-          <h2 className='mb-1 text-sm font-semibold'>
-            {t('Model not found')}
-          </h2>
+          <h2 className='mb-1 text-sm font-semibold'>{t('Model not found')}</h2>
           <p className='text-muted-foreground mb-4 text-xs'>
             {t("The model you're looking for doesn't exist.")}
           </p>

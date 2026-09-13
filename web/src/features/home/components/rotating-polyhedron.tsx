@@ -656,12 +656,15 @@ export function RotatingPolyhedron(props: RotatingPolyhedronProps) {
       />
       {/* Orbit rings + satellite nodes — the routing-core metaphor made
           mechanical: packets (dots) orbit the polyhedron on two tilted rails. */}
-      <div aria-hidden='true' className='pointer-events-none absolute inset-[14%]'>
-        <div className='absolute inset-0 animate-spin [animation-duration:26s] [animation-timing-function:linear] rounded-full border border-dashed border-primary/20 [transform:rotateX(68deg)]'>
+      <div
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-[14%]'
+      >
+        <div className='border-primary/20 absolute inset-0 [transform:rotateX(68deg)] animate-spin rounded-full border border-dashed [animation-duration:26s] [animation-timing-function:linear]'>
           <span className='bg-primary absolute -top-1 left-1/2 size-2 -translate-x-1/2 rounded-full shadow-[0_0_12px_2px_var(--glow-soft)]' />
           <span className='bg-primary/60 absolute top-1/2 -right-1 size-1.5 translate-y-1/2 rounded-full' />
         </div>
-        <div className='absolute inset-[12%] animate-spin [animation-duration:38s] [animation-timing-function:linear] [animation-direction:reverse] rounded-full border border-primary/15 [transform:rotateX(72deg)_rotateY(24deg)]'>
+        <div className='border-primary/15 absolute inset-[12%] [transform:rotateX(72deg)_rotateY(24deg)] animate-spin rounded-full border [animation-direction:reverse] [animation-duration:38s] [animation-timing-function:linear]'>
           <span className='bg-primary absolute -bottom-1 left-1/3 size-1.5 -translate-x-1/2 rounded-full shadow-[0_0_10px_2px_var(--glow-soft)]' />
         </div>
       </div>

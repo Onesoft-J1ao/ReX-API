@@ -1964,10 +1964,7 @@ export function ParamOverrideEditorDialog(
                                   <span className='text-xs font-semibold'>
                                     #{index + 1}
                                   </span>
-                                  <Badge
-                                    variant='outline'
-                                    className='text-xs'
-                                  >
+                                  <Badge variant='outline' className='text-xs'>
                                     {operation.conditions.length}
                                   </Badge>
                                 </div>
@@ -2540,9 +2537,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
             </div>
             <div className='grid gap-2 sm:grid-cols-3'>
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>
-                  {t('Field Path')}
-                </label>
+                <label className='text-xs font-medium'>{t('Field Path')}</label>
                 <Input
                   value={condition.path}
                   onChange={(e) =>
@@ -2557,9 +2552,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                 />
               </div>
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>
-                  {t('Match Mode')}
-                </label>
+                <label className='text-xs font-medium'>{t('Match Mode')}</label>
                 <Combobox
                   options={CONDITION_MODE_OPTIONS.map((o) => ({
                     value: o.value,
@@ -3161,9 +3154,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
       <label className='text-xs font-medium'>{t('Sync Endpoints')}</label>
       <div className='grid gap-3 sm:grid-cols-2'>
         <div className='space-y-1.5'>
-          <label className='text-xs font-medium'>
-            {t('Source Endpoint')}
-          </label>
+          <label className='text-xs font-medium'>{t('Source Endpoint')}</label>
           <div className='flex gap-2'>
             <Select
               items={SYNC_TARGET_TYPE_OPTIONS.map((o) => ({
@@ -3216,9 +3207,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
           </div>
         </div>
         <div className='space-y-1.5'>
-          <label className='text-xs font-medium'>
-            {t('Target Endpoint')}
-          </label>
+          <label className='text-xs font-medium'>{t('Target Endpoint')}</label>
           <div className='flex gap-2'>
             <Select
               items={SYNC_TARGET_TYPE_OPTIONS.map((o) => ({

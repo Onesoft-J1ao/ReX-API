@@ -430,8 +430,9 @@ function buildSample(
 ): string {
   if (endpointType === 'anthropic') return buildAnthropicSample(lang, ctx)
   if (endpointType === 'gemini') return buildGeminiSample(lang, ctx)
-  if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
-    {return buildEmbeddingSample(lang, ctx)}
+  if (endpointType === 'embeddings' || endpointType === 'jina-rerank') {
+    return buildEmbeddingSample(lang, ctx)
+  }
   if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
   return buildChatSample(lang, ctx)
 }
@@ -582,7 +583,7 @@ function SupportedParametersSection(props: { model: PricingModel }) {
                 {p.required && (
                   <Badge
                     variant='outline'
-                    className='h-6 border-destructive/40 px-2 text-sm text-destructive'
+                    className='border-destructive/40 text-destructive h-6 px-2 text-sm'
                   >
                     {t('required')}
                   </Badge>

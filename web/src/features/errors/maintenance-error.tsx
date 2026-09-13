@@ -29,7 +29,7 @@ export function MaintenanceError() {
         <span className='text-lg font-semibold'>
           {t('Website is under maintenance!')}
         </span>
-        <p className='text-sm text-muted-foreground text-center'>
+        <p className='text-muted-foreground text-center text-sm'>
           {t('The site is not available at the moment.')} <br />
           {t("We'll be back online shortly.")}
         </p>

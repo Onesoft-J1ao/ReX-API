@@ -451,7 +451,7 @@ export function useCommonLogsColumns(
                           }
                         >
                           <GitBranch
-                            className='size-3.5 text-warning'
+                            className='text-warning size-3.5'
                             aria-hidden='true'
                           />
                         </PopoverTrigger>
@@ -472,7 +472,7 @@ export function useCommonLogsColumns(
                     {affinity && (
                       <button
                         type='button'
-                        className='absolute -top-1 -right-1 leading-none text-warning'
+                        className='text-warning absolute -top-1 -right-1 leading-none'
                         onClick={(e) => {
                           e.stopPropagation()
                           setAffinityTarget({

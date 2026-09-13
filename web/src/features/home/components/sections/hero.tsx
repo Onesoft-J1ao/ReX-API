@@ -62,7 +62,7 @@ export function Hero(props: HeroProps) {
           wrapper fell back to its content width — which the `w-max` telemetry
           ticker inflated to the full `max-w-7xl` (1280px) even on a phone, so
           everything past the viewport was clipped by overflow-hidden. */}
-      <div className='mx-auto w-full min-w-0 max-w-7xl'>
+      <div className='mx-auto w-full max-w-7xl min-w-0'>
         <h1 className='landing-animate-fade-up max-w-[16ch] font-serif text-[length:var(--hero-type)] leading-[0.98] font-medium tracking-[-0.03em] opacity-0'>
           {t('One router,')}
           <br />
@@ -116,7 +116,7 @@ export function Hero(props: HeroProps) {
 
         {/* Telemetry data stream — a scrolling mono strip that fills the hero
             footer space with mechanical movement. */}
-        <div className='landing-animate-fade-in mt-[var(--hero-gap-loose)] overflow-hidden opacity-0 [animation-delay:320ms] [mask-image:linear-gradient(90deg,transparent,black_12%,black_88%,transparent)]'>
+        <div className='landing-animate-fade-in mt-[var(--hero-gap-loose)] overflow-hidden [mask-image:linear-gradient(90deg,transparent,black_12%,black_88%,transparent)] opacity-0 [animation-delay:320ms]'>
           <div className='rt-ticker text-muted-foreground/80 flex w-max items-center gap-8 py-3 font-mono text-[10px] tracking-[0.18em] uppercase'>
             <TickerRow />
           </div>

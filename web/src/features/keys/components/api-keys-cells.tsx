@@ -80,7 +80,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
     copyIcon = <Loader2 className='size-3.5 animate-spin' />
     copyTooltip = t('Loading...')
   } else if (isCopied) {
-    copyIcon = <Check className='size-3.5 text-success' />
+    copyIcon = <Check className='text-success size-3.5' />
     copyTooltip = t('Copied!')
   }
 
@@ -109,7 +109,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
                 value={resolvedFullKey || maskedKey}
                 autoFocus
                 onFocus={(e) => e.target.select()}
-                className='bg-muted/50 w-full min-w-[280px] rounded-md border px-3 py-2 font-mono text-xs outline-none focus-visible:ring-ring focus-visible:ring-[3px]'
+                className='bg-muted/50 focus-visible:ring-ring w-full min-w-[280px] rounded-md border px-3 py-2 font-mono text-xs outline-none focus-visible:ring-[3px]'
               />
             )}
           </div>

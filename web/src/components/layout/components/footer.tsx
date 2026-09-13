@@ -42,8 +42,6 @@ interface FooterProps {
   className?: string
 }
 
-
-
 function FooterLinkItem(props: { link: FooterLink }) {
   const { t } = useTranslation()
   const isExternal = props.link.href.startsWith('http')

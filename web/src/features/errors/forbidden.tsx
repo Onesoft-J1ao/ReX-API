@@ -30,7 +30,7 @@ export function ForbiddenError() {
       <div className='m-auto flex h-full w-full flex-col items-center justify-center gap-2'>
         <h1 className='text-7xl leading-tight font-bold'>403</h1>
         <span className='text-lg font-semibold'>{t('Access Forbidden')}</span>
-        <p className='text-sm text-muted-foreground text-center'>
+        <p className='text-muted-foreground text-center text-sm'>
           {t("You don't have necessary permission")} <br />
           {t('to view this resource.')}
         </p>
