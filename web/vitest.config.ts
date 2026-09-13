@@ -1,31 +1,44 @@
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
-import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
+/*
+Copyright (C) 2023-2026 QuantumNous
 
-const rootDir = dirname(fileURLToPath(import.meta.url))
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { defineConfig } from 'vitest/config'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  plugins: [react()],
   resolve: {
     alias: {
-      '@': resolve(rootDir, 'src'),
+      '@': path.resolve(__dirname, './src'),
     },
   },
   test: {
-    environment: 'happy-dom',
-    setupFiles: ['./vitest.setup.ts'],
+    environment: 'jsdom',
+    // The suite mixes explicit vitest imports with bare describe/it/expect.
     globals: true,
-    include: [
-      'src/lib/__tests__/status-query.test.tsx',
-      'src/features/users/components/dialogs/__tests__/user-binding-dialog.test.tsx',
-      'src/features/pricing/lib/__tests__/time-rule-expr.test.ts',
-      'src/features/pricing/components/__tests__/model-perf-badge.test.tsx',
-      'src/features/usage-logs/lib/__tests__/csv.test.ts',
-    ],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html'],
+    server: {
+      deps: { inline: [/@lobehub\//, /antd-style/] },
     },
+    setupFiles: ['./src/test-setup.ts'],
+    clearMocks: true,
+    restoreMocks: true,
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
 })

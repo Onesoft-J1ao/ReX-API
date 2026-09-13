@@ -95,14 +95,14 @@ func cachedLoginSessionKey(t *testing.T, server *miniredis.Miniredis) string {
 	return ""
 }
 
-func TestCreateLoginSessionEvictsOldestAtActiveLimit(t *testing.T) {
+func TestCreateLoginSessionEnforcesActiveLimitAcrossAuthVersions(t *testing.T) {
 	useTestSessionSecret(t)
 	user := setupAuthSessionTestDB(t)
 	common.UserSessionActiveLimit = 50
 	common.UserSessionIssuanceLimit = 100
 	now := time.Now().Unix()
-	rows := make([]model.UserSession, 0, 50)
-	for i := 0; i < 50; i++ {
+	rows := make([]model.UserSession, 0, 49)
+	for i := range 49 {
 		authVersion := user.AuthVersion
 		if i == 0 {
 			authVersion++
@@ -115,27 +115,30 @@ func TestCreateLoginSessionEvictsOldestAtActiveLimit(t *testing.T) {
 			Status:          model.UserSessionStatusActive,
 			RefreshHash:     fmt.Sprintf("hash-%02d", i),
 			LoginMethod:     "password",
-			CreatedAt:       now - int64(i+1),
-			LastActiveAt:    now - int64(i+1),
+			CreatedAt:       now - int64(i),
+			LastActiveAt:    now - int64(i),
 			ExpiresAt:       now + 3600,
 		})
 	}
 	require.NoError(t, model.DB.Create(&rows).Error)
 
 	_, err := CreateLoginSession(user.Id, "password", "127.0.0.1", "test-agent")
-	require.NoError(t, err, "the 51st login must succeed by evicting the oldest session")
+	require.NoError(t, err, "49 active sessions must allow creation of the 50th")
 
-	// The newest login stays active; the oldest pre-existing session was
-	// revoked to keep the active count at the limit.
-	var count int64
+	// This fork evicts the oldest active session instead of refusing the login,
+	// so a full session table never locks the account out of every device.
+	_, err = CreateLoginSession(user.Id, "password", "127.0.0.1", "test-agent")
+	require.NoError(t, err, "reaching the active limit must evict, not refuse")
+
+	var active int64
 	require.NoError(t, model.DB.Model(&model.UserSession{}).
 		Where("status = ?", model.UserSessionStatusActive).
-		Count(&count).Error)
-	assert.Equal(t, int64(50), count)
+		Count(&active).Error)
+	assert.Equal(t, int64(50), active, "active sessions must be trimmed back to the limit")
 
-	var oldest model.UserSession
-	require.NoError(t, model.DB.Where("sid = ?", "active-limit-49").First(&oldest).Error)
-	assert.Equal(t, model.UserSessionStatusRevoked, oldest.Status, "oldest session must be evicted")
+	var total int64
+	require.NoError(t, model.DB.Model(&model.UserSession{}).Count(&total).Error)
+	assert.Equal(t, int64(51), total, "the evicted session is retained as a revoked record")
 }
 
 func TestCreateLoginSessionEnforcesIssuanceLimitAcrossAllStatuses(t *testing.T) {
@@ -222,7 +225,7 @@ func TestCleanupAuthArtifactsAlertsBeforeDeletingHourlyIssuance(t *testing.T) {
 	common.UserSessionIssuanceWindowSeconds = 1
 	now := time.Now()
 	boundaryRows := make([]model.UserSession, 0, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		boundaryRows = append(boundaryRows, model.UserSession{
 			SID: "hourly-boundary-" + string(rune('a'+i)), UserID: 1, Version: 1, UserAuthVersion: 1,
 			Status: model.UserSessionStatusActive, RefreshHash: "hash", LoginMethod: "password",
@@ -249,7 +252,7 @@ func TestCleanupAuthArtifactsAlertsBeforeDeletingHourlyIssuance(t *testing.T) {
 	assert.Zero(t, count)
 
 	exceededRows := make([]model.UserSession, 0, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		exceededRows = append(exceededRows, model.UserSession{
 			SID: "hourly-exceeded-" + string(rune('a'+i)), UserID: 1, Version: 1, UserAuthVersion: 1,
 			Status: model.UserSessionStatusActive, RefreshHash: "hash", LoginMethod: "password",

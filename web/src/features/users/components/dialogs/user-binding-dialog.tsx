@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import {
   Mail,
   Globe,
@@ -44,8 +45,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useQuery } from '@tanstack/react-query'
-
+import { handleServerError } from '@/lib/handle-server-error'
+import { indexCustomOAuthBindings, type CustomOAuthBinding } from '@/lib/oauth'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { statusQueryOptions } from '@/lib/status-query'
 
 import {
@@ -53,7 +55,6 @@ import {
   getUserOAuthBindings,
   adminClearUserBinding,
   adminUnbindCustomOAuth,
-  type OAuthBinding,
 } from '../../api'
 import type { User } from '../../types'
 
@@ -70,7 +71,7 @@ interface BindingItem {
   icon: React.ReactNode
   value: string
   type: 'builtin' | 'custom'
-  providerId?: string
+  providerId?: number
   isBound: boolean
   isEnabled: boolean
 }
@@ -83,7 +84,7 @@ interface StatusInfo {
   telegram_oauth?: boolean
   linuxdo_oauth?: boolean
   custom_oauth_providers?: Array<{
-    id: string
+    id: number
     name: string
     icon?: string
   }>
@@ -104,42 +105,42 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
     statusKey: null,
   },
   {
-    key: 'github_id',
+    key: 'github',
     field: 'github_id',
     label: 'GitHub',
     icon: <SiGithub className='h-4 w-4' />,
     statusKey: 'github_oauth',
   },
   {
-    key: 'discord_id',
+    key: 'discord',
     field: 'discord_id',
     label: 'Discord',
     icon: <SiDiscord className='h-4 w-4' />,
     statusKey: 'discord_oauth',
   },
   {
-    key: 'wechat_id',
+    key: 'wechat',
     field: 'wechat_id',
     label: 'WeChat',
     icon: <MessageCircle className='h-4 w-4' />,
     statusKey: 'wechat_login',
   },
   {
-    key: 'oidc_id',
+    key: 'oidc',
     field: 'oidc_id',
     label: 'OIDC',
     icon: <Globe className='h-4 w-4' />,
     statusKey: 'oidc_enabled',
   },
   {
-    key: 'telegram_id',
+    key: 'telegram',
     field: 'telegram_id',
     label: 'Telegram',
     icon: <Send className='h-4 w-4' />,
     statusKey: 'telegram_oauth',
   },
   {
-    key: 'linux_do_id',
+    key: 'linuxdo',
     field: 'linux_do_id',
     label: 'LinuxDO',
     icon: <Globe className='h-4 w-4' />,
@@ -164,7 +165,7 @@ function CustomProviderIcon(props: { iconUrl?: string }) {
 export function UserBindingDialog(props: Props) {
   const { t } = useTranslation()
   const [user, setUser] = useState<User | null>(null)
-  const [oauthBindings, setOauthBindings] = useState<OAuthBinding[]>([])
+  const [oauthBindings, setOauthBindings] = useState<CustomOAuthBinding[]>([])
   const [loading, setLoading] = useState(false)
   const [showBoundOnly, setShowBoundOnly] = useState(true)
   const [unbindTarget, setUnbindTarget] = useState<BindingItem | null>(null)
@@ -185,14 +186,15 @@ export function UserBindingDialog(props: Props) {
           data: [],
         })),
       ])
+      requireServerSuccess(userRes)
       if (userRes.success && userRes.data) {
         setUser(userRes.data)
       }
       if (oauthRes.success && oauthRes.data) {
-        setOauthBindings(oauthRes.data as OAuthBinding[])
+        setOauthBindings(oauthRes.data)
       }
-    } catch {
-      toast.error(t('Failed to load'))
+    } catch (error) {
+      handleServerError(error, t('Failed to load'))
     } finally {
       setLoading(false)
     }
@@ -231,37 +233,35 @@ export function UserBindingDialog(props: Props) {
       })
     }
 
-    const oauthBindingMap = new Map(
-      oauthBindings.map((b) => [String(b.provider_id), b])
-    )
+    const oauthBindingMap = indexCustomOAuthBindings(oauthBindings)
 
     const customProviders = status?.custom_oauth_providers || []
-    const seenProviderIds = new Set<string>()
+    const seenProviderIds = new Set<number>()
 
     for (const provider of customProviders) {
-      seenProviderIds.add(String(provider.id))
-      const binding = oauthBindingMap.get(String(provider.id))
+      seenProviderIds.add(provider.id)
+      const binding = oauthBindingMap.get(provider.id)
       items.push({
         key: `oauth_${provider.id}`,
-        label: provider.name || provider.id,
+        label: provider.name || String(provider.id),
         icon: <CustomProviderIcon iconUrl={provider.icon} />,
-        value: binding?.external_id || '',
+        value: binding?.provider_user_id || '',
         type: 'custom',
-        providerId: String(provider.id),
+        providerId: provider.id,
         isBound: !!binding,
         isEnabled: true,
       })
     }
 
     for (const binding of oauthBindings) {
-      if (!seenProviderIds.has(String(binding.provider_id))) {
+      if (!seenProviderIds.has(binding.provider_id)) {
         items.push({
           key: `oauth_${binding.provider_id}`,
-          label: binding.provider_name || binding.provider_id,
+          label: binding.provider_name || String(binding.provider_id),
           icon: <Link2 className='h-4 w-4' />,
-          value: binding.external_id || '-',
+          value: binding.provider_user_id || '-',
           type: 'custom',
-          providerId: String(binding.provider_id),
+          providerId: binding.provider_id,
           isBound: true,
           isEnabled: false,
         })
@@ -297,10 +297,10 @@ export function UserBindingDialog(props: Props) {
         await fetchData()
         props.onUnbindSuccess?.()
       } else {
-        toast.error(res?.message || t('Unbind failed'))
+        handleServerError(res, t('Unbind failed'))
       }
-    } catch {
-      toast.error(t('Unbind failed'))
+    } catch (error) {
+      handleServerError(error, t('Unbind failed'))
     } finally {
       setUnbinding(false)
       setUnbindTarget(null)
