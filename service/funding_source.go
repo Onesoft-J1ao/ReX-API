@@ -24,6 +24,23 @@ type FundingSource interface {
 }
 
 // ---------------------------------------------------------------------------
+// FreeFunding — 游乐场免费额度资金来源实现
+// ---------------------------------------------------------------------------
+
+// BillingSourceFree marks a request funded by the playground free allowance.
+const BillingSourceFree = "free"
+
+// FreeFunding funds a playground request the free allowance still covers. Every
+// operation is a no-op: the wallet and any subscription are left alone, and the
+// allowance itself is recorded separately once the request has produced usage.
+type FreeFunding struct{}
+
+func (f *FreeFunding) Source() string              { return BillingSourceFree }
+func (f *FreeFunding) PreConsume(amount int) error { return nil }
+func (f *FreeFunding) Settle(delta int) error       { return nil }
+func (f *FreeFunding) Refund() error                { return nil }
+
+// ---------------------------------------------------------------------------
 // WalletFunding — 钱包资金来源实现
 // ---------------------------------------------------------------------------
 

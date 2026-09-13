@@ -34,6 +34,11 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
+	// Decide the playground free tier here so both settlement paths agree on it.
+	if relayInfo != nil && ShouldServeFromPlaygroundFreeTier(c, relayInfo) {
+		relayInfo.PlaygroundFreeTier = true
+	}
+
 	session, apiErr := NewBillingSession(c, relayInfo, preConsumedQuota)
 	if apiErr != nil {
 		return apiErr

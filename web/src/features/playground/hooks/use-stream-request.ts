@@ -17,6 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  getPlaygroundFingerprint,
+  PLAYGROUND_FINGERPRINT_HEADER,
+} from '../lib/fingerprint'
+
 import { SSE } from 'sse.js'
 
 import { getFreshAuthHeaders } from '@/lib/api'
@@ -190,7 +195,10 @@ export function useStreamRequest() {
   > | null>(null)
   if (!controllerRef.current) {
     controllerRef.current = createStreamRequestController({
-      getHeaders: getFreshAuthHeaders,
+      getHeaders: async () => ({
+        ...(await getFreshAuthHeaders()),
+        [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint(),
+      }),
       createSource: (payload, headers) =>
         new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
           headers,
