@@ -41,6 +41,70 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+// endpointFallbackMarkers are the phrases an upstream uses when it refuses a
+// model on the endpoint that was called, as opposed to a genuine failure.
+var endpointFallbackMarkers = []string{
+	"not supported",
+	"unsupported",
+	"does not support",
+	"not available",
+	"does not exist",
+	"not found",
+	"unknown model",
+	"no such model",
+	"不支持",
+	"不存在",
+}
+
+// canRetryOnAnotherEndpoint reports whether a failure means "wrong endpoint for
+// this model", the only failure worth retrying elsewhere. A missing model on one
+// endpoint says nothing about the next, but an auth, quota or network failure
+// repeats on every endpoint and retrying it would only multiply upstream calls.
+func canRetryOnAnotherEndpoint(result testResult) bool {
+	if result.localErr != nil || result.newAPIError == nil {
+		return false
+	}
+	status := result.newAPIError.StatusCode
+	if status != http.StatusBadRequest && status != http.StatusNotFound {
+		return false
+	}
+	message := strings.ToLower(result.newAPIError.Error())
+	for _, marker := range endpointFallbackMarkers {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// testChannelAcrossEndpoints runs the channel test, walking through the
+// endpoints this channel and model can speak when the failure says the model is
+// not served on the one that was tried. A caller that names an endpoint gets
+// exactly that endpoint, and a channel with a single endpoint is tested once.
+func testChannelAcrossEndpoints(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+	if strings.TrimSpace(endpointType) != "" || testModel == "" {
+		return testChannel(ctx, channel, testUserID, testModel, endpointType, isStream)
+	}
+
+	candidates := common.GetEndpointTypesByChannelType(channel.Type, testModel)
+	if len(candidates) <= 1 {
+		return testChannel(ctx, channel, testUserID, testModel, endpointType, isStream)
+	}
+
+	var last testResult
+	for _, candidate := range candidates {
+		last = testChannel(ctx, channel, testUserID, testModel, string(candidate), isStream)
+		if last.localErr == nil && last.newAPIError == nil {
+			return last
+		}
+		if !canRetryOnAnotherEndpoint(last) {
+			return last
+		}
+		common.SysLog(fmt.Sprintf("channel test for model %s fell through from endpoint %s", testModel, candidate))
+	}
+	return last
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -934,7 +998,7 @@ func TestChannel(c *gin.Context) {
 	if c.Request != nil {
 		requestCtx = c.Request.Context()
 	}
-	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream)
+	result := testChannelAcrossEndpoints(requestCtx, channel, testUserID, testModel, endpointType, isStream)
 	if result.localErr != nil {
 		resp := gin.H{
 			"success": false,
@@ -981,7 +1045,7 @@ func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, test
 	summary := channelTestSummary{}
 	isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 	tik := time.Now()
-	result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+	result := testChannelAcrossEndpoints(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
 	milliseconds := time.Since(tik).Milliseconds()
 	if ctx.Err() != nil {
 		return summary
