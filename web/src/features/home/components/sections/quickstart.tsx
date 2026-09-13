@@ -84,9 +84,6 @@ export function Quickstart() {
     <section className='relative z-10 px-6 py-14 sm:px-10 md:py-20 lg:px-14'>
       <div className='mx-auto max-w-7xl'>
         <AnimateInView className='mb-10 max-w-2xl md:mb-12'>
-          <p className='text-primary mb-5 font-mono text-[11px] tracking-[0.28em] uppercase'>
-            {t('Quickstart')}
-          </p>
           <h2 className='text-foreground font-serif text-4xl leading-[1.05] font-medium tracking-[-0.02em] md:text-5xl'>
             {t('One key,')}
             <br />
@@ -100,10 +97,10 @@ export function Quickstart() {
         </AnimateInView>
 
         <div className='grid gap-4 lg:grid-cols-2'>
-          <AnimateInView delay={0} animation='fade-up'>
+          <AnimateInView delay={0} animation='scale-in'>
             <SnippetBlock title='Chat' code={CHAT_SNIPPET} />
           </AnimateInView>
-          <AnimateInView delay={80} animation='fade-up'>
+          <AnimateInView delay={80} animation='scale-in'>
             <SnippetBlock title='Image' code={IMAGE_SNIPPET} />
           </AnimateInView>
         </div>

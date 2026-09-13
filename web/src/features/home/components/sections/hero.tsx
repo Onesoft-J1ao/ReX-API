@@ -34,15 +34,26 @@ export function Hero(props: HeroProps) {
   const isAuthenticated = props.isAuthenticated === true
 
   return (
-    <section className='relative isolate overflow-hidden px-6 pt-20 pb-20 sm:px-10 sm:pt-24 sm:pb-24 lg:px-14 lg:pt-24 lg:pb-28'>
-      {/* Ambient primary wash + hairline grid, both following the landing tone. */}
+    <section className='relative isolate flex min-h-svh flex-col justify-center overflow-hidden px-6 pt-16 pb-16 sm:px-10 lg:px-14'>
+      {/* Dark-tech ambience: horizon glow, perspective grid, and a vignette
+          that keeps the edges black so the polyhedron owns the viewport. */}
       <div
         aria-hidden='true'
-        className='landing-glow pointer-events-none absolute top-[-16rem] left-1/2 -z-10 h-[38rem] w-[120%] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--primary)_9%,transparent),transparent)]'
+        className='landing-glow pointer-events-none absolute top-[-18rem] left-1/2 -z-10 h-[46rem] w-[130%] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,var(--glow-soft),transparent)]'
       />
       <div
         aria-hidden='true'
-        className='landing-grid pointer-events-none absolute inset-0 -z-10 [background-image:linear-gradient(var(--foreground)_1px,transparent_1px),linear-gradient(90deg,var(--foreground)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_70%_50%_at_50%_0%,black,transparent)] [background-size:56px_56px] opacity-[0.04]'
+        className='landing-grid pointer-events-none absolute inset-0 -z-10 [background-image:linear-gradient(var(--grid-line)_1px,transparent_1px),linear-gradient(90deg,var(--grid-line)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_75%_60%_at_50%_35%,black,transparent)] [background-size:56px_56px]'
+      />
+      <div
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_90%_70%_at_50%_45%,transparent_55%,var(--background)_100%)]'
+      />
+      {/* Horizon line under the headline — the one structural device of the
+          dark world, echoing a router handing routes across a boundary. */}
+      <div
+        aria-hidden='true'
+        className='landing-section-divider pointer-events-none absolute bottom-0 left-1/2 w-full max-w-7xl -translate-x-1/2'
       />
 
       <div className='mx-auto max-w-7xl'>
@@ -88,15 +99,15 @@ export function Hero(props: HeroProps) {
             </div>
           </div>
 
-          <div className='landing-animate-fade-up landing-float relative mx-auto w-full max-w-[24rem] opacity-0 [animation-delay:200ms] sm:max-w-[28rem] lg:mx-0 lg:max-w-[30rem]'>
+          <div className='landing-animate-fade-up landing-float relative mx-auto w-full max-w-[26rem] opacity-0 [animation-delay:200ms] sm:max-w-[30rem] lg:mx-0 lg:max-w-[32rem]'>
             <RotatingPolyhedron label={t('Rotating 3D gateway routing core')} />
           </div>
         </div>
 
         {/* Telemetry data stream — a scrolling mono strip that fills the hero
             footer space with mechanical movement. */}
-        <div className='landing-animate-fade-in border-border/60 mt-16 overflow-hidden border-y opacity-0 [animation-delay:320ms]'>
-          <div className='rt-ticker text-muted-foreground/70 flex w-max items-center gap-8 py-2.5 font-mono text-[10px] tracking-[0.18em] uppercase'>
+        <div className='landing-animate-fade-in mt-16 overflow-hidden opacity-0 [animation-delay:320ms] [mask-image:linear-gradient(90deg,transparent,black_12%,black_88%,transparent)]'>
+          <div className='rt-ticker text-muted-foreground/80 flex w-max items-center gap-8 py-3 font-mono text-[10px] tracking-[0.18em] uppercase'>
             <TickerRow />
           </div>
         </div>
