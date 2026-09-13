@@ -41,7 +41,9 @@ func TestBlockedIPGuard(t *testing.T) {
 	})
 
 	setting.BlockedIPEnabled = true
-	setting.BlockedIPs = []string{"8.219.150.152", "203.0.113.0/24"}
+	// Documentation ranges only: these are reserved for examples and cannot
+	// collide with a real deployment's addresses.
+	setting.BlockedIPs = []string{"203.0.113.9", "198.51.100.0/24"}
 
 	tests := []struct {
 		name         string
@@ -51,28 +53,28 @@ func TestBlockedIPGuard(t *testing.T) {
 	}{
 		{
 			name:       "a banned address is refused",
-			remoteAddr: "8.219.150.152:44321",
+			remoteAddr: "203.0.113.9:44321",
 			wantStatus: http.StatusForbidden,
 		},
 		{
 			name:         "the forwarded client is what is matched, not the proxy",
 			remoteAddr:   "10.0.0.1:44321",
-			forwardedFor: "8.219.150.152",
+			forwardedFor: "203.0.113.9",
 			wantStatus:   http.StatusForbidden,
 		},
 		{
 			name:       "a banned range is refused",
-			remoteAddr: "203.0.113.77:1234",
+			remoteAddr: "198.51.100.77:1234",
 			wantStatus: http.StatusForbidden,
 		},
 		{
 			name:       "an unrelated address is served",
-			remoteAddr: "198.51.100.9:1234",
+			remoteAddr: "192.0.2.44:1234",
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "an address next to the banned range is served",
-			remoteAddr: "203.0.114.1:1234",
+			remoteAddr: "198.51.101.1:1234",
 			wantStatus: http.StatusOK,
 		},
 	}
@@ -85,6 +87,6 @@ func TestBlockedIPGuard(t *testing.T) {
 
 	t.Run("the switch turns the ban list off", func(t *testing.T) {
 		setting.BlockedIPEnabled = false
-		assert.Equal(t, http.StatusOK, runBlockedIPGuard(t, "8.219.150.152:44321", ""))
+		assert.Equal(t, http.StatusOK, runBlockedIPGuard(t, "203.0.113.9:44321", ""))
 	})
 }
