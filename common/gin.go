@@ -83,6 +83,25 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 }
 
 // GetBodyStorage 获取请求体存储对象（用于需要多次读取的场景）
+// ReplaceRequestBody replaces the reusable request body after a server-side
+// normalization step while preserving retry support and disk-backed storage.
+func ReplaceRequestBody(c *gin.Context, data []byte) error {
+	storage, err := CreateBodyStorage(data)
+	if err != nil {
+		return err
+	}
+	if existing, ok := c.Get(KeyBodyStorage); ok && existing != nil {
+		if oldStorage, ok := existing.(BodyStorage); ok {
+			_ = oldStorage.Close()
+		}
+	}
+	c.Set(KeyBodyStorage, storage)
+	c.Set(KeyRequestBody, nil)
+	c.Request.ContentLength = int64(len(data))
+	c.Request.Body = io.NopCloser(storage)
+	return nil
+}
+
 func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
 	seeker, err := GetRequestBody(c)
 	if err != nil {
