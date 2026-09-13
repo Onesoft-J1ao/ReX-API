@@ -132,6 +132,8 @@ var ChannelBaseURLs = []string{
 	"",                                          //59
 	"",                                          //60
 	"",                                          //61
+	"",                                          //62 Meshy2API
+	"https://apihub.agnes-ai.com",               //63 Agnes
 }
 
 func GetChannelBaseURL(channelType int) string {
