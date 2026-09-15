@@ -74,12 +74,12 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
   if (!audioUrl) return null
 
   return (
-    <div className='bg-card flex gap-4 rounded-lg border p-4'>
+    <div className='bg-card flex gap-4 rounded-xl border p-4'>
       {imageUrl && (
         <img
           src={imageUrl}
           alt={title}
-          className='h-20 w-20 shrink-0 rounded-lg object-cover'
+          className='h-20 w-20 shrink-0 rounded-md object-cover'
           onError={(e) => {
             ;(e.target as HTMLElement).style.display = 'none'
           }}

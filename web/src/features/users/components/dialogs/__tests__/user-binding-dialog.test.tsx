@@ -178,12 +178,12 @@ describe('UserBindingDialog built-in bindings', () => {
 
     const expectedBindings = [
       ['Email', 'email'],
-      ['GitHub', 'github_id'],
-      ['Discord', 'discord_id'],
-      ['WeChat', 'wechat_id'],
-      ['OIDC', 'oidc_id'],
-      ['Telegram', 'telegram_id'],
-      ['LinuxDO', 'linux_do_id'],
+      ['GitHub', 'github'],
+      ['Discord', 'discord'],
+      ['WeChat', 'wechat'],
+      ['OIDC', 'oidc'],
+      ['Telegram', 'telegram'],
+      ['LinuxDO', 'linuxdo'],
     ] as const
 
     await screen.findByText('bound-user (ID: 7)')

@@ -40,6 +40,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -146,25 +147,16 @@ function GroupSelect(props: GroupSelectProps) {
   }, [props.options, props.value])
 
   return (
-    <Select
-      value={props.value === '' ? null : props.value}
-      onValueChange={(v) => {
-        if (typeof v === 'string' && v !== '') props.onValueChange(v)
+    <Combobox
+      options={knownOptions.map((name) => ({ value: name, label: name }))}
+      value={props.value}
+      onValueChange={(value) => {
+        if (value) props.onValueChange(value)
       }}
-    >
-      <SelectTrigger className={props.className}>
-        <SelectValue placeholder={props.placeholder} />
-      </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
-        <SelectGroup>
-          {knownOptions.map((name) => (
-            <SelectItem key={name} value={name}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+      className={props.className}
+      placeholder={props.placeholder}
+      aria-label={props.placeholder}
+    />
   )
 }
 
@@ -191,12 +183,17 @@ function GroupSection(props: GroupSectionProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className='rounded-lg border'>
+      <div className='rounded-xl border'>
         <div className='flex items-center justify-between p-3'>
           <div className='flex items-center gap-2'>
             <CollapsibleTrigger
               render={
-                <Button variant='ghost' size='sm' className='h-6 w-6 p-0' />
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-7 w-7 p-0'
+                  aria-label={t('Details')}
+                />
               }
             >
               {open ? (
@@ -222,6 +219,7 @@ function GroupSection(props: GroupSectionProps) {
               size='sm'
               className='h-7 w-7 p-0'
               onClick={() => props.onAdd(props.groupName)}
+              aria-label={t('Add')}
             >
               <Plus className='h-4 w-4' />
             </Button>
@@ -230,6 +228,7 @@ function GroupSection(props: GroupSectionProps) {
               size='sm'
               className='text-destructive h-7 w-7 p-0'
               onClick={() => props.onRemoveGroup(props.groupName)}
+              aria-label={t('Delete')}
             >
               <Trash2 className='h-4 w-4' />
             </Button>
@@ -311,6 +310,7 @@ function GroupSection(props: GroupSectionProps) {
                   size='sm'
                   className='text-destructive h-8 w-8 p-0'
                   onClick={() => props.onRemove(rule._id)}
+                  aria-label={t('Delete')}
                 >
                   <Trash2 className='h-4 w-4' />
                 </Button>

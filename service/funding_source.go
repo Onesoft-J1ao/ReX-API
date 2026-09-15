@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"time"
 
 	"github.com/QuantumNous/new-api/model"
@@ -23,8 +24,30 @@ type FundingSource interface {
 }
 
 // ---------------------------------------------------------------------------
+// FreeFunding — 游乐场免费额度资金来源实现
+// ---------------------------------------------------------------------------
+
+// BillingSourceFree marks a request funded by the playground free allowance.
+const BillingSourceFree = "free"
+
+// FreeFunding funds a playground request the free allowance still covers. Every
+// operation is a no-op: the wallet and any subscription are left alone, and the
+// allowance itself is recorded separately once the request has produced usage.
+type FreeFunding struct{}
+
+func (f *FreeFunding) Source() string              { return BillingSourceFree }
+func (f *FreeFunding) PreConsume(amount int) error { return nil }
+func (f *FreeFunding) Settle(delta int) error       { return nil }
+func (f *FreeFunding) Refund() error                { return nil }
+
+// ---------------------------------------------------------------------------
 // WalletFunding — 钱包资金来源实现
 // ---------------------------------------------------------------------------
+
+// ErrInsufficientWalletQuota 钱包原子预扣失败（余额不足），未发生任何扣减。
+// BillingSession 据此映射为 ErrorCodeInsufficientUserQuota，
+// 使 wallet_first 等计费偏好可以回退到订阅。
+var ErrInsufficientWalletQuota = errors.New("wallet quota insufficient")
 
 type WalletFunding struct {
 	userId   int
@@ -37,8 +60,12 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	if amount <= 0 {
 		return nil
 	}
-	if err := model.DecreaseUserQuota(w.userId, amount, false); err != nil {
+	reserved, err := model.TryReserveUserQuota(w.userId, amount)
+	if err != nil {
 		return err
+	}
+	if !reserved {
+		return ErrInsufficientWalletQuota
 	}
 	w.consumed = amount
 	return nil
@@ -125,7 +152,7 @@ func refundWithRetry(fn func() error) error {
 	}
 	const maxAttempts = 3
 	var lastErr error
-	for i := 0; i < maxAttempts; i++ {
+	for i := range maxAttempts {
 		if err := fn(); err == nil {
 			return nil
 		} else {

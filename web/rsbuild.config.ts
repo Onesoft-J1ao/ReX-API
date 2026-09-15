@@ -17,7 +17,7 @@ export default defineConfig(({ envMode }) => {
 
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
-    (['/api', '/mj', '/pg'] as const).map((key) => [
+    (['/api', '/v1', '/mj', '/pg'] as const).map((key) => [
       key,
       {
         target: serverUrl,
@@ -26,7 +26,15 @@ export default defineConfig(({ envMode }) => {
         proxyTimeout: 30000,
       },
     ])
-  ) as Record<string, { target: string; changeOrigin: boolean; timeout: number; proxyTimeout: number }>
+  ) as Record<
+    string,
+    {
+      target: string
+      changeOrigin: boolean
+      timeout: number
+      proxyTimeout: number
+    }
+  >
 
   return {
     plugins: [pluginReact(), pluginTailwindcss({ optimize: false })],

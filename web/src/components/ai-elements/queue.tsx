@@ -96,7 +96,7 @@ export const QueueItemContent = ({
     className={cn(
       'line-clamp-1 grow break-words',
       completed
-        ? 'text-muted-foreground/50 line-through'
+        ? 'text-muted-foreground line-through'
         : 'text-muted-foreground',
       className
     )}
@@ -117,7 +117,7 @@ export const QueueItemDescription = ({
     className={cn(
       'ml-6 text-xs',
       completed
-        ? 'text-muted-foreground/40 line-through'
+        ? 'text-muted-foreground line-through'
         : 'text-muted-foreground',
       className
     )}
@@ -145,7 +145,7 @@ export const QueueItemAction = ({
 }: QueueItemActionProps) => (
   <Button
     className={cn(
-      'text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground size-auto rounded p-1 opacity-0 transition-opacity group-hover:opacity-100',
+      'text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground size-auto rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100',
       className
     )}
     size='icon'
@@ -172,7 +172,7 @@ export const QueueItemImage = ({
 }: QueueItemImageProps) => (
   <img
     alt=''
-    className={cn('h-8 w-8 rounded border object-cover', className)}
+    className={cn('h-8 w-8 rounded-md border object-cover', className)}
     height={32}
     width={32}
     {...props}
@@ -188,7 +188,7 @@ export const QueueItemFile = ({
 }: QueueItemFileProps) => (
   <span
     className={cn(
-      'bg-muted flex items-center gap-1 rounded border px-2 py-1 text-xs',
+      'bg-muted flex items-center gap-1 rounded-full border px-2 py-1 text-xs',
       className
     )}
     {...props}

@@ -15,15 +15,17 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -242,10 +244,19 @@ func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.Cha
 	if err != nil {
 		return nil, nil, err
 	}
+	// 全局忽略列表与渠道自身的忽略列表取并集：全局列表用于「有意剔除、永不加回」
+	// 的模型，这样自动新增不会把它们重新塞进渠道。
+	ignoredModels := settings.UpstreamModelUpdateIgnoredModels
+	if globalIgnored := operation_setting.GetMonitorSetting().GetUpstreamModelSyncIgnoredModels(); len(globalIgnored) > 0 {
+		merged := make([]string, 0, len(ignoredModels)+len(globalIgnored))
+		merged = append(merged, ignoredModels...)
+		merged = append(merged, globalIgnored...)
+		ignoredModels = normalizeModelNames(merged)
+	}
 	pendingAddModels, pendingRemoveModels = collectPendingUpstreamModelChangesFromModels(
 		channel.GetModels(),
 		upstreamModels,
-		settings.UpstreamModelUpdateIgnoredModels,
+		ignoredModels,
 		normalizeChannelModelMapping(channel),
 	)
 	return pendingAddModels, pendingRemoveModels, nil
@@ -304,6 +315,34 @@ func sanitizeFetchModelsError(err error, key string) error {
 	return errors.New(message)
 }
 
+func sanitizeAdvancedCustomRequestError(err error, key string, requestURL string) error {
+	err = sanitizeFetchModelsError(err, key)
+	if err == nil {
+		return nil
+	}
+	parsedURL, parseErr := url.Parse(requestURL)
+	if parseErr != nil {
+		return err
+	}
+	message := err.Error()
+	for _, value := range parsedURL.Query() {
+		for _, secret := range value {
+			if secret == "" {
+				continue
+			}
+			message = strings.ReplaceAll(message, secret, "[REDACTED]")
+			message = strings.ReplaceAll(message, url.QueryEscape(secret), "[REDACTED]")
+			message = strings.ReplaceAll(message, url.PathEscape(secret), "[REDACTED]")
+		}
+	}
+	if key != "" {
+		message = strings.ReplaceAll(message, key, "[REDACTED]")
+		message = strings.ReplaceAll(message, url.QueryEscape(key), "[REDACTED]")
+		message = strings.ReplaceAll(message, url.PathEscape(key), "[REDACTED]")
+	}
+	return errors.New(message)
+}
+
 func getFetchModelsResponseBody(method string, requestURL string, channel *model.Channel, headers http.Header) ([]byte, error) {
 	request, err := http.NewRequest(method, requestURL, nil)
 	if err != nil {
@@ -333,7 +372,14 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 }
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
-	baseURL := constant.ChannelBaseURLs[channel.Type]
+	if channel.Type == constant.ChannelTypeTaskPlugin {
+		plugin, ok := jsplugin.DefaultRegistry.Get(channel.GetSetting().TaskPluginKey)
+		if !ok {
+			return nil, fmt.Errorf("task plugin %q is not registered", channel.GetSetting().TaskPluginKey)
+		}
+		return normalizeModelNames(plugin.Meta.Models), nil
+	}
+	baseURL := constant.GetChannelBaseURL(channel.Type)
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
 	}
@@ -381,10 +427,13 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 			url = fmt.Sprintf("%s/api/paas/v4/models", baseURL)
 		}
 	case constant.ChannelTypeVolcEngine:
+		// 火山方舟 OpenAI 兼容 API 根路径是 /api/v3（chat/embeddings 均为
+		// {base}/api/v3/...，见 relay/channel/volcengine 的 GetRequestURL），
+		// 不存在 /v1/models 端点。原拼接会导致「获取模型列表」固定 404 失败。
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
 			url = fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
 		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
+			url = fmt.Sprintf("%s/api/v3/models", baseURL)
 		}
 	case constant.ChannelTypeMoonshot:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
@@ -409,7 +458,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 
 	body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
 	if err != nil {
-		return nil, sanitizeFetchModelsError(err, key)
+		return nil, sanitizeAdvancedCustomRequestError(err, key, url)
 	}
 
 	var result OpenAIModelsResponse
@@ -462,7 +511,7 @@ func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string)
 
 func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {
 	channel.SetOtherSettings(settings)
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"settings": channel.OtherSettings,
 	}
 	if updateModels {
@@ -495,7 +544,11 @@ func checkAndPersistChannelUpstreamModelUpdates(
 		return false, 0, fetchErr
 	}
 
-	if allowAutoApply && settings.UpstreamModelUpdateAutoSyncEnabled && len(pendingAddModels) > 0 {
+	// 全局流程只要「同步 + 自动新增」两个开关都开着就自动追加；否则回退到渠道自身的
+	// upstream_model_update_auto_sync_enabled。有意剔除的模型走忽略列表，不靠关开关。
+	monitorSetting := operation_setting.GetMonitorSetting()
+	globalAutoAdd := monitorSetting.UpstreamModelSyncEnabled && monitorSetting.UpstreamModelSyncAutoAdd
+	if allowAutoApply && (settings.UpstreamModelUpdateAutoSyncEnabled || globalAutoAdd) && len(pendingAddModels) > 0 {
 		originModels := normalizeModelNames(channel.GetModels())
 		mergedModels := mergeModelNames(originModels, pendingAddModels)
 		if len(mergedModels) > len(originModels) {
@@ -709,7 +762,10 @@ scanLoop:
 			}
 
 			settings := channel.GetOtherSettings()
-			if !settings.UpstreamModelUpdateCheckEnabled {
+			// 全局开关打开时覆盖所有启用中的渠道，省去逐个渠道配置
+			// upstream_model_update_check_enabled 的成本。
+			if !settings.UpstreamModelUpdateCheckEnabled &&
+				!operation_setting.GetMonitorSetting().UpstreamModelSyncEnabled {
 				continue
 			}
 
@@ -853,7 +909,7 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 		refreshChannelRuntimeCache()
 	}
 
-	recordManageAudit(c, "channel.upstream_apply", map[string]interface{}{
+	recordManageAudit(c, "channel.upstream_apply", map[string]any{
 		"id": channel.Id,
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -1008,7 +1064,10 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 			}
 
 			settings := channel.GetOtherSettings()
-			if !settings.UpstreamModelUpdateCheckEnabled {
+			// 全局开关打开时覆盖所有启用中的渠道，省去逐个渠道配置
+			// upstream_model_update_check_enabled 的成本。
+			if !settings.UpstreamModelUpdateCheckEnabled &&
+				!operation_setting.GetMonitorSetting().UpstreamModelSyncEnabled {
 				continue
 			}
 
@@ -1051,7 +1110,7 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 		refreshChannelRuntimeCache()
 	}
 
-	recordManageAudit(c, "channel.upstream_apply_all", map[string]interface{}{
+	recordManageAudit(c, "channel.upstream_apply_all", map[string]any{
 		"count": len(results),
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -1092,7 +1151,7 @@ func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
 		return
 	}
 
-	recordManageAudit(c, "channel.upstream_detect_all", map[string]interface{}{
+	recordManageAudit(c, "channel.upstream_detect_all", map[string]any{
 		"task_id": task.TaskID,
 	})
 	c.JSON(http.StatusOK, gin.H{

@@ -61,7 +61,7 @@ export function ChannelAdvancedSection(props: ChannelAdvancedSectionProps) {
         render={
           <button
             type='button'
-            className='hover:bg-muted/40 border-border/60 flex w-full items-center justify-between rounded-lg border px-3 py-3 text-left transition-colors'
+            className='hover:bg-muted/40 border-border/60 flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition-colors'
             aria-expanded={props.open}
           />
         }
@@ -71,7 +71,7 @@ export function ChannelAdvancedSection(props: ChannelAdvancedSectionProps) {
             <Settings className='h-4 w-4' aria-hidden='true' />
           </span>
           <div className='flex flex-col gap-0.5'>
-            <div className='text-[13px] font-semibold'>
+            <div className='text-sm font-semibold'>
               {t('Advanced Settings')}
             </div>
             <div className='text-muted-foreground text-xs'>

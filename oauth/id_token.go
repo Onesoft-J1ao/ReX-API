@@ -92,7 +92,20 @@ func verifyCustomOAuthIDToken(ctx context.Context, config *model.CustomOAuthProv
 		return nil, errors.New("invalid authorized party")
 	}
 
-	return common.Marshal(token.Claims)
+	// Hand back the complete claim set. This provider maps arbitrary claim names
+	// onto user fields through its configuration, so returning only the fields
+	// the struct above declares would drop every other claim before the mapping
+	// runs. The signature is already verified at this point, so decoding the
+	// payload section is safe.
+	parts := strings.Split(rawToken, ".")
+	if len(parts) != 3 {
+		return nil, errors.New("malformed id token")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, errors.New("malformed id token payload")
+	}
+	return payload, nil
 }
 
 func customOAuthJWKSKey(ctx context.Context, jwksURI, kid string) (*rsa.PublicKey, error) {

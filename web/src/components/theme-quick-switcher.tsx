@@ -40,7 +40,7 @@ export function ThemeQuickSwitcher() {
         <div
           role='radiogroup'
           aria-labelledby='theme-switcher-label'
-          className='border-muted/50 bg-muted/40 inline-flex w-auto items-center gap-1.5 rounded-lg border px-1.5 py-1'
+          className='border-muted/50 bg-muted/40 inline-flex w-auto items-center gap-1.5 rounded-xl border px-1.5 py-1'
         >
           <Button
             variant='ghost'

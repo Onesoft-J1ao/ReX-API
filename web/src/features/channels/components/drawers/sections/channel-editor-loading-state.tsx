@@ -25,7 +25,7 @@ export function ChannelEditorLoadingState() {
 
   return (
     <div
-      className='border-border/60 flex flex-col gap-4 rounded-lg border p-4'
+      className='border-border/60 flex flex-col gap-4 rounded-xl border p-4'
       aria-live='polite'
     >
       <div>

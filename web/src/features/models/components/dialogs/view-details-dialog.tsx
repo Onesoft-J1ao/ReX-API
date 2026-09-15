@@ -48,6 +48,8 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Separator } from '@/components/ui/separator'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getDeployment, listDeploymentContainers } from '../../api'
 
@@ -69,7 +71,10 @@ export function ViewDetailsDialog({
     isFetching: isFetchingDetails,
   } = useQuery({
     queryKey: ['deployment-details', deploymentId],
-    queryFn: () => (deploymentId ? getDeployment(deploymentId) : null),
+    queryFn: async () =>
+      requireServerSuccess(
+        await (deploymentId ? getDeployment(deploymentId) : null)
+      ),
     enabled: open && deploymentId !== null,
   })
 
@@ -80,8 +85,10 @@ export function ViewDetailsDialog({
     isFetching: isFetchingContainers,
   } = useQuery({
     queryKey: ['deployment-details-containers', deploymentId],
-    queryFn: () =>
-      deploymentId ? listDeploymentContainers(deploymentId) : null,
+    queryFn: async () =>
+      requireServerSuccess(
+        await (deploymentId ? listDeploymentContainers(deploymentId) : null)
+      ),
     enabled: open && deploymentId !== null,
   })
 
@@ -116,8 +123,8 @@ export function ViewDetailsDialog({
     try {
       await navigator.clipboard.writeText(String(deploymentId))
       toast.success(t('Copied'))
-    } catch {
-      toast.error(t('Copy failed'))
+    } catch (error) {
+      handleServerError(error, t('Copy failed'))
     }
   }
 
@@ -198,7 +205,7 @@ export function ViewDetailsDialog({
         {showDetailsContent ? (
           <>
             <div className='grid gap-3 sm:grid-cols-2'>
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Status')}
                 </div>
@@ -206,7 +213,7 @@ export function ViewDetailsDialog({
                   {String(details?.status ?? '-')}
                 </div>
               </div>
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Hardware')}
                 </div>
@@ -215,7 +222,7 @@ export function ViewDetailsDialog({
                   {String(details?.hardware_name ?? '')}
                 </div>
               </div>
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Total GPUs')}
                 </div>
@@ -223,7 +230,7 @@ export function ViewDetailsDialog({
                   {String(details?.total_gpus ?? details?.hardware_qty ?? '-')}
                 </div>
               </div>
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Containers')}
                 </div>
@@ -232,7 +239,7 @@ export function ViewDetailsDialog({
             </div>
 
             {locations.length ? (
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground text-xs'>
                   {t('Locations')}
                 </div>
@@ -247,7 +254,7 @@ export function ViewDetailsDialog({
             ) : null}
 
             {containers.length ? (
-              <div className='rounded-lg border p-3'>
+              <div className='rounded-xl border p-3'>
                 <div className='text-muted-foreground mb-2 text-xs'>
                   {t('Containers')}
                 </div>
@@ -289,7 +296,7 @@ export function ViewDetailsDialog({
               </div>
             ) : null}
 
-            <Collapsible className='rounded-lg border p-3'>
+            <Collapsible className='rounded-xl border p-3'>
               <CollapsibleTrigger className='cursor-pointer text-sm font-medium'>
                 {t('Raw JSON')}
               </CollapsibleTrigger>

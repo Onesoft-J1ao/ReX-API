@@ -17,13 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { API_ENDPOINTS } from './constants'
+import {
+  getPlaygroundFingerprint,
+  PLAYGROUND_FINGERPRINT_HEADER,
+} from './lib/fingerprint'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
+  ImageGenerationResponse,
+  ImageWorkbenchConfig,
   ModelOption,
   GroupOption,
+  SpeechWorkbenchConfig,
+  TranscriptionResponse,
 } from './types'
 
 /**
@@ -36,6 +45,125 @@ export async function sendChatCompletion(
   const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
     signal,
     skipErrorHandler: true,
+    headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Generate images from a text prompt. The wire shape of the image endpoints is
+ * built here so callers pass workbench values, not raw payloads.
+ */
+export async function generateImages(
+  config: ImageWorkbenchConfig,
+  prompt: string,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(
+    API_ENDPOINTS.IMAGE_GENERATIONS,
+    {
+      model: config.model,
+      group: config.group,
+      prompt,
+      n: config.n,
+      size: config.size,
+      quality: config.quality,
+    },
+    {
+      signal,
+      skipErrorHandler: true,
+      headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+    } as Record<string, unknown>
+  )
+  return res.data
+}
+
+/**
+ * Generate images from a prompt plus reference images. The edits endpoint speaks
+ * multipart, so reference images and the optional mask are appended as files;
+ * axios sets the multipart boundary itself, so no content type is passed here.
+ */
+export async function editImages(
+  config: ImageWorkbenchConfig,
+  prompt: string,
+  images: File[],
+  mask: File | null,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const formData = new FormData()
+  formData.append('model', config.model)
+  if (config.group) {
+    formData.append('group', config.group)
+  }
+  formData.append('prompt', prompt)
+  formData.append('n', String(config.n))
+  formData.append('size', config.size)
+  formData.append('quality', config.quality)
+  if (config.inputFidelity) {
+    formData.append('input_fidelity', config.inputFidelity)
+  }
+  for (const image of images) {
+    formData.append('image[]', image)
+  }
+  if (mask) {
+    formData.append('mask', mask)
+  }
+  const res = await api.post(API_ENDPOINTS.IMAGE_EDITS, formData, {
+    signal,
+    skipErrorHandler: true,
+    headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Synthesize speech. The endpoint answers with audio bytes rather than JSON, so
+ * the response is read as a blob.
+ */
+export async function synthesizeSpeech(
+  config: SpeechWorkbenchConfig,
+  text: string,
+  signal?: AbortSignal
+): Promise<Blob> {
+  const res = await api.post(
+    API_ENDPOINTS.AUDIO_SPEECH,
+    {
+      model: config.model,
+      group: config.group,
+      input: text,
+      voice: config.voice,
+      response_format: config.responseFormat,
+      speed: config.speed,
+    },
+    {
+      signal,
+      skipErrorHandler: true,
+      responseType: 'blob',
+      headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+    } as Record<string, unknown>
+  )
+  return res.data as Blob
+}
+
+/**
+ * Transcribe an audio file. The endpoint expects multipart, so the file is
+ * appended as form data.
+ */
+export async function transcribeAudio(
+  config: SpeechWorkbenchConfig,
+  file: File,
+  signal?: AbortSignal
+): Promise<TranscriptionResponse> {
+  const formData = new FormData()
+  formData.append('model', config.model)
+  if (config.group) {
+    formData.append('group', config.group)
+  }
+  formData.append('file', file)
+  const res = await api.post(API_ENDPOINTS.AUDIO_TRANSCRIPTIONS, formData, {
+    signal,
+    skipErrorHandler: true,
+    headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
   } as Record<string, unknown>)
   return res.data
 }
@@ -48,6 +176,7 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
     params: { group },
   })
   const { data } = res
+  requireServerSuccess(data)
 
   if (!data.success || !Array.isArray(data.data)) {
     return []
@@ -65,6 +194,7 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
 export async function getUserGroups(): Promise<GroupOption[]> {
   const res = await api.get(API_ENDPOINTS.USER_GROUPS)
   const { data } = res
+  requireServerSuccess(data)
 
   if (!data.success || !data.data) {
     return []

@@ -28,7 +28,7 @@ export function getMessageContentStyles() {
     'group-[.is-user]:w-fit',
 
     // User bubble: compact surface that stays calm in both light and dark themes.
-    'group-[.is-user]:rounded-2xl',
+    'group-[.is-user]:rounded-xl',
     'group-[.is-user]:rounded-br-md',
     'group-[.is-user]:border',
     'group-[.is-user]:border-border/70',
@@ -48,11 +48,10 @@ export function getMessageContentStyles() {
     'group-[.is-assistant]:text-foreground/90',
 
     // Preferred readable widths and wrapping
-    'text-[0.95rem]',
+    'text-sm',
     'leading-6',
     'break-words',
     'whitespace-pre-wrap',
-    'sm:text-[0.975rem]',
     'sm:leading-7',
 
     // Cap user bubble width so it does not look like a banner
