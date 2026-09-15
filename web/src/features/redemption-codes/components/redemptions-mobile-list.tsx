@@ -49,12 +49,9 @@ const MOBILE_SKELETON_KEYS = [
 
 function RedemptionsMobileSkeleton() {
   return (
-    <div className='divide-border overflow-hidden rounded-lg border'>
+    <div className='divide-border overflow-hidden rounded-xl border'>
       {MOBILE_SKELETON_KEYS.map((key) => (
-        <div
-          key={key}
-          className='space-y-2 border-b px-3 py-2.5 last:border-b-0'
-        >
+        <div key={key} className='space-y-2 border-b px-3 py-2 last:border-b-0'>
           <div className='flex items-center justify-between'>
             <Skeleton className='h-4 w-32' />
             <Skeleton className='h-5 w-16 rounded-md' />
@@ -83,7 +80,7 @@ export function RedemptionsMobileList(props: RedemptionsMobileListProps) {
 
   if (!rows.length) {
     return (
-      <div className='rounded-lg border p-8'>
+      <div className='rounded-xl border px-4 py-10'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
@@ -102,7 +99,7 @@ export function RedemptionsMobileList(props: RedemptionsMobileListProps) {
   }
 
   return (
-    <div className='divide-border overflow-hidden rounded-lg border'>
+    <div className='divide-border overflow-hidden rounded-xl border'>
       {rows.map((row) => {
         const redemption = row.original
         const expired = isRedemptionExpired(
@@ -116,7 +113,7 @@ export function RedemptionsMobileList(props: RedemptionsMobileListProps) {
           <div
             key={row.id}
             className={cn(
-              'bg-card space-y-2.5 border-b px-3 py-2.5 last:border-b-0',
+              'bg-card space-y-2 border-b px-3 py-2 last:border-b-0',
               expired || redemption.status !== REDEMPTION_STATUS.ENABLED
                 ? DISABLED_ROW_MOBILE
                 : undefined
@@ -127,7 +124,7 @@ export function RedemptionsMobileList(props: RedemptionsMobileListProps) {
                 <div className='truncate text-sm font-semibold'>
                   {redemption.name}
                 </div>
-                <div className='text-muted-foreground text-[11px]'>
+                <div className='text-muted-foreground text-xs'>
                   {t('Redemption Code')}
                 </div>
               </div>

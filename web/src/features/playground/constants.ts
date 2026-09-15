@@ -35,6 +35,10 @@ export const MESSAGE_STATUS = {
 // API endpoints
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  IMAGE_GENERATIONS: '/pg/images/generations',
+  IMAGE_EDITS: '/pg/images/edits',
+  AUDIO_SPEECH: '/pg/audio/speech',
+  AUDIO_TRANSCRIPTIONS: '/pg/audio/transcriptions',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const
@@ -64,6 +68,65 @@ export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
   presence_penalty: true,
   seed: false,
 }
+
+// Image workbench presets. Sizes and qualities follow the OpenAI image API;
+// a provider that rejects a value reports it back through the error message.
+export const IMAGE_SIZE_OPTIONS = [
+  'auto',
+  '1024x1024',
+  '1536x1024',
+  '1024x1536',
+  '1792x1024',
+  '1024x1792',
+  '512x512',
+] as const
+
+export const IMAGE_QUALITY_OPTIONS = ['auto', 'low', 'medium', 'high'] as const
+
+export const IMAGE_N_MAX = 10
+
+export const DEFAULT_IMAGE_CONFIG = {
+  model: '',
+  group: DEFAULT_GROUP,
+  size: 'auto',
+  quality: 'auto',
+  n: 1,
+  inputFidelity: '',
+} as const
+
+export const MAX_REFERENCE_IMAGES = 4
+
+// Common OpenAI-compatible voices, offered as suggestions: the field stays free
+// text because each provider ships its own set.
+export const SPEECH_VOICE_SUGGESTIONS = [
+  'alloy',
+  'echo',
+  'fable',
+  'onyx',
+  'nova',
+  'shimmer',
+] as const
+
+// Playback formats the speech endpoint can return. mp3 is the safe default.
+export const SPEECH_FORMAT_OPTIONS = [
+  'mp3',
+  'opus',
+  'aac',
+  'flac',
+  'wav',
+  'pcm',
+] as const
+
+export const SPEECH_SPEED_MIN = 0.25
+export const SPEECH_SPEED_MAX = 4
+
+export const DEFAULT_SPEECH_CONFIG = {
+  model: '',
+  group: DEFAULT_GROUP,
+  voice: 'alloy',
+  responseFormat: 'mp3',
+  speed: 1,
+} as const
 
 // Storage keys
 export const STORAGE_KEYS = {

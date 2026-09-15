@@ -84,6 +84,37 @@ For commercial licensing, please contact support@quantumnous.com
   color-scheme: dark;
 }
 
+/* ── Fluid hero rhythm ────────────────────────────────────────────────────
+ * The hero has to fit a wide-but-short window, which is the ordinary laptop
+ * case, not a phone. A width-only clamp is wrong there: 7.5vw of a 1440px
+ * window is a 104px headline, and on a 700px-tall viewport that headline plus
+ * the 3D panel plus the telemetry ticker overflowed the section, so the
+ * `min-height` grew and the fold landed below the first screen.
+ *
+ * These scale on BOTH axes — `min(vw, vh)` for type, plain `vh` for the
+ * rhythm — so a short window compresses instead of overflowing. The upper
+ * bounds keep the editorial scale on tall displays.
+ */
+[data-landing-tone] {
+  --hero-type: clamp(2.25rem, min(7.2vw, 11vh), 6.5rem);
+  /* The 2.25rem floor only engages below ~600px of viewport height, where the
+   * 6vh term is under it; at that size the wider 3rem floor was the last thing
+   * pushing the ticker past the fold. Taller windows keep the editorial pad. */
+  --hero-pad-y: clamp(2.25rem, 6vh, 5.5rem);
+  --hero-gap-tight: clamp(1.5rem, 3.5vh, 3rem);
+  --hero-gap-loose: clamp(1.75rem, 4.5vh, 4rem);
+  --hero-panel-max-h: clamp(13rem, 30vh, 27rem);
+}
+
+/* The panel is capped by its own width so it stays square — a height cap
+ * alone would squash it into a wide box. Side-by-side layouts put it beside
+ * the headline, so it can claim more of the row than the stacked one. */
+@media (min-width: 64rem) {
+  [data-landing-tone] {
+    --hero-panel-max-h: clamp(15rem, 48vh, 30rem);
+  }
+}
+
 /* Light surfaces kept for completeness; the wrapper never selects them in
  * the dark-first world, but the tone preview still resolves tokens. */
 @media (prefers-color-scheme: light) {

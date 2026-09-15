@@ -6,7 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,6 +34,11 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
+	// Decide the playground free tier here so both settlement paths agree on it.
+	if relayInfo != nil && ShouldServeFromPlaygroundFreeTier(c, relayInfo) {
+		relayInfo.PlaygroundFreeTier = true
+	}
+
 	session, apiErr := NewBillingSession(c, relayInfo, preConsumedQuota)
 	if apiErr != nil {
 		return apiErr

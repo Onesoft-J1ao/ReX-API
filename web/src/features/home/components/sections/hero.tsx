@@ -34,7 +34,7 @@ export function Hero(props: HeroProps) {
   const isAuthenticated = props.isAuthenticated === true
 
   return (
-    <section className='relative isolate flex min-h-svh flex-col justify-center overflow-hidden px-6 pt-16 pb-16 sm:px-10 lg:px-14'>
+    <section className='relative isolate flex min-h-svh flex-col justify-center overflow-hidden px-6 pt-[var(--hero-pad-y)] pb-[var(--hero-pad-y)] sm:px-10 lg:px-14'>
       {/* Dark-tech ambience: horizon glow, perspective grid, and a vignette
           that keeps the edges black so the polyhedron owns the viewport. */}
       <div
@@ -56,14 +56,20 @@ export function Hero(props: HeroProps) {
         className='landing-section-divider pointer-events-none absolute bottom-0 left-1/2 w-full max-w-7xl -translate-x-1/2'
       />
 
-      <div className='mx-auto max-w-7xl'>
-        <h1 className='landing-animate-fade-up max-w-[16ch] font-serif text-[clamp(3rem,7.5vw,6.5rem)] leading-[0.98] font-medium tracking-[-0.03em] opacity-0'>
+      {/* `w-full` is load-bearing: `mx-auto` sets auto cross-axis margins, and
+          per spec an auto cross-axis margin absorbs the free space and
+          DISABLES the flex item's stretch. Without an explicit width the
+          wrapper fell back to its content width — which the `w-max` telemetry
+          ticker inflated to the full `max-w-7xl` (1280px) even on a phone, so
+          everything past the viewport was clipped by overflow-hidden. */}
+      <div className='mx-auto w-full max-w-7xl min-w-0'>
+        <h1 className='landing-animate-fade-up max-w-[16ch] font-serif text-[length:var(--hero-type)] leading-[0.98] font-medium tracking-[-0.03em] opacity-0'>
           {t('One router,')}
           <br />
           {t('more ways to build.')}
         </h1>
 
-        <div className='mt-12 grid items-center gap-14 lg:mt-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12'>
+        <div className='mt-[var(--hero-gap-tight)] grid items-center gap-[var(--hero-gap-loose)] lg:mt-[var(--hero-gap-loose)] lg:grid-cols-[1.05fr_0.95fr] lg:gap-12'>
           <div className='landing-animate-fade-up max-w-xl opacity-0 [animation-delay:140ms]'>
             <p className='text-muted-foreground font-serif text-lg leading-8 sm:text-xl sm:leading-9'>
               {t(
@@ -99,14 +105,18 @@ export function Hero(props: HeroProps) {
             </div>
           </div>
 
-          <div className='landing-animate-fade-up landing-float relative mx-auto w-full max-w-[26rem] opacity-0 [animation-delay:200ms] sm:max-w-[30rem] lg:mx-0 lg:max-w-[32rem]'>
+          {/* Centred in its column on lg: the panel is capped by the height
+              budget so it stays square and inside the fold, which leaves it
+              narrower than the column on wide screens. Left-aligning that gap
+              read as an empty right margin; auto margins split it evenly. */}
+          <div className='landing-animate-fade-up landing-float relative mx-auto w-full max-w-[min(26rem,var(--hero-panel-max-h))] opacity-0 [animation-delay:200ms] sm:max-w-[min(30rem,var(--hero-panel-max-h))] lg:max-w-[min(32rem,var(--hero-panel-max-h))]'>
             <RotatingPolyhedron label={t('Rotating 3D gateway routing core')} />
           </div>
         </div>
 
         {/* Telemetry data stream — a scrolling mono strip that fills the hero
             footer space with mechanical movement. */}
-        <div className='landing-animate-fade-in mt-16 overflow-hidden opacity-0 [animation-delay:320ms] [mask-image:linear-gradient(90deg,transparent,black_12%,black_88%,transparent)]'>
+        <div className='landing-animate-fade-in mt-[var(--hero-gap-loose)] overflow-hidden [mask-image:linear-gradient(90deg,transparent,black_12%,black_88%,transparent)] opacity-0 [animation-delay:320ms]'>
           <div className='rt-ticker text-muted-foreground/80 flex w-max items-center gap-8 py-3 font-mono text-[10px] tracking-[0.18em] uppercase'>
             <TickerRow />
           </div>

@@ -98,7 +98,7 @@ export function AmountOptionsVisualEditor({
         </p>
 
         {amounts.length === 0 ? (
-          <div className='text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm'>
+          <div className='text-muted-foreground rounded-xl border border-dashed px-4 py-10 text-center text-sm'>
             {t(
               'No amount options configured. Add amounts below to get started.'
             )}
@@ -122,7 +122,7 @@ export function AmountOptionsVisualEditor({
                     e.stopPropagation()
                     handleRemove(amount)
                   }}
-                  className='hover:bg-muted-foreground/20 size-auto p-0.5'
+                  className='hover:bg-muted size-auto p-0.5'
                   aria-label={t('Remove ${{amount}}', { amount })}
                 >
                   <X className='h-3.5 w-3.5' />

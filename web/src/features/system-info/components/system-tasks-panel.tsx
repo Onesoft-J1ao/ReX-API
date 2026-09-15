@@ -40,6 +40,7 @@ import type {
 } from '@/features/system-settings/types'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
+import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 const TASK_LIMIT = 20
@@ -53,26 +54,23 @@ const STATUS_VARIANT: Record<SystemTaskStatus, 'secondary' | 'destructive'> = {
 }
 
 const STATUS_CLASS_NAME: Record<SystemTaskStatus, string> = {
-  pending:
-    'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  running:
-    'bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300 [&_span]:bg-sky-500',
-  succeeded:
-    'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+  pending: 'bg-warning/10 text-warning',
+  running: 'bg-info/10 text-info [&_span]:bg-info',
+  succeeded: 'bg-success/10 text-success',
   failed: '',
 }
 
 const STATUS_DOT_CLASS_NAME: Record<SystemTaskStatus, string> = {
-  pending: 'bg-amber-500',
-  running: 'bg-sky-500',
-  succeeded: 'bg-emerald-500',
+  pending: 'bg-warning',
+  running: 'bg-info',
+  succeeded: 'bg-success',
   failed: 'bg-destructive',
 }
 
 const PROGRESS_BAR_CLASS_NAME: Record<SystemTaskStatus, string> = {
-  pending: '[&_[data-slot=progress-indicator]]:bg-amber-500',
-  running: '[&_[data-slot=progress-indicator]]:bg-sky-500',
-  succeeded: '[&_[data-slot=progress-indicator]]:bg-emerald-500',
+  pending: '[&_[data-slot=progress-indicator]]:bg-warning',
+  running: '[&_[data-slot=progress-indicator]]:bg-info',
+  succeeded: '[&_[data-slot=progress-indicator]]:bg-success',
   failed: '[&_[data-slot=progress-indicator]]:bg-destructive',
 }
 
@@ -111,7 +109,7 @@ function SystemTasksTable(props: SystemTasksTableProps) {
     <div className='overflow-x-auto rounded-md border'>
       <Table className='min-w-[900px]'>
         <TableHeader>
-          <TableRow className='bg-muted/40 hover:bg-muted/40'>
+          <TableRow className='hover:bg-transparent'>
             <TableHead className='h-9 w-[260px] px-4 text-xs'>
               {t('Type')}
             </TableHead>
@@ -142,7 +140,7 @@ function SystemTasksTable(props: SystemTasksTableProps) {
                     <div className='font-medium'>
                       {t(TYPE_LABEL[task.type] ?? task.type)}
                     </div>
-                    <div className='text-muted-foreground font-mono text-[11px]'>
+                    <div className='text-muted-foreground font-mono text-xs'>
                       {TYPE_DISPLAY_ID[task.type] ?? task.type}
                     </div>
                   </div>
@@ -211,7 +209,7 @@ export function SystemTasksPanel() {
     queryFn: async () => {
       const res = await listSystemTasks(TASK_LIMIT)
       if (!res.success || !Array.isArray(res.data)) {
-        throw new Error(res.message || t('We could not load system tasks.'))
+        throw createServerError(res, t('We could not load system tasks.'))
       }
       return res.data
     },
@@ -231,7 +229,7 @@ export function SystemTasksPanel() {
   const historyTasks = tasks.filter((task) => !isActiveStatus(task.status))
 
   return (
-    <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
+    <section className='bg-card overflow-hidden rounded-xl border shadow-xs'>
       <div className='flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5'>
         <div className='min-w-0'>
           <div className='flex items-center gap-2'>
@@ -256,7 +254,7 @@ export function SystemTasksPanel() {
             <span
               className={cn(
                 'size-1.5 rounded-full',
-                hasActiveTasks ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+                hasActiveTasks ? 'bg-success' : 'bg-muted-foreground/40'
               )}
               aria-hidden='true'
             />
@@ -285,13 +283,15 @@ export function SystemTasksPanel() {
       </div>
 
       <div aria-busy={tasksQuery.isFetching}>
-        {loading ? (
+        {loading && (
           <div className='space-y-2 p-4 sm:p-5'>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className='h-9 w-full rounded-md' />
-            ))}
+            <Skeleton className='h-9 w-full rounded-md' />
+            <Skeleton className='h-9 w-full rounded-md' />
+            <Skeleton className='h-9 w-full rounded-md' />
+            <Skeleton className='h-9 w-full rounded-md' />
           </div>
-        ) : tasksQuery.isError ? (
+        )}
+        {!loading && tasksQuery.isError && (
           <ErrorState
             title={t('We could not load system tasks.')}
             description={
@@ -304,9 +304,10 @@ export function SystemTasksPanel() {
             }}
             className='min-h-[260px]'
           />
-        ) : tasks.length === 0 ? (
+        )}
+        {!loading && !tasksQuery.isError && tasks.length === 0 && (
           <div className='px-4 py-10 text-center sm:px-5'>
-            <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-lg'>
+            <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-xl'>
               <ListChecks
                 className='text-muted-foreground size-5'
                 aria-hidden='true'
@@ -316,7 +317,8 @@ export function SystemTasksPanel() {
               {t('No system tasks yet.')}
             </p>
           </div>
-        ) : (
+        )}
+        {!loading && !tasksQuery.isError && !(tasks.length === 0) && (
           <div className='space-y-4 p-4 sm:p-5'>
             <div>
               <div className='mb-2 flex items-center justify-between gap-3'>

@@ -687,7 +687,7 @@ function ContentLayoutConfig() {
 function ContentLayoutPreview(props: { centered: boolean }) {
   return (
     <div aria-hidden='true' className='absolute inset-2 flex flex-col gap-1.5'>
-      <span className='bg-foreground/40 block h-1.5 w-full rounded-sm' />
+      <span className='bg-foreground/40 block h-1.5 w-full rounded-full' />
       <div
         className={cn(
           'flex flex-1 flex-col gap-1',

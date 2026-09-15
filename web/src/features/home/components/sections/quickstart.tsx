@@ -13,9 +13,9 @@ GNU Affero General Public License for more details.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Copy } from 'lucide-react'
 
 import { AnimateInView } from '@/components/animate-in-view'
 import { Button } from '@/components/ui/button'
@@ -56,7 +56,7 @@ function SnippetBlock(props: { title: string; code: string }) {
   return (
     <div className='border-border/60 bg-card/40 overflow-hidden rounded-2xl border'>
       <div className='border-border/60 flex items-center justify-between gap-3 border-b px-5 py-3'>
-        <span className='font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase'>
+        <span className='text-muted-foreground font-mono text-[11px] tracking-[0.18em] uppercase'>
           {props.title}
         </span>
         <Button
@@ -73,7 +73,7 @@ function SnippetBlock(props: { title: string; code: string }) {
           {copied ? t('Copied') : t('Copy')}
         </Button>
       </div>
-      <pre className='overflow-x-auto p-5 font-mono text-xs leading-6 text-foreground/90'>
+      <pre className='text-foreground/90 overflow-x-auto p-5 font-mono text-xs leading-6'>
         <code>{props.code}</code>
       </pre>
     </div>

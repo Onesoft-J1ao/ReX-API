@@ -71,7 +71,7 @@ function CodeBlock(props: { children: string; language?: string }) {
 
   return (
     <div className='border-border/60 bg-muted/30 relative overflow-hidden rounded-xl border'>
-      <div className='border-border/50 text-muted-foreground flex items-center justify-between border-b px-4 py-2 font-mono text-[11px] tracking-wider uppercase'>
+      <div className='border-border/50 text-muted-foreground flex items-center justify-between border-b px-4 py-2 font-mono text-xs tracking-wider uppercase'>
         <span>{props.language ?? 'bash'}</span>
         <button
           type='button'
@@ -87,7 +87,7 @@ function CodeBlock(props: { children: string; language?: string }) {
           {copied ? '已复制' : '复制'}
         </button>
       </div>
-      <pre className='overflow-x-auto p-4 text-[13px] leading-6'>
+      <pre className='overflow-x-auto p-4 text-sm leading-6'>
         <code>{props.children}</code>
       </pre>
     </div>
@@ -101,7 +101,7 @@ function ParamTable(props: {
   return (
     <div className='border-border/60 overflow-hidden rounded-xl border'>
       <table className='w-full border-collapse text-left text-sm'>
-        <thead className='bg-muted/40'>
+        <thead className='bg-transparent'>
           <tr className='text-muted-foreground text-xs uppercase'>
             <th className='px-4 py-2.5 font-medium'>参数</th>
             <th className='px-4 py-2.5 font-medium'>类型</th>
@@ -111,7 +111,7 @@ function ParamTable(props: {
         <tbody className='divide-border/50 divide-y'>
           {props.rows.map(([name, type, desc]) => (
             <tr key={name} className='align-top'>
-              <td className='px-4 py-2.5 font-mono text-[13px] whitespace-nowrap'>
+              <td className='px-4 py-2.5 font-mono text-sm whitespace-nowrap'>
                 {name}
               </td>
               <td className='text-muted-foreground px-4 py-2.5 font-mono text-xs whitespace-nowrap'>
@@ -128,19 +128,15 @@ function ParamTable(props: {
   )
 }
 
-function EndpointRow(props: {
-  method: string
-  path: string
-  desc: string
-}) {
+function EndpointRow(props: { method: string; path: string; desc: string }) {
   return (
     <tr className='align-top'>
       <td className='px-4 py-2.5 whitespace-nowrap'>
-        <span className='bg-primary/10 text-primary rounded px-2 py-0.5 font-mono text-[11px] font-semibold'>
+        <span className='bg-primary/10 text-primary rounded-md px-2 py-0.5 font-mono text-xs font-semibold'>
           {props.method}
         </span>
       </td>
-      <td className='px-4 py-2.5 font-mono text-[13px] whitespace-nowrap'>
+      <td className='px-4 py-2.5 font-mono text-sm whitespace-nowrap'>
         {props.path}
       </td>
       <td className='text-muted-foreground px-4 py-2.5 leading-6'>
@@ -169,7 +165,7 @@ function Note(props: { tone?: 'info' | 'warn'; children: ReactNode }) {
     <div
       className={
         warn
-          ? 'rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-6'
+          ? 'border-warning/20 bg-warning/5 rounded-xl border p-4 text-sm leading-6'
           : 'border-border/60 bg-muted/20 rounded-xl border p-4 text-sm leading-6'
       }
     >
@@ -190,7 +186,7 @@ export function DocsPage() {
             key={section.id}
             href={`#${section.id}`}
             onClick={() => setMobileOpen(false)}
-            className='text-muted-foreground hover:text-foreground hover:bg-muted/60 flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-colors'
+            className='text-muted-foreground hover:text-foreground hover:bg-muted/60 flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors'
           >
             <Icon className='size-3.5 shrink-0 opacity-70' />
             {section.title}
@@ -243,7 +239,7 @@ export function DocsPage() {
               </div>
             )}
 
-            <header className='border-border/60 mb-12 rounded-2xl border p-6 md:p-10'>
+            <header className='border-border/60 mb-12 rounded-xl border p-6 md:p-10'>
               <p className='text-primary font-mono text-xs tracking-[0.2em] uppercase'>
                 ReX API
               </p>
@@ -251,8 +247,12 @@ export function DocsPage() {
                 统一 AI 网关，兼容 OpenAI 接口协议
               </h1>
               <p className='text-muted-foreground mt-4 max-w-2xl text-base leading-7'>
-                语言模型、向量、图像、语音、视频与 3D 资产共用同一个密钥和同一个地址。已有
-                OpenAI SDK 的代码只需替换 <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>base_url</code>。
+                语言模型、向量、图像、语音、视频与 3D
+                资产共用同一个密钥和同一个地址。已有 OpenAI SDK 的代码只需替换{' '}
+                <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
+                  base_url
+                </code>
+                。
               </p>
               <div className='mt-6 flex flex-wrap gap-3'>
                 <Button render={<a href='#quick-start' />}>
@@ -275,10 +275,11 @@ export function DocsPage() {
                 />
                 <p className='text-muted-foreground leading-7'>
                   所有接口共用同一个根地址，语言模型统一挂在{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     /v1
                   </code>{' '}
-                  下。接入只需要三样东西：一个密钥、一个 Base URL、一个可用模型名。
+                  下。接入只需要三样东西：一个密钥、一个 Base
+                  URL、一个可用模型名。
                 </p>
 
                 <div className='border-border/60 bg-muted/20 grid gap-4 rounded-xl border p-5 sm:grid-cols-3'>
@@ -288,10 +289,10 @@ export function DocsPage() {
                     ['鉴权方式', 'Authorization: Bearer'],
                   ].map(([label, value]) => (
                     <div key={label}>
-                      <div className='text-muted-foreground font-mono text-[10px] tracking-[0.18em] uppercase'>
+                      <div className='text-muted-foreground font-mono text-xs tracking-[0.18em] uppercase'>
                         {label}
                       </div>
-                      <div className='mt-1 font-mono text-[13px] break-all'>
+                      <div className='mt-1 font-mono text-sm break-all'>
                         {value}
                       </div>
                     </div>
@@ -303,7 +304,8 @@ export function DocsPage() {
                   <a href='#models' className='text-primary hover:underline'>
                     模型列表接口
                   </a>{' '}
-                  查出该密钥可用的模型名 → 发起第一次请求 → 按需接流式、向量、图像或语音接口。
+                  查出该密钥可用的模型名 → 发起第一次请求 →
+                  按需接流式、向量、图像或语音接口。
                 </p>
 
                 <CodeBlock language='bash'>{`export REX_API_KEY="sk-your-key"
@@ -331,7 +333,8 @@ print(response.choices[0].message.content)`}</CodeBlock>
 
                 <Note tone='warn'>
                   <strong>密钥安全：</strong>
-                  不要把密钥写进代码、文档或提交到 Git 仓库；不要放在浏览器端或移动端应用里。密钥泄露等同于额度泄露，请立即在控制台吊销并重建。
+                  不要把密钥写进代码、文档或提交到 Git
+                  仓库；不要放在浏览器端或移动端应用里。密钥泄露等同于额度泄露，请立即在控制台吊销并重建。
                 </Note>
               </section>
 
@@ -355,19 +358,19 @@ Content-Type: application/json`}</CodeBlock>
 
                 <p className='text-muted-foreground leading-7'>
                   Anthropic 兼容接口同时接受{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     x-api-key
                   </code>{' '}
                   头（Claude SDK 的默认方式），此时还需要带上{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     anthropic-version
                   </code>
                   。Gemini 兼容接口接受{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     x-goog-api-key
                   </code>{' '}
                   头或{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     ?key=
                   </code>{' '}
                   查询参数。
@@ -375,9 +378,17 @@ Content-Type: application/json`}</CodeBlock>
 
                 <div className='grid gap-3 sm:grid-cols-3'>
                   {[
-                    ['Bearer', 'Authorization: Bearer sk-...', '所有 OpenAI 兼容接口'],
+                    [
+                      'Bearer',
+                      'Authorization: Bearer sk-...',
+                      '所有 OpenAI 兼容接口',
+                    ],
                     ['x-api-key', 'x-api-key: sk-...', 'Claude 兼容接口'],
-                    ['x-goog-api-key', 'x-goog-api-key: sk-...', 'Gemini 兼容接口'],
+                    [
+                      'x-goog-api-key',
+                      'x-goog-api-key: sk-...',
+                      'Gemini 兼容接口',
+                    ],
                   ].map(([label, header, scope]) => (
                     <div
                       key={label}
@@ -386,7 +397,7 @@ Content-Type: application/json`}</CodeBlock>
                       <div className='font-mono text-sm font-semibold'>
                         {label}
                       </div>
-                      <code className='text-muted-foreground mt-1 block font-mono text-[11px] break-all'>
+                      <code className='text-muted-foreground mt-1 block font-mono text-xs break-all'>
                         {header}
                       </code>
                       <p className='text-muted-foreground mt-2 text-xs leading-5'>
@@ -402,7 +413,7 @@ Content-Type: application/json`}</CodeBlock>
                 <SectionHeading id='endpoints' eyebrow='03' title='接口总览' />
                 <p className='text-muted-foreground leading-7'>
                   下表是本网关实际开放的接口。所有路径都相对于根地址{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     {API_HOST}
                   </code>
                   ；请求体为 UTF-8 JSON（上传接口除外）。
@@ -410,7 +421,7 @@ Content-Type: application/json`}</CodeBlock>
 
                 <div className='border-border/60 overflow-hidden rounded-xl border'>
                   <table className='w-full border-collapse text-left text-sm'>
-                    <thead className='bg-muted/40'>
+                    <thead className='bg-transparent'>
                       <tr className='text-muted-foreground text-xs uppercase'>
                         <th className='px-4 py-2.5 font-medium'>方法</th>
                         <th className='px-4 py-2.5 font-medium'>路径</th>
@@ -519,8 +530,11 @@ Content-Type: application/json`}</CodeBlock>
 
                 <Note>
                   路径大小写敏感，且必须带{' '}
-                  <code className='bg-muted rounded px-1 font-mono text-xs'>/v1</code>{' '}
-                  前缀。漏掉前缀会命中前端路由而不是接口，表现为 404 或返回 HTML。
+                  <code className='bg-muted rounded-md px-1 font-mono text-xs'>
+                    /v1
+                  </code>{' '}
+                  前缀。漏掉前缀会命中前端路由而不是接口，表现为 404 或返回
+                  HTML。
                 </Note>
               </section>
 
@@ -533,7 +547,7 @@ Content-Type: application/json`}</CodeBlock>
                 />
                 <p className='text-muted-foreground leading-7'>
                   与 OpenAI Chat Completions 一致。把{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     model
                   </code>{' '}
                   设成模型列表里返回的名字，网关会按当前分组和负载把请求转发到对应上游渠道。
@@ -552,7 +566,11 @@ Content-Type: application/json`}</CodeBlock>
 
                 <ParamTable
                   rows={[
-                    ['model', 'string', '必填。模型名，取值见 GET /v1/models。'],
+                    [
+                      'model',
+                      'string',
+                      '必填。模型名，取值见 GET /v1/models。',
+                    ],
                     [
                       'messages',
                       'array',
@@ -573,11 +591,7 @@ Content-Type: application/json`}</CodeBlock>
                       'number',
                       '采样温度，0 更确定，2 更随机。与 top_p 二选一调整。',
                     ],
-                    [
-                      'top_p',
-                      'number',
-                      '核采样阈值，默认 1。',
-                    ],
+                    ['top_p', 'number', '核采样阈值，默认 1。'],
                     [
                       'tools',
                       'array',
@@ -593,11 +607,7 @@ Content-Type: application/json`}</CodeBlock>
                       'object',
                       '设为 {"type":"json_object"} 可要求返回 JSON。',
                     ],
-                    [
-                      'stop',
-                      'string | array',
-                      '遇到这些字符串停止生成。',
-                    ],
+                    ['stop', 'string | array', '遇到这些字符串停止生成。'],
                   ]}
                 />
 
@@ -620,28 +630,29 @@ Content-Type: application/json`}</CodeBlock>
                 <p className='text-muted-foreground leading-7'>
                   <strong className='text-foreground'>函数调用。</strong>
                   传入 tools 后模型可能返回{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     finish_reason: "tool_calls"
                   </code>
-                  ，此时把每个调用结果作为一条 role=tool 的消息发回，再请求一次即可得到最终回答。
+                  ，此时把每个调用结果作为一条 role=tool
+                  的消息发回，再请求一次即可得到最终回答。
                 </p>
 
                 <p className='text-muted-foreground leading-7'>
                   <strong className='text-foreground'>响应格式。</strong>
                   与 OpenAI 一致：{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     id
                   </code>
                   、{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     choices[]
                   </code>
                   、{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     usage
                   </code>{' '}
                   都会返回。{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     usage
                   </code>{' '}
                   用于计费核对，流式模式下需要显式请求才会出现在最后一个分块里。
@@ -653,19 +664,19 @@ Content-Type: application/json`}</CodeBlock>
                 <SectionHeading id='streaming' eyebrow='05' title='流式输出' />
                 <p className='text-muted-foreground leading-7'>
                   请求体加{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     "stream": true
                   </code>{' '}
                   即开启 SSE。每个分块是一行{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     data:
                   </code>{' '}
                   ，以{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     data: [DONE]
                   </code>{' '}
                   结束。想做用量统计时补上{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     stream_options: {'{"include_usage": true}'}
                   </code>
                   ，网关会在末尾追加一个只带 usage 的分块。
@@ -691,7 +702,8 @@ for chunk in stream:
        "messages":[{"role":"user","content":"你好"}]}'`}</CodeBlock>
 
                 <Note>
-                  流式连接受网关的空闲超时约束。长时间不产出 token 的上游会被断开，客户端应当对中断做重试或降级处理，不要把流式响应当成一定会完整送达的原子结果。
+                  流式连接受网关的空闲超时约束。长时间不产出 token
+                  的上游会被断开，客户端应当对中断做重试或降级处理，不要把流式响应当成一定会完整送达的原子结果。
                 </Note>
               </section>
 
@@ -703,12 +715,13 @@ for chunk in stream:
                   title='Responses 接口'
                 />
                 <p className='text-muted-foreground leading-7'>
-                  面向新一代 OpenAI 模型（含 Codex 系列）的接口。请求体与官方一致，使用{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  面向新一代 OpenAI 模型（含 Codex
+                  系列）的接口。请求体与官方一致，使用{' '}
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     input
                   </code>{' '}
                   而不是{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     messages
                   </code>
                   。
@@ -721,7 +734,8 @@ for chunk in stream:
   "stream": true
 }`}</CodeBlock>
                 <p className='text-muted-foreground leading-7'>
-                  部分模型被限制为只能走 Responses（不提供 chat/completions 别名）。如果某个模型在 chat
+                  部分模型被限制为只能走 Responses（不提供 chat/completions
+                  别名）。如果某个模型在 chat
                   接口返回「不支持该接口」类错误，改用 Responses 再试。
                 </p>
               </section>
@@ -734,8 +748,8 @@ for chunk in stream:
                   title='Claude 兼容'
                 />
                 <p className='text-muted-foreground leading-7'>
-                  网关同时兼容 Anthropic Messages 协议，Claude 官方 SDK 和 Claude Code 可以直接接入，只需把
-                  Base URL 指过来。
+                  网关同时兼容 Anthropic Messages 协议，Claude 官方 SDK 和
+                  Claude Code 可以直接接入，只需把 Base URL 指过来。
                 </p>
                 <CodeBlock language='bash'>{`export ANTHROPIC_BASE_URL=${API_HOST}
 export ANTHROPIC_AUTH_TOKEN=sk-your-key
@@ -751,11 +765,7 @@ curl ${API_BASE}/messages \\
   }'`}</CodeBlock>
                 <ParamTable
                   rows={[
-                    [
-                      'model',
-                      'string',
-                      '必填。Claude 模型名。',
-                    ],
+                    ['model', 'string', '必填。Claude 模型名。'],
                     [
                       'max_tokens',
                       'integer',
@@ -785,15 +795,15 @@ curl ${API_BASE}/messages \\
                 />
                 <Note>
                   Claude Code 需要同时设置{' '}
-                  <code className='bg-muted rounded px-1 font-mono text-xs'>
+                  <code className='bg-muted rounded-md px-1 font-mono text-xs'>
                     ANTHROPIC_BASE_URL
                   </code>{' '}
                   和{' '}
-                  <code className='bg-muted rounded px-1 font-mono text-xs'>
+                  <code className='bg-muted rounded-md px-1 font-mono text-xs'>
                     ANTHROPIC_AUTH_TOKEN
                   </code>
                   ，不要用默认的{' '}
-                  <code className='bg-muted rounded px-1 font-mono text-xs'>
+                  <code className='bg-muted rounded-md px-1 font-mono text-xs'>
                     ANTHROPIC_API_KEY
                   </code>
                   。
@@ -805,11 +815,11 @@ curl ${API_BASE}/messages \\
                 <SectionHeading id='gemini' eyebrow='08' title='Gemini 兼容' />
                 <p className='text-muted-foreground leading-7'>
                   Gemini 原生协议挂在{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     /v1beta
                   </code>{' '}
                   下。路径中的方法与模型名直接对应官方格式，鉴权用{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     x-goog-api-key
                   </code>
                   。
@@ -820,7 +830,7 @@ curl ${API_BASE}/messages \\
   -d '{"contents":[{"parts":[{"text":"你好"}]}]}'`}</CodeBlock>
                 <p className='text-muted-foreground leading-7'>
                   同一批 Gemini 模型也可以通过 OpenAI 兼容的{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     /v1/chat/completions
                   </code>{' '}
                   调用，两种方式任选。
@@ -836,7 +846,7 @@ curl ${API_BASE}/messages \\
                 />
                 <p className='text-muted-foreground leading-7'>
                   向量接口返回与 OpenAI 一致的{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     data[].embedding
                   </code>
                   。重排序接口把候选文档按与查询的相关性排序，适合做检索后的精排。
@@ -853,10 +863,11 @@ curl ${API_BASE}/messages \\
 }`}</CodeBlock>
                 <p className='text-muted-foreground leading-7'>
                   重排返回{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     results[].relevance_score
                   </code>
-                  ，按分数降序即为排序结果。注意重排是「输入文档 + 查询」的成对打分，不要和向量相似度混用同一套阈值。
+                  ，按分数降序即为排序结果。注意重排是「输入文档 +
+                  查询」的成对打分，不要和向量相似度混用同一套阈值。
                 </p>
               </section>
 
@@ -865,14 +876,15 @@ curl ${API_BASE}/messages \\
                 <SectionHeading id='images' eyebrow='10' title='图像生成' />
                 <p className='text-muted-foreground leading-7'>
                   文生图走{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     /v1/images/generations
                   </code>
                   ，图生图 / 局部重绘走{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     /v1/images/edits
                   </code>
-                  （multipart 上传）。不同上游支持的尺寸和参数不同，以模型说明为准。
+                  （multipart
+                  上传）。不同上游支持的尺寸和参数不同，以模型说明为准。
                 </p>
                 <CodeBlock language='bash'>{`curl ${API_BASE}/images/generations \\
   -H "Authorization: Bearer $REX_API_KEY" \\
@@ -906,7 +918,10 @@ curl ${API_BASE}/messages \\
                   ]}
                 />
                 <Note tone='warn'>
-                  图像按张数和分辨率计费，<code className='bg-muted rounded px-1 font-mono text-xs'>n</code>{' '}
+                  图像按张数和分辨率计费，
+                  <code className='bg-muted rounded-md px-1 font-mono text-xs'>
+                    n
+                  </code>{' '}
                   和尺寸都会成倍放大消耗。批量调用前先用小参数验证提示词和尺寸是否正确。
                 </Note>
               </section>
@@ -915,7 +930,8 @@ curl ${API_BASE}/messages \\
               <section className='space-y-5'>
                 <SectionHeading id='audio' eyebrow='11' title='语音接口' />
                 <p className='text-muted-foreground leading-7'>
-                  三个接口分别对应合成、转写和翻译。合成返回的是二进制音频流，不是 JSON，客户端必须把响应体写入文件或音频缓冲。
+                  三个接口分别对应合成、转写和翻译。合成返回的是二进制音频流，不是
+                  JSON，客户端必须把响应体写入文件或音频缓冲。
                 </p>
                 <CodeBlock language='bash'>{`# 文本转语音：响应体是二进制音频
 curl ${API_BASE}/audio/speech \\
@@ -958,7 +974,8 @@ curl ${API_BASE}/audio/transcriptions \\
                   title='视频与异步任务'
                 />
                 <p className='text-muted-foreground leading-7'>
-                  视频生成是异步的：先提交拿到任务 ID，再轮询状态，完成后下载内容。轮询不要打得太密，几秒一次足够。
+                  视频生成是异步的：先提交拿到任务
+                  ID，再轮询状态，完成后下载内容。轮询不要打得太密，几秒一次足够。
                 </p>
                 <CodeBlock language='bash'>{`# 1) 提交任务
 curl ${API_BASE}/videos \\
@@ -981,11 +998,7 @@ curl ${API_BASE}/videos/{task_id}/content \\
                       'string',
                       '任务状态，常见取值 queued / processing / succeeded / failed。',
                     ],
-                    [
-                      'progress',
-                      'number',
-                      '进度百分比（部分上游返回）。',
-                    ],
+                    ['progress', 'number', '进度百分比（部分上游返回）。'],
                     [
                       'error / fail_reason',
                       'string',
@@ -1003,10 +1016,11 @@ curl ${API_BASE}/videos/{task_id}/content \\
                 <SectionHeading id='realtime' eyebrow='13' title='实时语音' />
                 <p className='text-muted-foreground leading-7'>
                   实时对话走 WebSocket，路径为{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     /v1/realtime
                   </code>
-                  ，协议与 OpenAI Realtime 一致。连接需要鉴权，并在查询参数里指定模型。
+                  ，协议与 OpenAI Realtime
+                  一致。连接需要鉴权，并在查询参数里指定模型。
                 </p>
                 <CodeBlock language='javascript'>{`const ws = new WebSocket(
   "wss://ai.j1ao.vip/v1/realtime?model=gpt-4o-realtime-preview",
@@ -1058,7 +1072,9 @@ ws.onmessage = (event) => {
               <section className='space-y-5'>
                 <SectionHeading id='clients' eyebrow='15' title='客户端配置' />
 
-                <h3 className='text-lg font-semibold'>OpenAI SDK（Python / Node）</h3>
+                <h3 className='text-lg font-semibold'>
+                  OpenAI SDK（Python / Node）
+                </h3>
                 <CodeBlock language='python'>{`from openai import OpenAI
 
 client = OpenAI(api_key="sk-your-key", base_url="${API_BASE}")`}</CodeBlock>
@@ -1104,7 +1120,7 @@ codex`}</CodeBlock>
                 <SectionHeading id='errors' eyebrow='16' title='错误码' />
                 <p className='text-muted-foreground leading-7'>
                   失败响应统一为 JSON 错误体，先看 HTTP 状态码判断类别，再看{' '}
-                  <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
                     error.message
                   </code>{' '}
                   定位具体原因。
@@ -1118,7 +1134,11 @@ codex`}</CodeBlock>
 }`}</CodeBlock>
                 <div className='grid gap-3 sm:grid-cols-2'>
                   {[
-                    ['400', '请求参数错误', '必填字段缺失、类型不对或取值越界。'],
+                    [
+                      '400',
+                      '请求参数错误',
+                      '必填字段缺失、类型不对或取值越界。',
+                    ],
                     ['401', '认证失败', '密钥无效、已吊销或请求头格式不对。'],
                     ['403', '无权限', '密钥无权访问该模型，或账户被禁用。'],
                     [

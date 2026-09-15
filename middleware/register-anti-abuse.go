@@ -34,11 +34,11 @@ import (
 
 const (
 	registerTicketMark       = "RT"
-	registerTicketMaxPerIP   = 5       // tickets per IP per window
-	registerTicketWindow     = 30 * 60 // ticket window: 30 minutes
-	registerTicketTTL        = 15 * 60 // ticket validity after issue
-	registerTicketMaxGlobal  = 30      // registrations per global window
-	registerGlobalWindow     = 60 * 60 // global registration window: 1 hour
+	registerTicketMaxPerIP   = 5                // tickets per IP per window
+	registerTicketWindow     = 30 * 60          // ticket window: 30 minutes
+	registerTicketTTL        = 15 * time.Minute // ticket validity after issue
+	registerTicketMaxGlobal  = 30               // registrations per global window
+	registerGlobalWindow     = 60 * 60          // global registration window: 1 hour
 	registerTicketSecretZone = "rex-register"
 )
 

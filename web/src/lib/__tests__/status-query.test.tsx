@@ -36,7 +36,6 @@ import {
   getInitialSystemConfigState,
   useSystemConfigStore,
 } from '@/stores/system-config-store'
-
 /**
  * Guards the deduplication contract of the shared `['status']` query: several
  * independent consumers asking for status must cost one `/api/status` request.

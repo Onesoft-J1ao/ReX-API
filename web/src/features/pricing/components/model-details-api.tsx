@@ -430,8 +430,9 @@ function buildSample(
 ): string {
   if (endpointType === 'anthropic') return buildAnthropicSample(lang, ctx)
   if (endpointType === 'gemini') return buildGeminiSample(lang, ctx)
-  if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
-    {return buildEmbeddingSample(lang, ctx)}
+  if (endpointType === 'embeddings' || endpointType === 'jina-rerank') {
+    return buildEmbeddingSample(lang, ctx)
+  }
   if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
   return buildChatSample(lang, ctx)
 }
@@ -539,7 +540,7 @@ function CodeSamplesSection(props: {
 
       <p className='text-muted-foreground mt-2 text-xs'>
         {t('Replace')}{' '}
-        <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
+        <code className='bg-muted rounded-md px-1 py-0.5 font-mono text-xs'>
           {'<YOUR_API_KEY>'}
         </code>{' '}
         {t('with the API key from your token settings.')}
@@ -582,7 +583,7 @@ function SupportedParametersSection(props: { model: PricingModel }) {
                 {p.required && (
                   <Badge
                     variant='outline'
-                    className='h-6 border-rose-500/40 px-2 text-sm text-rose-600 dark:text-rose-400'
+                    className='border-destructive/40 text-destructive h-6 px-2 text-sm'
                   >
                     {t('required')}
                   </Badge>
@@ -630,7 +631,7 @@ function ParamRangeCell(props: { param: SupportedParameter }) {
     return (
       <div className='flex flex-wrap items-center gap-1'>
         <span className='text-muted-foreground text-sm'>=</span>
-        <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-sm'>
+        <code className='bg-muted rounded-md px-1.5 py-0.5 font-mono text-sm'>
           {String(defaultValue)}
         </code>
         {range && (
@@ -650,7 +651,7 @@ function ParamRangeCell(props: { param: SupportedParameter }) {
         {enumValues.map((v) => (
           <code
             key={v}
-            className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-sm'
+            className='bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 font-mono text-sm'
           >
             {v}
           </code>
@@ -658,7 +659,7 @@ function ParamRangeCell(props: { param: SupportedParameter }) {
       </div>
     )
   }
-  return <span className='text-muted-foreground/60 text-sm'>—</span>
+  return <span className='text-muted-foreground text-sm'>—</span>
 }
 
 // ---------------------------------------------------------------------------
@@ -711,7 +712,7 @@ function RateLimitsSection(props: { model: PricingModel }) {
           },
         ]}
       />
-      <p className='text-muted-foreground mt-2 text-[11px] leading-relaxed'>
+      <p className='text-muted-foreground mt-2 text-xs leading-relaxed'>
         {t(
           'RPM = requests per minute, TPM = tokens per minute, RPD = requests per day. Limits apply per token group.'
         )}
@@ -729,16 +730,16 @@ function AuthSection() {
   return (
     <section>
       <SectionTitle icon={KeyRound}>{t('Authentication')}</SectionTitle>
-      <div className='border-border/60 bg-muted/20 flex items-start gap-2 rounded-lg border p-3'>
+      <div className='border-border/60 bg-muted/20 flex items-start gap-2 rounded-xl border p-3'>
         <ChevronRight className='text-muted-foreground mt-0.5 size-3.5 shrink-0' />
         <div className='space-y-1.5 text-xs leading-relaxed'>
           <p>
             {t('All requests must include')}{' '}
-            <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
+            <code className='bg-muted rounded-md px-1 py-0.5 font-mono text-xs'>
               Authorization: Bearer &lt;TOKEN&gt;
             </code>{' '}
             {t('header. Anthropic-formatted endpoints accept the')}{' '}
-            <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
+            <code className='bg-muted rounded-md px-1 py-0.5 font-mono text-xs'>
               x-api-key
             </code>{' '}
             {t('header instead.')}
@@ -783,7 +784,7 @@ function SectionTitle(props: {
   const Icon = props.icon
   return (
     <h3 className='text-foreground mb-3 flex items-center gap-1.5 text-sm font-semibold'>
-      <Icon className='text-muted-foreground/70 size-3.5' />
+      <Icon className='text-muted-foreground size-3.5' />
       {props.children}
     </h3>
   )

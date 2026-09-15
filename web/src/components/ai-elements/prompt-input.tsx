@@ -309,7 +309,7 @@ export function PromptInputAttachment({
         }
       >
         <div className='relative size-5 shrink-0'>
-          <div className='bg-background absolute inset-0 flex size-5 items-center justify-center overflow-hidden rounded transition-opacity group-hover:opacity-0'>
+          <div className='bg-background absolute inset-0 flex size-5 items-center justify-center overflow-hidden rounded-md transition-opacity group-hover:opacity-0'>
             {isImage ? (
               <img
                 alt={filename || 'attachment'}
@@ -326,7 +326,7 @@ export function PromptInputAttachment({
           </div>
           <Button
             aria-label={t('Remove attachment')}
-            className='absolute inset-0 size-5 cursor-pointer rounded p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:size-2.5'
+            className='absolute inset-0 size-5 cursor-pointer rounded-md p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:size-2.5'
             onClick={(e) => {
               e.stopPropagation()
               attachments.remove(data.id)
@@ -842,9 +842,7 @@ export const PromptInputTextarea = ({
     ) {
       e.preventDefault()
       const lastAttachment =
-        attachments.files.length > 0
-          ? attachments.files.at(-1)
-          : undefined
+        attachments.files.length > 0 ? attachments.files.at(-1) : undefined
       if (lastAttachment) {
         attachments.remove(lastAttachment.id)
       }

@@ -41,7 +41,8 @@ export const TOOLS: ToolDef[] = [
   {
     id: 'codex-register',
     name: 'Codex Register',
-    description: 'ChatGPT/Codex 批量注册管理面板 — 任务控制、账号管理、CPA 同步',
+    description:
+      'ChatGPT/Codex 批量注册管理面板 — 任务控制、账号管理、CPA 同步',
     url: 'http://127.0.0.1:5020',
     port: 5020,
   },
@@ -69,7 +70,8 @@ export const TOOLS: ToolDef[] = [
   {
     id: 'ob1-gateway',
     name: 'OB-1 Gateway',
-    description: 'OB-1 账号池转 OpenAI 兼容 API 网关 — API Key 管理、WorkOS 授权',
+    description:
+      'OB-1 账号池转 OpenAI 兼容 API 网关 — API Key 管理、WorkOS 授权',
     url: 'http://127.0.0.1:8081/static/login.html',
     port: 8081,
   },
@@ -99,13 +101,15 @@ export function ToolsPage() {
       {/* Header */}
       <div className='flex items-center justify-between border-b px-4 py-3 sm:px-6'>
         <div>
-          <h1 className='text-base font-semibold'>{current.name}</h1>
+          <h1 className='text-lg font-semibold'>{current.name}</h1>
           <p className='text-muted-foreground text-xs'>{current.description}</p>
         </div>
         <Button
           variant='outline'
           size='sm'
-          onClick={() => window.open(current.url, '_blank', 'noopener,noreferrer')}
+          onClick={() =>
+            window.open(current.url, '_blank', 'noopener,noreferrer')
+          }
         >
           <ExternalLink className='mr-1.5 size-3.5' />
           {t('Open in new tab')}
@@ -117,7 +121,7 @@ export function ToolsPage() {
         key={current.id}
         src={current.url}
         title={current.name}
-        className='flex-1 w-full border-0'
+        className='w-full flex-1 border-0'
         // sandbox is intentionally permissive for local trusted tools
         // eslint-disable-next-line react/iframe-missing-sandbox
       />

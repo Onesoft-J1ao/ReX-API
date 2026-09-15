@@ -46,6 +46,22 @@ func (p *PageInfo) SetItems(items any) {
 	p.Items = items
 }
 
+// InvalidPagination reports whether the request carried a p/page_size that
+// GetPageQuery would silently clamp. Because the clamp protects SQL from a
+// negative OFFSET, it also hides the invalid value from handlers that must
+// reject bad pagination outright; those handlers call this first.
+func InvalidPagination(c *gin.Context) bool {
+	return invalidPositiveInt(c.Query("p")) || invalidPositiveInt(c.Query("page_size"))
+}
+
+func invalidPositiveInt(raw string) bool {
+	if raw == "" {
+		return false
+	}
+	value, err := strconv.Atoi(raw)
+	return err != nil || value < 1
+}
+
 func GetPageQuery(c *gin.Context) *PageInfo {
 	pageInfo := &PageInfo{}
 	// 手动获取并处理每个参数
