@@ -65,6 +65,16 @@ interface SystemConfigState {
   setLoading: (loading: boolean) => void
 }
 
+const initialSystemConfigState = {
+  config: {
+    systemName: DEFAULT_SYSTEM_NAME,
+    logo: DEFAULT_LOGO,
+    currency: { ...DEFAULT_CURRENCY_CONFIG },
+  },
+  loading: true,
+  loadedLogoUrl: DEFAULT_LOGO,
+} as const
+
 /**
  * System configuration store with automatic persistence
  * Manages system name, logo, footer HTML and loading states
@@ -72,13 +82,7 @@ interface SystemConfigState {
 export const useSystemConfigStore = create<SystemConfigState>()(
   persist(
     (set) => ({
-      config: {
-        systemName: DEFAULT_SYSTEM_NAME,
-        logo: DEFAULT_LOGO,
-        currency: { ...DEFAULT_CURRENCY_CONFIG },
-      },
-      loading: true,
-      loadedLogoUrl: DEFAULT_LOGO,
+      ...initialSystemConfigState,
       setConfig: (newConfig) =>
         set((state) => ({
           config: {
@@ -102,6 +106,20 @@ export const useSystemConfigStore = create<SystemConfigState>()(
     }
   )
 )
+
+export function getInitialSystemConfigState(): Pick<
+  SystemConfigState,
+  'config' | 'loading' | 'loadedLogoUrl'
+> {
+  return {
+    config: {
+      ...initialSystemConfigState.config,
+      currency: { ...DEFAULT_CURRENCY_CONFIG },
+    },
+    loading: true,
+    loadedLogoUrl: DEFAULT_LOGO,
+  }
+}
 
 // Selector helpers for convenience
 export const getSystemName = () =>
