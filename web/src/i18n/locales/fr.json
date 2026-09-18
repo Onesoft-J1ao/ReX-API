@@ -3048,6 +3048,7 @@
     "OAuth failed": "Échec de l'OAuth",
     "OAuth Integrations": "Intégrations OAuth",
     "OAuth pop-up was blocked": "La fenêtre contextuelle OAuth a été bloquée",
+  "This step needs a full browser. Open this page in Chrome or Safari and try again.": "Cette étape nécessite un navigateur complet. Ouvrez cette page dans Chrome ou Safari, puis réessayez.",
     "Object Prune Rules": "Règles de nettoyage d'objets",
     "Observability": "Observabilité",
     "Obtain the API key, merchant ID, and RSA key pair from the Waffo dashboard, and configure the callback URL.": "Obtenez la clé API, l'ID du commerçant et la paire de clés RSA depuis le tableau de bord Waffo, et configurez l'URL de rappel.",

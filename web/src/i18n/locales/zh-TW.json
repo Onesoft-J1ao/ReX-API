@@ -3048,6 +3048,7 @@
     "OAuth failed": "OAuth 失敗",
     "OAuth Integrations": "OAuth 整合",
     "OAuth pop-up was blocked": "OAuth 彈出式視窗遭瀏覽器封鎖",
+  "This step needs a full browser. Open this page in Chrome or Safari and try again.": "此步驟需要完整的瀏覽器環境。請在 Chrome 或 Safari 中開啟本頁面後重試。",
     "Object Prune Rules": "物件清理規則",
     "Observability": "可觀測性",
     "Obtain the API key, merchant ID, and RSA key pair from the Waffo dashboard, and configure the callback URL.": "請在 Waffo 後台獲取 API 金鑰、商戶 ID 以及 RSA 金鑰對，並設定Callback地址。",
