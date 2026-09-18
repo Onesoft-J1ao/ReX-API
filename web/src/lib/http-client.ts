@@ -30,6 +30,7 @@ import {
   GATEWAY_RETRY_MESSAGES,
   MAX_GATEWAY_RETRY_ATTEMPTS,
   getGatewayRetryDelayMs,
+  markGatewayRetryExhausted,
   resolveGatewayRetry,
 } from '@/lib/gateway-retry'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -234,7 +235,12 @@ api.interceptors.response.use(
       return api.request(config)
     }
 
-    if (decision === 'exhausted') notifyGatewayRetryExhausted()
+    if (decision === 'exhausted') {
+      notifyGatewayRetryExhausted()
+      // The retries are spent, so the query layer must not start its own round
+      // over the same failure; the user has already been offered a refresh.
+      markGatewayRetryExhausted(error)
+    }
     throw error
   }
 )

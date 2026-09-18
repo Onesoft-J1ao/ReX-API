@@ -159,7 +159,9 @@ it('only reports a query failure after retries are exhausted and stays silent wh
   }
   await client.fetchQuery({
     queryKey: ['retry success'],
-    queryFn: () => api.get('/retry-success'),
+    // The retry loop under test belongs to the query layer; the transport
+    // layer's own retries are covered in http-retry.test.ts.
+    queryFn: () => api.get('/retry-success', { disableGatewayRetry: true }),
     retry: 2,
     retryDelay: 0,
   })
@@ -171,7 +173,7 @@ it('only reports a query failure after retries are exhausted and stays silent wh
   await client
     .fetchQuery({
       queryKey: ['retry failure'],
-      queryFn: () => api.get('/retry-failure'),
+      queryFn: () => api.get('/retry-failure', { disableGatewayRetry: true }),
       retry: 2,
       retryDelay: 0,
     })

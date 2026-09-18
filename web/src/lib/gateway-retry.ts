@@ -115,6 +115,31 @@ export function getGatewayRetryDelayMs(retryNumber: number): number {
 }
 
 /**
+ * Marks an error this layer already spent its whole retry budget on.
+ *
+ * Two retry authorities multiply instead of adding: the transport layer waits
+ * out its backoff (up to ~5.6s) and then the query layer, seeing a plain
+ * network error, runs the entire cycle again — so one flaky request can hold
+ * the UI for over twenty seconds behind a spinner. Tagging the exhausted error
+ * lets the query layer decline a retry it would only duplicate.
+ */
+export const GATEWAY_RETRY_EXHAUSTED_FLAG = 'gatewayRetryExhausted'
+
+export function markGatewayRetryExhausted(error: unknown): void {
+  if (error && typeof error === 'object') {
+    ;(error as Record<string, unknown>)[GATEWAY_RETRY_EXHAUSTED_FLAG] = true
+  }
+}
+
+export function isGatewayRetryExhausted(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    (error as Record<string, unknown>)[GATEWAY_RETRY_EXHAUSTED_FLAG] === true
+  )
+}
+
+/**
  * User-facing copy, kept here so the retry wording lives next to the policy it
  * describes. Values are i18n keys; render them through `t()`.
  */
