@@ -21,6 +21,7 @@ import {
   Box,
   ClipboardList,
   CreditCard,
+  Download,
   FileText,
   FlaskConical,
   Key,
@@ -133,6 +134,17 @@ export function useSidebarData(): SidebarData {
             title: t('Security & Access'),
             url: '/security',
             icon: ShieldCheck,
+          },
+        ],
+      },
+      {
+        id: 'resources',
+        title: t('Resources'),
+        items: [
+          {
+            title: t('Tool Downloads'),
+            url: '/downloads',
+            icon: Download,
           },
         ],
       },
