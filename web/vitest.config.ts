@@ -33,6 +33,12 @@ export default defineConfig({
     environment: 'jsdom',
     // The suite mixes explicit vitest imports with bare describe/it/expect.
     globals: true,
+    // Testing Library queries wait on real timers, so a loaded CI runner can
+    // push an individual case past vitest's 5s default even though nothing is
+    // wrong with it -- the channels suite has run 59 cases in 60s on a busy
+    // runner and blown one 5s timeout. 15s leaves room for that slowness while
+    // still failing a test that genuinely hangs.
+    testTimeout: 15000,
     server: {
       deps: { inline: [/@lobehub\//, /antd-style/] },
     },
