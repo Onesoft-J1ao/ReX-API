@@ -222,6 +222,18 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		priceData.QuotaToPreConsume = quota
 	}
 
+	// A model priced at zero is not free: charge the configured minimum so a
+	// wallet with no balance fails the pre-consume and has to top up first. A
+	// zero *group* ratio stays genuinely free — that is an explicit admin
+	// decision to open a group, not an unconfigured model. This runs last
+	// because the per-call (usePrice) branch above rewrites QuotaToPreConsume.
+	if groupRatioInfo.GroupRatio != 0 && operation_setting.ModelPricedAtZero(usePrice, modelRatio, modelPrice) {
+		priceData.FreeModel = false
+		if minQuota := operation_setting.MinBillableQuota(); minQuota > priceData.QuotaToPreConsume {
+			priceData.QuotaToPreConsume = minQuota
+		}
+	}
+
 	if common.DebugEnabled {
 		logger.LogDebug(c, "model_price_helper result: %s", priceData.ToSetting())
 	}
@@ -284,6 +296,16 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 				quota = 0
 				freeModel = true
 			}
+		}
+	}
+
+	// Same zero-price floor as ModelPriceHelper: a model with no configured
+	// price is billed the configured minimum rather than nothing. modelPrice is
+	// -1 on the ratio branch, so only the ratio field can mark it as unpriced.
+	if groupRatioInfo.GroupRatio != 0 && operation_setting.ModelPricedAtZero(usePrice, modelRatio, modelPrice) {
+		freeModel = false
+		if minQuota := operation_setting.MinBillableQuota(); minQuota > quota {
+			quota = minQuota
 		}
 	}
 
