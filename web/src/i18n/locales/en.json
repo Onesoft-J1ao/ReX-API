@@ -6621,7 +6621,15 @@
     "The transcript will appear here": "The transcript will appear here",
     "Transcribe": "Transcribe",
     "Voice": "Voice",
-    "Working": "Working"
+    "Working": "Working",
+    "Network fluctuation, retrying… ({{current}}/{{total}})": "Network fluctuation, retrying… ({{current}}/{{total}})",
+    "Network is unstable. Please refresh the page and try again.": "Network is unstable. Please refresh the page and try again.",
+    "Mark as read": "Mark as read",
+    "Disable selected API keys": "Disable selected API keys",
+    "Enable selected API keys": "Enable selected API keys",
+    "Disabled {{count}} API key(s)": "Disabled {{count}} API key(s)",
+    "Enabled {{count}} API key(s)": "Enabled {{count}} API key(s)",
+    "Failed to update {{count}} API key(s)": "Failed to update {{count}} API key(s)"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

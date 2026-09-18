@@ -6621,7 +6621,15 @@
     "The transcript will appear here": "轉寫結果會顯示在這裡",
     "Transcribe": "轉寫",
     "Voice": "音色",
-    "Working": "處理中"
+    "Working": "處理中",
+    "Network fluctuation, retrying… ({{current}}/{{total}})": "網路波動，正在重試…（{{current}}/{{total}}）",
+    "Network is unstable. Please refresh the page and try again.": "網路不穩定，請重新整理頁面後再試。",
+    "Mark as read": "已讀",
+    "Disable selected API keys": "停用選定的 API 金鑰",
+    "Enable selected API keys": "啟用選定的 API 金鑰",
+    "Disabled {{count}} API key(s)": "已停用 {{count}} 個 API 金鑰",
+    "Enabled {{count}} API key(s)": "已啟用 {{count}} 個 API 金鑰",
+    "Failed to update {{count}} API key(s)": "更新 {{count}} 個 API 金鑰失敗"
   },
   "Time range": "時間範圍",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
