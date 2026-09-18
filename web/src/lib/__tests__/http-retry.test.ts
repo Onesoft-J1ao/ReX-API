@@ -26,7 +26,12 @@ import { toast } from 'sonner'
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 
 import { api } from '../api'
-import { GATEWAY_RETRY_MESSAGES } from '../gateway-retry'
+import {
+  GATEWAY_RETRY_MESSAGES,
+  isGatewayRetryExhausted,
+  markGatewayRetryExhausted,
+} from '../gateway-retry'
+import { createAppQueryClient } from '../query-client'
 
 const originalAdapter = api.defaults.adapter
 const NOTICE = 'origin timeout'
@@ -199,6 +204,40 @@ it('gives up after three retries and offers a refresh that sticks around', async
   )
   expect(options).toMatchObject({ duration: Infinity })
   expect(options?.action).toMatchObject({ label: 'Refresh' })
+  // Tagged so the query layer does not start a second backoff over the same
+  // failure and hold the UI for another full cycle.
+  expect(isGatewayRetryExhausted(failure)).toBe(true)
+})
+
+it('leaves an error the transport layer never retried untagged', async () => {
+  const adapter = vi.fn<AxiosAdapter>().mockImplementation(async (config) => {
+    throw gatewayError(config, 400)
+  })
+  api.defaults.adapter = adapter
+
+  const failure = await api
+    .get('/api/status', { disableDuplicate: true })
+    .then(
+      () => null,
+      (error: AxiosError) => error
+    )
+
+  expect(isGatewayRetryExhausted(failure)).toBe(false)
+})
+
+it('stops the query layer from retrying a failure the transport layer exhausted', () => {
+  const client = createAppQueryClient()
+  const retry = client.getDefaultOptions().queries?.retry
+  expect(typeof retry).toBe('function')
+  const shouldRetry = retry as (count: number, error: unknown) => boolean
+
+  const exhausted = new AxiosError('Offline', 'ERR_NETWORK')
+  markGatewayRetryExhausted(exhausted)
+  expect(shouldRetry(0, exhausted)).toBe(false)
+  // Without the tag the guard does not fire, so the flag is what suppresses it.
+  expect(isGatewayRetryExhausted(new AxiosError('Offline', 'ERR_NETWORK'))).toBe(
+    false
+  )
 })
 
 it('honours a per-request retry budget instead of the default three', async () => {
