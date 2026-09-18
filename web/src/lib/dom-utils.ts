@@ -16,19 +16,49 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+/**
+ * How far from square an image may be and still be usable as a tab icon.
+ *
+ * A tab slot is square and the browser stretches whatever it is given to fill
+ * it, so a wordmark (a 2:1 banner, say) arrives squashed. Only art that is
+ * already square is used; anything else keeps the packaged icon.
+ */
+const FAVICON_ASPECT_TOLERANCE = 0.08
+
+function replaceIconLink(href: string) {
+  const existing =
+    document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')
+  if (existing.length === 1 && existing[0].href === href) return
+  const link = document.createElement('link')
+  link.rel = 'icon'
+  link.href = href
+  existing.forEach((l) => l.remove())
+  document.head.appendChild(link)
+}
+
 export function applyFaviconToDom(url: string) {
   if (typeof document === 'undefined' || !url) return
+  let next: string
   try {
-    const next = new URL(url, window.location.href).href
-    const existing =
-      document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')
-    if (existing.length === 1 && existing[0].href === next) return
-    const link = document.createElement('link')
-    link.rel = 'icon'
-    link.href = url
-    existing.forEach((l) => l.remove())
-    document.head.appendChild(link)
+    next = new URL(url, window.location.href).href
   } catch {
-    // Ignore malformed URLs
+    // Malformed URL: leave whatever icon is already in place.
+    return
   }
+  // Whether the art is square is only knowable once it decodes, so the decision
+  // is asynchronous. Until then the packaged icon stays, which is the safe
+  // default: it is square by construction.
+  const probe = new Image()
+  probe.addEventListener(
+    'load',
+    () => {
+      const { naturalWidth: width, naturalHeight: height } = probe
+      if (width <= 0 || height <= 0) return
+      const longest = Math.max(width, height)
+      if (Math.abs(width - height) / longest > FAVICON_ASPECT_TOLERANCE) return
+      replaceIconLink(next)
+    },
+    { once: true }
+  )
+  probe.src = next
 }
