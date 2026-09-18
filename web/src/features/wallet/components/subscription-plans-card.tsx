@@ -415,6 +415,19 @@ export function SubscriptionPlansCard({
                   const isActive =
                     subscription?.status === 'active' && !isExpired
                   const nextResetTime = subscription?.next_reset_time ?? 0
+                  const fiveHourLimit = Number(
+                    subscription?.five_hour_limit || 0
+                  )
+                  const fiveHourUsed = Number(
+                    subscription?.five_hour_used || 0
+                  )
+                  const fiveHourPercent =
+                    fiveHourLimit > 0
+                      ? Math.min(
+                          100,
+                          Math.round((fiveHourUsed / fiveHourLimit) * 100)
+                        )
+                      : 0
                   let statusBadge = (
                     <StatusBadge
                       label={t('Expired')}
@@ -508,6 +521,28 @@ export function SubscriptionPlansCard({
                       </div>
                       {totalAmount > 0 && isActive && (
                         <Progress value={usagePercent} className='mt-2 h-1.5' />
+                      )}
+                      {fiveHourLimit > 0 && (
+                        <div className='text-muted-foreground mt-1'>
+                          {t('5-Hour Usage')}:{' '}
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={<span className='cursor-help' />}
+                            >
+                              {formatQuota(fiveHourUsed)}/
+                              {formatQuota(fiveHourLimit)} · {fiveHourPercent}%
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t('Raw Quota')}: {fiveHourUsed}/{fiveHourLimit}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )}
+                      {fiveHourLimit > 0 && isActive && (
+                        <Progress
+                          value={fiveHourPercent}
+                          className='mt-2 h-1.5'
+                        />
                       )}
                     </div>
                   )

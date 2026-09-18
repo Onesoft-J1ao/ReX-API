@@ -813,7 +813,6 @@ export const STATIC_I18N_KEYS = [
   'Provider default',
   'Low',
   'High',
-
   // Video and 3D workbench status labels and 3D art styles, selected at runtime
   // from the panels' label maps and option lists.
   'Queued',
@@ -824,4 +823,23 @@ export const STATIC_I18N_KEYS = [
   'Cartoon',
   'Sculpture',
   'PBR',
+  // Refund request constants (dynamic labelKey, confirm copy and messages).
+  'Plan Refund',
+  'Cash Refund',
+  'Pending',
+  'Approved',
+  'Credited',
+  'Rejected',
+  'Approve',
+  'Reject',
+  'Mark as Credited',
+  'Approve this refund request?',
+  'A plan refund converts the remaining allowance into the wallet balance and ends the subscription.',
+  'Mark this refund request as credited?',
+  'Confirm that the payout has reached the user. This cannot be undone.',
+  'Reject this refund request?',
+  'Any balance frozen by this request is returned to the user. This cannot be undone.',
+  'Failed to load refund requests',
+  'Failed to update refund request',
+  'Refund request updated',
 ] as const
