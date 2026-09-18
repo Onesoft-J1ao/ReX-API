@@ -6621,7 +6621,15 @@
     "The transcript will appear here": "转写结果会显示在这里",
     "Transcribe": "转写",
     "Voice": "音色",
-    "Working": "处理中"
+    "Working": "处理中",
+    "Network fluctuation, retrying… ({{current}}/{{total}})": "网络波动，正在重试…（{{current}}/{{total}}）",
+    "Network is unstable. Please refresh the page and try again.": "网络不稳定，请刷新页面后重试。",
+    "Mark as read": "已读",
+    "Disable selected API keys": "禁用选定的 API 密钥",
+    "Enable selected API keys": "启用选定的 API 密钥",
+    "Disabled {{count}} API key(s)": "已禁用 {{count}} 个 API 密钥",
+    "Enabled {{count}} API key(s)": "已启用 {{count}} 个 API 密钥",
+    "Failed to update {{count}} API key(s)": "更新 {{count}} 个 API 密钥失败"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

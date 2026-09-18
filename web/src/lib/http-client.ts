@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import axios, { type AxiosRequestConfig } from 'axios'
 import { t } from 'i18next'
+import { toast } from 'sonner'
 
 import {
   applyAuthRotation,
@@ -25,6 +26,12 @@ import {
   getFreshAuthHeaders,
   refreshAuthentication,
 } from '@/lib/auth-session'
+import {
+  GATEWAY_RETRY_MESSAGES,
+  MAX_GATEWAY_RETRY_ATTEMPTS,
+  getGatewayRetryDelayMs,
+  resolveGatewayRetry,
+} from '@/lib/gateway-retry'
 import { handleServerError } from '@/lib/handle-server-error'
 import {
   getServerErrorMessage,
@@ -41,6 +48,14 @@ declare module 'axios' {
     authRetry?: boolean
     acceptAuthRotation?: boolean
     singleUseAuthorization?: boolean
+    /** Retries already spent on this request; set by the retry interceptor. */
+    gatewayRetryAttempt?: number
+    /** Per-request retry budget override. Pass 0 to disable retries. */
+    gatewayRetryAttempts?: number
+    /** Opt a POST/PATCH into retrying when the replay is known to be safe. */
+    gatewayRetryUnsafeMethods?: boolean
+    /** Disable automatic gateway retries for this request entirely. */
+    disableGatewayRetry?: boolean
   }
 }
 
@@ -140,6 +155,86 @@ api.interceptors.response.use(
       }
     }
     if (axios.isAxiosError(error)) error.message = getServerErrorMessage(error)
+    throw error
+  }
+)
+
+// Cloudflare answers 524 when the origin is still busy past its own timeout, and
+// 502/503/504 come from a restarting or saturated edge; a transport failure with
+// no response at all is the same class of transient problem. Replaying those
+// keeps a transient blip from turning into a bare error page, while 4xx and
+// unsafe methods still surface immediately.
+const GATEWAY_RETRY_TOAST_ID = 'gateway-retry'
+const GATEWAY_RETRY_EXHAUSTED_TOAST_ID = 'gateway-retry-exhausted'
+
+function notifyGatewayRetry(retryNumber: number): void {
+  toast.loading(
+    t(GATEWAY_RETRY_MESSAGES.RETRYING, {
+      current: retryNumber,
+      total: MAX_GATEWAY_RETRY_ATTEMPTS,
+    }),
+    { id: GATEWAY_RETRY_TOAST_ID, duration: Infinity }
+  )
+}
+
+function notifyGatewayRetryExhausted(): void {
+  toast.dismiss(GATEWAY_RETRY_TOAST_ID)
+  // Sticky on purpose: the retries are gone, so the only way forward is a fresh
+  // document, and a toast that fades would leave the user staring at nothing.
+  toast.error(t(GATEWAY_RETRY_MESSAGES.EXHAUSTED), {
+    id: GATEWAY_RETRY_EXHAUSTED_TOAST_ID,
+    duration: Infinity,
+    action: {
+      label: t(GATEWAY_RETRY_MESSAGES.REFRESH),
+      onClick: () => window.location.reload(),
+    },
+  })
+}
+
+function clearGatewayRetryNotice(): void {
+  toast.dismiss(GATEWAY_RETRY_TOAST_ID)
+}
+
+function waitForGatewayRetry(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+api.interceptors.response.use(
+  (response) => {
+    if (response.config.gatewayRetryAttempt) clearGatewayRetryNotice()
+    return response
+  },
+  async (error) => {
+    const config = error?.config as ApiRequestConfig | undefined
+    if (
+      !config ||
+      config.disableGatewayRetry ||
+      error?.code === 'ERR_CANCELED'
+    ) {
+      throw error
+    }
+
+    const attemptsMade = config.gatewayRetryAttempt ?? 0
+    const decision = resolveGatewayRetry({
+      status: error?.response?.status,
+      networkFailure: error?.response == null,
+      method: config.method,
+      attemptsMade,
+      maxAttempts: config.gatewayRetryAttempts,
+      allowNonIdempotentMethod: config.gatewayRetryUnsafeMethods,
+    })
+
+    if (decision === 'retry') {
+      const retryNumber = attemptsMade + 1
+      config.gatewayRetryAttempt = retryNumber
+      notifyGatewayRetry(retryNumber)
+      await waitForGatewayRetry(getGatewayRetryDelayMs(retryNumber))
+      return api.request(config)
+    }
+
+    if (decision === 'exhausted') notifyGatewayRetryExhausted()
     throw error
   }
 )
