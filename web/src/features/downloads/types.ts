@@ -66,6 +66,11 @@ export type DownloadLink = {
   /** i18n key describing the package itself, e.g. `Windows installer (.msi)`. */
   packageKey: string
   url: string
+  /**
+   * i18n key for this row's action button. Defaults to `Download`; a link that
+   * installs through a store rather than fetching a file needs its own wording.
+   */
+  actionKey?: string
   /** Alternative host for the same artifact, used when the primary fails. */
   mirrorUrl?: string
 }
