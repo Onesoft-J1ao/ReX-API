@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -37,8 +38,8 @@ type FreeFunding struct{}
 
 func (f *FreeFunding) Source() string              { return BillingSourceFree }
 func (f *FreeFunding) PreConsume(amount int) error { return nil }
-func (f *FreeFunding) Settle(delta int) error       { return nil }
-func (f *FreeFunding) Refund() error                { return nil }
+func (f *FreeFunding) Settle(delta int) error      { return nil }
+func (f *FreeFunding) Refund() error               { return nil }
 
 // ---------------------------------------------------------------------------
 // WalletFunding — 钱包资金来源实现
@@ -49,9 +50,16 @@ func (f *FreeFunding) Refund() error                { return nil }
 // 使 wallet_first 等计费偏好可以回退到订阅。
 var ErrInsufficientWalletQuota = errors.New("wallet quota insufficient")
 
+// WalletFunding spends a user's wallet quota, which contains both cash and
+// non-withdrawable gifted credit. It tracks how much of this session's charge
+// came from the gift bucket so a refund can return that amount to the gift
+// bucket instead of silently converting promo credit into withdrawable cash.
 type WalletFunding struct {
 	userId   int
 	consumed int // 实际预扣的用户额度
+	// giftConsumed is the gifted portion of consumed, burnt first on every
+	// charge and restored first on every refund.
+	giftConsumed int
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
@@ -68,7 +76,68 @@ func (w *WalletFunding) PreConsume(amount int) error {
 		return ErrInsufficientWalletQuota
 	}
 	w.consumed = amount
+	w.burnGiftQuota(amount)
 	return nil
+}
+
+// ConsumeUnchecked deducts without an availability check, so the balance may go
+// negative; this is the settlement path where the charge is already known.
+func (w *WalletFunding) ConsumeUnchecked(amount int) error {
+	if amount <= 0 {
+		return nil
+	}
+	if err := model.DecreaseUserQuota(w.userId, amount, false); err != nil {
+		return err
+	}
+	w.consumed += amount
+	w.burnGiftQuota(amount)
+	return nil
+}
+
+// RollbackConsume reverses ConsumeUnchecked, returning gifted credit to the
+// gift bucket before crediting cash.
+func (w *WalletFunding) RollbackConsume(amount int) error {
+	if amount <= 0 {
+		return nil
+	}
+	creditGift := w.releaseGiftQuota(amount)
+	if err := model.IncreaseUserQuota(w.userId, amount-creditGift, false); err != nil {
+		return err
+	}
+	w.consumed -= amount
+	return nil
+}
+
+// burnGiftQuota moves the gifted portion of a charge out of the gift bucket.
+// Burning is attribution only: User.Quota was already reduced by the caller.
+// A failure here is logged, not fatal — it would leave gifted credit counted as
+// cash, which the refund path clamps against the real balance.
+func (w *WalletFunding) burnGiftQuota(amount int) {
+	if amount <= 0 {
+		return
+	}
+	used, err := model.TryConsumeUserGiftQuota(w.userId, amount)
+	if err != nil {
+		common.SysLog("failed to burn gift quota attribution: " + err.Error())
+		return
+	}
+	w.giftConsumed += used
+}
+
+// releaseGiftQuota returns up to amount of previously burnt gifted credit to
+// the gift bucket and reports how much was returned, so the caller credits only
+// the remainder as cash.
+func (w *WalletFunding) releaseGiftQuota(amount int) int {
+	if amount <= 0 || w.giftConsumed <= 0 {
+		return 0
+	}
+	creditGift := min(amount, w.giftConsumed)
+	if err := model.RestoreUserGiftQuota(w.userId, creditGift, false); err != nil {
+		common.SysLog("failed to restore gift quota attribution: " + err.Error())
+		return 0
+	}
+	w.giftConsumed -= creditGift
+	return creditGift
 }
 
 func (w *WalletFunding) Settle(delta int) error {
@@ -76,9 +145,9 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+		return w.ConsumeUnchecked(delta)
 	}
-	return model.IncreaseUserQuota(w.userId, -delta, false)
+	return w.RollbackConsume(-delta)
 }
 
 func (w *WalletFunding) Refund() error {
@@ -87,7 +156,7 @@ func (w *WalletFunding) Refund() error {
 	}
 	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
 	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
-	return model.IncreaseUserQuota(w.userId, w.consumed, false)
+	return w.RollbackConsume(w.consumed)
 }
 
 // ---------------------------------------------------------------------------
