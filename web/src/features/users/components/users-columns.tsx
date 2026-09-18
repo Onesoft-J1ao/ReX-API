@@ -228,6 +228,80 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { mobileOrder: 20 },
     },
     {
+      accessorKey: 'email',
+      header: t('Email'),
+      cell: ({ row }) => {
+        const email = row.getValue('email') as string
+        return (
+          <span className='text-muted-foreground block max-w-[200px] truncate text-sm'>
+            {email || '-'}
+          </span>
+        )
+      },
+      size: 200,
+      meta: { mobileHidden: true },
+    },
+    {
+      id: 'bindings',
+      header: t('Bindings'),
+      cell: ({ row }) => {
+        const user = row.original
+        const bindings = [
+          { key: 'GitHub', value: user.github_id },
+          { key: 'OIDC', value: user.oidc_id },
+          { key: 'WeChat', value: user.wechat_id },
+          { key: 'Telegram', value: user.telegram_id },
+          { key: 'LinuxDO', value: user.linux_do_id },
+        ].filter((binding) => Boolean(binding.value))
+
+        if (bindings.length === 0) {
+          return <span className='text-muted-foreground text-sm'>-</span>
+        }
+
+        return (
+          <div className='flex max-w-full min-w-0 flex-wrap items-center gap-1 overflow-hidden'>
+            {bindings.map((binding) => (
+              <Tooltip key={binding.key}>
+                <TooltipTrigger
+                  render={
+                    <StatusBadge
+                      label={binding.key}
+                      variant='neutral'
+                      copyable={false}
+                      className='cursor-help'
+                    />
+                  }
+                />
+                <TooltipContent>
+                  <p className='max-w-[260px] text-xs break-all'>
+                    {binding.value}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        )
+      },
+      enableSorting: false,
+      size: 240,
+      meta: { mobileHidden: true },
+    },
+    {
+      accessorKey: 'remark',
+      header: t('Remark'),
+      cell: ({ row }) => {
+        const remark = row.getValue('remark') as string
+        return (
+          <LongText className='text-muted-foreground max-w-[160px] text-xs'>
+            {remark || '-'}
+          </LongText>
+        )
+      },
+      enableSorting: false,
+      size: 160,
+      meta: { mobileHidden: true },
+    },
+    {
       id: 'invite_info',
       header: t('Invite Info'),
       cell: ({ row }) => {
