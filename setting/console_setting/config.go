@@ -11,18 +11,26 @@ type ConsoleSetting struct {
 	UptimeKumaEnabled    bool   `json:"uptime_kuma_enabled"`   // 是否启用 Uptime Kuma 面板
 	AnnouncementsEnabled bool   `json:"announcements_enabled"` // 是否启用系统公告面板
 	FAQEnabled           bool   `json:"faq_enabled"`           // 是否启用常见问答面板
+
+	// HideModelsWithoutEnabledChannel drops a group from the model square when
+	// none of its channels can serve it, so the picker and the list never
+	// advertise a group that is entirely disabled. On by default: a disabled
+	// group is a configuration state, not something a visitor should have to
+	// interpret.
+	HideModelsWithoutEnabledChannel bool `json:"hide_models_without_enabled_channel"`
 }
 
 // 默认配置
 var defaultConsoleSetting = ConsoleSetting{
-	ApiInfo:              "",
-	UptimeKumaGroups:     "",
-	Announcements:        "",
-	FAQ:                  "",
-	ApiInfoEnabled:       true,
-	UptimeKumaEnabled:    true,
-	AnnouncementsEnabled: true,
-	FAQEnabled:           true,
+	ApiInfo:                         "",
+	UptimeKumaGroups:                "",
+	Announcements:                   "",
+	FAQ:                             "",
+	ApiInfoEnabled:                  true,
+	UptimeKumaEnabled:               true,
+	AnnouncementsEnabled:            true,
+	FAQEnabled:                      true,
+	HideModelsWithoutEnabledChannel: true,
 }
 
 // 全局实例

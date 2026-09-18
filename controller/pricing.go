@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -56,6 +57,22 @@ func GetPricing(c *gin.Context) {
 	}
 
 	usableGroup = service.GetUserUsableGroups(group)
+	// A group whose channels are all disabled cannot serve anything, so drop it
+	// from both the picker and the model list rather than advertising a group
+	// that will always fail. Fails open on a query error: an empty model square
+	// is worse than briefly showing a disabled group.
+	if console_setting.GetConsoleSetting().HideModelsWithoutEnabledChannel {
+		served, err := model.GetGroupsWithEnabledChannel()
+		if err != nil {
+			common.SysError("failed to load groups with enabled channels: " + err.Error())
+		} else {
+			for name := range usableGroup {
+				if _, ok := served[name]; !ok {
+					delete(usableGroup, name)
+				}
+			}
+		}
+	}
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
