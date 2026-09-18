@@ -12,8 +12,8 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 	rootconstant "github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -555,13 +555,32 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	// Bound the wait for upstream response headers on streaming requests. An
+	// upstream that accepts the connection and never answers leaves the origin
+	// with nothing to send, and Cloudflare turns that into a 524 at ~100s; the
+	// bound makes the origin answer first, with a status the client can retry.
+	req, firstByte := wrapStreamFirstByteDeadline(req, info.IsStream)
+
 	resp, err := relayClient.Do(req)
 	if err != nil {
+		firstByte.release()
+		if firstByte != nil && firstByte.timedOut.Load() {
+			logger.LogError(c, fmt.Sprintf(
+				"upstream did not send response headers within %ds, aborting the request",
+				common2.RelayStreamFirstByteTimeout,
+			))
+		}
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
+		firstByte.release()
 		return nil, errors.New("resp is nil")
+	}
+	if firstByte != nil && resp.Body != nil {
+		// Held until the caller closes the body: a healthy SSE stream must not be
+		// cancelled when the deadline's derived context is torn down.
+		resp.Body = &firstByteTimeoutBody{rc: resp.Body, release: firstByte.release}
 	}
 	// Cap non-stream upstream bodies: handlers read them fully with
 	// io.ReadAll, so an unbounded body from a misbehaving upstream would OOM
