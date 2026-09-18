@@ -139,6 +139,13 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
 				selfRoute.POST("/checkin", middleware.TurnstileCheck(), controller.DoCheckin)
 
+				// Custom wallpaper (paid). Setting one moves money, so it
+				// carries the same critical rate limit as the other
+				// balance-spending routes; reading and clearing are free.
+				selfRoute.GET("/wallpaper", controller.GetUserWallpaper)
+				selfRoute.PUT("/wallpaper", middleware.CriticalRateLimit(), controller.UpdateUserWallpaper)
+				selfRoute.DELETE("/wallpaper", controller.DeleteUserWallpaper)
+
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
@@ -164,6 +171,12 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+
+				// Custom wallpaper read/clear for any user. Setting a paid
+				// wallpaper always spends the owner's own balance, so it stays
+				// owner-only.
+				adminRoute.GET("/:id/wallpaper", controller.AdminGetUserWallpaper)
+				adminRoute.DELETE("/:id/wallpaper", controller.AdminDeleteUserWallpaper)
 			}
 		}
 

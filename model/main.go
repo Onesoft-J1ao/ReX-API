@@ -360,6 +360,7 @@ func migrateDB() error {
 		&TwoFABackupCode{},
 		&Checkin{},
 		&PlaygroundFreeUsage{},
+		&UserWallpaper{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
