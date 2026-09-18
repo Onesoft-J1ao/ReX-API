@@ -163,6 +163,17 @@ export const THEME_COOKIE_KEYS = {
 } as const
 
 /**
+ * The wallpaper axis is the one appearance setting that is not a cookie: it is
+ * bought, so the server owns it and the console hydrates it from the user's
+ * own record. It still flows through this provider — the single place that
+ * writes appearance attributes onto `<body>` — so the wallpaper is painted by
+ * the same cascade as the presets (see `styles/theme-presets.css`).
+ */
+export const THEME_WALLPAPER_ATTRIBUTE = 'data-theme-wallpaper'
+export const THEME_WALLPAPER_VALUE = 'custom'
+export const THEME_WALLPAPER_VARIABLE = '--wallpaper-image'
+
+/**
  * Preset → default font mapping. Used by the provider to resolve the user's
  * `font: 'default'` preference against the active preset.
  *

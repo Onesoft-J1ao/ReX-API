@@ -813,4 +813,10 @@ export const STATIC_I18N_KEYS = [
   'Provider default',
   'Low',
   'High',
+  // Wallpaper failures, looked up by the stable code the API returns.
+  'Custom wallpaper is not available on this site.',
+  'You have used all your wallpaper changes for this month.',
+  'Your balance is too low for this wallpaper change.',
+  'That is already your wallpaper, so nothing was charged.',
+  'Enter an absolute http(s) image address without spaces or quotes.',
 ] as const
