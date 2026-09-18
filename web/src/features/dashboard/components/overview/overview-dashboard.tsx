@@ -470,8 +470,12 @@ export function OverviewDashboard() {
     apiInfo: showApiInfoPanel,
     announcements: showAnnouncementsPanel,
     faq: showFAQPanel,
-    uptimeKuma: showUptimePanel,
+    uptimeKuma,
+    upstreamStatus,
   } = useDashboardContentVisibility()
+  // One panel renders both monitor sets, so either switch keeps it visible: the
+  // upstream provider's page is useful on its own, without a local Kuma.
+  const showUptimePanel = uptimeKuma || upstreamStatus
   const [manualSetupGuideExpanded, setManualSetupGuideExpanded] = useState<
     boolean | null
   >(() => getSavedSetupGuideExpanded())

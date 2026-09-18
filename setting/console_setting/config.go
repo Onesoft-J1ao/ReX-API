@@ -18,6 +18,16 @@ type ConsoleSetting struct {
 	// group is a configuration state, not something a visitor should have to
 	// interpret.
 	HideModelsWithoutEnabledChannel bool `json:"hide_models_without_enabled_channel"`
+
+	// UpstreamStatusUrl mirrors an upstream provider's public status page into
+	// the console, next to our own monitors. It holds a complete status page URL
+	// rather than a base URL plus slug because operators copy it straight out of
+	// the provider's address bar.
+	UpstreamStatusUrl  string `json:"upstream_status_url"`
+	UpstreamStatusName string `json:"upstream_status_name"`
+	// UpstreamStatusEnabled gates the fetch. The provider is a third party, so
+	// this is on by default but can be turned off without losing the URL.
+	UpstreamStatusEnabled bool `json:"upstream_status_enabled"`
 }
 
 // 默认配置
@@ -31,6 +41,10 @@ var defaultConsoleSetting = ConsoleSetting{
 	AnnouncementsEnabled:            true,
 	FAQEnabled:                      true,
 	HideModelsWithoutEnabledChannel: true,
+	// 默认镜像上游 S3AI 的公开状态页
+	UpstreamStatusUrl:     "https://status.s3.fan/status/s3ai-api",
+	UpstreamStatusName:    "上游状态",
+	UpstreamStatusEnabled: true,
 }
 
 // 全局实例

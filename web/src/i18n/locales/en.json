@@ -6785,7 +6785,17 @@
     "PBR": "PBR",
     "Generate 3D model": "Generate 3D model",
     "Your 3D model will appear here": "Your 3D model will appear here",
-    "The provider returned no 3D model": "The provider returned no 3D model"
+    "The provider returned no 3D model": "The provider returned no 3D model",
+    "Upstream Status": "Upstream Status",
+    "Show upstream status": "Show upstream status",
+    "Fetch the upstream provider's public status page and list its monitors in the console, next to your own.": "Fetch the upstream provider's public status page and list its monitors in the console, next to your own.",
+    "Upstream status page URL": "Upstream status page URL",
+    "The full status page URL, copied from the browser address bar. It must end in /status/<slug>.": "The full status page URL, copied from the browser address bar. It must end in /status/<slug>.",
+    "Upstream group name": "Upstream group name",
+    "The heading these monitors are listed under in the console.": "The heading these monitors are listed under in the console.",
+    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api",
+    "Name must be less than 50 characters": "Name must be less than 50 characters",
+    "Save upstream status settings": "Save upstream status settings"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

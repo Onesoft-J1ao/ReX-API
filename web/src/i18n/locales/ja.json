@@ -6785,7 +6785,17 @@
     "PBR": "PBR",
     "Generate 3D model": "Generate 3D model",
     "Your 3D model will appear here": "Your 3D model will appear here",
-    "The provider returned no 3D model": "The provider returned no 3D model"
+    "The provider returned no 3D model": "The provider returned no 3D model",
+    "Upstream Status": "アップストリームの状態",
+    "Show upstream status": "アップストリームの状態を表示",
+    "Fetch the upstream provider's public status page and list its monitors in the console, next to your own.": "アップストリーム事業者の公開ステータスページを取得し、その監視項目をコンソールで自サイトの監視と並べて表示します。",
+    "Upstream status page URL": "アップストリームのステータスページURL",
+    "The full status page URL, copied from the browser address bar. It must end in /status/<slug>.": "ブラウザのアドレスバーからコピーした完全なステータスページURL。/status/<slug> で終わる必要があります。",
+    "Upstream group name": "アップストリームのグループ名",
+    "The heading these monitors are listed under in the console.": "コンソールでこれらの監視項目が表示される見出しです。",
+    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "完全なステータスページURLを入力してください（例：https://status.s3.fan/status/s3ai-api）",
+    "Name must be less than 50 characters": "名前は50文字以内で入力してください",
+    "Save upstream status settings": "アップストリームの設定を保存"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

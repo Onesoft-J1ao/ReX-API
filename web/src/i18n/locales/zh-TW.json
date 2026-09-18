@@ -6785,7 +6785,17 @@
     "PBR": "PBR",
     "Generate 3D model": "生成 3D 模型",
     "Your 3D model will appear here": "生成的 3D 模型會顯示在這裡",
-    "The provider returned no 3D model": "上游未回傳 3D 模型"
+    "The provider returned no 3D model": "上游未回傳 3D 模型",
+    "Upstream Status": "上游狀態",
+    "Show upstream status": "顯示上游狀態",
+    "Fetch the upstream provider's public status page and list its monitors in the console, next to your own.": "抓取上游服務商的公開狀態頁，把它的監控項目列在控制台裡，與本站監控並列顯示。",
+    "Upstream status page URL": "上游狀態檢測網址",
+    "The full status page URL, copied from the browser address bar. It must end in /status/<slug>.": "完整的狀態頁網址，從瀏覽器網址列複製，必須以 /status/<slug> 結尾。",
+    "Upstream group name": "上游分組名稱",
+    "The heading these monitors are listed under in the console.": "這些監控項目在控制台裡的分組標題。",
+    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "請輸入完整的狀態頁網址，例如 https://status.s3.fan/status/s3ai-api",
+    "Name must be less than 50 characters": "名稱不能超過 50 個字元",
+    "Save upstream status settings": "儲存上游狀態設定"
   },
   "Time range": "時間範圍",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -6785,7 +6785,17 @@
     "PBR": "PBR",
     "Generate 3D model": "Generate 3D model",
     "Your 3D model will appear here": "Your 3D model will appear here",
-    "The provider returned no 3D model": "The provider returned no 3D model"
+    "The provider returned no 3D model": "The provider returned no 3D model",
+    "Upstream Status": "État du fournisseur",
+    "Show upstream status": "Afficher l'état du fournisseur",
+    "Fetch the upstream provider's public status page and list its monitors in the console, next to your own.": "Récupère la page de statut publique du fournisseur et affiche ses sondes dans la console, à côté des vôtres.",
+    "Upstream status page URL": "URL de la page de statut du fournisseur",
+    "The full status page URL, copied from the browser address bar. It must end in /status/<slug>.": "L'URL complète de la page de statut, copiée depuis la barre d'adresse. Elle doit se terminer par /status/<slug>.",
+    "Upstream group name": "Nom du groupe du fournisseur",
+    "The heading these monitors are listed under in the console.": "Le titre sous lequel ces sondes sont listées dans la console.",
+    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "Saisissez l'URL complète de la page de statut, par exemple https://status.s3.fan/status/s3ai-api",
+    "Name must be less than 50 characters": "Le nom doit contenir moins de 50 caractères",
+    "Save upstream status settings": "Enregistrer les paramètres du fournisseur"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

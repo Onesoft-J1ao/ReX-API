@@ -6785,7 +6785,17 @@
     "PBR": "PBR",
     "Generate 3D model": "Generate 3D model",
     "Your 3D model will appear here": "Your 3D model will appear here",
-    "The provider returned no 3D model": "The provider returned no 3D model"
+    "The provider returned no 3D model": "The provider returned no 3D model",
+    "Upstream Status": "Trạng thái nhà cung cấp",
+    "Show upstream status": "Hiển thị trạng thái nhà cung cấp",
+    "Fetch the upstream provider's public status page and list its monitors in the console, next to your own.": "Lấy trang trạng thái công khai của nhà cung cấp và liệt kê các giám sát của họ trong bảng điều khiển, cạnh các giám sát của bạn.",
+    "Upstream status page URL": "URL trang trạng thái nhà cung cấp",
+    "The full status page URL, copied from the browser address bar. It must end in /status/<slug>.": "URL đầy đủ của trang trạng thái, sao chép từ thanh địa chỉ trình duyệt. Phải kết thúc bằng /status/<slug>.",
+    "Upstream group name": "Tên nhóm nhà cung cấp",
+    "The heading these monitors are listed under in the console.": "Tiêu đề mà các giám sát này được liệt kê trong bảng điều khiển.",
+    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "Nhập URL đầy đủ của trang trạng thái, ví dụ https://status.s3.fan/status/s3ai-api",
+    "Name must be less than 50 characters": "Tên phải ít hơn 50 ký tự",
+    "Save upstream status settings": "Lưu cài đặt trạng thái nhà cung cấp"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -6785,7 +6785,17 @@
     "PBR": "PBR",
     "Generate 3D model": "Generate 3D model",
     "Your 3D model will appear here": "Your 3D model will appear here",
-    "The provider returned no 3D model": "The provider returned no 3D model"
+    "The provider returned no 3D model": "The provider returned no 3D model",
+    "Upstream Status": "Статус апстрима",
+    "Show upstream status": "Показывать статус апстрима",
+    "Fetch the upstream provider's public status page and list its monitors in the console, next to your own.": "Забирает публичную страницу статуса провайдера и показывает его мониторы в консоли рядом с вашими.",
+    "Upstream status page URL": "URL страницы статуса апстрима",
+    "The full status page URL, copied from the browser address bar. It must end in /status/<slug>.": "Полный URL страницы статуса, скопированный из адресной строки. Должен заканчиваться на /status/<slug>.",
+    "Upstream group name": "Имя группы апстрима",
+    "The heading these monitors are listed under in the console.": "Заголовок, под которым эти мониторы показаны в консоли.",
+    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "Укажите полный URL страницы статуса, например https://status.s3.fan/status/s3ai-api",
+    "Name must be less than 50 characters": "Имя не должно превышать 50 символов",
+    "Save upstream status settings": "Сохранить настройки статуса апстрима"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
