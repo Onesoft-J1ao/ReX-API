@@ -21,12 +21,12 @@ import {
   Box,
   ClipboardList,
   CreditCard,
+  ExternalLink,
   FileText,
   FlaskConical,
   Key,
   LayoutDashboard,
   ListTodo,
-  Mail,
   MessageSquare,
   PlugZap,
   Radio,
@@ -41,6 +41,8 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { useStatus } from '@/hooks/use-status'
+import { parseSidebarAdminLinksFromStatus } from '@/lib/nav-modules'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -51,6 +53,15 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { status } = useStatus()
+
+  // External tools the operator runs outside this console. Deliberately read
+  // from configuration rather than written here: the addresses are
+  // deployment-specific, so a hardcoded one would leak one deployment's
+  // internal host into every other.
+  const adminLinks = parseSidebarAdminLinksFromStatus(
+    status as Record<string, unknown> | null
+  )
 
   return {
     navGroups: [
@@ -139,18 +150,14 @@ export function useSidebarData(): SidebarData {
         id: 'admin',
         title: t('Admin'),
         items: [
-          {
-            title: t('Kiro-Go'),
-            url: 'http://139.224.75.133:3030/admin',
-            icon: ServerCog,
+          // Titles come from the operator's own configuration, so they are
+          // rendered as written rather than passed through t().
+          ...adminLinks.map((link) => ({
+            title: link.title,
+            url: link.url,
+            icon: ExternalLink,
             requiredRole: ROLE.ADMIN,
-          },
-          {
-            title: t('Moemail'),
-            url: 'https://mail.j1ao.vip',
-            icon: Mail,
-            requiredRole: ROLE.ADMIN,
-          },
+          })),
           {
             title: t('Channels'),
             url: '/channels',

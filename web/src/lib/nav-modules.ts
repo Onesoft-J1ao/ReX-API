@@ -223,3 +223,65 @@ export function isSidebarModuleEnabled(
     return true
   }
 }
+
+/**
+ * One external admin tool link the operator has configured.
+ *
+ * These point at services the operator runs outside this console, so the
+ * address is deployment-specific and must never be written into the source.
+ */
+export type SidebarAdminLink = {
+  title: string
+  url: string
+}
+
+/**
+ * Validate one configured link, returning null when it is unusable.
+ *
+ * Only a titled absolute http(s) address is accepted. Dropping the rest means a
+ * malformed or hostile value in the stored option cannot reach the sidebar --
+ * notably it cannot smuggle a `javascript:` URL into an anchor's href.
+ */
+export function normalizeSidebarAdminLink(
+  raw: unknown
+): SidebarAdminLink | null {
+  if (!raw || typeof raw !== 'object') return null
+  const record = raw as Record<string, unknown>
+  const title = typeof record.title === 'string' ? record.title.trim() : ''
+  const url = typeof record.url === 'string' ? record.url.trim() : ''
+  if (!title || !url) return null
+
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+  return { title, url }
+}
+
+export function parseSidebarAdminLinks(raw: unknown): SidebarAdminLink[] {
+  if (typeof raw !== 'string' || raw.trim() === '') return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map(normalizeSidebarAdminLink)
+      .filter((link): link is SidebarAdminLink => link !== null)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * The external admin links configured for this deployment.
+ *
+ * Empty when unset -- deliberately no default, because a fallback address is
+ * exactly the hardcoded link this configuration exists to remove.
+ */
+export function parseSidebarAdminLinksFromStatus(
+  status: Record<string, unknown> | null
+): SidebarAdminLink[] {
+  return parseSidebarAdminLinks(status?.SidebarAdminLinks)
+}
