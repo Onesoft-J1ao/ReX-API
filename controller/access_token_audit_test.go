@@ -437,12 +437,7 @@ func (releasedAuditLog) TableName() string { return "logs" }
 func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 	t.Helper()
 	if kind == "sqlite" {
-		// Carry the same pragmas as the production DSN. Opened without them the
-		// database serialises writers on SQLite's defaults, so a concurrent
-		// write fails instantly with "database is locked" or SQLITE_BUSY_SNAPSHOT
-		// instead of queueing — which is what made the concurrent account
-		// deletion test pass or fail depending on scheduler timing.
-		path := t.TempDir() + "/audit.db" + common.SQLiteDSNPragmas
+		path := t.TempDir() + "/audit.db"
 		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
 		require.NoError(t, err)
 		return db, path
