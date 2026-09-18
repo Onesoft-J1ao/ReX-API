@@ -28,6 +28,12 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 	if info == nil {
 		return
 	}
+	// Real traffic through a group proves the group is serving, which is what
+	// flexible status probing paces itself by. Only successes count: a group
+	// that is failing must keep being probed.
+	if success {
+		NoteStatusCheckPassiveActivity(info.UsingGroup)
+	}
 	now := time.Now()
 	hasTtft := info.IsStream && info.HasSendResponse()
 	ttftMs := int64(0)
