@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 
+import { isGatewayRetryExhausted } from './gateway-retry'
 import { handleServerError } from './handle-server-error'
 import { getServerErrorStatus } from './server-error-message'
 
@@ -40,6 +41,10 @@ export function createAppQueryClient(
     defaultOptions: {
       queries: {
         retry: (failureCount, error) => {
+          // The transport layer already spent its whole budget on this failure
+          // and told the user to refresh; retrying here would only replay the
+          // same backoff and keep the spinner up for another cycle.
+          if (isGatewayRetryExhausted(error)) return false
           if (import.meta.env.DEV || failureCount > 3) return false
           return ![401, 403].includes(getServerErrorStatus(error) ?? 0)
         },
