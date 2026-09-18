@@ -213,6 +213,25 @@ func newRedemptionTopUp(
 	}
 }
 
+// GetRedemptionPurchaseOptions tells the console what it may offer: whether the
+// feature is on, and which payment methods this deployment can actually take.
+//
+// The list is served rather than derived in the browser so the console cannot
+// offer a method the server would reject, and so adding a provider later needs
+// no frontend change.
+func GetRedemptionPurchaseOptions(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data": gin.H{
+			"enabled":    redemptionPurchaseEnabled(),
+			"methods":    redemptionPurchasePaymentMethods(),
+			"max_count":  model.MaxRedemptionPurchaseCount,
+			"max_amount": getMaxTopUpAmount(),
+			"min_amount": getMinTopup(),
+		},
+	})
+}
+
 // RequestRedemptionPurchaseAmount returns the money one order would cost, so the
 // console can show the price before the buyer commits to it.
 func RequestRedemptionPurchaseAmount(c *gin.Context) {

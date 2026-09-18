@@ -20,6 +20,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { RedemptionPurchaseCard } from '@/features/redeem-purchase/components/redemption-purchase-card'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
@@ -337,6 +338,8 @@ export function Wallet(props: WalletProps) {
                 userQuota={user?.quota}
                 onPurchaseSuccess={fetchUser}
               />
+
+              <RedemptionPurchaseCard onPurchaseSuccess={fetchUser} />
             </div>
 
             <AffiliateRewardsCard
