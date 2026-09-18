@@ -230,6 +230,11 @@ export interface UserWalletData {
   username: string
   /** Current quota balance */
   quota: number
+  /**
+   * Non-withdrawable part of the balance: gifted credit and plan refunds.
+   * Always a subset of `quota`; only `quota - gift_quota` is withdrawable.
+   */
+  gift_quota?: number
   /** Total used quota */
   used_quota: number
   /** Total request count */
