@@ -3061,6 +3061,7 @@
     "OAuth failed": "OAuth не удался",
     "OAuth Integrations": "Интеграции OAuth",
     "OAuth pop-up was blocked": "Всплывающее окно OAuth заблокировано",
+  "This step needs a full browser. Open this page in Chrome or Safari and try again.": "Для этого шага нужен полноценный браузер. Откройте эту страницу в Chrome или Safari и повторите попытку.",
     "Object Prune Rules": "Правила очистки объектов",
     "Observability": "Наблюдаемость",
     "Obtain the API key, merchant ID, and RSA key pair from the Waffo dashboard, and configure the callback URL.": "Получите API-ключ, ID мерчанта и пару RSA-ключей в панели управления Waffo и настройте URL обратного вызова.",

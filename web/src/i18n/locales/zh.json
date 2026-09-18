@@ -3061,6 +3061,7 @@
     "OAuth failed": "OAuth 失败",
     "OAuth Integrations": "OAuth 集成",
     "OAuth pop-up was blocked": "OAuth 弹窗被浏览器拦截",
+  "This step needs a full browser. Open this page in Chrome or Safari and try again.": "此步骤需要完整的浏览器环境。请在 Chrome 或 Safari 中打开本页面后重试。",
     "Object Prune Rules": "对象清理规则",
     "Observability": "可观测性",
     "Obtain the API key, merchant ID, and RSA key pair from the Waffo dashboard, and configure the callback URL.": "请在 Waffo 后台获取 API 密钥、商户 ID 以及 RSA 密钥对，并配置回调地址。",
