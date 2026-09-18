@@ -16,7 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
+
 import { AuthOperationError } from '@/lib/secure-verification'
+import { inEmbeddedWebView } from '@/lib/webview'
 
 import {
   OAUTH_POPUP_CALLBACK_MESSAGE,
@@ -54,7 +57,22 @@ export function openOAuthPopup(
   if (options.signal.aborted) return Promise.reject(options.signal.reason)
   const popup = window.open('', '_blank')
   if (!popup) {
-    return Promise.reject(new AuthOperationError('OAuth pop-up was blocked'))
+    // An embedded browser has no window handler, so allowing pop-ups changes
+    // nothing there: the user has to continue in a real browser. Say that,
+    // instead of the pop-up-blocked wording that only fits a browser setting.
+    if (inEmbeddedWebView()) {
+      return Promise.reject(
+        new AuthOperationError(
+          t(
+            'This step needs a full browser. Open this page in Chrome or Safari and try again.'
+          ),
+          'AUTH_POPUP_UNSUPPORTED'
+        )
+      )
+    }
+    return Promise.reject(
+      new AuthOperationError(t('OAuth pop-up was blocked'), 'AUTH_POPUP_BLOCKED')
+    )
   }
   const controller = new AbortController()
   return new Promise((resolve, reject) => {
