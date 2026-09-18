@@ -72,6 +72,7 @@ beforeEach(() => {
               announcements_enabled: false,
               faq_enabled: false,
               uptime_kuma_enabled: false,
+              upstream_status_enabled: false,
             },
           },
         }
