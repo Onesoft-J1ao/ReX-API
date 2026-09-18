@@ -241,6 +241,19 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
 		}
 
+		// Outbound proxy pool (admin). The pool is an external service, so the
+		// read routes expose only reachability/count while assign/report write
+		// channel state. Admin-only: an unprivileged caller must not be able to
+		// route every channel's traffic through a URL they control.
+		proxyPoolRoute := apiRouter.Group("/proxy_pool")
+		proxyPoolRoute.Use(middleware.AdminAuth())
+		{
+			proxyPoolRoute.GET("/status", middleware.RequirePermission(authz.ChannelRead), controller.GetProxyPoolStatus)
+			proxyPoolRoute.GET("/all", middleware.RequirePermission(authz.ChannelRead), controller.ListProxyPoolProxies)
+			proxyPoolRoute.POST("/assign", middleware.RequirePermission(authz.ChannelWrite), controller.AssignProxyPoolProxies)
+			proxyPoolRoute.POST("/report_bad", middleware.RequirePermission(authz.ChannelOperate), controller.ReportBadProxyPoolProxy)
+		}
+
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
 		customOAuthRoute.Use(middleware.RootAuth())

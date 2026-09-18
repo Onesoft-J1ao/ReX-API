@@ -715,7 +715,14 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
-	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
+	channelSetting := channel.GetSetting()
+	// A channel with no proxy of its own falls back to the shared outbound proxy
+	// pool. PoolProxyForRelay never blocks: it returns the cached proxy or "" and
+	// refills in the background, so relay latency never depends on the pool.
+	if channelSetting.Proxy == "" {
+		channelSetting.Proxy = service.PoolProxyForRelay()
+	}
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, channelSetting)
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
 	if channel.Type == constant.ChannelTypeTaskPlugin {
 		c.Set("task_plugin_key", channel.GetSetting().TaskPluginKey)
