@@ -71,6 +71,12 @@ func SetRelayRouter(router *gin.Engine) {
 		playgroundRouter.POST("/audio/speech", controller.PlaygroundAudio)
 		playgroundRouter.POST("/audio/transcriptions", controller.PlaygroundAudio)
 		playgroundRouter.POST("/audio/translations", controller.PlaygroundAudio)
+		// Task endpoints: video and 3D are asynchronous, so the panel submits
+		// and then polls by task id instead of holding one streaming response.
+		playgroundRouter.POST("/videos", controller.PlaygroundVideo)
+		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundTaskFetch)
+		playgroundRouter.POST("/3d", controller.PlaygroundThreeD)
+		playgroundRouter.GET("/3d/:task_id", controller.PlaygroundTaskFetch)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))

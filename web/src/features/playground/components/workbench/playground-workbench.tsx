@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -25,18 +25,28 @@ import { Button } from '@/components/ui/button'
 import { PlaygroundChatMode } from '../chat/playground-chat-mode'
 import { ImageWorkbench } from './image-workbench'
 import { SpeechWorkbench } from './speech-workbench'
+import { ThreeDWorkbench } from './three-d-workbench'
+import { VideoWorkbench } from './video-workbench'
 
 // Labels are listed in src/i18n/static-keys.ts because they are selected at
 // runtime rather than written as literals next to t().
 const WORKBENCH_MODES = [
   { value: 'chat', label: 'Chat', ready: true },
   { value: 'image', label: 'Image', ready: true },
-  { value: 'video', label: 'Video', ready: false },
+  { value: 'video', label: 'Video', ready: true },
   { value: 'audio', label: 'Speech', ready: true },
-  { value: '3d', label: '3D', ready: false },
+  { value: '3d', label: '3D', ready: true },
 ] as const
 
 type WorkbenchMode = (typeof WORKBENCH_MODES)[number]['value']
+
+const WORKBENCH_PANELS: Record<WorkbenchMode, ReactNode> = {
+  chat: <PlaygroundChatMode />,
+  image: <ImageWorkbench />,
+  video: <VideoWorkbench />,
+  audio: <SpeechWorkbench />,
+  '3d': <ThreeDWorkbench />,
+}
 
 export function PlaygroundWorkbench() {
   const { t } = useTranslation()
@@ -69,17 +79,7 @@ export function PlaygroundWorkbench() {
       </div>
 
       <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
-        {mode === 'chat' ? (
-          <PlaygroundChatMode />
-        ) : mode === 'image' ? (
-          <ImageWorkbench />
-        ) : mode === 'audio' ? (
-          <SpeechWorkbench />
-        ) : (
-          <div className='text-muted-foreground flex min-h-0 flex-1 items-center justify-center p-8 text-center text-sm'>
-            {t('This workbench mode is on the way.')}
-          </div>
-        )}
+        {WORKBENCH_PANELS[mode]}
       </div>
     </div>
   )
