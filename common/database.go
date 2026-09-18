@@ -61,4 +61,12 @@ func UsingLogDatabase(databaseType DatabaseType) bool {
 //     front, so writers serialize through the busy timeout instead of dying on
 //     a stale snapshot. Autocommit SELECTs stay concurrent because WAL keeps
 //     readers unlocked.
-var SQLitePath = "one-api.db?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate"
+// SQLiteDSNPragmas is the query suffix every SQLite DSN must carry. It is
+// exported because test databases are opened directly rather than through
+// SQLitePath, and a test that omits it silently runs against different
+// concurrency behaviour than production — which is how #6805-class flakes
+// ("database is locked", or an instant SQLITE_BUSY_SNAPSHOT write failure)
+// reappear in CI while production is fine.
+const SQLiteDSNPragmas = "?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate"
+
+var SQLitePath = "one-api.db" + SQLiteDSNPragmas
