@@ -46,6 +46,7 @@ function DownloadRow(props: DownloadRowProps) {
   const { t } = useTranslation()
   const recommended = isRecommendedBuild(props.link, props.target)
   const label = `${t(props.link.platformKey)} ${t(props.link.packageKey)}`
+  const actionLabel = t(props.link.actionKey ?? 'Download')
 
   return (
     <div
@@ -95,11 +96,11 @@ function DownloadRow(props: DownloadRowProps) {
         <Button
           variant={recommended ? 'default' : 'outline'}
           size='sm'
-          aria-label={`${t('Download')} — ${label}`}
+          aria-label={`${actionLabel} — ${label}`}
           render={<a href={props.link.url} />}
         >
           <Download className='size-3.5' aria-hidden='true' />
-          {t('Download')}
+          {actionLabel}
         </Button>
       </div>
     </div>

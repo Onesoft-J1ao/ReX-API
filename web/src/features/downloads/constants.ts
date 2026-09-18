@@ -34,6 +34,20 @@ export const CLAUDE_OFFICIAL_URL = 'https://claude.ai/download'
 
 export const CC_SWITCH_HOMEPAGE = 'https://ccswitch.io'
 
+/**
+ * ChatGPT desktop.
+ *
+ * Windows distributes it through the Microsoft Store, so the Windows action
+ * uses the store protocol: the click opens the Store app directly on the
+ * product page instead of downloading a file. `apps.microsoft.com/detail/<id>`
+ * is the web form of the same product, kept as a destination that works on
+ * every platform.
+ */
+export const CHATGPT_STORE_PRODUCT_ID = '9NT1R1C2HH7J'
+export const CHATGPT_STORE_PROTOCOL_URL = `ms-windows-store://pdp/?ProductId=${CHATGPT_STORE_PRODUCT_ID}`
+export const CHATGPT_STORE_WEB_URL = `https://apps.microsoft.com/detail/${CHATGPT_STORE_PRODUCT_ID}`
+export const CHATGPT_HOMEPAGE = 'https://chatgpt.com'
+
 /** Platforms a visitor can pick from when auto-detection is wrong. */
 export const SELECTABLE_PLATFORMS: ClientPlatform[] = [
   'windows',
@@ -196,6 +210,32 @@ function buildClaudeCodexTool(): ToolDownload {
   }
 }
 
+function buildChatGptTool(): ToolDownload {
+  return {
+    id: 'chatgpt',
+    name: 'ChatGPT',
+    descriptionKey:
+      'The official ChatGPT desktop app. Windows installs it from the Microsoft Store.',
+    homepage: CHATGPT_HOMEPAGE,
+    version: null,
+    versionNoteKey: null,
+    links: [
+      {
+        id: 'windows-store',
+        platform: 'windows',
+        arch: 'universal',
+        platformKey: 'Windows',
+        packageKey: 'Microsoft Store package',
+        url: CHATGPT_STORE_PROTOCOL_URL,
+        actionKey: 'Open ChatGPT in the Store',
+      },
+    ],
+    backupLinks: [
+      { labelKey: 'Microsoft Store page', url: CHATGPT_STORE_WEB_URL },
+    ],
+  }
+}
+
 export function buildDownloadCatalog(
   release: CcSwitchRelease,
   options: { resolving?: boolean } = {}
@@ -203,5 +243,6 @@ export function buildDownloadCatalog(
   return [
     buildCcSwitchTool(release, options.resolving ?? false),
     buildClaudeCodexTool(),
+    buildChatGptTool(),
   ]
 }
