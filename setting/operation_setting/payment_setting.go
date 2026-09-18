@@ -11,6 +11,11 @@ type PaymentSetting struct {
 	ComplianceConfirmedAt  int64  `json:"compliance_confirmed_at"`
 	ComplianceConfirmedBy  int    `json:"compliance_confirmed_by"`
 	ComplianceConfirmedIP  string `json:"compliance_confirmed_ip"`
+
+	// RedemptionPurchaseEnabled sells redemption codes through the payment
+	// providers: the buyer pays real money and receives codes, never wallet
+	// balance. Off by default because it moves real money.
+	RedemptionPurchaseEnabled bool `json:"redemption_purchase_enabled"`
 }
 
 const CurrentComplianceTermsVersion = "v1"
