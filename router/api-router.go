@@ -118,6 +118,10 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
 				selfRoute.POST("/amount", controller.RequestAmount)
+				// Buying redemption codes spends real money, so both routes carry
+				// the same critical rate limit as the other payment routes.
+				selfRoute.POST("/redemption/purchase/amount", middleware.CriticalRateLimit(), controller.RequestRedemptionPurchaseAmount)
+				selfRoute.POST("/redemption/purchase", middleware.CriticalRateLimit(), controller.RequestRedemptionPurchase)
 				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.RequestStripePay)
 				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
 				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.RequestCreemPay)
