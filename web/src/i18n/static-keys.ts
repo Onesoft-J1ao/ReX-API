@@ -870,4 +870,10 @@ export const STATIC_I18N_KEYS = [
   // Gateway retry notices, rendered at runtime from GATEWAY_RETRY_MESSAGES.
   'Network fluctuation, retrying… ({{current}}/{{total}})',
   'Network is unstable. Please refresh the page and try again.',
+  // Wallpaper failures, looked up by the stable code the API returns.
+  'Custom wallpaper is not available on this site.',
+  'You have used all your wallpaper changes for this month.',
+  'Your balance is too low for this wallpaper change.',
+  'That is already your wallpaper, so nothing was charged.',
+  'Enter an absolute http(s) image address without spaces or quotes.',
 ] as const
