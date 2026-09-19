@@ -136,3 +136,55 @@ func TestFetchGroupDataSkipsAnIncompleteTarget(t *testing.T) {
 
 	assert.Empty(t, group.Monitors)
 }
+
+// The mirrored page belongs to a supplier and is republished to every visitor, so
+// a monitor named after a real host would advertise where our capacity comes from.
+func TestMaskUpstreamIdentityScrubsHostsButKeepsModelNames(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"bare domain", "主站 ai.furry.vg", "主站 •••"},
+		{"own domain", "主站 ai.j1ao.vip", "主站 •••"},
+		{"full url", "https://status.s3.fan/status/s3ai-api", "•••"},
+		{"ipv4", "源站 192.168.1.1", "源站 •••"},
+		{"subdomain chain", "节点 a.b.c.example.com", "节点 •••"},
+		{"model version survives", "Gemini 2.5 Flash", "Gemini 2.5 Flash"},
+		{"dashed model survives", "gpt-5.6-luna", "gpt-5.6-luna"},
+		{"tagged model survives", "deepseek-v4-pro-0813", "deepseek-v4-pro-0813"},
+		{"vendor path survives", "nvidia/nemotron-3.5-content-safety", "nvidia/nemotron-3.5-content-safety"},
+		{"plain label survives", "号池", "号池"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			group := maskUpstreamIdentity(UptimeGroupResult{
+				CategoryName: "上游状态",
+				Monitors:     []Monitor{{Name: tc.in, Group: tc.in}},
+			})
+			assert.Equal(t, tc.want, group.Monitors[0].Name)
+			assert.Equal(t, tc.want, group.Monitors[0].Group)
+		})
+	}
+}
+
+func TestFetchUpstreamGroupServesTheMaskedForm(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/status-page/demo":
+			_, _ = w.Write([]byte(`{"publicGroupList":[{"id":13,"name":"ai.furry.vg","monitorList":[{"id":29,"name":"主站 ai.furry.vg"}]}]}`))
+		case "/api/status-page/heartbeat/demo":
+			_, _ = w.Write([]byte(`{"heartbeatList":{"29":[{"status":1,"time":"2026-01-01 00:05:00.000"}]},"uptimeList":{"29_24":1}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	group := fetchUpstreamGroup(context.Background(), server.Client(), server.URL, "demo", "上游状态")
+
+	require.Len(t, group.Monitors, 1)
+	assert.Equal(t, "主站 •••", group.Monitors[0].Name)
+	assert.Equal(t, "•••", group.Monitors[0].Group)
+}
