@@ -6801,7 +6801,8 @@
     "Vertical": "Dọc",
     "Reset framing": "Đặt lại khung",
     "Match the theme colour to the wallpaper": "Lấy màu chủ đề theo tông màu chính của hình nền",
-    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Lấy màu nhấn từ tông màu chính của ảnh. Nếu trang lưu ảnh không cho phép đọc, màu nhấn của bộ cài đặt vẫn được giữ."
+    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Lấy màu nhấn từ tông màu chính của ảnh. Nếu trang lưu ảnh không cho phép đọc, màu nhấn của bộ cài đặt vẫn được giữ.",
+    "Models this site serves under one group.": "Các mô hình trang này cung cấp trong nhóm này."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -6801,7 +6801,8 @@
     "Vertical": "Vertical",
     "Reset framing": "Réinitialiser le cadrage",
     "Match the theme colour to the wallpaper": "Accorder la couleur du thème à celle du fond d'écran",
-    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Reprend la couleur d'accentuation de la teinte dominante de l'image. Si le site qui héberge l'image en interdit la lecture, l'accentuation du préréglage est conservée."
+    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Reprend la couleur d'accentuation de la teinte dominante de l'image. Si le site qui héberge l'image en interdit la lecture, l'accentuation du préréglage est conservée.",
+    "Models this site serves under one group.": "Les modèles que ce site sert sous un même groupe."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

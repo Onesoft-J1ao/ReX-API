@@ -6801,7 +6801,8 @@
     "Vertical": "縱向",
     "Reset framing": "還原預設取景",
     "Match the theme colour to the wallpaper": "主題色跟隨壁紙主色調",
-    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "從圖片的主色調取強調色。若圖片所在站點不允許讀取，則繼續使用目前預設的強調色。"
+    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "從圖片的主色調取強調色。若圖片所在站點不允許讀取，則繼續使用目前預設的強調色。",
+    "Models this site serves under one group.": "本站在此分組下提供的模型。"
   },
   "Time range": "時間範圍",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

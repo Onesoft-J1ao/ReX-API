@@ -6801,7 +6801,8 @@
     "Vertical": "Vertical",
     "Reset framing": "Reset framing",
     "Match the theme colour to the wallpaper": "Match the theme colour to the wallpaper",
-    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays."
+    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.",
+    "Models this site serves under one group.": "Models this site serves under one group."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
