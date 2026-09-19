@@ -778,22 +778,34 @@ body[data-theme-wallpaper-media='video'] [data-slot='wallpaper-video'] {
   pointer-events: none;
 }
 
+/* The video layer mirrors the CSS layer's fit, so the two agree when a wide
+ * picture is shown whole instead of filling the screen. */
+body[data-theme-wallpaper-fit='contain'] [data-slot='wallpaper-video'] {
+  object-fit: contain;
+}
+
 /* Frosted surfaces. With a picture behind them these read as glass over it
  * instead of covering it with an opaque slab, which is the point of letting a
  * wallpaper show through at all. Scoped to the wallpaper, so a console without
- * one keeps exactly its old flat surfaces. */
+ * one keeps exactly its old flat surfaces.
+ *
+ * How much they keep is the user's call. The whole `color-mix()` comes in as a
+ * variable rather than the percentage alone: a percentage written as `var()` is
+ * not something the CSS minifier will pass through -- it resolves the mix to its
+ * first colour, which is how these surfaces ended up opaque. Keeping the literal
+ * percentages in the value the provider writes leaves CSS nothing to normalise. */
 body[data-theme-wallpaper='custom'] [data-slot='sidebar-inset'],
 body[data-theme-wallpaper='custom'] [data-slot='app-header'],
 body[data-theme-wallpaper='custom'] [data-slot='panel'],
 body[data-theme-wallpaper='custom'] [data-slot='card'] {
-  background-color: color-mix(in oklab, var(--background) 76%, transparent);
-  backdrop-filter: blur(16px) saturate(1.2);
+  background-color: var(--wallpaper-surface-bg, var(--background));
+  backdrop-filter: blur(14px) saturate(1.2);
 }
 
 /* The header is sticky, so content keeps sliding under it -- a denser pane
  * keeps the controls legible against whatever is passing beneath. */
 body[data-theme-wallpaper='custom'] [data-slot='app-header'] {
-  background-color: color-mix(in oklab, var(--background) 68%, transparent);
+  background-color: var(--wallpaper-header-bg, var(--background));
 }
 
 /* The wallpaper's own colour, when the user asked for it. Two attributes so

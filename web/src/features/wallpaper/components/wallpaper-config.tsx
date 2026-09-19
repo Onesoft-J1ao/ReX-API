@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Move } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -42,8 +43,13 @@ import {
 } from '@/features/wallpaper/lib/wallpaper'
 import { useStatus } from '@/hooks/use-status'
 import { handleServerError } from '@/lib/handle-server-error'
+import {
+  WALLPAPER_VISIBILITY_MAX,
+  WALLPAPER_VISIBILITY_MIN,
+} from '@/lib/theme-customization'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { FramingSlider } from './framing-slider'
 import { WallpaperFraming } from './wallpaper-framing'
 
 /**
@@ -56,8 +62,13 @@ export function WallpaperConfig() {
   const { t } = useTranslation()
   const {
     wallpaperUrl,
+    wallpaperFraming,
     wallpaperAccentEnabled,
+    wallpaperVisibility,
+    setWallpaperFraming,
     setWallpaperAccentEnabled,
+    setWallpaperVisibility,
+    setWallpaperFramingMode,
   } = useThemeCustomization()
   const { data: wallpaper } = useWallpaper()
   const { status: systemStatus } = useStatus()
@@ -163,6 +174,61 @@ export function WallpaperConfig() {
       {wallpaperUrl !== '' && (
         <>
           <WallpaperFraming url={wallpaperUrl} />
+
+          <div className='mb-3 space-y-2'>
+            <Button
+              size='sm'
+              variant='outline'
+              className='h-7 px-2 text-xs'
+              onClick={() => setWallpaperFramingMode(true)}
+            >
+              <Move className='mr-1.5 size-3' aria-hidden='true' />
+              {t('Drag on the page to frame')}
+            </Button>
+
+            <div className='flex items-center gap-2'>
+              <span className='text-muted-foreground w-14 shrink-0 text-xs'>
+                {t('Size')}
+              </span>
+              <Button
+                size='sm'
+                variant={wallpaperFraming.fit === 'cover' ? 'secondary' : 'ghost'}
+                className='h-7 px-2 text-xs'
+                onClick={() =>
+                  setWallpaperFraming({ ...wallpaperFraming, fit: 'cover' })
+                }
+              >
+                {t('Fill the screen')}
+              </Button>
+              <Button
+                size='sm'
+                variant={
+                  wallpaperFraming.fit === 'contain' ? 'secondary' : 'ghost'
+                }
+                className='h-7 px-2 text-xs'
+                onClick={() =>
+                  setWallpaperFraming({ ...wallpaperFraming, fit: 'contain' })
+                }
+              >
+                {t('Show the whole picture')}
+              </Button>
+            </div>
+
+            <FramingSlider
+              label={t('Visibility')}
+              value={wallpaperVisibility}
+              min={WALLPAPER_VISIBILITY_MIN}
+              max={WALLPAPER_VISIBILITY_MAX}
+              step={5}
+              format={(value) => `${Math.round(value)}%`}
+              onChange={setWallpaperVisibility}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.'
+              )}
+            </p>
+          </div>
 
           <div className='mb-3 flex items-start justify-between gap-3 rounded-md border p-3'>
             <div className='space-y-0.5'>

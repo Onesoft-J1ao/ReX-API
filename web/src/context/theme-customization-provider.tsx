@@ -47,14 +47,21 @@ import {
   THEME_WALLPAPER_ACCENT_VARIABLES,
   THEME_WALLPAPER_ATTRIBUTE,
   THEME_WALLPAPER_COOKIE_KEYS,
+  THEME_WALLPAPER_FIT_ATTRIBUTE,
   THEME_WALLPAPER_MEDIA_ATTRIBUTE,
   THEME_WALLPAPER_MEDIA_VIDEO,
   THEME_WALLPAPER_POSITION_VARIABLE,
   THEME_WALLPAPER_SIZE_VARIABLE,
+  THEME_WALLPAPER_HEADER_BG_VARIABLE,
+  THEME_WALLPAPER_SURFACE_BG_VARIABLE,
   THEME_WALLPAPER_VALUE,
   THEME_WALLPAPER_VIDEO_SLOT,
   THEME_WALLPAPER_ZOOM_VARIABLE,
+  clampWallpaperVisibility,
+  parseWallpaperVisibility,
   isVideoWallpaperUrl,
+  wallpaperSurfaceColor,
+  WALLPAPER_VISIBILITY_DEFAULT,
   THEME_WALLPAPER_VARIABLE,
   type ThemeCustomization,
   type ThemeFont,
@@ -97,10 +104,16 @@ type ThemeCustomizationContextType = {
   wallpaperFraming: WallpaperFraming
   /** Whether the wallpaper's own colour drives the accent. */
   wallpaperAccentEnabled: boolean
+  /** How much of the wallpaper the console's surfaces let through, 0-100. */
+  wallpaperVisibility: number
+  /** Whether the whole page is currently a drag surface for framing. */
+  wallpaperFramingMode: boolean
   setWallpaper: (wallpaperUrl: string) => void
   setWallpaperFraming: (framing: WallpaperFraming) => void
   resetWallpaperFraming: () => void
+  setWallpaperVisibility: (visibility: number) => void
   setWallpaperAccentEnabled: (enabled: boolean) => void
+  setWallpaperFramingMode: (active: boolean) => void
   setPreset: (preset: ThemePreset) => void
   setFont: (font: ThemeFont) => void
   setRadius: (radius: ThemeRadius) => void
@@ -119,10 +132,14 @@ const FALLBACK_CONTEXT: ThemeCustomizationContextType = {
   wallpaperUrl: '',
   wallpaperFraming: DEFAULT_WALLPAPER_FRAMING,
   wallpaperAccentEnabled: false,
+  wallpaperVisibility: WALLPAPER_VISIBILITY_DEFAULT,
+  wallpaperFramingMode: false,
   setWallpaper: () => {},
   setWallpaperFraming: () => {},
   resetWallpaperFraming: () => {},
+  setWallpaperVisibility: () => {},
   setWallpaperAccentEnabled: () => {},
+  setWallpaperFramingMode: () => {},
   setPreset: () => {},
   setFont: () => {},
   setRadius: () => {},
@@ -180,6 +197,14 @@ export function ThemeCustomizationProvider(props: {
     () =>
       getCookie(THEME_WALLPAPER_COOKIE_KEYS.accent) === WALLPAPER_ACCENT_ENABLED
   )
+  const [wallpaperVisibility, _setWallpaperVisibility] = useState(() =>
+    parseWallpaperVisibility(
+      getCookie(THEME_WALLPAPER_COOKIE_KEYS.visibility)
+    )
+  )
+  // While this is on, the whole viewport becomes a drag surface for placing the
+  // picture. Off by default: dragging the page is how people scroll and select.
+  const [wallpaperFramingMode, setWallpaperFramingMode] = useState(false)
   // Natural aspect ratio of the wallpaper. Only needed to spell out a zoomed
   // `background-size`; stays null until the image has been measured, and for an
   // image that never loads.
@@ -238,6 +263,7 @@ export function ThemeCustomizationProvider(props: {
     if (wallpaperUrl === '') {
       body.removeAttribute(THEME_WALLPAPER_ATTRIBUTE)
       body.removeAttribute(THEME_WALLPAPER_MEDIA_ATTRIBUTE)
+      body.removeAttribute(THEME_WALLPAPER_FIT_ATTRIBUTE)
       body.style.removeProperty(THEME_WALLPAPER_VARIABLE)
       body.style.removeProperty(THEME_WALLPAPER_POSITION_VARIABLE)
       body.style.removeProperty(THEME_WALLPAPER_SIZE_VARIABLE)
@@ -248,8 +274,9 @@ export function ThemeCustomizationProvider(props: {
       typeof window === 'undefined' || window.innerHeight === 0
         ? null
         : window.innerWidth / window.innerHeight
-    const { zoom, focusX, focusY } = wallpaperFraming
+    const { zoom, focusX, focusY, fit } = wallpaperFraming
     body.setAttribute(THEME_WALLPAPER_ATTRIBUTE, THEME_WALLPAPER_VALUE)
+    body.setAttribute(THEME_WALLPAPER_FIT_ATTRIBUTE, fit)
     body.style.setProperty(
       THEME_WALLPAPER_POSITION_VARIABLE,
       `${focusX}% ${focusY}%`
@@ -273,9 +300,32 @@ export function ThemeCustomizationProvider(props: {
     body.style.setProperty(THEME_WALLPAPER_VARIABLE, `url("${wallpaperUrl}")`)
     body.style.setProperty(
       THEME_WALLPAPER_SIZE_VARIABLE,
-      wallpaperBackgroundSize(zoom, wallpaperAspect, viewportAspect)
+      wallpaperBackgroundSize(zoom, wallpaperAspect, viewportAspect, fit)
     )
   }, [wallpaperUrl, wallpaperIsVideo, wallpaperFraming, wallpaperAspect])
+
+  // How much of the picture the console's surfaces let through. The whole
+  // colour is written here rather than a percentage, because a `color-mix()`
+  // percentage expressed as a `var()` gets resolved away by the CSS minifier and
+  // the surface comes back opaque.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const body = document.body
+    if (!body) return
+    if (wallpaperUrl === '') {
+      body.style.removeProperty(THEME_WALLPAPER_SURFACE_BG_VARIABLE)
+      body.style.removeProperty(THEME_WALLPAPER_HEADER_BG_VARIABLE)
+      return
+    }
+    body.style.setProperty(
+      THEME_WALLPAPER_SURFACE_BG_VARIABLE,
+      wallpaperSurfaceColor(wallpaperVisibility)
+    )
+    body.style.setProperty(
+      THEME_WALLPAPER_HEADER_BG_VARIABLE,
+      wallpaperSurfaceColor(wallpaperVisibility, 'header')
+    )
+  }, [wallpaperUrl, wallpaperVisibility])
 
   // The <video> layer for a video wallpaper, mounted as a child of <body> so the
   // console's own surfaces paint over it.
@@ -469,6 +519,20 @@ export function ThemeCustomizationProvider(props: {
     }
   }, [])
 
+  const setWallpaperVisibility = useCallback((value: number) => {
+    const normalized = clampWallpaperVisibility(value)
+    _setWallpaperVisibility(normalized)
+    if (normalized === WALLPAPER_VISIBILITY_DEFAULT) {
+      removeCookie(THEME_WALLPAPER_COOKIE_KEYS.visibility)
+    } else {
+      setCookie(
+        THEME_WALLPAPER_COOKIE_KEYS.visibility,
+        String(normalized),
+        COOKIE_MAX_AGE
+      )
+    }
+  }, [])
+
   // The wallpaper is deliberately left alone: it was bought, so "reset" must
   // not silently unpaint something the user paid for. Removing it is its own
   // explicit action in the wallpaper settings.
@@ -487,10 +551,14 @@ export function ThemeCustomizationProvider(props: {
       wallpaperUrl,
       wallpaperFraming,
       wallpaperAccentEnabled,
+      wallpaperVisibility,
+      wallpaperFramingMode,
       setWallpaper,
       setWallpaperFraming,
       resetWallpaperFraming,
+      setWallpaperVisibility,
       setWallpaperAccentEnabled,
+      setWallpaperFramingMode,
       setPreset,
       setFont,
       setRadius,
@@ -507,9 +575,12 @@ export function ThemeCustomizationProvider(props: {
       wallpaperUrl,
       wallpaperFraming,
       wallpaperAccentEnabled,
+      wallpaperVisibility,
+      wallpaperFramingMode,
       setWallpaper,
       setWallpaperFraming,
       resetWallpaperFraming,
+      setWallpaperVisibility,
       setWallpaperAccentEnabled,
       setPreset,
       setFont,

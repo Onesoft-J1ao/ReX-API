@@ -21,7 +21,6 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import {
   isDefaultWallpaperFraming,
@@ -32,40 +31,7 @@ import {
 } from '@/lib/theme-customization'
 import { cn } from '@/lib/utils'
 
-type FramingSliderProps = {
-  label: string
-  value: number
-  min: number
-  max: number
-  step: number
-  format: (value: number) => string
-  onChange: (value: number) => void
-}
-
-function FramingSlider(props: FramingSliderProps) {
-  return (
-    <div className='flex items-center gap-3'>
-      <span className='text-muted-foreground w-14 shrink-0 text-xs'>
-        {props.label}
-      </span>
-      <Slider
-        value={props.value}
-        min={props.min}
-        max={props.max}
-        step={props.step}
-        aria-label={props.label}
-        onValueChange={(next) => {
-          const value = Array.isArray(next) ? next[0] : next
-          if (typeof value === 'number') props.onChange(value)
-        }}
-        className='flex-1'
-      />
-      <span className='text-muted-foreground w-12 shrink-0 text-right font-mono text-xs tabular-nums'>
-        {props.format(props.value)}
-      </span>
-    </div>
-  )
-}
+import { FramingSlider } from './framing-slider'
 
 /**
  * The crop editor for the wallpaper.
@@ -88,7 +54,7 @@ export function WallpaperFraming(props: { url: string }) {
     focusY: number
   } | null>(null)
 
-  const { zoom, focusX, focusY } = wallpaperFraming
+  const { zoom, focusX, focusY, fit } = wallpaperFraming
   const isDefault = isDefaultWallpaperFraming(wallpaperFraming)
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -111,7 +77,7 @@ export function WallpaperFraming(props: { url: string }) {
     // left: the focus point moves the other way.
     setWallpaperFraming(
       normalizeWallpaperFraming({
-        zoom,
+        ...wallpaperFraming,
         focusX: start.focusX - ((event.clientX - start.pointerX) / width) * 100,
         focusY:
           start.focusY - ((event.clientY - start.pointerY) / height) * 100,
@@ -147,7 +113,10 @@ export function WallpaperFraming(props: { url: string }) {
             loop
             autoPlay
             playsInline
-            className='pointer-events-none h-full w-full select-none object-cover'
+            className={cn(
+              'pointer-events-none h-full w-full select-none',
+              fit === 'contain' ? 'object-contain' : 'object-cover'
+            )}
             style={{
               objectPosition: `${focusX}% ${focusY}%`,
               transform: `scale(${zoom})`,
@@ -161,7 +130,10 @@ export function WallpaperFraming(props: { url: string }) {
             aria-hidden='true'
             draggable={false}
             referrerPolicy='no-referrer'
-            className='h-full w-full select-none object-cover'
+            className={cn(
+              'h-full w-full select-none',
+              fit === 'contain' ? 'object-contain' : 'object-cover'
+            )}
             style={{
               objectPosition: `${focusX}% ${focusY}%`,
               transform: `scale(${zoom})`,
@@ -186,7 +158,7 @@ export function WallpaperFraming(props: { url: string }) {
           step={0.05}
           format={(value) => `${value.toFixed(2)}x`}
           onChange={(value) =>
-            setWallpaperFraming({ zoom: value, focusX, focusY })
+            setWallpaperFraming({ ...wallpaperFraming, zoom: value })
           }
         />
         <FramingSlider
@@ -197,7 +169,7 @@ export function WallpaperFraming(props: { url: string }) {
           step={1}
           format={(value) => `${Math.round(value)}%`}
           onChange={(value) =>
-            setWallpaperFraming({ zoom, focusX: value, focusY })
+            setWallpaperFraming({ ...wallpaperFraming, focusX: value })
           }
         />
         <FramingSlider
@@ -208,7 +180,7 @@ export function WallpaperFraming(props: { url: string }) {
           step={1}
           format={(value) => `${Math.round(value)}%`}
           onChange={(value) =>
-            setWallpaperFraming({ zoom, focusX, focusY: value })
+            setWallpaperFraming({ ...wallpaperFraming, focusY: value })
           }
         />
       </div>

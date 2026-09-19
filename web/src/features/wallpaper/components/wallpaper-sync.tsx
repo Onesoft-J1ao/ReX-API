@@ -21,20 +21,27 @@ import { useEffect } from 'react'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 
 import { useWallpaper } from '../hooks/use-wallpaper'
+import { WallpaperFramingOverlay } from './wallpaper-framing-overlay'
 
 /**
  * Hydrates the signed-in user's paid wallpaper into the theme provider, which
  * is what actually paints it. Mounted once by the console layout and renders
- * nothing; the public pages never mount it, so they never fetch.
+ * nothing else; the public pages never mount it, so they never fetch.
+ *
+ * The drag-to-frame overlay is rendered from here rather than from the provider
+ * so the provider stays free of console UI (and of an import cycle).
  */
 export function WallpaperSync() {
-  const { setWallpaper } = useThemeCustomization()
+  const { setWallpaper, wallpaperFramingMode, wallpaperUrl } =
+    useThemeCustomization()
   const { data } = useWallpaper()
-  const wallpaperUrl = data?.wallpaper_url ?? ''
+  const paidWallpaperUrl = data?.wallpaper_url ?? ''
 
   useEffect(() => {
-    setWallpaper(wallpaperUrl)
-  }, [wallpaperUrl, setWallpaper])
+    setWallpaper(paidWallpaperUrl)
+  }, [paidWallpaperUrl, setWallpaper])
 
-  return null
+  return wallpaperFramingMode && wallpaperUrl !== '' ? (
+    <WallpaperFramingOverlay />
+  ) : null
 }

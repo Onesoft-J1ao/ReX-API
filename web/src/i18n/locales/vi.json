@@ -6811,7 +6811,13 @@
     "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "Đã phân tích \"{{title}}\", nhưng đây không phải mục Wallpaper Engine.",
     "Failed to resolve the link": "Không phân tích được liên kết",
     "Video addresses (.mp4 / .webm) play as an animated background.": "Địa chỉ video (.mp4 / .webm) sẽ phát như hình nền động.",
-    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "\"{{title}}\" là hình nền video nên Steam chỉ công bố ảnh xem trước tĩnh. Dán địa chỉ video (.mp4 / .webm) nếu bạn muốn có chuyển động."
+    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "\"{{title}}\" là hình nền video nên Steam chỉ công bố ảnh xem trước tĩnh. Dán địa chỉ video (.mp4 / .webm) nếu bạn muốn có chuyển động.",
+    "Drag on the page to frame": "Kéo trên trang để chọn khung",
+    "Drag anywhere to reposition the wallpaper": "Kéo ở bất kỳ đâu để di chuyển hình nền",
+    "Fill the screen": "Phủ kín màn hình",
+    "Show the whole picture": "Hiển thị toàn bộ ảnh",
+    "Visibility": "Độ hiện",
+    "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "Mức hình nền hiện xuyên qua các bảng của bảng điều khiển. Càng cao hình càng rõ, bảng càng rối."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

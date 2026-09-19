@@ -6811,7 +6811,13 @@
     "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "Resolved \"{{title}}\". It is not a Wallpaper Engine item.",
     "Failed to resolve the link": "Failed to resolve the link",
     "Video addresses (.mp4 / .webm) play as an animated background.": "Video addresses (.mp4 / .webm) play as an animated background.",
-    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion."
+    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.",
+    "Drag on the page to frame": "Drag on the page to frame",
+    "Drag anywhere to reposition the wallpaper": "Drag anywhere to reposition the wallpaper",
+    "Fill the screen": "Fill the screen",
+    "Show the whole picture": "Show the whole picture",
+    "Visibility": "Visibility",
+    "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

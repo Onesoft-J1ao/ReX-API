@@ -6811,7 +6811,13 @@
     "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "已解析「{{title}}」，但它不是 Wallpaper Engine 物品。",
     "Failed to resolve the link": "链接解析失败",
     "Video addresses (.mp4 / .webm) play as an animated background.": "视频地址（.mp4 / .webm）会作为动态背景播放。",
-    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "「{{title}}」是视频壁纸，Steam 只提供静态预览图。想要动态效果请填写视频地址（.mp4 / .webm）。"
+    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "「{{title}}」是视频壁纸，Steam 只提供静态预览图。想要动态效果请填写视频地址（.mp4 / .webm）。",
+    "Drag on the page to frame": "在页面上拖拽取景",
+    "Drag anywhere to reposition the wallpaper": "在任意位置拖拽可移动壁纸",
+    "Fill the screen": "铺满屏幕",
+    "Show the whole picture": "完整显示图片",
+    "Visibility": "壁纸可见度",
+    "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "壁纸透过控制台面板的程度。数值越高壁纸越清楚，面板越花。"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

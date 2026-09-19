@@ -24,7 +24,12 @@ import {
   isVideoWallpaperUrl,
   normalizeWallpaperFraming,
   parseWallpaperFraming,
+  parseWallpaperVisibility,
+  WALLPAPER_VISIBILITY_DEFAULT,
+  WALLPAPER_VISIBILITY_MAX,
+  WALLPAPER_VISIBILITY_MIN,
   serializeWallpaperFraming,
+  wallpaperSurfaceOpacity,
   WALLPAPER_ZOOM_MAX,
   WALLPAPER_ZOOM_MIN,
   wallpaperBackgroundSize,
@@ -36,11 +41,12 @@ describe('parseWallpaperFraming', () => {
       zoom: 1.4,
       focusX: 25,
       focusY: 75,
+      fit: 'cover',
     })
   })
 
   it('falls back to the default for anything unreadable', () => {
-    for (const raw of ['', null, undefined, '2,10', 'a,b,c', '1.5,2,3,4']) {
+    for (const raw of ['', null, undefined, '2,10', 'a,b,c', '1.5,2,3,4,5']) {
       expect(parseWallpaperFraming(raw)).toEqual(DEFAULT_WALLPAPER_FRAMING)
     }
   })
@@ -50,13 +56,14 @@ describe('parseWallpaperFraming', () => {
       zoom: WALLPAPER_ZOOM_MAX,
       focusX: 100,
       focusY: 0,
+      fit: 'cover',
     })
   })
 })
 
 describe('serializeWallpaperFraming', () => {
   it('round-trips through the parser', () => {
-    const framing = { zoom: 2.5, focusX: 12, focusY: 88 }
+    const framing = { zoom: 2.5, focusX: 12, focusY: 88, fit: 'cover' as const }
     expect(parseWallpaperFraming(serializeWallpaperFraming(framing))).toEqual(
       framing
     )
@@ -64,8 +71,13 @@ describe('serializeWallpaperFraming', () => {
 
   it('writes a zoom the cookie can hold to two decimals', () => {
     expect(
-      serializeWallpaperFraming({ zoom: 1.234567, focusX: 50.4, focusY: 49.6 })
-    ).toBe('1.23,50,50')
+      serializeWallpaperFraming({
+        zoom: 1.234567,
+        focusX: 50.4,
+        focusY: 49.6,
+        fit: 'contain',
+      })
+    ).toBe('1.23,50,50,contain')
   })
 })
 
@@ -76,8 +88,14 @@ describe('normalizeWallpaperFraming', () => {
         zoom: Number.NaN,
         focusX: Number.POSITIVE_INFINITY,
         focusY: 40,
+        fit: 'sideways' as never,
       })
-    ).toEqual({ zoom: WALLPAPER_ZOOM_MIN, focusX: 50, focusY: 40 })
+    ).toEqual({
+      zoom: WALLPAPER_ZOOM_MIN,
+      focusX: 50,
+      focusY: 40,
+      fit: 'cover',
+    })
   })
 })
 
@@ -85,11 +103,29 @@ describe('isDefaultWallpaperFraming', () => {
   it('is true only for the untouched crop', () => {
     expect(isDefaultWallpaperFraming(DEFAULT_WALLPAPER_FRAMING)).toBe(true)
     expect(
-      isDefaultWallpaperFraming({ zoom: 1.05, focusX: 50, focusY: 50 })
+      isDefaultWallpaperFraming({
+        zoom: 1.05,
+        focusX: 50,
+        focusY: 50,
+        fit: 'cover',
+      })
     ).toBe(false)
-    expect(isDefaultWallpaperFraming({ zoom: 1, focusX: 50, focusY: 49 })).toBe(
-      false
-    )
+    expect(
+      isDefaultWallpaperFraming({
+        zoom: 1,
+        focusX: 50,
+        focusY: 49,
+        fit: 'cover',
+      })
+    ).toBe(false)
+    expect(
+      isDefaultWallpaperFraming({
+        zoom: 1,
+        focusX: 50,
+        focusY: 50,
+        fit: 'contain',
+      })
+    ).toBe(false)
   })
 })
 
@@ -117,6 +153,46 @@ describe('wallpaperBackgroundSize', () => {
     expect(wallpaperBackgroundSize(9, 1, 1.78)).toBe(
       `calc(100% * ${WALLPAPER_ZOOM_MAX}) auto`
     )
+  })
+})
+
+describe('the fit axis', () => {
+  it('is read from the fourth cookie field when it is there', () => {
+    expect(parseWallpaperFraming('1.00,50,50,contain').fit).toBe('contain')
+    expect(parseWallpaperFraming('1.00,50,50,sideways').fit).toBe('cover')
+  })
+
+  it('scales the long axis for contain, where cover scales the short one', () => {
+    // Wider than the viewport: cover fills the height, contain fits the width.
+    expect(wallpaperBackgroundSize(2, 2.4, 1.78, 'cover')).toBe(
+      'auto calc(100% * 2)'
+    )
+    expect(wallpaperBackgroundSize(2, 2.4, 1.78, 'contain')).toBe(
+      'calc(100% * 2) auto'
+    )
+  })
+
+  it('stays on the plain keyword at 1x and when unmeasured', () => {
+    expect(wallpaperBackgroundSize(1, 2.4, 1.78, 'contain')).toBe('contain')
+    expect(wallpaperBackgroundSize(2, null, 1.78, 'contain')).toBe('contain')
+  })
+})
+
+describe('wallpaper visibility', () => {
+  it('defaults, clamps and inverts into the surface opacity', () => {
+    expect(parseWallpaperVisibility(null)).toBe(WALLPAPER_VISIBILITY_DEFAULT)
+    expect(parseWallpaperVisibility('nonsense')).toBe(
+      WALLPAPER_VISIBILITY_DEFAULT
+    )
+    expect(parseWallpaperVisibility('500')).toBe(WALLPAPER_VISIBILITY_MAX)
+    expect(parseWallpaperVisibility('-20')).toBe(WALLPAPER_VISIBILITY_MIN)
+    // Inverted, and clamped first: the slider's ceiling is what keeps a busy
+    // picture from washing the panels out entirely.
+    expect(wallpaperSurfaceOpacity(0)).toBe(100)
+    expect(wallpaperSurfaceOpacity(WALLPAPER_VISIBILITY_MAX)).toBe(
+      100 - WALLPAPER_VISIBILITY_MAX
+    )
+    expect(wallpaperSurfaceOpacity(100)).toBe(100 - WALLPAPER_VISIBILITY_MAX)
   })
 })
 
