@@ -32,7 +32,10 @@ import (
 )
 
 const (
-	channelUpstreamModelUpdateTaskDefaultIntervalMinutes  = 30
+	// Ten minutes: an upstream that adds a model should show up well inside the
+	// window a visitor notices, and the per-channel minimum below (5 minutes)
+	// leaves room for every channel to be checked on each pass.
+	channelUpstreamModelUpdateTaskDefaultIntervalMinutes  = 10
 	channelUpstreamModelUpdateTaskBatchSize               = 100
 	channelUpstreamModelUpdateMinCheckIntervalSeconds     = 300
 	channelUpstreamModelUpdateNotifySuppressWindowSeconds = 86400
