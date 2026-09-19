@@ -55,6 +55,14 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.bucket_time'] ?? 'hour',
           'perf_metrics_setting.retention_days':
             settings['perf_metrics_setting.retention_days'] ?? 0,
+          'perf_metrics_setting.upstream_enabled':
+            settings['perf_metrics_setting.upstream_enabled'] ?? true,
+          'perf_metrics_setting.upstream_summary_url':
+            settings['perf_metrics_setting.upstream_summary_url'] ?? '',
+          'perf_metrics_setting.upstream_timeout_seconds':
+            settings['perf_metrics_setting.upstream_timeout_seconds'] ?? 5,
+          'status_check_setting.probe_free_models_only':
+            settings['status_check_setting.probe_free_models_only'] ?? true,
         }}
       />
     ),

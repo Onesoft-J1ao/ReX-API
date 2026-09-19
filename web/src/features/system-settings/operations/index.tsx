@@ -56,6 +56,10 @@ const defaultOperationsSettings: OperationsSettings = {
   'perf_metrics_setting.flush_interval': 5,
   'perf_metrics_setting.bucket_time': 'hour',
   'perf_metrics_setting.retention_days': 0,
+  'perf_metrics_setting.upstream_enabled': true,
+  'perf_metrics_setting.upstream_summary_url': '',
+  'perf_metrics_setting.upstream_timeout_seconds': 5,
+  'status_check_setting.probe_free_models_only': true,
 }
 
 export function OperationsSettings() {

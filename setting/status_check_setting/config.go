@@ -10,21 +10,26 @@ import (
 // background probe job. Mirrors the perf_metrics_setting wiring so the option
 // store loads/saves it under the status_check_setting.<field> key namespace.
 type StatusCheckSetting struct {
-	Enabled               bool   `json:"enabled"`                // default false — admin flips on after wiring groups
-	ProbeIntervalMinutes  int    `json:"probe_interval_minutes"` // default 10 (keep宽松 to dodge upstream rate-limit)
-	Groups                string `json:"groups"`                 // comma-separated group names probed
-	ExcludedModels        string `json:"excluded_models"`         // comma-separated model slugs to skip
-	Announcement          string `json:"announcement"`            // markdown body shown at top of /status
-	PassiveWindowHours    int    `json:"passive_window_hours"`    // default 24, perf_metrics merge window
+	Enabled              bool   `json:"enabled"`                // default false — admin flips on after wiring groups
+	ProbeIntervalMinutes int    `json:"probe_interval_minutes"` // default 10 (keep宽松 to dodge upstream rate-limit)
+	Groups               string `json:"groups"`                 // comma-separated group names probed
+	ExcludedModels       string `json:"excluded_models"`        // comma-separated model slugs to skip
+	Announcement         string `json:"announcement"`           // markdown body shown at top of /status
+	PassiveWindowHours   int    `json:"passive_window_hours"`   // default 24, perf_metrics merge window
+	// ProbeFreeModelsOnly skips probing any group whose ratio is not zero. A
+	// probe is a real upstream request, so probing a pay-per-request model
+	// bills us every cycle for a signal the mirrored upstream already reports.
+	ProbeFreeModelsOnly bool `json:"probe_free_models_only"`
 }
 
 var statusCheckSetting = StatusCheckSetting{
-	Enabled:               false,
-	ProbeIntervalMinutes:  10,
-	Groups:                "default",
-	ExcludedModels:        "",
-	Announcement:          "",
-	PassiveWindowHours:    24,
+	Enabled:              false,
+	ProbeIntervalMinutes: 10,
+	Groups:               "default",
+	ExcludedModels:       "",
+	Announcement:         "",
+	PassiveWindowHours:   24,
+	ProbeFreeModelsOnly:  true,
 }
 
 func init() {
@@ -84,4 +89,10 @@ func GetPassiveWindowHours() int {
 		return 24
 	}
 	return statusCheckSetting.PassiveWindowHours
+}
+
+// ShouldProbeOnlyFreeModels reports whether paid groups are skipped during a
+// probe cycle.
+func ShouldProbeOnlyFreeModels() bool {
+	return statusCheckSetting.ProbeFreeModelsOnly
 }

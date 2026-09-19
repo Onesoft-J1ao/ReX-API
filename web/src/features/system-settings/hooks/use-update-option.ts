@@ -45,6 +45,15 @@ const STATUS_RELATED_KEYS = new Set([
   'passkey.rp_id',
   'passkey.legacy_rp_ids',
   'passkey.origins',
+  // These feed the /status page and the model square's health badges.
+  'status_check_setting.enabled',
+  'status_check_setting.groups',
+  'status_check_setting.excluded_models',
+  'status_check_setting.passive_window_hours',
+  'status_check_setting.probe_free_models_only',
+  'perf_metrics_setting.enabled',
+  'perf_metrics_setting.upstream_enabled',
+  'perf_metrics_setting.upstream_summary_url',
 ])
 
 export function useUpdateOption() {

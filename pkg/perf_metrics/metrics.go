@@ -191,11 +191,47 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			RequestCount:        total.requestCount,
 		})
 	}
-	sort.Slice(models, func(i, j int) bool {
-		return models[i].RequestCount > models[j].RequestCount
-	})
 
-	return SummaryAllResult{Models: models}, nil
+	return SummaryAllResult{Models: mergeUpstreamModels(models, hours)}, nil
+}
+
+// mergeUpstreamModels overlays the mirrored upstream summary on our own numbers.
+// The upstream sees the same models served by the same kind of instance, so for
+// a model it reports it is the better source: it samples traffic we never
+// carried, which matters most for pay-per-request models we no longer probe.
+// Models it does not report keep our own data.
+//
+// Upstream entries carry no request count, so they sort after models we have
+// actually served; ordering stays "busiest local model first".
+func mergeUpstreamModels(local []ModelSummary, hours int) []ModelSummary {
+	upstream, ok := fetchUpstreamSummary(hours)
+	if !ok {
+		sort.Slice(local, func(i, j int) bool {
+			return local[i].RequestCount > local[j].RequestCount
+		})
+		return local
+	}
+
+	merged := make([]ModelSummary, 0, len(local)+len(upstream.Models))
+	seen := make(map[string]struct{}, len(upstream.Models))
+	for _, model := range upstream.Models {
+		if model.ModelName == "" {
+			continue
+		}
+		model.RequestCount = 0
+		merged = append(merged, model)
+		seen[model.ModelName] = struct{}{}
+	}
+	for _, model := range local {
+		if _, mirrored := seen[model.ModelName]; mirrored {
+			continue
+		}
+		merged = append(merged, model)
+	}
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].RequestCount > merged[j].RequestCount
+	})
+	return merged
 }
 
 func mergeModelTotals(totals map[string]counters, modelName string, value counters) {
