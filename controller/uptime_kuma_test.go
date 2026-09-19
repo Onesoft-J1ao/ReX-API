@@ -188,3 +188,26 @@ func TestFetchUpstreamGroupServesTheMaskedForm(t *testing.T) {
 	assert.Equal(t, "主站 •••", group.Monitors[0].Name)
 	assert.Equal(t, "•••", group.Monitors[0].Group)
 }
+
+// The provider's own group names ("S3AI API", "号池") must never reach the
+// console: they advertise where our capacity comes from. The monitors
+// themselves stay, filed under the console's own heading.
+func TestFlattenUpstreamGroupsDropsProviderGroupNames(t *testing.T) {
+	group := flattenUpstreamGroups(UptimeGroupResult{
+		CategoryName: "S3AI API",
+		Monitors: []Monitor{
+			{Name: "主站 •••", Group: "S3AI API"},
+			{Name: "Kiro", Group: "号池"},
+			{Name: "源站 •••", Group: "号池"},
+		},
+	}, "上游状态")
+
+	assert.Equal(t, "上游状态", group.CategoryName)
+	require.Len(t, group.Monitors, 3)
+	for _, monitor := range group.Monitors {
+		assert.Empty(t, monitor.Group,
+			"the provider's group name must be dropped from every monitor")
+	}
+	assert.Equal(t, "Kiro", group.Monitors[1].Name,
+		"the monitors themselves must survive the flatten")
+}
