@@ -150,7 +150,10 @@ describe('PluginIcon image rendering', () => {
   test.each(['failure', 'non-image'])(
     'keeps the avatar for %s responses',
     async (outcome) => {
-      adapter.mockImplementationOnce(async (config) => {
+      // `mockImplementation` (not `Once`): a second request -- StrictMode, a
+      // remount, or a refetch -- must still see the same outcome, or the second
+      // one lands on the default adapter's success mock and an <img> shows up.
+      adapter.mockImplementation(async (config) => {
         if (outcome === 'failure') {
           throw new AxiosError('missing logo', undefined, config)
         }
