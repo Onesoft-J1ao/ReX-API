@@ -440,3 +440,22 @@ func mergeRedisActiveBuckets(merged map[bucketKey]counters, params QueryParams, 
 func redisBucketKey(key bucketKey) string {
 	return fmt.Sprintf("perf:%s:%s:%d", key.model, key.group, key.bucketTs)
 }
+
+// RecordedSampleCount reports the number of samples buffered in memory for the
+// given model and group in the current bucket. It exists so callers outside this
+// package can assert that recording happened without reaching into hotBuckets.
+func RecordedSampleCount(modelName string, group string) int64 {
+	if group == "" {
+		group = "default"
+	}
+	key := bucketKey{
+		model:    modelName,
+		group:    group,
+		bucketTs: bucketStart(time.Now().Unix()),
+	}
+	value, ok := hotBuckets.Load(key)
+	if !ok {
+		return 0
+	}
+	return value.(*atomicBucket).snapshot().requestCount
+}
