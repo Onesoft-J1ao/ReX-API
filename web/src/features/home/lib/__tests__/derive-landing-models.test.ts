@@ -81,7 +81,9 @@ describe('deriveLandingModels', () => {
     expect(derived?.serviceRoutes[0].models).toEqual(['b', 'c'])
   })
 
-  it('prefers the operator description and falls back to the neutral one', () => {
+  it('never repeats the operator group notes on the public page', () => {
+    // Those notes name the upstream pool serving a group ("furry free 渠道",
+    // "第三方号池"), which members need and visitors should not see.
     const derived = deriveLandingModels(
       pricing({
         data: [
@@ -89,29 +91,17 @@ describe('deriveLandingModels', () => {
           model({ model_name: 'b', vendor_id: 1, enable_groups: ['bare'] }),
         ],
         usable_group: {
-          described: '操作者写的说明',
+          described: '🟢furry free 渠道',
+          bare: '第三方号池 每15分钟补号',
         } as unknown as PricingData['usable_group'],
       }),
       OPTIONS
     )
 
-    const byGroup = Object.fromEntries(
-      (derived?.serviceRoutes ?? []).map((route) => [route.group, route.description])
-    )
-    expect(byGroup.described).toBe('操作者写的说明')
-    expect(byGroup.bare).toBe('NEUTRAL')
-  })
-
-  it('reads the object form of a group entry too', () => {
-    const derived = deriveLandingModels(
-      pricing({
-        data: [model({ model_name: 'a', vendor_id: 1, enable_groups: ['g'] })],
-        usable_group: { g: { desc: '对象形式', ratio: 1 } },
-      }),
-      OPTIONS
-    )
-
-    expect(derived?.serviceRoutes[0].description).toBe('对象形式')
+    expect(derived?.serviceRoutes.map((route) => route.description)).toEqual([
+      'NEUTRAL',
+      'NEUTRAL',
+    ])
   })
 
   it('marks a free group free and leaves the rest as priority', () => {

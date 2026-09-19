@@ -32,24 +32,12 @@ const MAX_COVERAGE_ROWS = 12
 const MAX_ROUTES_PER_ROW = 4
 
 export type DeriveOptions = {
-  /** Used for a group the operator has not described in the group picker. */
+  /** Text every route card carries. The public page never repeats the operator's
+   * own group notes: those describe which upstream pool serves a group, which is
+   * what signed-in members need and visitors should not be shown. */
   neutralRouteDescription: string
   /** Heading for a model family, given how many models it contributes. */
   familyDescription: (modelCount: number) => string
-}
-
-/**
- * `usable_group` carries a plain description string in the payload the server
- * actually sends, while the client type declares an object. Read both rather
- * than trust either.
- */
-function readGroupDescription(value: unknown): string {
-  if (typeof value === 'string') return value.trim()
-  if (value && typeof value === 'object') {
-    const desc = (value as { desc?: unknown }).desc
-    if (typeof desc === 'string') return desc.trim()
-  }
-  return ''
 }
 
 /**
@@ -108,7 +96,6 @@ export function deriveLandingModels(
 
   if (groups.size === 0) return null
 
-  const usableGroup = (pricing?.usable_group ?? {}) as Record<string, unknown>
   const serviceRoutes: RouteGroup[] = [...groups.entries()]
     // Widest groups first: they are the ones worth showing.
     .sort(
@@ -120,9 +107,7 @@ export function deriveLandingModels(
       id: group,
       kind: routeKind(group),
       group,
-      description:
-        readGroupDescription(usableGroup[group]) ||
-        options.neutralRouteDescription,
+      description: options.neutralRouteDescription,
       models: names.slice(0, MAX_MODELS_PER_ROUTE),
     }))
 
