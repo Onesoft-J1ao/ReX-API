@@ -150,12 +150,27 @@ describe('PluginIcon image rendering', () => {
   test.each(['failure', 'non-image'])(
     'keeps the avatar for %s responses',
     async (outcome) => {
-      // `mockImplementation` (not `Once`): a second request -- StrictMode, a
-      // remount, or a refetch -- must still see the same outcome, or the second
-      // one lands on the default adapter's success mock and an <img> shows up.
+      // Keep every request on the same outcome so a StrictMode double mount or a
+      // refetch cannot land on the default adapter's success mock.
       adapter.mockImplementation(async (config) => {
         if (outcome === 'failure') {
-          throw new AxiosError('missing logo', undefined, config)
+          // A 404 -- the icon simply is not there -- is a final, non-retryable
+          // failure. A bare network error would be funnelled into the dashboard
+          // gateway-retry interceptor, whose backoff can keep the request
+          // pending past the test timeout on a loaded runner.
+          throw new AxiosError(
+            'Request failed with status code 404',
+            'ERR_BAD_REQUEST',
+            config,
+            undefined,
+            {
+              status: 404,
+              statusText: 'Not Found',
+              headers: {},
+              config,
+              data: {},
+            }
+          )
         }
         return {
           data: new Blob(['{}'], { type: 'application/json' }),
