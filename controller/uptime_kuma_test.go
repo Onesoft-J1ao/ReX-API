@@ -186,7 +186,10 @@ func TestFetchUpstreamGroupServesTheMaskedForm(t *testing.T) {
 
 	require.Len(t, group.Monitors, 1)
 	assert.Equal(t, "主站 •••", group.Monitors[0].Name)
-	assert.Equal(t, "•••", group.Monitors[0].Group)
+	// The provider's own group name is dropped: the monitor files under the
+	// console's configured heading instead.
+	assert.Empty(t, group.Monitors[0].Group)
+	assert.Equal(t, "上游状态", group.CategoryName)
 }
 
 // The provider's own group names ("S3AI API", "号池") must never reach the
