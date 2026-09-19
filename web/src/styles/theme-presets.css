@@ -754,6 +754,30 @@ body[data-theme-wallpaper='custom'] {
   background-size: var(--wallpaper-size, cover);
 }
 
+/* A video wallpaper paints a <video> layer instead, because a CSS background
+ * cannot hold one. The layer sits at the back of the body's stacking order, so
+ * the body has to give up its own background for the video to be visible at
+ * all; the surfaces the wallpaper already frosts are what let it read through
+ * the console. */
+body[data-theme-wallpaper-media='video'] {
+  background-image: none;
+  background-color: transparent;
+}
+
+body[data-theme-wallpaper-media='video'] [data-slot='wallpaper-video'] {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--wallpaper-position, center);
+  /* The crop's zoom is a size for a picture and a scale for a video. */
+  transform: scale(var(--wallpaper-zoom, 1));
+  transform-origin: var(--wallpaper-position, center);
+  z-index: -1;
+  pointer-events: none;
+}
+
 /* Frosted surfaces. With a picture behind them these read as glass over it
  * instead of covering it with an opaque slab, which is the point of letting a
  * wallpaper show through at all. Scoped to the wallpaper, so a console without

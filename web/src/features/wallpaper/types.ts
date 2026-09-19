@@ -50,4 +50,10 @@ export interface WallpaperResolveResult {
   app_id: number
   /** False for a Workshop item that is not a Wallpaper Engine wallpaper. */
   wallpaper_engine: boolean
+  /**
+   * The item is a video wallpaper. Steam publishes no video for one — only the
+   * still in `image_url` — so the console says so rather than quietly handing
+   * back a picture.
+   */
+  is_video: boolean
 }

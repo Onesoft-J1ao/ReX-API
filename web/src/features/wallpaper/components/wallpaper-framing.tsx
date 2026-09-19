@@ -25,6 +25,7 @@ import { Slider } from '@/components/ui/slider'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import {
   isDefaultWallpaperFraming,
+  isVideoWallpaperUrl,
   normalizeWallpaperFraming,
   WALLPAPER_ZOOM_MAX,
   WALLPAPER_ZOOM_MIN,
@@ -136,21 +137,40 @@ export function WallpaperFraming(props: { url: string }) {
         // touch-none keeps a drag from scrolling the drawer instead of framing.
         className='ring-border relative mb-1 h-28 w-full cursor-grab touch-none overflow-hidden rounded-md ring-[1px] active:cursor-grabbing'
       >
-        <img
-          src={props.url}
-          alt=''
-          aria-hidden='true'
-          draggable={false}
-          referrerPolicy='no-referrer'
-          className='h-full w-full select-none object-cover'
-          style={{
-            objectPosition: `${focusX}% ${focusY}%`,
-            transform: `scale(${zoom})`,
-            // Scaling about the focus point keeps the point the user picked
-            // exactly where object-position put it.
-            transformOrigin: `${focusX}% ${focusY}%`,
-          }}
-        />
+        {isVideoWallpaperUrl(props.url) ? (
+          // The crop has to work for a video too, so the preview plays it just
+          // as the wallpaper layer will.
+          <video
+            src={props.url}
+            aria-hidden='true'
+            muted
+            loop
+            autoPlay
+            playsInline
+            className='pointer-events-none h-full w-full select-none object-cover'
+            style={{
+              objectPosition: `${focusX}% ${focusY}%`,
+              transform: `scale(${zoom})`,
+              transformOrigin: `${focusX}% ${focusY}%`,
+            }}
+          />
+        ) : (
+          <img
+            src={props.url}
+            alt=''
+            aria-hidden='true'
+            draggable={false}
+            referrerPolicy='no-referrer'
+            className='h-full w-full select-none object-cover'
+            style={{
+              objectPosition: `${focusX}% ${focusY}%`,
+              transform: `scale(${zoom})`,
+              // Scaling about the focus point keeps the point the user picked
+              // exactly where object-position put it.
+              transformOrigin: `${focusX}% ${focusY}%`,
+            }}
+          />
+        )}
         <span className='text-muted-foreground/80 pointer-events-none absolute right-2 bottom-2 flex items-center gap-1 rounded-full bg-black/35 px-2 py-0.5 text-[11px] text-white/85 backdrop-blur-sm'>
           <Move className='size-3' aria-hidden='true' />
           {t('Drag to frame')}

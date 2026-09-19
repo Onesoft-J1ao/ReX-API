@@ -6809,7 +6809,9 @@
     "Paste a Steam Workshop link and its preview image fills the address below.": "粘贴 Steam 创意工坊链接，它的预览图会自动填入下面的地址。",
     "Resolved \"{{title}}\". Press Change wallpaper to use it.": "已解析「{{title}}」，点「更换壁纸」即可使用。",
     "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "已解析「{{title}}」，但它不是 Wallpaper Engine 物品。",
-    "Failed to resolve the link": "链接解析失败"
+    "Failed to resolve the link": "链接解析失败",
+    "Video addresses (.mp4 / .webm) play as an animated background.": "视频地址（.mp4 / .webm）会作为动态背景播放。",
+    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "「{{title}}」是视频壁纸，Steam 只提供静态预览图。想要动态效果请填写视频地址（.mp4 / .webm）。"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

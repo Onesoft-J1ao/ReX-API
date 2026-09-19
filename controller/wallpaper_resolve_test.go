@@ -100,3 +100,25 @@ func TestIsSteamImageURL(t *testing.T) {
 		})
 	}
 }
+
+// The type comes from the item's tags; it is what lets the console explain why a
+// video wallpaper arrived as a still.
+func TestIsVideoWorkshopItem(t *testing.T) {
+	cases := []struct {
+		name string
+		tags []steamTag
+		want bool
+	}{
+		{"video among other tags", []steamTag{{Tag: "Video"}, {Tag: "Wallpaper"}}, true},
+		// Steam's casing is not guaranteed to stay put.
+		{"case and padding", []steamTag{{Tag: " video "}}, true},
+		{"scene is not a video", []steamTag{{Tag: "Scene"}, {Tag: "2560 x 1440"}}, false},
+		{"no tags", nil, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isVideoWorkshopItem(tc.tags))
+		})
+	}
+}

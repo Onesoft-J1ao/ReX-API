@@ -6809,7 +6809,9 @@
     "Paste a Steam Workshop link and its preview image fills the address below.": "Dán liên kết Steam Workshop, ảnh xem trước của nó sẽ điền vào địa chỉ bên dưới.",
     "Resolved \"{{title}}\". Press Change wallpaper to use it.": "Đã phân tích \"{{title}}\". Nhấn Đổi hình nền để sử dụng.",
     "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "Đã phân tích \"{{title}}\", nhưng đây không phải mục Wallpaper Engine.",
-    "Failed to resolve the link": "Không phân tích được liên kết"
+    "Failed to resolve the link": "Không phân tích được liên kết",
+    "Video addresses (.mp4 / .webm) play as an animated background.": "Địa chỉ video (.mp4 / .webm) sẽ phát như hình nền động.",
+    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "\"{{title}}\" là hình nền video nên Steam chỉ công bố ảnh xem trước tĩnh. Dán địa chỉ video (.mp4 / .webm) nếu bạn muốn có chuyển động."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

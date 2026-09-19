@@ -6809,7 +6809,9 @@
     "Paste a Steam Workshop link and its preview image fills the address below.": "Вставьте ссылку Steam Workshop — её превью подставится в адрес ниже.",
     "Resolved \"{{title}}\". Press Change wallpaper to use it.": "«{{title}}» разобран. Нажмите «Сменить обои», чтобы применить.",
     "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "«{{title}}» разобран, но это не элемент Wallpaper Engine.",
-    "Failed to resolve the link": "Не удалось разобрать ссылку"
+    "Failed to resolve the link": "Не удалось разобрать ссылку",
+    "Video addresses (.mp4 / .webm) play as an animated background.": "Видеоадреса (.mp4 / .webm) воспроизводятся как анимированный фон.",
+    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "«{{title}}» — видеообои, поэтому Steam публикует только статичный кадр. Укажите адрес видео (.mp4 / .webm), если нужна анимация."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

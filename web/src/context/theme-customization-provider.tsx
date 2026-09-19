@@ -25,7 +25,7 @@ import {
   useState,
 } from 'react'
 
-import { sampleWallpaperAccent } from '@/features/wallpaper/lib/dominant-color'
+import { sampleVideoAccent, sampleWallpaperAccent } from '@/features/wallpaper/lib/dominant-color'
 import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
 import {
   CONTENT_LAYOUT_VALUES,
@@ -47,9 +47,14 @@ import {
   THEME_WALLPAPER_ACCENT_VARIABLES,
   THEME_WALLPAPER_ATTRIBUTE,
   THEME_WALLPAPER_COOKIE_KEYS,
+  THEME_WALLPAPER_MEDIA_ATTRIBUTE,
+  THEME_WALLPAPER_MEDIA_VIDEO,
   THEME_WALLPAPER_POSITION_VARIABLE,
   THEME_WALLPAPER_SIZE_VARIABLE,
   THEME_WALLPAPER_VALUE,
+  THEME_WALLPAPER_VIDEO_SLOT,
+  THEME_WALLPAPER_ZOOM_VARIABLE,
+  isVideoWallpaperUrl,
   THEME_WALLPAPER_VARIABLE,
   type ThemeCustomization,
   type ThemeFont,
@@ -180,6 +185,10 @@ export function ThemeCustomizationProvider(props: {
   // image that never loads.
   const [wallpaperAspect, setWallpaperAspect] = useState<number | null>(null)
 
+  // A video is painted by a <video> layer rather than as a background image, so
+  // the whole wall paper path branches on this.
+  const wallpaperIsVideo = isVideoWallpaperUrl(wallpaperUrl)
+
   // Mirror state to the <body> via data-* attributes so theme-presets.css can
   // override CSS variables at the right cascade layer.
   useEffect(() => {
@@ -228,9 +237,11 @@ export function ThemeCustomizationProvider(props: {
     if (!body) return
     if (wallpaperUrl === '') {
       body.removeAttribute(THEME_WALLPAPER_ATTRIBUTE)
+      body.removeAttribute(THEME_WALLPAPER_MEDIA_ATTRIBUTE)
       body.style.removeProperty(THEME_WALLPAPER_VARIABLE)
       body.style.removeProperty(THEME_WALLPAPER_POSITION_VARIABLE)
       body.style.removeProperty(THEME_WALLPAPER_SIZE_VARIABLE)
+      body.style.removeProperty(THEME_WALLPAPER_ZOOM_VARIABLE)
       return
     }
     const viewportAspect =
@@ -238,22 +249,78 @@ export function ThemeCustomizationProvider(props: {
         ? null
         : window.innerWidth / window.innerHeight
     const { zoom, focusX, focusY } = wallpaperFraming
-    body.style.setProperty(THEME_WALLPAPER_VARIABLE, `url("${wallpaperUrl}")`)
+    body.setAttribute(THEME_WALLPAPER_ATTRIBUTE, THEME_WALLPAPER_VALUE)
     body.style.setProperty(
       THEME_WALLPAPER_POSITION_VARIABLE,
       `${focusX}% ${focusY}%`
     )
+    body.style.setProperty(THEME_WALLPAPER_ZOOM_VARIABLE, String(zoom))
+
+    if (wallpaperIsVideo) {
+      // A video cannot be a CSS background: the layer below paints it, and the
+      // crop reaches it through object-position and the zoom variable instead.
+      body.removeAttribute(THEME_WALLPAPER_VARIABLE)
+      body.style.removeProperty(THEME_WALLPAPER_VARIABLE)
+      body.style.removeProperty(THEME_WALLPAPER_SIZE_VARIABLE)
+      body.setAttribute(
+        THEME_WALLPAPER_MEDIA_ATTRIBUTE,
+        THEME_WALLPAPER_MEDIA_VIDEO
+      )
+      return
+    }
+
+    body.removeAttribute(THEME_WALLPAPER_MEDIA_ATTRIBUTE)
+    body.style.setProperty(THEME_WALLPAPER_VARIABLE, `url("${wallpaperUrl}")`)
     body.style.setProperty(
       THEME_WALLPAPER_SIZE_VARIABLE,
       wallpaperBackgroundSize(zoom, wallpaperAspect, viewportAspect)
     )
-    body.setAttribute(THEME_WALLPAPER_ATTRIBUTE, THEME_WALLPAPER_VALUE)
-  }, [wallpaperUrl, wallpaperFraming, wallpaperAspect])
+  }, [wallpaperUrl, wallpaperIsVideo, wallpaperFraming, wallpaperAspect])
+
+  // The <video> layer for a video wallpaper, mounted as a child of <body> so the
+  // console's own surfaces paint over it.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const body = document.body
+    if (!body) return
+    if (!wallpaperIsVideo || wallpaperUrl === '') return
+
+    const video = document.createElement('video')
+    video.setAttribute('data-slot', THEME_WALLPAPER_VIDEO_SLOT)
+    video.setAttribute('aria-hidden', 'true')
+    video.setAttribute('tabindex', '-1')
+    video.src = wallpaperUrl
+    // Both the property and the attribute: an autoplay policy reads the
+    // attribute, and a muted video is the one it lets start on its own.
+    video.muted = true
+    video.setAttribute('muted', '')
+    video.loop = true
+    video.autoplay = true
+    video.playsInline = true
+    video.preload = 'auto'
+
+    // Autoplay is the browser's decision, not ours; the first user gesture is
+    // the standard second attempt when it declines.
+    const tryPlay = () => {
+      void video.play().catch(() => {})
+    }
+    tryPlay()
+    window.addEventListener('pointerdown', tryPlay, { once: true })
+    body.prepend(video)
+
+    return () => {
+      window.removeEventListener('pointerdown', tryPlay)
+      video.pause()
+      video.removeAttribute('src')
+      video.remove()
+    }
+  }, [wallpaperUrl, wallpaperIsVideo])
 
   // Measuring the wallpaper needs no CORS permission -- only reading its pixels
   // does -- so the crop works even for a host that never sends CORS headers.
+  // A video is scaled rather than sized, so it needs no aspect ratio.
   useEffect(() => {
-    if (wallpaperUrl === '') {
+    if (wallpaperUrl === '' || wallpaperIsVideo) {
       setWallpaperAspect(null)
       return
     }
@@ -283,7 +350,7 @@ export function ThemeCustomizationProvider(props: {
     return () => {
       cancelled = true
     }
-  }, [wallpaperUrl])
+  }, [wallpaperUrl, wallpaperIsVideo])
 
   // Deriving the accent from the wallpaper is opt-in, and silently a no-op when
   // the image cannot be read: the preset's own accent simply stays in place.
@@ -301,7 +368,8 @@ export function ThemeCustomizationProvider(props: {
       return
     }
     let cancelled = false
-    void sampleWallpaperAccent(wallpaperUrl).then((accent) => {
+    const sample = wallpaperIsVideo ? sampleVideoAccent : sampleWallpaperAccent
+    void sample(wallpaperUrl).then((accent) => {
       if (cancelled) return
       if (!accent) {
         clearAccent()
@@ -323,7 +391,7 @@ export function ThemeCustomizationProvider(props: {
     return () => {
       cancelled = true
     }
-  }, [wallpaperUrl, wallpaperAccentEnabled])
+  }, [wallpaperUrl, wallpaperAccentEnabled, wallpaperIsVideo])
 
   const setPreset = useCallback((value: ThemePreset) => {
     _setPreset(value)

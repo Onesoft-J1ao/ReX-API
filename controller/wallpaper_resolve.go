@@ -114,8 +114,28 @@ type steamItemDetails struct {
 	Title         string
 	PreviewURL    string
 	Banned        bool
+	IsVideo       bool
 	ConsumerAppID int
 	CreatorAppID  int
+}
+
+type steamTag struct {
+	Tag string `json:"tag"`
+}
+
+// isVideoWorkshopItem reads the item's type out of its tags.
+//
+// Wallpaper Engine items are tagged with what they are -- Video, Scene, Web or
+// Application. Steam publishes only a still preview for any of them, so knowing
+// the type is what lets the console say why a "video wallpaper" arrived as a
+// picture.
+func isVideoWorkshopItem(tags []steamTag) bool {
+	for _, tag := range tags {
+		if strings.EqualFold(strings.TrimSpace(tag.Tag), "video") {
+			return true
+		}
+	}
+	return false
 }
 
 func fetchSteamPublishedFileDetails(ctx context.Context, itemID string) (steamItemDetails, error) {
@@ -154,13 +174,14 @@ func fetchSteamPublishedFileDetails(ctx context.Context, itemID string) (steamIt
 	var payload struct {
 		Response struct {
 			PublishedFileDetails []struct {
-				PublishedFileID string `json:"publishedfileid"`
-				Result          int    `json:"result"`
-				Title           string `json:"title"`
-				PreviewURL      string `json:"preview_url"`
-				Banned          int    `json:"banned"`
-				ConsumerAppID   int    `json:"consumer_app_id"`
-				CreatorAppID    int    `json:"creator_app_id"`
+				PublishedFileID string     `json:"publishedfileid"`
+				Result          int        `json:"result"`
+				Title           string     `json:"title"`
+				PreviewURL      string     `json:"preview_url"`
+				Banned          int        `json:"banned"`
+				ConsumerAppID   int        `json:"consumer_app_id"`
+				CreatorAppID    int        `json:"creator_app_id"`
+				Tags            []steamTag `json:"tags"`
 			} `json:"publishedfiledetails"`
 		} `json:"response"`
 	}
@@ -181,6 +202,7 @@ func fetchSteamPublishedFileDetails(ctx context.Context, itemID string) (steamIt
 		Title:         entry.Title,
 		PreviewURL:    entry.PreviewURL,
 		Banned:        entry.Banned != 0,
+		IsVideo:       isVideoWorkshopItem(entry.Tags),
 		ConsumerAppID: entry.ConsumerAppID,
 		CreatorAppID:  entry.CreatorAppID,
 	}, nil
@@ -250,6 +272,9 @@ func ResolveWallpaperSource(c *gin.Context) {
 			// resolves and the console can say what it is.
 			"app_id":           details.ConsumerAppID,
 			"wallpaper_engine": details.ConsumerAppID == wallpaperEngineAppID || details.CreatorAppID == wallpaperEngineAppID,
+			// Steam ships no video for a video wallpaper, only a still; the
+			// console uses this to say so instead of quietly showing a picture.
+			"is_video": details.IsVideo,
 		},
 	})
 }

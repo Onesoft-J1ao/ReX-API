@@ -68,6 +68,11 @@ export function WallpaperConfig() {
 
   const [draft, setDraft] = useState('')
   const [sourceDraft, setSourceDraft] = useState('')
+  // Set when the resolved item is a video: Steam publishes no video for one, so
+  // the console says why the address it filled in is only a still.
+  const [resolvedVideoTitle, setResolvedVideoTitle] = useState<string | null>(
+    null
+  )
   const [confirmingSave, setConfirmingSave] = useState(false)
   const [confirmingRemove, setConfirmingRemove] = useState(false)
 
@@ -134,6 +139,7 @@ export function WallpaperConfig() {
           return
         }
         setDraft(result.image_url)
+        setResolvedVideoTitle(result.is_video ? result.title : null)
         toast.success(
           result.wallpaper_engine
             ? t('Resolved "{{title}}". Press Change wallpaper to use it.', {
@@ -224,6 +230,14 @@ export function WallpaperConfig() {
             'Paste a Steam Workshop link and its preview image fills the address below.'
           )}
         </p>
+        {resolvedVideoTitle !== null && (
+          <p role='status' className='text-muted-foreground mt-1 text-xs'>
+            {t(
+              '“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.',
+              { title: resolvedVideoTitle }
+            )}
+          </p>
+        )}
       </div>
 
       <Label htmlFor='wallpaper-url' className='mb-1 block text-xs'>
@@ -244,7 +258,8 @@ export function WallpaperConfig() {
       >
         {t(
           'Paste an absolute http(s) link to an image. Your console loads it from that address.'
-        )}
+        )}{' '}
+        {t('Video addresses (.mp4 / .webm) play as an animated background.')}
       </p>
 
       {normalizedDraft !== null && (

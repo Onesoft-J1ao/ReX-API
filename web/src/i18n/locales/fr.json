@@ -6809,7 +6809,9 @@
     "Paste a Steam Workshop link and its preview image fills the address below.": "Collez un lien Steam Workshop : son image d'aperçu remplit l'adresse ci-dessous.",
     "Resolved \"{{title}}\". Press Change wallpaper to use it.": "« {{title}} » analysé. Cliquez sur Changer le fond d'écran pour l'utiliser.",
     "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "« {{title}} » analysé, mais ce n'est pas un élément Wallpaper Engine.",
-    "Failed to resolve the link": "Échec de l'analyse du lien"
+    "Failed to resolve the link": "Échec de l'analyse du lien",
+    "Video addresses (.mp4 / .webm) play as an animated background.": "Les adresses vidéo (.mp4 / .webm) sont lues comme un fond d'écran animé.",
+    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "« {{title}} » est un fond d'écran vidéo : Steam n'en publie qu'un aperçu fixe. Collez une adresse vidéo (.mp4 / .webm) pour l'animation."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

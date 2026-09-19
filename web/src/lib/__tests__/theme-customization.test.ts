@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_WALLPAPER_FRAMING,
   isDefaultWallpaperFraming,
+  isVideoWallpaperUrl,
   normalizeWallpaperFraming,
   parseWallpaperFraming,
   serializeWallpaperFraming,
@@ -116,5 +117,35 @@ describe('wallpaperBackgroundSize', () => {
     expect(wallpaperBackgroundSize(9, 1, 1.78)).toBe(
       `calc(100% * ${WALLPAPER_ZOOM_MAX}) auto`
     )
+  })
+})
+
+describe('isVideoWallpaperUrl', () => {
+  it('recognises the containers a wallpaper may point at', () => {
+    expect(isVideoWallpaperUrl('https://cdn.test/loop.mp4')).toBe(true)
+    expect(isVideoWallpaperUrl('https://cdn.test/loop.webm')).toBe(true)
+    expect(isVideoWallpaperUrl('https://cdn.test/LOOP.MP4')).toBe(true)
+  })
+
+  it('ignores the query and fragment a CDN address carries', () => {
+    expect(isVideoWallpaperUrl('https://cdn.test/loop.mp4?token=abc')).toBe(true)
+    expect(isVideoWallpaperUrl('https://cdn.test/loop.webm#t=3')).toBe(true)
+  })
+
+  it('does not mistake a picture for a video', () => {
+    expect(isVideoWallpaperUrl('https://cdn.test/wall.jpg')).toBe(false)
+    expect(isVideoWallpaperUrl('https://cdn.test/wall')).toBe(false)
+    // What a Steam Workshop item resolves to: a hash directory, not a file.
+    expect(
+      isVideoWallpaperUrl(
+        'https://images.steamusercontent.com/ugc/11930026390145821500/B2E419DA46294C6C6A28192E3C1E75B15230D731/'
+      )
+    ).toBe(false)
+  })
+
+  it('is false for anything unusable', () => {
+    expect(isVideoWallpaperUrl('')).toBe(false)
+    expect(isVideoWallpaperUrl('not a url')).toBe(false)
+    expect(isVideoWallpaperUrl('/local.mp4')).toBe(false)
   })
 })

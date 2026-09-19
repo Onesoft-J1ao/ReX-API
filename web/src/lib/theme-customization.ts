@@ -215,6 +215,42 @@ export const THEME_WALLPAPER_ACCENT_VARIABLES = {
 /** Where the crop reads from, and how large the image is painted. */
 export const THEME_WALLPAPER_POSITION_VARIABLE = '--wallpaper-position'
 export const THEME_WALLPAPER_SIZE_VARIABLE = '--wallpaper-size'
+/** Numeric zoom, for media that is scaled rather than sized (the video layer). */
+export const THEME_WALLPAPER_ZOOM_VARIABLE = '--wallpaper-zoom'
+
+/** Marks a wallpaper whose address is a video rather than a picture. */
+export const THEME_WALLPAPER_MEDIA_ATTRIBUTE = 'data-theme-wallpaper-media'
+export const THEME_WALLPAPER_MEDIA_VIDEO = 'video'
+/** Slot of the <video> layer the provider mounts for a video wallpaper. */
+export const THEME_WALLPAPER_VIDEO_SLOT = 'wallpaper-video'
+
+/** Containers a wallpaper address may point at. */
+export const WALLPAPER_VIDEO_EXTENSIONS = [
+  '.mp4',
+  '.webm',
+  '.ogv',
+  '.mov',
+  '.m4v',
+] as const
+
+/**
+ * Whether the address is a video rather than a picture.
+ *
+ * The field takes any address and nothing reports its content type before the
+ * browser fetches it, so the extension is the signal. Query and fragment are
+ * ignored, since a CDN address usually carries them.
+ */
+export function isVideoWallpaperUrl(raw: string): boolean {
+  if (raw === '') return false
+  let path: string
+  try {
+    path = new URL(raw).pathname
+  } catch {
+    return false
+  }
+  const lower = path.toLowerCase()
+  return WALLPAPER_VIDEO_EXTENSIONS.some((extension) => lower.endsWith(extension))
+}
 
 /** The only value the accent cookie stores when the user turns it on. */
 export const WALLPAPER_ACCENT_ENABLED = 'on'

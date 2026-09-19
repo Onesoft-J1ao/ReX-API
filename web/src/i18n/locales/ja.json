@@ -6809,7 +6809,9 @@
     "Paste a Steam Workshop link and its preview image fills the address below.": "Steam ワークショップのリンクを貼り付けると、そのプレビュー画像が下のアドレスに入ります。",
     "Resolved \"{{title}}\". Press Change wallpaper to use it.": "「{{title}}」を解析しました。「壁紙を変更」で適用できます。",
     "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "「{{title}}」を解析しましたが、Wallpaper Engine のアイテムではありません。",
-    "Failed to resolve the link": "リンクを解析できませんでした"
+    "Failed to resolve the link": "リンクを解析できませんでした",
+    "Video addresses (.mp4 / .webm) play as an animated background.": "動画のURL（.mp4 / .webm）はアニメーション背景として再生されます。",
+    "“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.": "「{{title}}」は動画壁紙です。Steam は静止プレビューしか公開していないため、動きが必要なら動画のURL（.mp4 / .webm）を入力してください。"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

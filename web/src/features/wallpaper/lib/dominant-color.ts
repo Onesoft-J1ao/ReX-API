@@ -236,3 +236,80 @@ export async function sampleWallpaperAccent(
     return null
   }
 }
+
+/** How long a video gets to produce a frame worth sampling. */
+const VIDEO_ACCENT_TIMEOUT_MS = 4000
+
+/**
+ * Samples the accent from a video wallpaper's frame.
+ *
+ * Same contract as `sampleWallpaperAccent`: `null` for anything that cannot be
+ * read, so the preset's accent stays in place.
+ */
+export async function sampleVideoAccent(
+  url: string
+): Promise<WallpaperAccent | null> {
+  if (typeof document === 'undefined' || url === '') return null
+
+  const video = document.createElement('video')
+  video.crossOrigin = 'anonymous'
+  video.muted = true
+  video.playsInline = true
+  video.preload = 'metadata'
+
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('video accent timed out')), VIDEO_ACCENT_TIMEOUT_MS)
+  })
+
+  try {
+    await Promise.race([
+      new Promise<void>((resolve, reject) => {
+        video.addEventListener('loadeddata', () => resolve(), { once: true })
+        video.addEventListener(
+          'error',
+          () => reject(new Error('video failed to load')),
+          { once: true }
+        )
+        video.src = url
+      }),
+      timeout,
+    ])
+
+    // A video usually opens on a dark frame or a fade, so step a little in.
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        video.addEventListener('seeked', () => resolve(), { once: true })
+        const duration = video.duration
+        const target =
+          Number.isFinite(duration) && duration > 0
+            ? Math.min(1, duration / 10)
+            : 0.5
+        try {
+          video.currentTime = target
+        } catch {
+          resolve()
+        }
+      }),
+      timeout,
+    ])
+  } catch {
+    return null
+  }
+
+  if (!video.videoWidth || !video.videoHeight) return null
+
+  const canvas = document.createElement('canvas')
+  canvas.width = SAMPLE_SIZE
+  canvas.height = SAMPLE_SIZE
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) return null
+
+  try {
+    context.drawImage(video, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE)
+    const { data } = context.getImageData(0, 0, SAMPLE_SIZE, SAMPLE_SIZE)
+    return pickDominantAccent(data)
+  } catch {
+    // SecurityError: the host does not allow cross-origin reads.
+    return null
+  }
+}
