@@ -25,6 +25,7 @@ import { SectionTitle } from '@/components/section-title'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { WALLPAPER_ERROR_MESSAGES } from '@/features/wallpaper/constants'
 import {
@@ -42,6 +43,8 @@ import { useStatus } from '@/hooks/use-status'
 import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { WallpaperFraming } from './wallpaper-framing'
+
 /**
  * Wallpaper section of the appearance drawer. The image itself is painted by
  * `ThemeCustomizationProvider`; this component only owns the paid change —
@@ -50,7 +53,11 @@ import { useAuthStore } from '@/stores/auth-store'
  */
 export function WallpaperConfig() {
   const { t } = useTranslation()
-  const { wallpaperUrl } = useThemeCustomization()
+  const {
+    wallpaperUrl,
+    wallpaperAccentEnabled,
+    setWallpaperAccentEnabled,
+  } = useThemeCustomization()
   const { data: wallpaper } = useWallpaper()
   const { status: systemStatus } = useStatus()
   const balance = useAuthStore((state) => state.auth.user?.quota)
@@ -118,15 +125,27 @@ export function WallpaperConfig() {
       <SectionTitle title={t('Custom wallpaper')} />
 
       {wallpaperUrl !== '' && (
-        <div className='mb-3'>
-          <img
-            src={wallpaperUrl}
-            alt={t('Current wallpaper')}
-            referrerPolicy='no-referrer'
-            loading='lazy'
-            className='ring-border h-24 w-full rounded-md object-cover ring-[1px]'
-          />
-        </div>
+        <>
+          <WallpaperFraming url={wallpaperUrl} />
+
+          <div className='mb-3 flex items-start justify-between gap-3 rounded-md border p-3'>
+            <div className='space-y-0.5'>
+              <Label htmlFor='wallpaper-accent' className='text-xs'>
+                {t('Match the theme colour to the wallpaper')}
+              </Label>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays."
+                )}
+              </p>
+            </div>
+            <Switch
+              id='wallpaper-accent'
+              checked={wallpaperAccentEnabled}
+              onCheckedChange={setWallpaperAccentEnabled}
+            />
+          </div>
+        </>
       )}
 
       <div className='text-muted-foreground mb-3 space-y-1 text-xs'>

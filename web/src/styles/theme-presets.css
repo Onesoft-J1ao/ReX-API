@@ -743,19 +743,41 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* ── Custom wallpaper ─────────────────────────────────────────────────── */
 /* Painted by the wallpaper axis of ThemeCustomizationProvider, which sets
- * `--wallpaper-image` and `data-theme-wallpaper="custom"` on <body> when the
- * signed-in user owns one. The console's inset panel is normally opaque
- * `bg-background`; with a wallpaper active it drops to a translucent surface
- * so the image reads through the workspace instead of hiding behind it. */
+ * `--wallpaper-image`, `--wallpaper-position` and `--wallpaper-size` on <body>
+ * when the signed-in user owns one. The crop is those last two: position picks
+ * the point of the picture that sits at the centre, and an explicit size
+ * provides the zoom, because CSS has no "cover times N". */
 body[data-theme-wallpaper='custom'] {
   background-image: var(--wallpaper-image);
-  background-position: center;
+  background-position: var(--wallpaper-position, center);
   background-repeat: no-repeat;
-  background-size: cover;
+  background-size: var(--wallpaper-size, cover);
 }
 
-body[data-theme-wallpaper='custom'] [data-slot='sidebar-inset'] {
-  background-color: color-mix(in oklab, var(--background) 82%, transparent);
-  backdrop-filter: blur(14px);
+/* Frosted surfaces. With a picture behind them these read as glass over it
+ * instead of covering it with an opaque slab, which is the point of letting a
+ * wallpaper show through at all. Scoped to the wallpaper, so a console without
+ * one keeps exactly its old flat surfaces. */
+body[data-theme-wallpaper='custom'] [data-slot='sidebar-inset'],
+body[data-theme-wallpaper='custom'] [data-slot='app-header'],
+body[data-theme-wallpaper='custom'] [data-slot='panel'],
+body[data-theme-wallpaper='custom'] [data-slot='card'] {
+  background-color: color-mix(in oklab, var(--background) 76%, transparent);
+  backdrop-filter: blur(16px) saturate(1.2);
 }
 
+/* The header is sticky, so content keeps sliding under it -- a denser pane
+ * keeps the controls legible against whatever is passing beneath. */
+body[data-theme-wallpaper='custom'] [data-slot='app-header'] {
+  background-color: color-mix(in oklab, var(--background) 68%, transparent);
+}
+
+/* The wallpaper's own colour, when the user asked for it. Two attributes so
+ * this outranks the preset palettes (`.dark [data-theme-preset='...']`) no
+ * matter which preset or colour scheme is active. `--accent` needs no override:
+ * it is derived from `--primary` in theme.css. */
+body[data-theme-wallpaper='custom'][data-theme-wallpaper-accent='derived'] {
+  --primary: var(--wallpaper-accent);
+  --primary-foreground: var(--wallpaper-accent-foreground);
+  --ring: var(--wallpaper-accent);
+}

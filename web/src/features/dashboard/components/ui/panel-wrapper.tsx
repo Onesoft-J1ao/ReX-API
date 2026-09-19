@@ -74,7 +74,7 @@ export function PanelWrapper(props: PanelWrapperProps) {
 
   if (props.loading) {
     return (
-      <div className={frameClassName}>
+      <div data-slot='panel' className={frameClassName}>
         <PanelHeader title={props.title} description={props.description} />
         <div className={cn('p-4 sm:p-5', props.contentClassName)}>
           <Skeleton className={`w-full ${height}`} />
@@ -85,7 +85,7 @@ export function PanelWrapper(props: PanelWrapperProps) {
 
   if (props.empty) {
     return (
-      <div className={frameClassName}>
+      <div data-slot='panel' className={frameClassName}>
         <PanelHeader title={props.title} description={props.description} />
         <div
           className={cn(

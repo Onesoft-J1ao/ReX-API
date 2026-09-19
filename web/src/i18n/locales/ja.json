@@ -6795,7 +6795,13 @@
     "The heading these monitors are listed under in the console.": "コンソールでこれらの監視項目が表示される見出しです。",
     "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "完全なステータスページURLを入力してください（例：https://status.s3.fan/status/s3ai-api）",
     "Name must be less than 50 characters": "名前は50文字以内で入力してください",
-    "Save upstream status settings": "アップストリームの設定を保存"
+    "Save upstream status settings": "アップストリームの設定を保存",
+    "Drag to frame": "ドラッグして構図を調整",
+    "Horizontal": "横位置",
+    "Vertical": "縦位置",
+    "Reset framing": "構図をリセット",
+    "Match the theme colour to the wallpaper": "テーマカラーを壁紙の主要色に合わせる",
+    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "画像の主要色からアクセントカラーを取ります。画像の読み取りが許可されていない場合は、プリセットのアクセントカラーのままになります。"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

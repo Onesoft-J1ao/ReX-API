@@ -6795,7 +6795,13 @@
     "The heading these monitors are listed under in the console.": "这些监控项在控制台里的分组标题。",
     "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "请输入完整的状态页地址，例如 https://status.s3.fan/status/s3ai-api",
     "Name must be less than 50 characters": "名称不能超过 50 个字符",
-    "Save upstream status settings": "保存上游状态设置"
+    "Save upstream status settings": "保存上游状态设置",
+    "Drag to frame": "拖动取景",
+    "Horizontal": "横向",
+    "Vertical": "纵向",
+    "Reset framing": "恢复默认取景",
+    "Match the theme colour to the wallpaper": "主题色跟随壁纸主色调",
+    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "从图片的主色调里取强调色。如果图片所在站点不允许读取，则继续使用当前预设的强调色。"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

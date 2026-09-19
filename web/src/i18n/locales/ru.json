@@ -6795,7 +6795,13 @@
     "The heading these monitors are listed under in the console.": "Заголовок, под которым эти мониторы показаны в консоли.",
     "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "Укажите полный URL страницы статуса, например https://status.s3.fan/status/s3ai-api",
     "Name must be less than 50 characters": "Имя не должно превышать 50 символов",
-    "Save upstream status settings": "Сохранить настройки статуса апстрима"
+    "Save upstream status settings": "Сохранить настройки статуса апстрима",
+    "Drag to frame": "Перетащите для кадрирования",
+    "Horizontal": "По горизонтали",
+    "Vertical": "По вертикали",
+    "Reset framing": "Сбросить кадрирование",
+    "Match the theme colour to the wallpaper": "Подбирать цвет темы по доминирующему цвету обоев",
+    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Берёт акцентный цвет из доминирующего цвета изображения. Если сайт, где лежит изображение, запрещает чтение, остаётся акцент из пресета."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

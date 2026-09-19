@@ -6795,7 +6795,13 @@
     "The heading these monitors are listed under in the console.": "Le titre sous lequel ces sondes sont listées dans la console.",
     "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "Saisissez l'URL complète de la page de statut, par exemple https://status.s3.fan/status/s3ai-api",
     "Name must be less than 50 characters": "Le nom doit contenir moins de 50 caractères",
-    "Save upstream status settings": "Enregistrer les paramètres du fournisseur"
+    "Save upstream status settings": "Enregistrer les paramètres du fournisseur",
+    "Drag to frame": "Glisser pour cadrer",
+    "Horizontal": "Horizontal",
+    "Vertical": "Vertical",
+    "Reset framing": "Réinitialiser le cadrage",
+    "Match the theme colour to the wallpaper": "Accorder la couleur du thème à celle du fond d'écran",
+    "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Reprend la couleur d'accentuation de la teinte dominante de l'image. Si le site qui héberge l'image en interdit la lecture, l'accentuation du préréglage est conservée."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

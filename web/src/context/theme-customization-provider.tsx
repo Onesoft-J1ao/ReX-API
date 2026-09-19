@@ -25,18 +25,30 @@ import {
   useState,
 } from 'react'
 
+import { sampleWallpaperAccent } from '@/features/wallpaper/lib/dominant-color'
 import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
 import {
   CONTENT_LAYOUT_VALUES,
   type ContentLayout,
   DEFAULT_THEME_CUSTOMIZATION,
+  DEFAULT_WALLPAPER_FRAMING,
+  isDefaultWallpaperFraming,
+  normalizeWallpaperFraming,
+  parseWallpaperFraming,
   resolveThemeFont,
+  serializeWallpaperFraming,
   THEME_COOKIE_KEYS,
   THEME_FONT_VALUES,
   THEME_PRESET_VALUES,
   THEME_RADIUS_VALUES,
   THEME_SCALE_VALUES,
+  THEME_WALLPAPER_ACCENT_ATTRIBUTE,
+  THEME_WALLPAPER_ACCENT_VALUE,
+  THEME_WALLPAPER_ACCENT_VARIABLES,
   THEME_WALLPAPER_ATTRIBUTE,
+  THEME_WALLPAPER_COOKIE_KEYS,
+  THEME_WALLPAPER_POSITION_VARIABLE,
+  THEME_WALLPAPER_SIZE_VARIABLE,
   THEME_WALLPAPER_VALUE,
   THEME_WALLPAPER_VARIABLE,
   type ThemeCustomization,
@@ -44,6 +56,9 @@ import {
   type ThemePreset,
   type ThemeRadius,
   type ThemeScale,
+  WALLPAPER_ACCENT_ENABLED,
+  wallpaperBackgroundSize,
+  type WallpaperFraming,
 } from '@/lib/theme-customization'
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
@@ -73,7 +88,14 @@ type ThemeCustomizationContextType = {
   customization: ThemeCustomization
   /** The caller's paid wallpaper, empty when none is set. */
   wallpaperUrl: string
+  /** Crop of the wallpaper. Free and per-browser, unlike the address itself. */
+  wallpaperFraming: WallpaperFraming
+  /** Whether the wallpaper's own colour drives the accent. */
+  wallpaperAccentEnabled: boolean
   setWallpaper: (wallpaperUrl: string) => void
+  setWallpaperFraming: (framing: WallpaperFraming) => void
+  resetWallpaperFraming: () => void
+  setWallpaperAccentEnabled: (enabled: boolean) => void
   setPreset: (preset: ThemePreset) => void
   setFont: (font: ThemeFont) => void
   setRadius: (radius: ThemeRadius) => void
@@ -90,7 +112,12 @@ const FALLBACK_CONTEXT: ThemeCustomizationContextType = {
   defaults: DEFAULT_THEME_CUSTOMIZATION,
   customization: DEFAULT_THEME_CUSTOMIZATION,
   wallpaperUrl: '',
+  wallpaperFraming: DEFAULT_WALLPAPER_FRAMING,
+  wallpaperAccentEnabled: false,
   setWallpaper: () => {},
+  setWallpaperFraming: () => {},
+  resetWallpaperFraming: () => {},
+  setWallpaperAccentEnabled: () => {},
   setPreset: () => {},
   setFont: () => {},
   setRadius: () => {},
@@ -141,6 +168,17 @@ export function ThemeCustomizationProvider(props: {
     )
   )
   const [wallpaperUrl, setWallpaper] = useState('')
+  const [wallpaperFraming, _setWallpaperFraming] = useState<WallpaperFraming>(
+    () => parseWallpaperFraming(getCookie(THEME_WALLPAPER_COOKIE_KEYS.framing))
+  )
+  const [wallpaperAccentEnabled, _setWallpaperAccentEnabled] = useState(
+    () =>
+      getCookie(THEME_WALLPAPER_COOKIE_KEYS.accent) === WALLPAPER_ACCENT_ENABLED
+  )
+  // Natural aspect ratio of the wallpaper. Only needed to spell out a zoomed
+  // `background-size`; stays null until the image has been measured, and for an
+  // image that never loads.
+  const [wallpaperAspect, setWallpaperAspect] = useState<number | null>(null)
 
   // Mirror state to the <body> via data-* attributes so theme-presets.css can
   // override CSS variables at the right cascade layer.
@@ -191,11 +229,101 @@ export function ThemeCustomizationProvider(props: {
     if (wallpaperUrl === '') {
       body.removeAttribute(THEME_WALLPAPER_ATTRIBUTE)
       body.style.removeProperty(THEME_WALLPAPER_VARIABLE)
+      body.style.removeProperty(THEME_WALLPAPER_POSITION_VARIABLE)
+      body.style.removeProperty(THEME_WALLPAPER_SIZE_VARIABLE)
       return
     }
+    const viewportAspect =
+      typeof window === 'undefined' || window.innerHeight === 0
+        ? null
+        : window.innerWidth / window.innerHeight
+    const { zoom, focusX, focusY } = wallpaperFraming
     body.style.setProperty(THEME_WALLPAPER_VARIABLE, `url("${wallpaperUrl}")`)
+    body.style.setProperty(
+      THEME_WALLPAPER_POSITION_VARIABLE,
+      `${focusX}% ${focusY}%`
+    )
+    body.style.setProperty(
+      THEME_WALLPAPER_SIZE_VARIABLE,
+      wallpaperBackgroundSize(zoom, wallpaperAspect, viewportAspect)
+    )
     body.setAttribute(THEME_WALLPAPER_ATTRIBUTE, THEME_WALLPAPER_VALUE)
+  }, [wallpaperUrl, wallpaperFraming, wallpaperAspect])
+
+  // Measuring the wallpaper needs no CORS permission -- only reading its pixels
+  // does -- so the crop works even for a host that never sends CORS headers.
+  useEffect(() => {
+    if (wallpaperUrl === '') {
+      setWallpaperAspect(null)
+      return
+    }
+    let cancelled = false
+    const image = new Image()
+    image.referrerPolicy = 'no-referrer'
+    image.addEventListener(
+      'load',
+      () => {
+        if (cancelled) return
+        setWallpaperAspect(
+          image.naturalHeight > 0
+            ? image.naturalWidth / image.naturalHeight
+            : null
+        )
+      },
+      { once: true }
+    )
+    image.addEventListener(
+      'error',
+      () => {
+        if (!cancelled) setWallpaperAspect(null)
+      },
+      { once: true }
+    )
+    image.src = wallpaperUrl
+    return () => {
+      cancelled = true
+    }
   }, [wallpaperUrl])
+
+  // Deriving the accent from the wallpaper is opt-in, and silently a no-op when
+  // the image cannot be read: the preset's own accent simply stays in place.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const body = document.body
+    if (!body) return
+    const clearAccent = () => {
+      body.removeAttribute(THEME_WALLPAPER_ACCENT_ATTRIBUTE)
+      body.style.removeProperty(THEME_WALLPAPER_ACCENT_VARIABLES.accent)
+      body.style.removeProperty(THEME_WALLPAPER_ACCENT_VARIABLES.foreground)
+    }
+    if (wallpaperUrl === '' || !wallpaperAccentEnabled) {
+      clearAccent()
+      return
+    }
+    let cancelled = false
+    void sampleWallpaperAccent(wallpaperUrl).then((accent) => {
+      if (cancelled) return
+      if (!accent) {
+        clearAccent()
+        return
+      }
+      body.style.setProperty(
+        THEME_WALLPAPER_ACCENT_VARIABLES.accent,
+        accent.accent
+      )
+      body.style.setProperty(
+        THEME_WALLPAPER_ACCENT_VARIABLES.foreground,
+        accent.foreground
+      )
+      body.setAttribute(
+        THEME_WALLPAPER_ACCENT_ATTRIBUTE,
+        THEME_WALLPAPER_ACCENT_VALUE
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [wallpaperUrl, wallpaperAccentEnabled])
 
   const setPreset = useCallback((value: ThemePreset) => {
     _setPreset(value)
@@ -242,6 +370,37 @@ export function ThemeCustomizationProvider(props: {
     }
   }, [])
 
+  const setWallpaperFraming = useCallback((next: WallpaperFraming) => {
+    const normalized = normalizeWallpaperFraming(next)
+    _setWallpaperFraming(normalized)
+    if (isDefaultWallpaperFraming(normalized)) {
+      removeCookie(THEME_WALLPAPER_COOKIE_KEYS.framing)
+    } else {
+      setCookie(
+        THEME_WALLPAPER_COOKIE_KEYS.framing,
+        serializeWallpaperFraming(normalized),
+        COOKIE_MAX_AGE
+      )
+    }
+  }, [])
+
+  const resetWallpaperFraming = useCallback(() => {
+    setWallpaperFraming(DEFAULT_WALLPAPER_FRAMING)
+  }, [setWallpaperFraming])
+
+  const setWallpaperAccentEnabled = useCallback((enabled: boolean) => {
+    _setWallpaperAccentEnabled(enabled)
+    if (enabled) {
+      setCookie(
+        THEME_WALLPAPER_COOKIE_KEYS.accent,
+        WALLPAPER_ACCENT_ENABLED,
+        COOKIE_MAX_AGE
+      )
+    } else {
+      removeCookie(THEME_WALLPAPER_COOKIE_KEYS.accent)
+    }
+  }, [])
+
   // The wallpaper is deliberately left alone: it was bought, so "reset" must
   // not silently unpaint something the user paid for. Removing it is its own
   // explicit action in the wallpaper settings.
@@ -258,7 +417,12 @@ export function ThemeCustomizationProvider(props: {
       defaults: DEFAULT_THEME_CUSTOMIZATION,
       customization: { preset, font, radius, scale, contentLayout },
       wallpaperUrl,
+      wallpaperFraming,
+      wallpaperAccentEnabled,
       setWallpaper,
+      setWallpaperFraming,
+      resetWallpaperFraming,
+      setWallpaperAccentEnabled,
       setPreset,
       setFont,
       setRadius,
@@ -273,6 +437,12 @@ export function ThemeCustomizationProvider(props: {
       scale,
       contentLayout,
       wallpaperUrl,
+      wallpaperFraming,
+      wallpaperAccentEnabled,
+      setWallpaper,
+      setWallpaperFraming,
+      resetWallpaperFraming,
+      setWallpaperAccentEnabled,
       setPreset,
       setFont,
       setRadius,

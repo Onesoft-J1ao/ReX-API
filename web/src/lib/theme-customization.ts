@@ -174,6 +174,135 @@ export const THEME_WALLPAPER_VALUE = 'custom'
 export const THEME_WALLPAPER_VARIABLE = '--wallpaper-image'
 
 /**
+ * How the wallpaper is cropped into the viewport.
+ *
+ * The address the user buys is only a URL, so "cropping" is a property of the
+ * painting, not of the image: which point of the picture sits at the centre of
+ * the screen, and how far in the zoom is. Kept out of the paid record on
+ * purpose — reframing must stay free, and it is a per-browser preference like
+ * the other appearance axes.
+ */
+export type WallpaperFraming = {
+  /** 1 shows exactly what `cover` shows; above that crops in. */
+  zoom: number
+  /** Point of the image pinned to the centre, as a percentage of its size. */
+  focusX: number
+  focusY: number
+}
+
+export const WALLPAPER_ZOOM_MIN = 1
+export const WALLPAPER_ZOOM_MAX = 4
+
+export const DEFAULT_WALLPAPER_FRAMING: WallpaperFraming = {
+  zoom: WALLPAPER_ZOOM_MIN,
+  focusX: 50,
+  focusY: 50,
+}
+
+export const THEME_WALLPAPER_COOKIE_KEYS = {
+  framing: 'theme_wallpaper_framing',
+  accent: 'theme_wallpaper_accent',
+} as const
+
+/** Set on <body> when the wallpaper's own colour is driving the accent. */
+export const THEME_WALLPAPER_ACCENT_ATTRIBUTE = 'data-theme-wallpaper-accent'
+export const THEME_WALLPAPER_ACCENT_VALUE = 'derived'
+export const THEME_WALLPAPER_ACCENT_VARIABLES = {
+  accent: '--wallpaper-accent',
+  foreground: '--wallpaper-accent-foreground',
+} as const
+
+/** Where the crop reads from, and how large the image is painted. */
+export const THEME_WALLPAPER_POSITION_VARIABLE = '--wallpaper-position'
+export const THEME_WALLPAPER_SIZE_VARIABLE = '--wallpaper-size'
+
+/** The only value the accent cookie stores when the user turns it on. */
+export const WALLPAPER_ACCENT_ENABLED = 'on'
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value))
+}
+
+export function normalizeWallpaperFraming(
+  framing: WallpaperFraming
+): WallpaperFraming {
+  return {
+    zoom: clamp(
+      Number.isFinite(framing.zoom) ? framing.zoom : WALLPAPER_ZOOM_MIN,
+      WALLPAPER_ZOOM_MIN,
+      WALLPAPER_ZOOM_MAX
+    ),
+    focusX: clamp(
+      Number.isFinite(framing.focusX) ? framing.focusX : 50,
+      0,
+      100
+    ),
+    focusY: clamp(
+      Number.isFinite(framing.focusY) ? framing.focusY : 50,
+      0,
+      100
+    ),
+  }
+}
+
+export function isDefaultWallpaperFraming(framing: WallpaperFraming): boolean {
+  const normalized = normalizeWallpaperFraming(framing)
+  return (
+    normalized.zoom === DEFAULT_WALLPAPER_FRAMING.zoom &&
+    normalized.focusX === DEFAULT_WALLPAPER_FRAMING.focusX &&
+    normalized.focusY === DEFAULT_WALLPAPER_FRAMING.focusY
+  )
+}
+
+/** `zoom,focusX,focusY`. Anything unreadable falls back to the default. */
+export function parseWallpaperFraming(
+  raw: string | null | undefined
+): WallpaperFraming {
+  if (!raw) return DEFAULT_WALLPAPER_FRAMING
+  const parts = raw.split(',')
+  if (parts.length !== 3) return DEFAULT_WALLPAPER_FRAMING
+  const [zoom, focusX, focusY] = parts.map((part) => Number(part.trim()))
+  if (!Number.isFinite(zoom) || !Number.isFinite(focusX) || !Number.isFinite(focusY)) {
+    return DEFAULT_WALLPAPER_FRAMING
+  }
+  return normalizeWallpaperFraming({ zoom, focusX, focusY })
+}
+
+export function serializeWallpaperFraming(framing: WallpaperFraming): string {
+  const normalized = normalizeWallpaperFraming(framing)
+  return [
+    normalized.zoom.toFixed(2),
+    Math.round(normalized.focusX),
+    Math.round(normalized.focusY),
+  ].join(',')
+}
+
+/**
+ * The `background-size` the wallpaper layer should use.
+ *
+ * At 1x this is plain `cover`. Above 1x the size has to be spelled out, because
+ * `background-size` has no "cover times N" form: `cover` scales up whichever
+ * axis is short, so that is the axis to multiply, and knowing it needs the
+ * image's aspect ratio. While the ratio is unknown the answer stays `cover`, so
+ * the layer is never painted smaller than the viewport.
+ */
+export function wallpaperBackgroundSize(
+  zoom: number,
+  imageAspect: number | null,
+  viewportAspect: number | null
+): string {
+  if (!(zoom > WALLPAPER_ZOOM_MIN)) return 'cover'
+  if (!imageAspect || !(imageAspect > 0)) return 'cover'
+  if (!viewportAspect || !(viewportAspect > 0)) return 'cover'
+  const z = clamp(zoom, WALLPAPER_ZOOM_MIN, WALLPAPER_ZOOM_MAX)
+  // An image wider than the viewport is height-constrained under `cover`.
+  return imageAspect > viewportAspect
+    ? `auto calc(100% * ${z})`
+    : `calc(100% * ${z}) auto`
+}
+
+
+/**
  * Preset → default font mapping. Used by the provider to resolve the user's
  * `font: 'default'` preference against the active preset.
  *
