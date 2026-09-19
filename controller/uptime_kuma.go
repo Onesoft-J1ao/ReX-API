@@ -62,6 +62,18 @@ func maskUpstreamIdentity(group UptimeGroupResult) UptimeGroupResult {
 	return group
 }
 
+// flattenUpstreamGroups rewrites a mirrored page so every monitor reads as one
+// entry under the console's own heading. The provider's own group names
+// ("S3AI API", "号池", …) would advertise where our capacity comes from, so they
+// are dropped while the monitors themselves stay.
+func flattenUpstreamGroups(group UptimeGroupResult, categoryName string) UptimeGroupResult {
+	group.CategoryName = categoryName
+	for i := range group.Monitors {
+		group.Monitors[i].Group = ""
+	}
+	return group
+}
+
 type Monitor struct {
 	Name   string  `json:"name"`
 	Uptime float64 `json:"uptime"`
@@ -245,6 +257,7 @@ func fetchUpstreamGroup(ctx context.Context, client *http.Client, baseURL string
 	group := fetchGroupData(ctx, client, baseURL, slug, categoryName)
 	// Scrub before caching so the masked form is what every later read serves.
 	group = maskUpstreamIdentity(group)
+	group = flattenUpstreamGroups(group, categoryName)
 	// Only an answer with monitors is worth caching; a failed scrape should be
 	// retried on the next load instead of pinning an empty panel for a minute.
 	if len(group.Monitors) > 0 {
