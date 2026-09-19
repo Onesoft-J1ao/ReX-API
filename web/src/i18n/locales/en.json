@@ -6802,7 +6802,14 @@
     "Reset framing": "Reset framing",
     "Match the theme colour to the wallpaper": "Match the theme colour to the wallpaper",
     "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.",
-    "Models this site serves under one group.": "Models this site serves under one group."
+    "Models this site serves under one group.": "Models this site serves under one group.",
+    "Wallpaper Engine link": "Wallpaper Engine link",
+    "Resolve": "Resolve",
+    "Resolving...": "Resolving...",
+    "Paste a Steam Workshop link and its preview image fills the address below.": "Paste a Steam Workshop link and its preview image fills the address below.",
+    "Resolved \"{{title}}\". Press Change wallpaper to use it.": "Resolved \"{{title}}\". Press Change wallpaper to use it.",
+    "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "Resolved \"{{title}}\". It is not a Wallpaper Engine item.",
+    "Failed to resolve the link": "Failed to resolve the link"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

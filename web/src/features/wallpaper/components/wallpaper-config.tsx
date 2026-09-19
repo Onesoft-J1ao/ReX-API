@@ -30,6 +30,7 @@ import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { WALLPAPER_ERROR_MESSAGES } from '@/features/wallpaper/constants'
 import {
   useClearWallpaper,
+  useResolveWallpaperSource,
   useUpdateWallpaper,
   useWallpaper,
 } from '@/features/wallpaper/hooks/use-wallpaper'
@@ -63,8 +64,10 @@ export function WallpaperConfig() {
   const balance = useAuthStore((state) => state.auth.user?.quota)
   const saveWallpaper = useUpdateWallpaper()
   const removeWallpaper = useClearWallpaper()
+  const resolveSource = useResolveWallpaperSource()
 
   const [draft, setDraft] = useState('')
+  const [sourceDraft, setSourceDraft] = useState('')
   const [confirmingSave, setConfirmingSave] = useState(false)
   const [confirmingRemove, setConfirmingRemove] = useState(false)
 
@@ -120,6 +123,33 @@ export function WallpaperConfig() {
     })
   }
 
+  // Resolving only fills the address field: the change itself still goes through
+  // the paid confirmation below.
+  const handleResolve = () => {
+    resolveSource.mutate(sourceDraft.trim(), {
+      onSuccess: (response) => {
+        const result = response.data
+        if (!result) {
+          toast.error(t('Failed to resolve the link'))
+          return
+        }
+        setDraft(result.image_url)
+        toast.success(
+          result.wallpaper_engine
+            ? t('Resolved "{{title}}". Press Change wallpaper to use it.', {
+                title: result.title,
+              })
+            : t('Resolved "{{title}}". It is not a Wallpaper Engine item.', {
+                title: result.title,
+              })
+        )
+      },
+      onError: (error) => {
+        reportFailure(error, t('Failed to resolve the link'))
+      },
+    })
+  }
+
   return (
     <div>
       <SectionTitle title={t('Custom wallpaper')} />
@@ -161,6 +191,38 @@ export function WallpaperConfig() {
                 used: wallpaper.changes_used,
                 limit: wallpaper.monthly_limit,
               })}
+        </p>
+      </div>
+
+      <div className='mb-3'>
+        <Label htmlFor='wallpaper-source' className='mb-1 block text-xs'>
+          {t('Wallpaper Engine link')}
+        </Label>
+        <div className='flex items-center gap-2'>
+          <Input
+            id='wallpaper-source'
+            value={sourceDraft}
+            onChange={(event) => setSourceDraft(event.target.value)}
+            placeholder='https://steamcommunity.com/sharedfiles/filedetails/?id=3778060647'
+            aria-describedby='wallpaper-source-description'
+          />
+          <Button
+            size='sm'
+            variant='outline'
+            className='shrink-0'
+            onClick={handleResolve}
+            disabled={sourceDraft.trim() === '' || resolveSource.isPending}
+          >
+            {resolveSource.isPending ? t('Resolving...') : t('Resolve')}
+          </Button>
+        </div>
+        <p
+          id='wallpaper-source-description'
+          className='text-muted-foreground mt-1 text-xs'
+        >
+          {t(
+            'Paste a Steam Workshop link and its preview image fills the address below.'
+          )}
         </p>
       </div>
 

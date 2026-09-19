@@ -6802,7 +6802,14 @@
     "Reset framing": "還原預設取景",
     "Match the theme colour to the wallpaper": "主題色跟隨壁紙主色調",
     "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "從圖片的主色調取強調色。若圖片所在站點不允許讀取，則繼續使用目前預設的強調色。",
-    "Models this site serves under one group.": "本站在此分組下提供的模型。"
+    "Models this site serves under one group.": "本站在此分組下提供的模型。",
+    "Wallpaper Engine link": "Wallpaper Engine 連結",
+    "Resolve": "解析",
+    "Resolving...": "解析中...",
+    "Paste a Steam Workshop link and its preview image fills the address below.": "貼上 Steam 創意工坊連結，它的預覽圖會自動填入下方的網址。",
+    "Resolved \"{{title}}\". Press Change wallpaper to use it.": "已解析「{{title}}」，點「更換壁紙」即可使用。",
+    "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "已解析「{{title}}」，但它不是 Wallpaper Engine 物品。",
+    "Failed to resolve the link": "連結解析失敗"
   },
   "Time range": "時間範圍",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

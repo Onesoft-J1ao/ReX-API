@@ -6802,7 +6802,14 @@
     "Reset framing": "Réinitialiser le cadrage",
     "Match the theme colour to the wallpaper": "Accorder la couleur du thème à celle du fond d'écran",
     "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Reprend la couleur d'accentuation de la teinte dominante de l'image. Si le site qui héberge l'image en interdit la lecture, l'accentuation du préréglage est conservée.",
-    "Models this site serves under one group.": "Les modèles que ce site sert sous un même groupe."
+    "Models this site serves under one group.": "Les modèles que ce site sert sous un même groupe.",
+    "Wallpaper Engine link": "Lien Wallpaper Engine",
+    "Resolve": "Analyser",
+    "Resolving...": "Analyse...",
+    "Paste a Steam Workshop link and its preview image fills the address below.": "Collez un lien Steam Workshop : son image d'aperçu remplit l'adresse ci-dessous.",
+    "Resolved \"{{title}}\". Press Change wallpaper to use it.": "« {{title}} » analysé. Cliquez sur Changer le fond d'écran pour l'utiliser.",
+    "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "« {{title}} » analysé, mais ce n'est pas un élément Wallpaper Engine.",
+    "Failed to resolve the link": "Échec de l'analyse du lien"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

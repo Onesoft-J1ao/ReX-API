@@ -6802,7 +6802,14 @@
     "Reset framing": "Đặt lại khung",
     "Match the theme colour to the wallpaper": "Lấy màu chủ đề theo tông màu chính của hình nền",
     "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Lấy màu nhấn từ tông màu chính của ảnh. Nếu trang lưu ảnh không cho phép đọc, màu nhấn của bộ cài đặt vẫn được giữ.",
-    "Models this site serves under one group.": "Các mô hình trang này cung cấp trong nhóm này."
+    "Models this site serves under one group.": "Các mô hình trang này cung cấp trong nhóm này.",
+    "Wallpaper Engine link": "Liên kết Wallpaper Engine",
+    "Resolve": "Phân tích",
+    "Resolving...": "Đang phân tích...",
+    "Paste a Steam Workshop link and its preview image fills the address below.": "Dán liên kết Steam Workshop, ảnh xem trước của nó sẽ điền vào địa chỉ bên dưới.",
+    "Resolved \"{{title}}\". Press Change wallpaper to use it.": "Đã phân tích \"{{title}}\". Nhấn Đổi hình nền để sử dụng.",
+    "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "Đã phân tích \"{{title}}\", nhưng đây không phải mục Wallpaper Engine.",
+    "Failed to resolve the link": "Không phân tích được liên kết"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

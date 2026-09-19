@@ -6802,7 +6802,14 @@
     "Reset framing": "Сбросить кадрирование",
     "Match the theme colour to the wallpaper": "Подбирать цвет темы по доминирующему цвету обоев",
     "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays.": "Берёт акцентный цвет из доминирующего цвета изображения. Если сайт, где лежит изображение, запрещает чтение, остаётся акцент из пресета.",
-    "Models this site serves under one group.": "Модели, которые сайт отдаёт в этой группе."
+    "Models this site serves under one group.": "Модели, которые сайт отдаёт в этой группе.",
+    "Wallpaper Engine link": "Ссылка Wallpaper Engine",
+    "Resolve": "Разобрать",
+    "Resolving...": "Разбор...",
+    "Paste a Steam Workshop link and its preview image fills the address below.": "Вставьте ссылку Steam Workshop — её превью подставится в адрес ниже.",
+    "Resolved \"{{title}}\". Press Change wallpaper to use it.": "«{{title}}» разобран. Нажмите «Сменить обои», чтобы применить.",
+    "Resolved \"{{title}}\". It is not a Wallpaper Engine item.": "«{{title}}» разобран, но это не элемент Wallpaper Engine.",
+    "Failed to resolve the link": "Не удалось разобрать ссылку"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
