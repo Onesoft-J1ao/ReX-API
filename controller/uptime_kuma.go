@@ -35,6 +35,33 @@ const (
 
 var statusPageSlugPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
+// hostnamePattern matches a bare hostname (optionally with a scheme and path), a
+// dotted domain, or a bare IPv4 address.
+//
+// The mirrored page belongs to a supplier, and its monitor names are republished
+// on our console to every visitor. A monitor that happens to be named after a
+// real host would leak where our capacity comes from, so the mirrored group is
+// scrubbed before it is served. Any path is consumed too, since a slug can name
+// the provider just as well as the host. Digits-only sequences (model versions
+// such as "2.5") do not match: the trailing label must be all letters.
+var hostnamePattern = regexp.MustCompile(
+	`(?i)\b(?:https?://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:/\S*)?|` +
+		`\b\d{1,3}(?:\.\d{1,3}){3}\b`,
+)
+
+// maskedHost is what a scrubbed address is replaced with. It keeps the monitor
+// readable ("源站 •••") instead of dropping the row.
+const maskedHost = "•••"
+
+// maskUpstreamIdentity removes host-shaped text from a mirrored status page.
+func maskUpstreamIdentity(group UptimeGroupResult) UptimeGroupResult {
+	for i := range group.Monitors {
+		group.Monitors[i].Name = hostnamePattern.ReplaceAllString(group.Monitors[i].Name, maskedHost)
+		group.Monitors[i].Group = hostnamePattern.ReplaceAllString(group.Monitors[i].Group, maskedHost)
+	}
+	return group
+}
+
 type Monitor struct {
 	Name   string  `json:"name"`
 	Uptime float64 `json:"uptime"`
@@ -216,6 +243,8 @@ func fetchUpstreamGroup(ctx context.Context, client *http.Client, baseURL string
 	upstreamStatusCache.Unlock()
 
 	group := fetchGroupData(ctx, client, baseURL, slug, categoryName)
+	// Scrub before caching so the masked form is what every later read serves.
+	group = maskUpstreamIdentity(group)
 	// Only an answer with monitors is worth caching; a failed scrape should be
 	// retried on the next load instead of pinning an empty panel for a minute.
 	if len(group.Monitors) > 0 {
