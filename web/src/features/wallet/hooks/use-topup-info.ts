@@ -55,7 +55,7 @@ function parseJsonArray(data: unknown): unknown[] {
   return []
 }
 
-function parsePaymentMethods(
+export function normalizeTopupPaymentMethods(
   data: unknown,
   stripeMinTopup: number
 ): PaymentMethod[] {
@@ -67,13 +67,25 @@ function parsePaymentMethods(
     .map((item) => {
       const rawMinTopup = Number(item.min_topup)
       const normalizedMinTopup = Number.isFinite(rawMinTopup) ? rawMinTopup : 0
+      const rawFee = Number(item.fee)
+      const rawFeeRate = Number(item.fee_rate)
       const type = typeof item.type === 'string' ? item.type : ''
+      const customName = typeof item.name === 'string' ? item.name.trim() : ''
 
       return {
-        name: typeof item.name === 'string' ? item.name : '',
+        name: customName || type,
         type,
         color: typeof item.color === 'string' ? item.color : undefined,
         icon: typeof item.icon === 'string' ? item.icon : undefined,
+        gateway:
+          typeof item.gateway === 'string' && item.gateway
+            ? item.gateway
+            : undefined,
+        fee: Number.isFinite(rawFee) && rawFee >= 0 ? rawFee : undefined,
+        fee_rate:
+          Number.isFinite(rawFeeRate) && rawFeeRate >= 0
+            ? rawFeeRate
+            : undefined,
         min_topup:
           type === 'stripe' && normalizedMinTopup <= 0
             ? stripeMinTopup
@@ -183,7 +195,7 @@ export function useTopupInfo() {
 
       const processedData: TopupInfo = {
         ...response.data,
-        pay_methods: parsePaymentMethods(
+        pay_methods: normalizeTopupPaymentMethods(
           response.data.pay_methods,
           response.data.stripe_min_topup
         ),

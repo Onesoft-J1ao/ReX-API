@@ -156,6 +156,15 @@ export const BILLING_VARS: BillingVar[] = [
     side: 'output',
     group: 'media',
   },
+  {
+    key: 'req',
+    field: 'requestPrice',
+    tierField: 'request_unit_cost',
+    label: 'Request price',
+    shortLabel: 'Request',
+    side: 'output',
+    group: 'request',
+  },
 ]
 
 /** Vars that have real price fields (excludes condition-only vars like `len`) */
@@ -188,6 +197,10 @@ export const BILLING_CACHE_VAR_MAP = BILLING_EXTRA_VARS.map((v) => ({
 export const SOURCE_PARAM = 'param'
 export const SOURCE_HEADER = 'header'
 export const SOURCE_TIME = 'time'
+export const SOURCE_IMAGE_RESOLUTION = 'image_resolution'
+
+export const IMAGE_RESOLUTIONS = ['1K', '2K', '4K', '8K'] as const
+export type ImageResolution = (typeof IMAGE_RESOLUTIONS)[number]
 
 export const MATCH_EQ = 'eq'
 export const MATCH_CONTAINS = 'contains'
@@ -237,7 +250,16 @@ export type TimeCondition = {
   rangeEnd: string
 }
 
-export type RequestCondition = TimeCondition | ParamHeaderCondition
+export type ImageResolutionCondition = {
+  source: 'image_resolution'
+  mode: 'eq'
+  value: ImageResolution
+}
+
+export type RequestCondition =
+  | TimeCondition
+  | ParamHeaderCondition
+  | ImageResolutionCondition
 
 export type RequestRuleGroup = {
   conditions: RequestCondition[]
@@ -440,6 +462,17 @@ function tryParseTimeCondition(expr: string): RequestCondition | null {
 function tryParseRequestCondition(expr: string): RequestCondition | null {
   const tc = tryParseTimeCondition(expr)
   if (tc) return tc
+
+  const resolutionMatch = expr.match(
+    /^image_resolution\(\) == "(1K|2K|4K|8K)"$/
+  )
+  if (resolutionMatch) {
+    return {
+      source: SOURCE_IMAGE_RESOLUTION,
+      mode: MATCH_EQ,
+      value: resolutionMatch[1] as ImageResolution,
+    }
+  }
 
   let m = expr.match(/^header\("([^"]+)"\) != ""$/)
   if (m) return { source: 'header', path: m[1], mode: MATCH_EXISTS, value: '' }
@@ -665,6 +698,14 @@ export function createEmptyTimeCondition(): TimeCondition {
   }
 }
 
+export function createEmptyImageResolutionCondition(): ImageResolutionCondition {
+  return {
+    source: SOURCE_IMAGE_RESOLUTION,
+    mode: MATCH_EQ,
+    value: '1K',
+  }
+}
+
 export function createEmptyRuleGroup(): RequestRuleGroup {
   return { conditions: [createEmptyCondition()], multiplier: '' }
 }
@@ -680,6 +721,9 @@ export function createEmptyTimeRuleGroup(): RequestRuleGroup {
 export type MatchOption = { value: string; labelKey: string }
 
 export function getRequestRuleMatchOptions(source: string): MatchOption[] {
+  if (source === SOURCE_IMAGE_RESOLUTION) {
+    return [{ value: MATCH_EQ, labelKey: 'Equals' }]
+  }
   if (source === SOURCE_TIME) {
     return [
       { value: MATCH_EQ, labelKey: 'Equals' },
@@ -714,7 +758,21 @@ function isTimeFunc(value: unknown): value is TimeFunc {
 export function normalizeCondition(
   cond: Partial<RequestCondition> | null | undefined
 ): RequestCondition {
-  let source: RequestCondition['source'] = 'param'
+  if (cond?.source === SOURCE_IMAGE_RESOLUTION) {
+    const resolutionCond = cond as Partial<ImageResolutionCondition>
+    const value = IMAGE_RESOLUTIONS.includes(
+      resolutionCond.value as ImageResolution
+    )
+      ? (resolutionCond.value as ImageResolution)
+      : '1K'
+    return {
+      source: SOURCE_IMAGE_RESOLUTION,
+      mode: MATCH_EQ,
+      value,
+    }
+  }
+
+  let source: 'time' | 'header' | 'param' = 'param'
   if (cond?.source === 'time') {
     source = 'time'
   } else if (cond?.source === 'header') {
@@ -800,6 +858,10 @@ function buildTimeConditionExpr(cond: TimeCondition): string {
 }
 
 function buildRequestConditionExpr(cond: RequestCondition): string {
+  if (cond.source === SOURCE_IMAGE_RESOLUTION) {
+    const normalized = normalizeCondition(cond) as ImageResolutionCondition
+    return `image_resolution() == ${JSON.stringify(normalized.value)}`
+  }
   if (cond.source === 'time') return buildTimeConditionExpr(cond)
   const normalized = normalizeCondition(cond) as ParamHeaderCondition
   const path = normalized.path.trim()

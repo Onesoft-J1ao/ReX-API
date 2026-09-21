@@ -3,8 +3,9 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
-	"slices"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,12 +13,14 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/playground_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -90,25 +93,54 @@ func GetOptions(c *gin.Context) {
 			continue
 		}
 		value := common.Interface2String(v)
-		isSensitiveKey := strings.HasSuffix(k, "Token") ||
+		if k == "EpayGateways" {
+			rawValue := value
+			value = "[]"
+			var gateways []operation_setting.EpayGateway
+			if common.Unmarshal([]byte(rawValue), &gateways) == nil {
+				for i := range gateways {
+					if gateways[i].Key != "" {
+						gateways[i].Key = common.SensitiveOptionPlaceholder
+					}
+				}
+				if redacted, err := common.Marshal(gateways); err == nil {
+					value = string(redacted)
+				}
+			}
+		}
+		isPublicSiteKey := strings.HasSuffix(k, "SiteKey")
+		isSensitiveKey := !isPublicSiteKey && (k == "MoneroWalletRPCPassword" || strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key")
+			strings.HasSuffix(k, "api_key"))
 		if isSensitiveKey {
+			// Return a sentinel instead of omitting the key entirely. The
+			// frontend uses this to distinguish "already configured" from
+			// "never set": a non-empty sentinel passes validation without
+			// revealing the actual secret, and the save loop skips it when
+			// the user has not typed a new value.
+			sentinel := ""
+			if value != "" {
+				sentinel = common.SensitiveOptionPlaceholder
+			}
+			options = append(options, &model.Option{Key: k, Value: sentinel})
 			continue
 		}
 		options = append(options, &model.Option{
 			Key:   k,
 			Value: value,
 		})
-		if slices.Contains(completionRatioMetaOptionKeys, k) {
-			optionValues[k] = value
+		for _, optionKey := range completionRatioMetaOptionKeys {
+			if optionKey == k {
+				optionValues[k] = value
+				break
+			}
 		}
 	}
 	common.OptionMapRWMutex.Unlock()
-	// Display the same effective expressions used by pricing and settlement,
-	// including built-in defaults absent from persisted administrator options.
+	// Expose the same effective expressions used by pricing and settlement,
+	// including built-in defaults that are intentionally not persisted.
 	for key, values := range map[string]map[string]string{
 		"billing_setting.billing_mode": billing_setting.GetBillingModeCopy(),
 		"billing_setting.billing_expr": billing_setting.GetBillingExprCopy(),
@@ -134,6 +166,72 @@ func GetOptions(c *gin.Context) {
 type OptionUpdateRequest struct {
 	Key   string `json:"key"`
 	Value any    `json:"value"`
+}
+
+type customTabOption struct {
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	URL      string `json:"url"`
+	Icon     string `json:"icon"`
+	Category string `json:"category"`
+	External bool   `json:"external"`
+}
+
+func isValidCustomTabURL(value string) bool {
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(value, "/") {
+		return true
+	}
+	parsedURL, err := url.ParseRequestURI(value)
+	return err == nil &&
+		(parsedURL.Scheme == "http" || parsedURL.Scheme == "https") &&
+		parsedURL.Host != ""
+}
+
+func syncCapDifficultyForOption(c *gin.Context, key, value string) error {
+	switch key {
+	case "CapServerURL", "CapAdminAPIKey", "CapSiteKey", "CapCheckinSiteKey", "LoginCaptchaDifficulty", "CheckinCaptchaDifficulty":
+	default:
+		return nil
+	}
+
+	serverURL := common.CapServerURL
+	apiKey := common.CapAdminAPIKey
+	loginSiteKey := common.CapSiteKey
+	checkinSiteKey := common.CapCheckinSiteKey
+	loginDifficulty := common.LoginCaptchaDifficulty
+	checkinDifficulty := common.CheckinCaptchaDifficulty
+
+	switch key {
+	case "CapServerURL":
+		serverURL = strings.TrimRight(strings.TrimSpace(value), "/")
+	case "CapAdminAPIKey":
+		apiKey = value
+	case "CapSiteKey":
+		loginSiteKey = value
+	case "CapCheckinSiteKey":
+		checkinSiteKey = value
+	case "LoginCaptchaDifficulty":
+		loginDifficulty, _ = strconv.Atoi(value)
+	case "CheckinCaptchaDifficulty":
+		checkinDifficulty, _ = strconv.Atoi(value)
+	}
+
+	if loginSiteKey != "" && loginSiteKey == checkinSiteKey && loginDifficulty != checkinDifficulty {
+		return fmt.Errorf("login and check-in require different Cap site keys when their difficulties differ")
+	}
+
+	switch key {
+	case "CapCheckinSiteKey", "CheckinCaptchaDifficulty":
+		return service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, checkinSiteKey, checkinDifficulty)
+	case "CapSiteKey", "LoginCaptchaDifficulty":
+		return service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, loginSiteKey, loginDifficulty)
+	default:
+		if err := service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, loginSiteKey, loginDifficulty); err != nil {
+			return err
+		}
+		return service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, checkinSiteKey, checkinDifficulty)
+	}
 }
 
 func UpdatePasskeyDomains(c *gin.Context) {
@@ -200,7 +298,254 @@ func UpdateOption(c *gin.Context) {
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
+	if err = console_setting.ValidatePublicOption(option.Key, option.Value.(string)); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	// Reject the read-only sentinel that GetOptions emits for already-set
+	// sensitive fields. The frontend skips unchanged password fields, but
+	// guard here as well so a stale client can never accidentally overwrite
+	// a real secret with the placeholder.
+	if option.Value == common.SensitiveOptionPlaceholder {
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+		return
+	}
+	if option.Key == "EpayGateways" {
+		var gateways []operation_setting.EpayGateway
+		if err := common.Unmarshal([]byte(option.Value.(string)), &gateways); err != nil {
+			common.ApiErrorMsg(c, "invalid Epay gateway configuration")
+			return
+		}
+		existing := make(map[string]string)
+		for _, gateway := range operation_setting.EpayGateways {
+			existing[gateway.ID] = gateway.Key
+		}
+		for i := range gateways {
+			if gateways[i].Key == common.SensitiveOptionPlaceholder {
+				existingKey, exists := existing[gateways[i].ID]
+				if !exists || existingKey == "" {
+					common.ApiErrorMsg(c, "masked Epay gateway key does not match an existing gateway")
+					return
+				}
+				gateways[i].Key = existingKey
+			}
+		}
+		encoded, marshalErr := common.Marshal(gateways)
+		if marshalErr != nil {
+			common.ApiError(c, marshalErr)
+			return
+		}
+		option.Value = string(encoded)
+	}
 	switch option.Key {
+	case "EmailVerificationTemplate":
+		err = common.ValidateEmailVerificationTemplate(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	case "CaptchaType":
+		if option.Value != "turnstile" && option.Value != "hcaptcha" && option.Value != "cap" {
+			common.ApiErrorMsg(c, "CaptchaType must be turnstile, hcaptcha, or cap")
+			return
+		}
+	case "checkin_setting.min_quota", "checkin_setting.max_quota", "checkin_setting.min_user_quota", "checkin_setting.min_used_quota", "checkin_setting.daily_user_limit", "checkin_setting.daily_quota_limit":
+		quota, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || quota < 0 {
+			common.ApiErrorMsg(c, "Check-in quota and limit settings must be non-negative integers")
+			return
+		}
+	case "checkin_setting.deductible_groups":
+		if len(strings.TrimSpace(option.Value.(string))) > 1024 {
+			common.ApiErrorMsg(c, "Check-in deductible groups is too long")
+			return
+		}
+	case "CapServerURL":
+		if option.Value != "" {
+			parsedURL, parseErr := url.ParseRequestURI(option.Value.(string))
+			if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+				common.ApiErrorMsg(c, "Cap server URL must be a valid HTTP or HTTPS URL")
+				return
+			}
+		}
+	case "WorkerMeshyImageProxyBaseURL":
+		if option.Value != "" {
+			parsedURL, parseErr := url.ParseRequestURI(strings.TrimSpace(option.Value.(string)))
+			if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+				common.ApiErrorMsg(c, "Meshy image proxy base URL must be a valid HTTP or HTTPS URL")
+				return
+			}
+		}
+	case "MoneroWalletRPCURL":
+		if option.Value != "" {
+			parsedURL, parseErr := url.ParseRequestURI(strings.TrimSpace(option.Value.(string)))
+			if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+				common.ApiErrorMsg(c, "Monero wallet RPC URL must be a valid HTTP or HTTPS URL")
+				return
+			}
+		}
+	case "MoneroNetwork":
+		if !setting.IsValidMoneroNetwork(option.Value.(string)) {
+			common.ApiErrorMsg(c, "Monero network must be mainnet, testnet, or stagenet")
+			return
+		}
+	case "MoneroConfirmations":
+		confirmations, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || confirmations < 1 || confirmations > 60 {
+			common.ApiErrorMsg(c, "Monero confirmations must be between 1 and 60")
+			return
+		}
+	case "MoneroMaxSubaddresses":
+		limit, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || limit < 1 || limit > 1000000 {
+			common.ApiErrorMsg(c, "Monero subaddress limit must be between 1 and 1000000")
+			return
+		}
+	case "MoneroUSDToCurrencyRate":
+		rate, parseErr := strconv.ParseFloat(option.Value.(string), 64)
+		if parseErr != nil || math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0 {
+			common.ApiErrorMsg(c, "Monero USD to system currency rate must be a non-negative finite number")
+			return
+		}
+	case "NowPaymentsAPIBaseURL":
+		parsedURL, parseErr := url.ParseRequestURI(strings.TrimSpace(option.Value.(string)))
+		if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+			common.ApiErrorMsg(c, "NOWPayments API base URL must be a valid HTTP or HTTPS URL")
+			return
+		}
+	case "NowPaymentsPayCurrencies":
+		value := strings.TrimSpace(option.Value.(string))
+		if value == "" || len(value) > 2048 {
+			common.ApiErrorMsg(c, "NOWPayments currencies must be a non-empty comma-separated list")
+			return
+		}
+		seen := make(map[string]struct{})
+		for _, rawCurrency := range strings.Split(value, ",") {
+			currency := strings.ToLower(strings.TrimSpace(rawCurrency))
+			if currency == "" || len(currency) > 32 {
+				common.ApiErrorMsg(c, "NOWPayments currency codes must be between 1 and 32 characters")
+				return
+			}
+			for _, character := range currency {
+				if (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '_' && character != '-' {
+					common.ApiErrorMsg(c, "NOWPayments currency codes may only contain letters, numbers, underscores, and hyphens")
+					return
+				}
+			}
+			if _, exists := seen[currency]; exists {
+				common.ApiErrorMsg(c, "NOWPayments currency codes must not be duplicated")
+				return
+			}
+			seen[currency] = struct{}{}
+			if len(seen) > 50 {
+				common.ApiErrorMsg(c, "NOWPayments supports at most 50 configured currencies")
+				return
+			}
+		}
+	case "NowPaymentsMinTopUp":
+		minimum, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || minimum < 0 || minimum > common.MaxWalletQuota {
+			common.ApiErrorMsg(c, "NOWPayments minimum top-up must be a supported non-negative integer")
+			return
+		}
+	case "NowPaymentsUSDToCurrencyRate":
+		rate, parseErr := strconv.ParseFloat(option.Value.(string), 64)
+		if parseErr != nil || math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0 {
+			common.ApiErrorMsg(c, "NOWPayments USD to system currency rate must be a non-negative finite number")
+			return
+		}
+	case "NowPaymentsPaymentExpirationMins":
+		minutes, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || minutes < 5 || minutes > 1440 {
+			common.ApiErrorMsg(c, "NOWPayments payment expiration must be between 5 and 1440 minutes")
+			return
+		}
+	case "WaffoPancakeUSDToCurrencyRate":
+		rate, parseErr := strconv.ParseFloat(option.Value.(string), 64)
+		if parseErr != nil || math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0 {
+			common.ApiErrorMsg(c, "Waffo Pancake USD to system currency rate must be a non-negative finite number")
+			return
+		}
+	case "WorkerMeshyImageProxyEnabled":
+		if option.Value == "true" && (strings.TrimSpace(system_setting.WorkerMeshyImageProxyBaseURL) == "" || strings.TrimSpace(system_setting.WorkerMeshyImageProxyAPIKey) == "") {
+			common.ApiErrorMsg(c, "Configure the Meshy image proxy base URL and API key before enabling it")
+			return
+		}
+	case "LoginCaptchaDifficulty", "CheckinCaptchaDifficulty":
+		difficulty, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || difficulty < 1 || difficulty > 8 {
+			common.ApiErrorMsg(c, "Cap difficulty must be between 1 and 8")
+			return
+		}
+	case "PaymentAnnouncement":
+		if len(option.Value.(string)) > 50000 {
+			common.ApiErrorMsg(c, "Payment announcement is too long")
+			return
+		}
+	case "StatusCheckAnnouncement":
+		if len(option.Value.(string)) > 50000 {
+			common.ApiErrorMsg(c, "Status check announcement is too long")
+			return
+		}
+	case "CustomTabs":
+		var tabs []customTabOption
+		if err = common.UnmarshalJsonStr(option.Value.(string), &tabs); err != nil || len(tabs) > 50 {
+			common.ApiErrorMsg(c, "Invalid custom tabs configuration")
+			return
+		}
+		validCategories := map[string]bool{"chat": true, "general": true, "personal": true, "admin": true}
+		for _, tab := range tabs {
+			if strings.TrimSpace(tab.ID) == "" || strings.TrimSpace(tab.Label) == "" || len(tab.Label) > 80 || len(tab.URL) > 2048 || len(tab.Icon) > 64 || !validCategories[tab.Category] {
+				common.ApiErrorMsg(c, "Invalid custom tab entry")
+				return
+			}
+			if !isValidCustomTabURL(tab.URL) {
+				common.ApiErrorMsg(c, "Custom tab URLs must start with / or use HTTP or HTTPS")
+				return
+			}
+		}
+	case "StatusCheckGroups", "StatusCheckCacheExcludedModels":
+		var values []string
+		if err = common.UnmarshalJsonStr(option.Value.(string), &values); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "status check configuration must be a JSON string array",
+			})
+			return
+		}
+		maxEntries := 500
+		if option.Key == "StatusCheckGroups" {
+			maxEntries = 100
+		}
+		if len(values) > maxEntries {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("status check configuration cannot exceed %d entries", maxEntries),
+			})
+			return
+		}
+		for _, value := range values {
+			if strings.TrimSpace(value) == "" || len(value) > 256 {
+				common.ApiErrorMsg(c, "status check entries must be non-empty and at most 256 characters")
+				return
+			}
+		}
+	case "StatusCheckFlexibleMode":
+		if _, err = perfmetrics.ParseStatusCheckFlexibleConfig(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	case "PlaygroundSettings":
+		if err = playground_setting.ValidateJSONString(option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
@@ -281,12 +626,51 @@ func UpdateOption(c *gin.Context) {
 
 			return
 		}
+	case "HCaptchaEnabled":
+		if option.Value == "true" && (common.HCaptchaSiteKey == "" || common.HCaptchaSecretKey == "") {
+			common.ApiErrorMsg(c, "Configure the hCaptcha site key and secret before enabling hCaptcha")
+			return
+		}
+	case "CapEnabled":
+		if option.Value == "true" && (common.CapServerURL == "" || common.CapSiteKey == "" || common.CapSecretKey == "" || common.CapAdminAPIKey == "") {
+			common.ApiErrorMsg(c, "Configure the Cap server, API key, login site key, and secret before enabling Cap")
+			return
+		}
+	case "ForceCheckinCaptcha":
+		if option.Value == "true" {
+			if common.CaptchaType == "cap" && (!common.CapEnabled || common.CapCheckinSiteKey == "" || common.CapCheckinSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable the Cap check-in site key before forcing check-in captcha")
+				return
+			}
+			if common.CaptchaType == "hcaptcha" && (!common.HCaptchaEnabled || common.HCaptchaSiteKey == "" || common.HCaptchaSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable hCaptcha before forcing check-in captcha")
+				return
+			}
+			if common.CaptchaType == "turnstile" && !common.TurnstileCheckEnabled {
+				common.ApiErrorMsg(c, "Enable Turnstile before forcing check-in captcha")
+				return
+			}
+		}
+	case "ForceRedemptionCaptcha":
+		if option.Value == "true" {
+			if common.CaptchaType == "cap" && (!common.CapEnabled || common.CapSiteKey == "" || common.CapSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable the Cap login site key before forcing redemption captcha")
+				return
+			}
+			if common.CaptchaType == "hcaptcha" && (!common.HCaptchaEnabled || common.HCaptchaSiteKey == "" || common.HCaptchaSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable hCaptcha before forcing redemption captcha")
+				return
+			}
+			if common.CaptchaType == "turnstile" && (!common.TurnstileCheckEnabled || common.TurnstileSiteKey == "" || common.TurnstileSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable Turnstile before forcing redemption captcha")
+				return
+			}
+		}
 	case "TelegramOAuthEnabled":
-		if option.Value == "true" && !system_setting.GetTelegramSettings().IsConfigured() {
+		if option.Value == "true" && common.TelegramBotToken == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"code":    "TELEGRAM_OAUTH_NOT_CONFIGURED",
-				"message": "Telegram OAuth is not configured or enabled. Please contact your administrator.",
+				"message": "无法启用 Telegram OAuth，请先填入 Telegram Bot Token！",
 			})
 			return
 		}
@@ -307,8 +691,26 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "GroupDefaultModel":
+		err = ratio_setting.CheckGroupModelMap(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "gemini.safety_settings":
 		err = model_setting.ValidateGeminiSafetySettings(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	case "GroupRetryTimes":
+		err = ratio_setting.CheckGroupRetryTimes(option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -481,6 +883,10 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	}
+	if err = syncCapDifficultyForOption(c, option.Key, option.Value.(string)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if model.IsPasskeyDomainOption(option.Key) {
 		change, updateErr := model.UpdatePasskeyDomainOptions(map[string]string{option.Key: option.Value.(string)}, false, "")
 		if updateErr != nil {
@@ -502,7 +908,7 @@ func UpdateOption(c *gin.Context) {
 		return
 	}
 	// 出于安全考虑只记录被修改的配置项名称，不记录配置值（可能含密钥等敏感信息）。
-	recordManageAudit(c, "option.update", map[string]any{
+	recordManageAudit(c, "option.update", map[string]interface{}{
 		"key": option.Key,
 	})
 	c.JSON(http.StatusOK, gin.H{

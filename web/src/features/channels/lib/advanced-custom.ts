@@ -62,6 +62,11 @@ export const ADVANCED_CUSTOM_CONVERTER_OPTIONS: Array<{
     triggerLabel: 'To OpenAI Chat',
   },
   {
+    value: 'openai_responses_to_anthropic_messages',
+    label: 'OpenAI Responses to Anthropic Messages',
+    triggerLabel: 'To Anthropic Messages',
+  },
+  {
     value: 'openai_responses_to_gemini_generate_content',
     label: 'OpenAI Responses to Gemini Generate Content',
     triggerLabel: 'To Gemini Generate Content',
@@ -452,7 +457,10 @@ export function getAdvancedCustomConverterDefaults(
   if (converter === 'openai_chat_completions_to_openai_responses') {
     return { upstream_path: openAIResponsesPath, auth: bearerHeaderAuth() }
   }
-  if (converter === 'openai_chat_completions_to_anthropic_messages') {
+  if (
+    converter === 'openai_chat_completions_to_anthropic_messages' ||
+    converter === 'openai_responses_to_anthropic_messages'
+  ) {
     return { upstream_path: claudeMessagesPath, auth: apiKeyHeaderAuth() }
   }
   if (
@@ -507,6 +515,12 @@ export function isAdvancedCustomIncomingPathAllowed(
   converter: AdvancedCustomConverter
 ): boolean {
   return isConverterPathAllowed(incomingPath, converter)
+}
+
+export function isAdvancedCustomPassThroughAllowed(
+  converter: AdvancedCustomConverter
+): boolean {
+  return converter === 'none'
 }
 
 export function getAdvancedCustomConverterOptions(
@@ -656,6 +670,12 @@ export function validateAdvancedCustomConfig(
           message: `${routeLabel} upstream path must not contain {model}`,
         }
       }
+      if (route.pass_through_body_enabled) {
+        return {
+          routeIndex: index,
+          message: `${routeLabel} route does not support pass-through`,
+        }
+      }
     }
     const routeModelsError = validateAdvancedCustomRouteModels(
       index,
@@ -683,6 +703,15 @@ export function validateAdvancedCustomConfig(
       return {
         routeIndex: index,
         message: 'Converter does not match incoming path',
+      }
+    }
+    if (
+      route.pass_through_body_enabled &&
+      !isAdvancedCustomPassThroughAllowed(converter)
+    ) {
+      return {
+        routeIndex: index,
+        message: 'Pass-through requires native forwarding',
       }
     }
 
@@ -780,6 +809,9 @@ function normalizeAdvancedCustomRoute(
   const models = normalizeAdvancedCustomRouteModels(route.models)
   if (models.length > 0) {
     nextRoute.models = models
+  }
+  if (route.pass_through_body_enabled === true) {
+    nextRoute.pass_through_body_enabled = true
   }
   if (route.auth) {
     nextRoute.auth = {
@@ -910,10 +942,11 @@ function isConverterPathAllowed(
   ) {
     return incomingPath === '/v1/chat/completions'
   }
-  if (converter === 'openai_responses_to_openai_chat_completions') {
-    return incomingPath === '/v1/responses'
-  }
-  if (converter === 'openai_responses_to_gemini_generate_content') {
+  if (
+    converter === 'openai_responses_to_openai_chat_completions' ||
+    converter === 'openai_responses_to_anthropic_messages' ||
+    converter === 'openai_responses_to_gemini_generate_content'
+  ) {
     return incomingPath === '/v1/responses'
   }
   return (

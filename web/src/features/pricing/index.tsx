@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+import { useSystemConfig } from '@/hooks/use-system-config'
 
 import {
   LoadingSkeleton,
@@ -32,12 +33,13 @@ import {
   ModelCardGrid,
   ModelDetailsDrawer,
 } from './components'
-import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
+import { EXCLUDED_GROUPS, FILTER_ALL, VIEW_MODES } from './constants'
 import { useFilters } from './hooks/use-filters'
 import { usePricingData } from './hooks/use-pricing-data'
 
 export function Pricing() {
   const { t } = useTranslation()
+  const { appearance } = useSystemConfig()
   const [selectedModelName, setSelectedModelName] = useState<string | null>(
     null
   )
@@ -47,6 +49,8 @@ export function Pricing() {
     vendors,
     groupRatio,
     usableGroup,
+    modelSquareGroupDescriptions,
+    modelSquareGroups,
     endpointMap,
     autoGroups,
     isLoading,
@@ -81,7 +85,7 @@ export function Pricing() {
     availableTags,
     clearFilters,
     clearSearch,
-  } = useFilters(models || [])
+  } = useFilters(models || [], appearance.modelSquareDefaultView)
 
   const handleModelClick = useCallback((modelName: string) => {
     setSelectedModelName(modelName)
@@ -99,16 +103,28 @@ export function Pricing() {
 
   const availableGroups = useMemo(
     () =>
-      Object.keys(usableGroup || {}).filter(
-        (g) => !EXCLUDED_GROUPS.includes(g)
-      ),
-    [usableGroup]
+      [
+        ...new Set([
+          ...Object.keys(usableGroup || {}),
+          ...(modelSquareGroups || []),
+        ]),
+      ].filter((g) => !EXCLUDED_GROUPS.includes(g)),
+    [modelSquareGroups, usableGroup]
   )
 
   const handleClearAll = useCallback(() => {
     clearFilters()
     clearSearch()
   }, [clearFilters, clearSearch])
+
+  const selectedGroupDescription =
+    groupFilter !== FILTER_ALL
+      ? (
+          usableGroup[groupFilter]?.desc ||
+          modelSquareGroupDescriptions[groupFilter] ||
+          ''
+        ).trim()
+      : ''
 
   const renderPricingContent = () => {
     if (filteredModels.length === 0) {
@@ -131,6 +147,7 @@ export function Pricing() {
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
+          pageSize={appearance.modelSquareCardPageSize}
         />
       )
     }
@@ -144,13 +161,14 @@ export function Pricing() {
         showRechargePrice={showRechargePrice}
         selectedGroup={groupFilter}
         onModelClick={handleModelClick}
+        pageSize={appearance.modelSquareTablePageSize}
       />
     )
   }
 
   if (isLoading) {
     return (
-      <PublicLayout showMainContainer={false}>
+      <PublicLayout showMainContainer={false} backgroundMode='hero'>
         <div className='mx-auto w-full max-w-[1800px] px-4 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10'>
           <LoadingSkeleton viewMode={viewMode} />
         </div>
@@ -159,7 +177,7 @@ export function Pricing() {
   }
 
   return (
-    <PublicLayout showMainContainer={false}>
+    <PublicLayout showMainContainer={false} backgroundMode='hero'>
       <div className='relative'>
         <div
           aria-hidden
@@ -256,6 +274,17 @@ export function Pricing() {
                 onClearFilters={clearFilters}
               />
 
+              {selectedGroupDescription && (
+                <div className='border-border/70 bg-muted/20 rounded-lg border px-4 py-3'>
+                  <div className='text-muted-foreground mb-1 text-xs font-medium uppercase'>
+                    {t('Group description')}
+                  </div>
+                  <p className='text-foreground text-sm leading-relaxed break-words whitespace-pre-wrap'>
+                    {selectedGroupDescription}
+                  </p>
+                </div>
+              )}
+
               {renderPricingContent()}
             </main>
           </div>
@@ -269,6 +298,7 @@ export function Pricing() {
               model={selectedModel}
               groupRatio={groupRatio || {}}
               usableGroup={usableGroup || {}}
+              modelSquareGroups={modelSquareGroups || []}
               endpointMap={
                 (endpointMap as Record<
                   string,

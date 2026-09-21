@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -13,10 +14,11 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
+	"github.com/QuantumNous/new-api/setting/playground_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
@@ -75,6 +77,23 @@ func GetStatus(c *gin.Context) {
 		"turnstile_site_key":          common.TurnstileSiteKey,
 		"phantom_check":               common.PhantomCheckEnabled,
 		"phantom_service_url":         common.PhantomServiceURL,
+		"hcaptcha_check":              common.HCaptchaEnabled,
+		"hcaptcha_site_key":           common.HCaptchaSiteKey,
+		"cap_enabled":                 common.CapEnabled,
+		"cap_api_endpoint":            buildCapEndpoint(common.CapServerURL, common.CapSiteKey),
+		"cap_checkin_api_endpoint":    buildCapEndpoint(common.CapServerURL, common.CapCheckinSiteKey),
+		"captcha_type":                common.CaptchaType,
+		"login_captcha_difficulty":    common.LoginCaptchaDifficulty,
+		"checkin_captcha_difficulty":  common.CheckinCaptchaDifficulty,
+		"force_checkin_captcha":       common.ForceCheckinCaptcha,
+		"force_redemption_captcha":    common.ForceRedemptionCaptcha,
+		"custom_tabs":                 common.CustomTabs,
+		"status_check_announcement":   common.StatusCheckAnnouncement,
+		"playground":                  playground_setting.Get(),
+		"notice_popup_enabled":        common.NoticePopupEnabled,
+		"notice_popup_mode":           common.NoticePopupMode,
+		"notice_popup_on_dashboard":   common.NoticePopupOnDashboardEnabled,
+		"notice_header_button_mode":   common.NoticeHeaderButtonMode,
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit":              common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
@@ -87,6 +106,7 @@ func GetStatus(c *gin.Context) {
 		"enable_task":                   common.TaskEnabled,
 		"enable_data_export":            common.DataExportEnabled,
 		"data_export_default_time":      common.DataExportDefaultTime,
+		"perf_metrics_bucket_time":      perf_metrics_setting.GetSetting().BucketTime,
 		"default_collapse_sidebar":      common.DefaultCollapseSidebar,
 		"mj_notify_enabled":             setting.MjNotifyEnabled,
 		"chats":                         setting.Chats,
@@ -96,6 +116,10 @@ func GetStatus(c *gin.Context) {
 		"password_login_enabled":        common.PasswordLoginEnabled,
 		"password_register_enabled":     common.PasswordRegisterEnabled,
 		"default_use_auto_group":        setting.DefaultUseAutoGroup,
+		"support_enabled":               common.SupportEnabled,
+		"site_appearance":               console_setting.GetAppearanceSetting(),
+		"homepage":                      console_setting.GetHomepageSetting(),
+		"spa_meta":                      console_setting.GetSPAMetaSetting(),
 
 		"password_login_encryption_enabled": common.PasswordLoginEncryptionEnabled,
 
@@ -133,6 +157,11 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		"checkin_min_user_quota":      operation_setting.GetCheckinSetting().MinUserQuota,
+		"checkin_min_used_quota":      operation_setting.GetCheckinSetting().MinUsedQuota,
+		"checkin_daily_user_limit":    operation_setting.GetCheckinSetting().DailyUserLimit,
+		"checkin_daily_quota_limit":   operation_setting.GetCheckinSetting().DailyQuotaLimit,
+		"checkin_deductible_groups":   operation_setting.GetCheckinSetting().DeductibleGroups,
 	}
 
 	// 根据启用状态注入可选内容
@@ -184,26 +213,53 @@ func GetStatus(c *gin.Context) {
 	return
 }
 
+func buildCapEndpoint(serverURL, siteKey string) string {
+	serverURL = strings.TrimRight(strings.TrimSpace(serverURL), "/")
+	siteKey = strings.TrimSpace(siteKey)
+	if serverURL == "" || siteKey == "" {
+		return ""
+	}
+	return serverURL + "/" + siteKey + "/"
+}
+
 func GetNotice(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
-	notice := common.OptionMap["Notice"]
-	common.OptionMapRWMutex.RUnlock()
-	serveRevalidatedJSON(c, notice)
+	defer common.OptionMapRWMutex.RUnlock()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    common.OptionMap["Notice"],
+	})
+	return
 }
 
 func GetAbout(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
-	about := common.OptionMap["About"]
-	common.OptionMapRWMutex.RUnlock()
-	serveRevalidatedJSON(c, about)
+	defer common.OptionMapRWMutex.RUnlock()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    common.OptionMap["About"],
+	})
+	return
 }
 
 func GetUserAgreement(c *gin.Context) {
-	serveRevalidatedJSON(c, system_setting.GetLegalSettings().UserAgreement)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    system_setting.GetLegalSettings().UserAgreement,
+	})
+	return
 }
 
 func GetPrivacyPolicy(c *gin.Context) {
-	serveRevalidatedJSON(c, system_setting.GetLegalSettings().PrivacyPolicy)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    system_setting.GetLegalSettings().PrivacyPolicy,
+	})
+	return
 }
 
 func GetMidjourney(c *gin.Context) {
@@ -219,9 +275,13 @@ func GetMidjourney(c *gin.Context) {
 
 func GetHomePageContent(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
-	homePageContent := common.OptionMap["HomePageContent"]
-	common.OptionMapRWMutex.RUnlock()
-	serveRevalidatedJSON(c, homePageContent)
+	defer common.OptionMapRWMutex.RUnlock()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    common.OptionMap["HomePageContent"],
+	})
+	return
 }
 
 func GetLandingModels(c *gin.Context) {
@@ -236,10 +296,46 @@ func GetLandingModels(c *gin.Context) {
 }
 
 func SendEmailVerification(c *gin.Context) {
-	email, err := service.ValidateAccountEmail(c.Query("email"))
-	if err != nil {
-		writeSecurityOperationError(c, err)
+	email := model.NormalizeEmail(c.Query("email"))
+	if err := common.Validate.Var(email, "required,email"); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
+	}
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的邮箱地址",
+		})
+		return
+	}
+	localPart := parts[0]
+	domainPart := parts[1]
+	if common.EmailDomainRestrictionEnabled {
+		allowed := false
+		for _, domain := range common.EmailDomainWhitelist {
+			if domainPart == domain {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.",
+			})
+			return
+		}
+	}
+	if common.EmailAliasRestrictionEnabled {
+		containsSpecialSymbols := strings.Contains(localPart, "+") || strings.Contains(localPart, ".")
+		if containsSpecialSymbols {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "管理员已启用邮箱地址别名限制，您的邮箱地址由于包含特殊符号而被拒绝。",
+			})
+			return
+		}
 	}
 
 	if model.IsEmailAlreadyTaken(email) {
@@ -247,11 +343,13 @@ func SendEmailVerification(c *gin.Context) {
 		return
 	}
 	code := common.GenerateVerificationCode(6)
+	content, err := common.RenderEmailVerificationTemplate(code)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
 	subject := fmt.Sprintf("%s邮箱验证邮件", common.SystemName)
-	content := fmt.Sprintf("<p>您好，你正在进行%s邮箱验证。</p>"+
-		"<p>您的验证码为: <strong>%s</strong></p>"+
-		"<p>验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, code, common.VerificationValidMinutes)
 	err = common.SendEmail(subject, email, content)
 	if err != nil {
 		common.ApiError(c, err)

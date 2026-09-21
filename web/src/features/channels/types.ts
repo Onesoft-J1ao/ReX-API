@@ -30,6 +30,17 @@ export const channelInfoSchema = z.object({
   multi_key_disabled_time: z.record(z.string(), z.number()).optional(),
   multi_key_polling_index: z.number().default(0),
   multi_key_mode: z.enum(['random', 'polling']).default('random'),
+  multi_key_disable_rules: z
+    .array(
+      z.object({
+        status_code: z.number().optional(),
+        message: z.string().optional(),
+      })
+    )
+    .optional(),
+  multi_key_auto_retry: z.boolean().optional(),
+  multi_key_auto_recovery: z.boolean().optional(),
+  multi_key_recovery_interval_minutes: z.number().optional(),
 })
 
 export type ChannelInfo = z.infer<typeof channelInfoSchema>
@@ -83,15 +94,23 @@ export interface ChannelSettings {
   task_plugin_key?: string
   force_format?: boolean
   thinking_to_content?: boolean
+  use_responses_api?: boolean
+  responses_to_chat_completions?: boolean
+  fake_non_stream?: boolean
+  simulate_remote_compact_v2?: boolean
+  proxy_image_urls?: boolean
   proxy?: string
   pass_through_body_enabled?: boolean
+  responses_websocket_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  stream_first_response_timeout?: number
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
 }
 
 export interface ChannelOtherSettings {
+  agnes_auto_image_url?: boolean
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'
   openrouter_enterprise?: boolean
@@ -103,6 +122,8 @@ export interface ChannelOtherSettings {
   allow_inference_geo?: boolean
   allow_speed?: boolean
   claude_beta_query?: boolean
+  claude_cache_control?: boolean
+  ollama_openai_chat?: boolean
   disable_task_polling_sleep?: boolean
   upstream_model_update_check_enabled?: boolean
   upstream_model_update_auto_sync_enabled?: boolean
@@ -122,6 +143,7 @@ export interface AdvancedCustomRoute {
   converter?: AdvancedCustomConverter
   models?: string[]
   auth?: AdvancedCustomRouteAuth
+  pass_through_body_enabled?: boolean
 }
 
 export interface AdvancedCustomRouteAuth {
@@ -136,6 +158,7 @@ export type AdvancedCustomConverter =
   | 'openai_chat_completions_to_anthropic_messages'
   | 'openai_chat_completions_to_openai_responses'
   | 'openai_responses_to_openai_chat_completions'
+  | 'openai_responses_to_anthropic_messages'
   | 'openai_responses_to_gemini_generate_content'
   | 'gemini_generate_content_to_openai_chat_completions'
   | 'openai_chat_completions_to_gemini_generate_content'
@@ -179,6 +202,10 @@ export interface ChannelOpsResponse {
   message?: string
   data?: {
     retry_times: number
+    request_policy?: {
+      automatic_disable: boolean
+      source: string
+    }
   }
 }
 
@@ -250,7 +277,14 @@ export interface MultiKeyStatusResponse {
     enabled_count: number
     manual_disabled_count: number
     auto_disabled_count: number
+    disable_rules?: MultiKeyDisableRule[]
+    auto_retry?: boolean
   }
+}
+
+export interface MultiKeyDisableRule {
+  status_code?: number
+  message?: string
 }
 
 // ============================================================================
@@ -312,10 +346,13 @@ export interface MultiKeyManageParams {
     | 'disable_all_keys'
     | 'delete_key'
     | 'delete_disabled_keys'
+    | 'update_rules'
   key_index?: number
   page?: number
   page_size?: number
   status?: number // 1=enabled, 2=manual_disabled, 3=auto_disabled
+  disable_rules?: MultiKeyDisableRule[]
+  auto_retry?: boolean
 }
 
 export interface BatchDeleteParams {

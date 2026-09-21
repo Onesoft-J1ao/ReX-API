@@ -142,6 +142,18 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       minSize: 260,
     },
     {
+      id: 'rpm',
+      accessorKey: 'rpm',
+      header: t('RPM (last 60s)'),
+      cell: ({ row }) => (
+        <span className='font-medium tabular-nums'>
+          {row.original.rpm ?? 0}
+        </span>
+      ),
+      size: 120,
+      meta: { mobileHidden: true },
+    },
+    {
       accessorKey: 'group',
       header: t('Group'),
       cell: ({ row }) => {

@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -91,13 +92,30 @@ func Login(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		case errors.Is(err, model.ErrUserEmptyCredentials):
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		case errors.Is(err, model.ErrUserDisabled):
+			writeUserBannedResponse(c)
 		default:
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 		}
 		return
 	}
 
-	setupLogin(&user, c)
+	setupLogin(&user, nil, c)
+}
+
+// writeUserBannedResponse keeps the disabled-account contract consistent for
+// password, OAuth, and third-party login handlers. Administrators may provide
+// trusted HTML; clients still receive a boolean marker for a dedicated dialog.
+func writeUserBannedResponse(c *gin.Context) {
+	html := strings.TrimSpace(common.UserBannedMessage)
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": i18n.T(c, i18n.MsgAuthUserBanned),
+		"data": gin.H{
+			"banned": true,
+			"html":   html,
+		},
+	})
 }
 
 // loginMethodFromContext 根据请求路径推导登录方式，用于登录审计日志。
@@ -145,9 +163,11 @@ func recordLoginAudit(user *model.User, c *gin.Context) {
 }
 
 // setupLogin evaluates the shared login policy after primary authentication.
-// Only a completed Passkey ceremony may go directly to session issuance.
-func setupLogin(user *model.User, c *gin.Context) {
-	challenge, err := service.StartLoginVerification(user, loginMethodFromContext(c))
+// Only a completed Passkey ceremony may go directly to session issuance. A
+// pending legacy GitHub binding rewrite travels inside the challenge and is
+// written only when the verification completes.
+func setupLogin(user *model.User, migration *service.LegacyGitHubMigration, c *gin.Context) {
+	challenge, err := service.StartLoginVerification(user, loginMethodFromContext(c), migration)
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
@@ -161,13 +181,24 @@ func setupLogin(user *model.User, c *gin.Context) {
 }
 
 func setupLoginAtAuthVersion(user *model.User, expectedAuthVersion int64, c *gin.Context) {
-	if user == nil || user.Id <= 0 || user.Status != common.UserStatusEnabled {
+	if user == nil || user.Id <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgAuthUserBanned)
 		return
+	}
+	if user.Status != common.UserStatusEnabled {
+		writeUserBannedResponse(c)
+		return
+	}
+	if err := oauth.RefreshGitHubCreatedAt(c.Request.Context(), user); err != nil {
+		common.SysError(fmt.Sprintf("failed to refresh GitHub registration time for user %d: %s", user.Id, err.Error()))
 	}
 	currentUser, err := model.GetSelfUserById(user.Id)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if currentUser.Status != common.UserStatusEnabled {
+		writeUserBannedResponse(c)
 		return
 	}
 	var bundle *service.AuthBundle
@@ -289,6 +320,7 @@ func Register(c *gin.Context) {
 		DisplayName: user.Username,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		RegisterIp:  c.ClientIP(),
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
@@ -448,25 +480,15 @@ func TransferAffQuota(c *gin.Context) {
 
 func GetAffCode(c *gin.Context) {
 	id := c.GetInt("id")
-	user, err := model.GetUserById(id, true)
+	affCode, err := model.EnsureUserAffCode(id)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if user.AffCode == "" {
-		user.AffCode = common.GetRandomString(4)
-		if err := user.Update(false); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
-			return
-		}
-	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    user.AffCode,
+		"data":    affCode,
 	})
 	return
 }
@@ -511,6 +533,7 @@ func buildSelfUserData(user *model.User) map[string]any {
 		"status":            user.Status,
 		"email":             user.Email,
 		"github_id":         user.GitHubId,
+		"github_created_at": user.GitHubCreatedAt,
 		"discord_id":        user.DiscordId,
 		"oidc_id":           user.OidcId,
 		"wechat_id":         user.WeChatId,
@@ -533,26 +556,26 @@ func buildSelfUserData(user *model.User) map[string]any {
 }
 
 // 计算用户权限的辅助函数
-func calculateUserPermissions(userRole int) map[string]any {
-	permissions := map[string]any{}
+func calculateUserPermissions(userRole int) map[string]interface{} {
+	permissions := map[string]interface{}{}
 
 	// 根据用户角色计算权限
 	if userRole == common.RoleRootUser {
 		// 超级管理员不需要边栏设置功能
 		permissions["sidebar_settings"] = false
-		permissions["sidebar_modules"] = map[string]any{}
+		permissions["sidebar_modules"] = map[string]interface{}{}
 	} else if userRole == common.RoleAdminUser {
 		// 管理员可以设置边栏，但不包含系统设置功能
 		permissions["sidebar_settings"] = true
-		permissions["sidebar_modules"] = map[string]any{
-			"admin": map[string]any{
+		permissions["sidebar_modules"] = map[string]interface{}{
+			"admin": map[string]interface{}{
 				"setting": false, // 管理员不能访问系统设置
 			},
 		}
 	} else {
 		// 普通用户只能设置个人功能，不包含管理员区域
 		permissions["sidebar_settings"] = true
-		permissions["sidebar_modules"] = map[string]any{
+		permissions["sidebar_modules"] = map[string]interface{}{
 			"admin": false, // 普通用户不能访问管理员区域
 		}
 	}
@@ -562,19 +585,20 @@ func calculateUserPermissions(userRole int) map[string]any {
 
 // 根据用户角色生成默认的边栏配置
 func generateDefaultSidebarConfig(userRole int) string {
-	defaultConfig := map[string]any{}
+	defaultConfig := map[string]interface{}{}
 
 	// 聊天区域 - 所有用户都可以访问
-	defaultConfig["chat"] = map[string]any{
+	defaultConfig["chat"] = map[string]interface{}{
 		"enabled":    true,
 		"playground": true,
 		"chat":       true,
 	}
 
 	// 控制台区域 - 所有用户都可以访问
-	defaultConfig["console"] = map[string]any{
+	defaultConfig["console"] = map[string]interface{}{
 		"enabled":    true,
 		"detail":     true,
+		"status":     true,
 		"token":      true,
 		"log":        true,
 		"midjourney": true,
@@ -582,7 +606,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 	}
 
 	// 个人中心区域 - 所有用户都可以访问
-	defaultConfig["personal"] = map[string]any{
+	defaultConfig["personal"] = map[string]interface{}{
 		"enabled":  true,
 		"topup":    true,
 		"personal": true,
@@ -591,7 +615,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 	// 管理员区域 - 根据角色决定
 	if userRole == common.RoleAdminUser {
 		// 管理员可以访问管理员区域，但不能访问系统设置
-		defaultConfig["admin"] = map[string]any{
+		defaultConfig["admin"] = map[string]interface{}{
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
@@ -601,7 +625,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 		}
 	} else if userRole == common.RoleRootUser {
 		// 超级管理员可以访问所有功能
-		defaultConfig["admin"] = map[string]any{
+		defaultConfig["admin"] = map[string]interface{}{
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
@@ -632,7 +656,7 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
+	groups := service.GetUserUsableGroupsForUser(id, user.Group)
 	group := c.Query("group")
 	var groupsToQuery []string
 	switch {
@@ -641,9 +665,9 @@ func GetUserModels(c *gin.Context) {
 			groupsToQuery = append(groupsToQuery, g)
 		}
 	case group == "auto":
-		if _, ok := groups[group]; ok {
-			groupsToQuery = service.GetUserAutoGroup(user.Group)
-		}
+		// auto is a virtual group resolved from the user's selectable groups;
+		// it is not required to be present in the usable-group map itself.
+		groupsToQuery = service.GetUserAutoGroupForUser(id, user.Group)
 	default:
 		if _, ok := groups[group]; ok {
 			groupsToQuery = []string{group}
@@ -716,7 +740,7 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAuditFor(c, updatedUser.Id, "user.update", map[string]any{
+	recordManageAuditFor(c, updatedUser.Id, "user.update", map[string]interface{}{
 		"username": originUser.Username,
 		"id":       updatedUser.Id,
 	})
@@ -757,7 +781,7 @@ func AdminClearUserBinding(c *gin.Context) {
 		return
 	}
 
-	recordManageAuditFor(c, user.Id, "user.binding_clear", map[string]any{
+	recordManageAuditFor(c, user.Id, "user.binding_clear", map[string]interface{}{
 		"bindingType": bindingType,
 		"username":    user.Username,
 	})
@@ -943,7 +967,7 @@ func DeleteUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAuditFor(c, originUser.Id, "user.delete", map[string]any{
+	recordManageAuditFor(c, originUser.Id, "user.delete", map[string]interface{}{
 		"username": originUser.Username,
 		"id":       originUser.Id,
 	})
@@ -1028,7 +1052,7 @@ func CreateUser(c *gin.Context) {
 	}
 	cleanUser.FinishInsert(0)
 
-	recordManageAuditFor(c, cleanUser.Id, "user.create", map[string]any{
+	recordManageAuditFor(c, cleanUser.Id, "user.create", map[string]interface{}{
 		"username": cleanUser.Username,
 		"role":     cleanUser.Role,
 	})
@@ -1060,6 +1084,93 @@ type ManageRequest struct {
 	Action string `json:"action"`
 	Value  int    `json:"value"`
 	Mode   string `json:"mode"`
+}
+
+type BatchManageRequest struct {
+	Ids    []int  `json:"ids"`
+	Action string `json:"action"`
+}
+
+// BatchManageUsers performs one backend operation for all selected users.
+// This keeps authorization, auth-cache invalidation, and audit behavior on
+// the server instead of making the browser fan out manage requests.
+func BatchManageUsers(c *gin.Context) {
+	var req BatchManageRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || len(req.Ids) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if len(req.Ids) > 100 {
+		common.ApiErrorI18n(c, i18n.MsgBatchTooMany, map[string]any{"Max": 100})
+		return
+	}
+	seen := make(map[int]struct{}, len(req.Ids))
+	ids := make([]int, 0, len(req.Ids))
+	for _, id := range req.Ids {
+		if id <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if req.Action != "enable" && req.Action != "disable" && req.Action != "delete" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	myRole := c.GetInt("role")
+	users := make([]*model.User, 0, len(ids))
+	for _, id := range ids {
+		user, err := model.GetUserById(id, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !canManageTargetRole(myRole, user.Role) {
+			common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+			return
+		}
+		if (req.Action == "disable" || req.Action == "delete") && user.Role == common.RoleRootUser {
+			if req.Action == "disable" {
+				common.ApiErrorI18n(c, i18n.MsgUserCannotDisableRootUser)
+			} else {
+				common.ApiErrorI18n(c, i18n.MsgUserCannotDeleteRootUser)
+			}
+			return
+		}
+		users = append(users, user)
+	}
+
+	if req.Action == "delete" {
+		for _, user := range users {
+			if err := model.HardDeleteUserById(user.Id); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+	} else {
+		status := common.UserStatusEnabled
+		if req.Action == "disable" {
+			status = common.UserStatusDisabled
+		}
+		if err := model.BatchUpdateUserStatus(ids, status); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	auditParams := map[string]interface{}{
+		"action": req.Action,
+		"count":  len(ids),
+	}
+	recordManageAudit(c, "user.batch_manage", auditParams)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    len(ids),
+	})
 }
 
 // ManageUser Only admin user can do this
@@ -1115,7 +1226,7 @@ func ManageUser(c *gin.Context) {
 		if err := model.InvalidateUserTokensCache(user.Id); err != nil {
 			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
 		}
-		recordManageAuditFor(c, user.Id, "user.manage", map[string]any{
+		recordManageAuditFor(c, user.Id, "user.manage", map[string]interface{}{
 			"action":   req.Action,
 			"username": user.Username,
 			"id":       user.Id,
@@ -1185,7 +1296,7 @@ func ManageUser(c *gin.Context) {
 	if err := model.InvalidateUserTokensCache(user.Id); err != nil {
 		common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
 	}
-	recordManageAuditFor(c, user.Id, "user.manage", map[string]any{
+	recordManageAuditFor(c, user.Id, "user.manage", map[string]interface{}{
 		"action":   req.Action,
 		"username": user.Username,
 		"id":       user.Id,
@@ -1266,17 +1377,24 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	quota, err := model.Redeem(req.Key, id)
+	redemptionResult, err := model.RedeemWithResult(req.Key, id)
 	if err != nil {
 		// 不向用户暴露兑换失败的细分原因，避免攻击者根据错误类型判断兑换码状态。
 		common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
 		logger.LogError(c, fmt.Sprintf("failed to redeem key %s for user %d: %s", req.Key, id, err.Error()))
 		return
 	}
+	data := interface{}(redemptionResult.Quota)
+	if redemptionResult.SubscriptionPlanId > 0 {
+		data = gin.H{
+			"subscription_plan_id":    redemptionResult.SubscriptionPlanId,
+			"subscription_plan_title": redemptionResult.SubscriptionPlanTitle,
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    quota,
+		"data":    data,
 	})
 }
 
@@ -1293,6 +1411,7 @@ type UpdateUserSettingRequest struct {
 	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
 	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                      bool    `json:"record_ip_log"`
+	ExcludeFromLeaderboard           *bool   `json:"exclude_from_leaderboard,omitempty"`
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1387,6 +1506,10 @@ func UpdateUserSetting(c *gin.Context) {
 	if user.Role >= common.RoleAdminUser && req.UpstreamModelUpdateNotifyEnabled != nil {
 		upstreamModelUpdateNotifyEnabled = *req.UpstreamModelUpdateNotifyEnabled
 	}
+	excludeFromLeaderboard := existingSettings.ExcludeFromLeaderboard
+	if req.ExcludeFromLeaderboard != nil {
+		excludeFromLeaderboard = *req.ExcludeFromLeaderboard
+	}
 
 	// 构建设置
 	settings := dto.UserSetting{
@@ -1395,6 +1518,11 @@ func UpdateUserSetting(c *gin.Context) {
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		ExcludeFromLeaderboard:           excludeFromLeaderboard,
+		SidebarModules:                   existingSettings.SidebarModules,
+		BillingPreference:                existingSettings.BillingPreference,
+		Language:                         existingSettings.Language,
+		LoginTwoFactorEnabled:            existingSettings.LoginTwoFactorEnabled,
 	}
 
 	// 如果是webhook类型,添加webhook相关设置
@@ -1431,6 +1559,9 @@ func UpdateUserSetting(c *gin.Context) {
 	if err := model.UpdateUserSetting(user.Id, settings); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUpdateFailed)
 		return
+	}
+	if excludeFromLeaderboard != existingSettings.ExcludeFromLeaderboard {
+		service.InvalidateUserRankingsCache()
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)

@@ -28,10 +28,17 @@ export interface MessageVersion {
   content: string
 }
 
+export interface PlaygroundAttachment {
+  dataUrl: string
+  filename: string
+  mediaType: string
+}
+
 export interface Message {
   key: string
   from: MessageRole
   versions: MessageVersion[]
+  attachments?: PlaygroundAttachment[]
   createdAt?: number
   startedAt?: number
   completedAt?: number
@@ -58,10 +65,14 @@ export interface ChatCompletionMessage {
 }
 
 export interface ContentPart {
-  type: 'text' | 'image_url'
+  type: 'text' | 'image_url' | 'file'
   text?: string
   image_url?: {
     url: string
+  }
+  file?: {
+    filename: string
+    file_data: string
   }
 }
 
@@ -180,7 +191,108 @@ export interface TranscriptionResponse {
   text?: string
 }
 
+// Playground generation features and the settings the server publishes for them
+export type PlaygroundFeature =
+  | 'chat'
+  | 'image'
+  | 'speech'
+  | 'three_d'
+  | 'video'
+export type SpeechModelType = 'openai' | 'azure' | 'unrealspeech'
+
+export interface PlaygroundPublicSettings {
+  enabled_features: PlaygroundFeature[]
+  models: Record<PlaygroundFeature, string[]>
+  speech_model_types: Record<string, SpeechModelType>
+}
+
+export interface ImageGenerationRequest {
+  model: string
+  group: string
+  prompt: string
+  n: number
+  size: string
+  quality?: string
+  response_format: 'url' | 'b64_json'
+}
+
+export interface ImageEditRequest extends ImageGenerationRequest {
+  images: Array<{
+    image_url: string
+  }>
+}
+
+// The image endpoints answer with the OpenAI image shape. Fields the image
+// workbench reads stay optional so a provider that omits them still renders.
 export interface ImageGenerationResponse {
   created?: number
   data?: GeneratedImage[]
+}
+
+export interface SpeechGenerationRequest {
+  model: string
+  group: string
+  input: string
+  voice: string
+  response_format: string
+  speed: number
+  volume?: number
+  pitch?: number
+  stream?: boolean
+  speech?: boolean
+  bitrate?: string
+}
+
+export interface SpeechGenerationTaskResponse {
+  id: string
+  object: 'audio.speech'
+  model: string
+  status: 'queued' | 'in_progress' | 'completed' | 'failed'
+  progress: number
+  created_at: number
+  content_url?: string
+  timestamps_url?: string
+  error?: { message: string; code: string }
+}
+
+export interface ThreeDGenerationRequest {
+  model: string
+  group: string
+  prompt?: string
+  input_reference?: string
+  source_task_id?: string
+  metadata?: { art_style?: string }
+}
+
+export interface ThreeDGenerationResponse {
+  id: string
+  object: '3d'
+  model: string
+  status: 'queued' | 'in_progress' | 'completed' | 'failed'
+  progress: number
+  created_at: number
+  completed_at?: number
+  data?: { format: string; url: string }
+  error?: { message: string; code: string }
+}
+
+export interface VideoGenerationRequest {
+  model: string
+  group: string
+  prompt: string
+  images?: string[]
+  mode?: string
+  size?: string
+  duration?: number
+}
+
+export interface VideoGenerationResponse {
+  id: string
+  object: 'video'
+  model: string
+  status: 'queued' | 'in_progress' | 'completed' | 'failed'
+  progress: number
+  created_at: number
+  data?: { url: string }
+  error?: { message: string; code: string }
 }

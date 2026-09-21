@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Code2, Eye, ShieldAlert } from 'lucide-react'
+import { ChevronDown, Code2, Eye, ShieldAlert } from 'lucide-react'
 import * as React from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +35,11 @@ import {
 } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -44,9 +49,17 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { handleServerError } from '@/lib/handle-server-error'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 import { confirmPaymentCompliance } from '../api'
@@ -62,6 +75,7 @@ import { safeNumberFieldProps } from '../utils/numeric-field'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
 import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
 import { CreemProductsVisualEditor } from './creem-products-visual-editor'
+import { EpayGatewaysVisualEditor } from './epay-gateways-visual-editor'
 import { PaymentMethodsVisualEditor } from './payment-methods-visual-editor'
 import {
   formatJsonForEditor,
@@ -95,6 +109,21 @@ function isHttpOriginUrl(value: string) {
   }
 }
 
+function isNowPaymentsCurrencyList(value: string) {
+  const currencies = value
+    .split(',')
+    .map((currency) => currency.trim().toLowerCase())
+  if (currencies.length === 0 || currencies.length > 50) return false
+  const seen = new Set<string>()
+  return currencies.every((currency) => {
+    if (!/^[a-z0-9_-]{1,32}$/.test(currency) || seen.has(currency)) {
+      return false
+    }
+    seen.add(currency)
+    return true
+  })
+}
+
 const paymentSchema = z.object({
   PayAddress: z.string().refine((value) => {
     const trimmed = value.trim()
@@ -103,6 +132,12 @@ const paymentSchema = z.object({
   }, 'Provide a valid callback URL starting with http:// or https://'),
   EpayId: z.string(),
   EpayKey: z.string(),
+  EpayGateways: z.string().superRefine((value, ctx) => {
+    const error = getJsonError(value, (parsed) => Array.isArray(parsed))
+    if (error) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: error })
+    }
+  }),
   Price: z.coerce.number().min(0),
   MinTopUp: z.coerce.number().min(0),
   CustomCallbackAddress: z
@@ -142,6 +177,7 @@ const paymentSchema = z.object({
       })
     }
   }),
+  RedemptionPurchaseEnabled: z.boolean(),
   StripeApiSecret: z.string(),
   StripeWebhookSecret: z.string(),
   StripePriceId: z.string(),
@@ -177,6 +213,51 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  WaffoPancakeUseConfiguredProductPrice: z.boolean(),
+  WaffoPancakeUSDToCurrencyRate: z.coerce.number().finite().min(0),
+  MoneroEnabled: z.boolean(),
+  MoneroWalletRPCURL: z.string().refine((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return true
+    try {
+      const url = new URL(trimmed)
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') && !!url.host
+      )
+    } catch {
+      return false
+    }
+  }, 'Provide a valid Monero wallet RPC URL'),
+  MoneroWalletRPCUsername: z.string(),
+  MoneroWalletRPCPassword: z.string(),
+  MoneroNetwork: z.enum(['mainnet', 'testnet', 'stagenet']),
+  MoneroConfirmations: z.coerce.number().int().min(1).max(60),
+  MoneroMaxSubaddresses: z.coerce.number().int().min(1).max(1000000),
+  MoneroUSDToCurrencyRate: z.coerce.number().finite().min(0),
+  NowPaymentsEnabled: z.boolean(),
+  NowPaymentsAPIKey: z.string(),
+  NowPaymentsIPNSecret: z.string(),
+  NowPaymentsAPIBaseURL: z.string().refine((value) => {
+    const trimmed = value.trim()
+    try {
+      const url = new URL(trimmed)
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') && !!url.host
+      )
+    } catch {
+      return false
+    }
+  }, 'Provide a valid NOWPayments API URL'),
+  NowPaymentsPayCurrencies: z
+    .string()
+    .refine(
+      isNowPaymentsCurrencyList,
+      'Enter up to 50 unique currency codes separated by commas'
+    ),
+  NowPaymentsMinTopUp: z.coerce.number().int().min(0),
+  NowPaymentsUSDToCurrencyRate: z.coerce.number().finite().min(0),
+  NowPaymentsPaymentExpirationMins: z.coerce.number().int().min(5).max(1440),
+  PaymentAnnouncement: z.string(),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
@@ -188,6 +269,11 @@ type PaymentBaseFormValues = Omit<
 
 const CURRENT_COMPLIANCE_TERMS_VERSION = 'v1'
 const paymentTabContentClassName = 'mt-6 min-w-0'
+const MONERO_NETWORK_LABELS = {
+  mainnet: 'Mainnet',
+  testnet: 'Testnet',
+  stagenet: 'Stagenet',
+} as const
 
 type PaymentComplianceDefaults = {
   confirmed: boolean
@@ -240,6 +326,9 @@ export function PaymentSettingsSection({
   )
 
   const [payMethodsVisualMode, setPayMethodsVisualMode] = React.useState(true)
+  const [epayGatewaysVisualMode, setEpayGatewaysVisualMode] =
+    React.useState(true)
+  const [legacyEpayOpen, setLegacyEpayOpen] = React.useState(false)
   const [amountOptionsVisualMode, setAmountOptionsVisualMode] =
     React.useState(true)
   const [amountDiscountVisualMode, setAmountDiscountVisualMode] =
@@ -340,11 +429,11 @@ export function PaymentSettingsSection({
         setShowComplianceDialog(false)
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
       } else {
-        handleServerError(data, t('Failed to confirm compliance'))
+        toast.error(data.message || t('Failed to confirm compliance'))
       }
     },
     onError: (error: Error) => {
-      handleServerError(error, t('Failed to confirm compliance'))
+      toast.error(error.message || t('Failed to confirm compliance'))
     },
   })
 
@@ -354,6 +443,7 @@ export function PaymentSettingsSection({
     defaultValues: {
       ...initialFormValues,
       PayMethods: formatJsonForEditor(initialFormValues.PayMethods),
+      EpayGateways: formatJsonForEditor(initialFormValues.EpayGateways),
       AmountOptions: formatJsonForEditor(initialFormValues.AmountOptions),
       AmountDiscount: formatJsonForEditor(initialFormValues.AmountDiscount),
       CreemProducts: formatJsonForEditor(initialFormValues.CreemProducts),
@@ -411,6 +501,7 @@ export function PaymentSettingsSection({
     form.reset({
       ...parsedDefaults,
       PayMethods: formatJsonForEditor(parsedDefaults.PayMethods),
+      EpayGateways: formatJsonForEditor(parsedDefaults.EpayGateways),
       AmountOptions: formatJsonForEditor(parsedDefaults.AmountOptions),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
       CreemProducts: formatJsonForEditor(parsedDefaults.CreemProducts),
@@ -422,12 +513,14 @@ export function PaymentSettingsSection({
       PayAddress: removeTrailingSlash(values.PayAddress),
       EpayId: values.EpayId.trim(),
       EpayKey: values.EpayKey.trim(),
+      EpayGateways: values.EpayGateways.trim(),
       Price: values.Price,
       MinTopUp: values.MinTopUp,
       CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
+      RedemptionPurchaseEnabled: values.RedemptionPurchaseEnabled,
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
@@ -458,12 +551,37 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      WaffoPancakeUseConfiguredProductPrice:
+        values.WaffoPancakeUseConfiguredProductPrice,
+      WaffoPancakeUSDToCurrencyRate: values.WaffoPancakeUSDToCurrencyRate,
+      MoneroEnabled: values.MoneroEnabled,
+      MoneroWalletRPCURL: values.MoneroWalletRPCURL.trim(),
+      MoneroWalletRPCUsername: values.MoneroWalletRPCUsername.trim(),
+      MoneroWalletRPCPassword: values.MoneroWalletRPCPassword.trim(),
+      MoneroNetwork: values.MoneroNetwork,
+      MoneroConfirmations: values.MoneroConfirmations,
+      MoneroMaxSubaddresses: values.MoneroMaxSubaddresses,
+      MoneroUSDToCurrencyRate: values.MoneroUSDToCurrencyRate,
+      NowPaymentsEnabled: values.NowPaymentsEnabled,
+      NowPaymentsAPIKey: values.NowPaymentsAPIKey.trim(),
+      NowPaymentsIPNSecret: values.NowPaymentsIPNSecret.trim(),
+      NowPaymentsAPIBaseURL: removeTrailingSlash(
+        values.NowPaymentsAPIBaseURL.trim()
+      ),
+      NowPaymentsPayCurrencies: values.NowPaymentsPayCurrencies.split(',')
+        .map((currency) => currency.trim().toLowerCase())
+        .join(','),
+      NowPaymentsMinTopUp: values.NowPaymentsMinTopUp,
+      NowPaymentsUSDToCurrencyRate: values.NowPaymentsUSDToCurrencyRate,
+      NowPaymentsPaymentExpirationMins: values.NowPaymentsPaymentExpirationMins,
+      PaymentAnnouncement: values.PaymentAnnouncement.trim(),
     }
 
     const initial = {
       PayAddress: removeTrailingSlash(initialRef.current.PayAddress),
       EpayId: initialRef.current.EpayId.trim(),
       EpayKey: initialRef.current.EpayKey.trim(),
+      EpayGateways: initialRef.current.EpayGateways.trim(),
       Price: initialRef.current.Price,
       MinTopUp: initialRef.current.MinTopUp,
       CustomCallbackAddress: removeTrailingSlash(
@@ -472,6 +590,7 @@ export function PaymentSettingsSection({
       PayMethods: initialRef.current.PayMethods.trim(),
       AmountOptions: initialRef.current.AmountOptions.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
+      RedemptionPurchaseEnabled: initialRef.current.RedemptionPurchaseEnabled,
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
@@ -505,6 +624,36 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      WaffoPancakeUseConfiguredProductPrice:
+        initialRef.current.WaffoPancakeUseConfiguredProductPrice,
+      WaffoPancakeUSDToCurrencyRate:
+        initialRef.current.WaffoPancakeUSDToCurrencyRate,
+      MoneroEnabled: initialRef.current.MoneroEnabled,
+      MoneroWalletRPCURL: initialRef.current.MoneroWalletRPCURL.trim(),
+      MoneroWalletRPCUsername:
+        initialRef.current.MoneroWalletRPCUsername.trim(),
+      MoneroWalletRPCPassword:
+        initialRef.current.MoneroWalletRPCPassword.trim(),
+      MoneroNetwork: initialRef.current.MoneroNetwork,
+      MoneroConfirmations: initialRef.current.MoneroConfirmations,
+      MoneroMaxSubaddresses: initialRef.current.MoneroMaxSubaddresses,
+      MoneroUSDToCurrencyRate: initialRef.current.MoneroUSDToCurrencyRate,
+      NowPaymentsEnabled: initialRef.current.NowPaymentsEnabled,
+      NowPaymentsAPIKey: initialRef.current.NowPaymentsAPIKey.trim(),
+      NowPaymentsIPNSecret: initialRef.current.NowPaymentsIPNSecret.trim(),
+      NowPaymentsAPIBaseURL: removeTrailingSlash(
+        initialRef.current.NowPaymentsAPIBaseURL.trim()
+      ),
+      NowPaymentsPayCurrencies:
+        initialRef.current.NowPaymentsPayCurrencies.split(',')
+          .map((currency) => currency.trim().toLowerCase())
+          .join(','),
+      NowPaymentsMinTopUp: initialRef.current.NowPaymentsMinTopUp,
+      NowPaymentsUSDToCurrencyRate:
+        initialRef.current.NowPaymentsUSDToCurrencyRate,
+      NowPaymentsPaymentExpirationMins:
+        initialRef.current.NowPaymentsPaymentExpirationMins,
+      PaymentAnnouncement: initialRef.current.PaymentAnnouncement.trim(),
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -519,6 +668,13 @@ export function PaymentSettingsSection({
 
     if (sanitized.EpayKey && sanitized.EpayKey !== initial.EpayKey) {
       updates.push({ key: 'EpayKey', value: sanitized.EpayKey })
+    }
+
+    if (
+      normalizeJsonForComparison(sanitized.EpayGateways) !==
+      normalizeJsonForComparison(initial.EpayGateways)
+    ) {
+      updates.push({ key: 'EpayGateways', value: sanitized.EpayGateways })
     }
 
     if (sanitized.Price !== initial.Price) {
@@ -560,6 +716,15 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.amount_discount',
         value: sanitized.AmountDiscount,
+      })
+    }
+
+    if (
+      sanitized.RedemptionPurchaseEnabled !== initial.RedemptionPurchaseEnabled
+    ) {
+      updates.push({
+        key: 'payment_setting.redemption_purchase_enabled',
+        value: sanitized.RedemptionPurchaseEnabled,
       })
     }
 
@@ -702,12 +867,148 @@ export function PaymentSettingsSection({
       updates.push({ key: 'WaffoPayMethods', value: sanitized.WaffoPayMethods })
     }
 
+    if (
+      sanitized.WaffoPancakeUseConfiguredProductPrice !==
+      initial.WaffoPancakeUseConfiguredProductPrice
+    ) {
+      updates.push({
+        key: 'WaffoPancakeUseConfiguredProductPrice',
+        value: sanitized.WaffoPancakeUseConfiguredProductPrice,
+      })
+    }
+
+    if (
+      sanitized.WaffoPancakeUSDToCurrencyRate !==
+      initial.WaffoPancakeUSDToCurrencyRate
+    ) {
+      updates.push({
+        key: 'WaffoPancakeUSDToCurrencyRate',
+        value: sanitized.WaffoPancakeUSDToCurrencyRate,
+      })
+    }
+
     const hasWaffoPancakeChanges =
       sanitized.WaffoPancakeMerchantID !== initial.WaffoPancakeMerchantID ||
       sanitized.WaffoPancakePrivateKey.length > 0 ||
       sanitized.WaffoPancakeReturnURL !== initial.WaffoPancakeReturnURL ||
       waffoPancakeSelection.storeID !== waffoPancakeSavedBinding.storeID ||
       waffoPancakeSelection.productID !== waffoPancakeSavedBinding.productID
+
+    if (sanitized.MoneroEnabled !== initial.MoneroEnabled) {
+      updates.push({ key: 'MoneroEnabled', value: sanitized.MoneroEnabled })
+    }
+    if (sanitized.MoneroWalletRPCURL !== initial.MoneroWalletRPCURL) {
+      updates.push({
+        key: 'MoneroWalletRPCURL',
+        value: sanitized.MoneroWalletRPCURL,
+      })
+    }
+    if (sanitized.MoneroWalletRPCUsername !== initial.MoneroWalletRPCUsername) {
+      updates.push({
+        key: 'MoneroWalletRPCUsername',
+        value: sanitized.MoneroWalletRPCUsername,
+      })
+    }
+    if (
+      sanitized.MoneroWalletRPCPassword &&
+      sanitized.MoneroWalletRPCPassword !== initial.MoneroWalletRPCPassword
+    ) {
+      updates.push({
+        key: 'MoneroWalletRPCPassword',
+        value: sanitized.MoneroWalletRPCPassword,
+      })
+    }
+    if (sanitized.MoneroNetwork !== initial.MoneroNetwork) {
+      updates.push({ key: 'MoneroNetwork', value: sanitized.MoneroNetwork })
+    }
+    if (sanitized.MoneroConfirmations !== initial.MoneroConfirmations) {
+      updates.push({
+        key: 'MoneroConfirmations',
+        value: sanitized.MoneroConfirmations,
+      })
+    }
+    if (sanitized.MoneroMaxSubaddresses !== initial.MoneroMaxSubaddresses) {
+      updates.push({
+        key: 'MoneroMaxSubaddresses',
+        value: sanitized.MoneroMaxSubaddresses,
+      })
+    }
+    if (sanitized.MoneroUSDToCurrencyRate !== initial.MoneroUSDToCurrencyRate) {
+      updates.push({
+        key: 'MoneroUSDToCurrencyRate',
+        value: sanitized.MoneroUSDToCurrencyRate,
+      })
+    }
+
+    if (sanitized.NowPaymentsEnabled !== initial.NowPaymentsEnabled) {
+      updates.push({
+        key: 'NowPaymentsEnabled',
+        value: sanitized.NowPaymentsEnabled,
+      })
+    }
+    if (
+      sanitized.NowPaymentsAPIKey &&
+      sanitized.NowPaymentsAPIKey !== initial.NowPaymentsAPIKey
+    ) {
+      updates.push({
+        key: 'NowPaymentsAPIKey',
+        value: sanitized.NowPaymentsAPIKey,
+      })
+    }
+    if (
+      sanitized.NowPaymentsIPNSecret &&
+      sanitized.NowPaymentsIPNSecret !== initial.NowPaymentsIPNSecret
+    ) {
+      updates.push({
+        key: 'NowPaymentsIPNSecret',
+        value: sanitized.NowPaymentsIPNSecret,
+      })
+    }
+    if (sanitized.NowPaymentsAPIBaseURL !== initial.NowPaymentsAPIBaseURL) {
+      updates.push({
+        key: 'NowPaymentsAPIBaseURL',
+        value: sanitized.NowPaymentsAPIBaseURL,
+      })
+    }
+    if (
+      sanitized.NowPaymentsPayCurrencies !== initial.NowPaymentsPayCurrencies
+    ) {
+      updates.push({
+        key: 'NowPaymentsPayCurrencies',
+        value: sanitized.NowPaymentsPayCurrencies,
+      })
+    }
+    if (sanitized.NowPaymentsMinTopUp !== initial.NowPaymentsMinTopUp) {
+      updates.push({
+        key: 'NowPaymentsMinTopUp',
+        value: sanitized.NowPaymentsMinTopUp,
+      })
+    }
+    if (
+      sanitized.NowPaymentsUSDToCurrencyRate !==
+      initial.NowPaymentsUSDToCurrencyRate
+    ) {
+      updates.push({
+        key: 'NowPaymentsUSDToCurrencyRate',
+        value: sanitized.NowPaymentsUSDToCurrencyRate,
+      })
+    }
+    if (
+      sanitized.NowPaymentsPaymentExpirationMins !==
+      initial.NowPaymentsPaymentExpirationMins
+    ) {
+      updates.push({
+        key: 'NowPaymentsPaymentExpirationMins',
+        value: sanitized.NowPaymentsPaymentExpirationMins,
+      })
+    }
+
+    if (sanitized.PaymentAnnouncement !== initial.PaymentAnnouncement) {
+      updates.push({
+        key: 'PaymentAnnouncement',
+        value: sanitized.PaymentAnnouncement,
+      })
+    }
 
     if (updates.length === 0 && !hasWaffoPancakeChanges) {
       toast.info(t('No changes to save'))
@@ -759,14 +1060,13 @@ export function PaymentSettingsSection({
       }
 
       const reason = typeof body?.data === 'string' ? body.data : undefined
-      handleServerError(body, undefined, {
-        title: reason
+      toast.error(
+        reason
           ? `${t('Waffo Pancake save failed')}: ${reason}`
-          : t('Waffo Pancake save failed'),
-      })
+          : t('Waffo Pancake save failed')
+      )
     } catch (error) {
-      handleServerError(
-        error,
+      toast.error(
         `${t('Waffo Pancake save failed')}: ${
           error instanceof Error ? error.message : String(error)
         }`
@@ -796,6 +1096,10 @@ export function PaymentSettingsSection({
     WaffoPancakeMerchantID: currentFormValues.WaffoPancakeMerchantID,
     WaffoPancakePrivateKey: currentFormValues.WaffoPancakePrivateKey,
     WaffoPancakeReturnURL: currentFormValues.WaffoPancakeReturnURL,
+    WaffoPancakeUseConfiguredProductPrice:
+      currentFormValues.WaffoPancakeUseConfiguredProductPrice,
+    WaffoPancakeUSDToCurrencyRate:
+      currentFormValues.WaffoPancakeUSDToCurrencyRate,
   }
 
   return (
@@ -879,13 +1183,15 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[44rem] grid-cols-6'>
+              <TabsList className='grid min-w-[58rem] grid-cols-8'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
                 <TabsTrigger value='waffo'>Waffo</TabsTrigger>
+                <TabsTrigger value='monero'>Monero</TabsTrigger>
+                <TabsTrigger value='nowpayments'>NOWPayments</TabsTrigger>
               </TabsList>
             </div>
 
@@ -899,6 +1205,31 @@ export function PaymentSettingsSection({
                     {t('Shared configuration for all payment gateways')}
                   </p>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name='RedemptionPurchaseEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>
+                          {t('Allow redemption code purchases')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Users can buy codes only through configured external payment methods; wallet balance is never used.'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
 
                 <div className='grid gap-6 md:grid-cols-2'>
                   <FormField
@@ -956,7 +1287,9 @@ export function PaymentSettingsSection({
                   render={({ field }) => (
                     <FormItem>
                       <div className='mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                        <FormLabel>{t('Payment methods')}</FormLabel>
+                        <FormLabel>
+                          {t('Legacy / global payment methods')}
+                        </FormLabel>
                         <Button
                           type='button'
                           variant='outline'
@@ -1004,7 +1337,7 @@ export function PaymentSettingsSection({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Configured as PayMethods JSON. The type value decides which payment flow is used: stripe for Stripe, waffo_pancake for Waffo Pancake, and other values are sent to Epay as the type parameter.'
+                          'Used by legacy single-gateway Epay settings and non-Epay payment flows. Configure current Epay methods and fees inside each Epay gateway.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -1133,6 +1466,34 @@ export function PaymentSettingsSection({
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name='PaymentAnnouncement'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Payment Announcement')}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          rows={4}
+                          placeholder={t(
+                            'Optional markdown text shown to users on the topup page below payment methods'
+                          )}
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Optional markdown text shown to users on the topup page below payment methods'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
             </TabsContent>
 
@@ -1155,103 +1516,186 @@ export function PaymentSettingsSection({
                   </AlertDescription>
                 </Alert>
 
-                <div className='grid gap-6 md:grid-cols-2'>
-                  <FormField
-                    control={form.control}
-                    name='PayAddress'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Epay endpoint')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder={t('https://pay.example.com')}
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
-                            }
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t('Base address provided by your Epay service')}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name='CustomCallbackAddress'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Callback address')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder={t('https://gateway.example.com')}
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
-                            }
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.'
+                <FormField
+                  control={form.control}
+                  name='EpayGateways'
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className='mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                        <FormLabel>{t('Epay gateways')}</FormLabel>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          className='w-full sm:w-auto'
+                          onClick={() =>
+                            setEpayGatewaysVisualMode((current) => !current)
+                          }
+                        >
+                          {epayGatewaysVisualMode ? (
+                            <>
+                              <Code2 className='mr-2 size-3' />
+                              {t('JSON Editor')}
+                            </>
+                          ) : (
+                            <>
+                              <Eye className='mr-2 size-3' />
+                              {t('Visual Editor')}
+                            </>
                           )}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className='grid gap-6 md:grid-cols-2'>
-                  <FormField
-                    control={form.control}
-                    name='EpayId'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Epay merchant ID')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder='10001'
-                            autoComplete='off'
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
+                        </Button>
+                      </div>
+                      <FormControl>
+                        {epayGatewaysVisualMode ? (
+                          <EpayGatewaysVisualEditor
+                            value={field.value}
+                            onChange={(value) =>
+                              setPaymentValue('EpayGateways', value)
                             }
                           />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name='EpayKey'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Epay secret key')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type='password'
-                            placeholder={t('Enter new key to update')}
-                            autoComplete='new-password'
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
-                            }
+                        ) : (
+                          <JsonCodeEditor
+                            value={field.value}
+                            onChange={field.onChange}
+                            name={field.name}
+                            onBlur={field.onBlur}
+                            textareaRef={field.ref}
+                            placeholder='[{"id":"primary","name":"Primary Epay","address":"https://pay.example.com","merchant_id":"10001","key":"secret","enabled":true,"pay_methods":[{"name":"Alipay","type":"alipay","fee":"0.30","fee_rate":"1.5"}]}]'
+                            heightClassName='h-72 min-h-72 max-h-72'
+                            aria-invalid={Boolean(
+                              form.formState.errors.EpayGateways
+                            )}
                           />
-                        </FormControl>
-                        <FormDescription>
-                          {t('Leave blank unless rotating the secret')}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                        )}
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Each gateway owns its payment methods and payer fees. A 3% fee charges 1.03 when the base payment amount is 1.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='CustomCallbackAddress'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Callback address')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('https://gateway.example.com')}
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Collapsible
+                  open={legacyEpayOpen}
+                  onOpenChange={setLegacyEpayOpen}
+                  className='rounded-lg border'
+                >
+                  <CollapsibleTrigger className='flex w-full items-center justify-between gap-3 px-4 py-3 text-left'>
+                    <div>
+                      <div className='text-sm font-medium'>
+                        {t('Legacy single-gateway compatibility')}
+                      </div>
+                      <p className='text-muted-foreground mt-1 text-xs'>
+                        {t(
+                          'Only used when the Epay gateway table is empty. Existing values remain available for rollback.'
+                        )}
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        'size-4 shrink-0 transition-transform',
+                        legacyEpayOpen && 'rotate-180'
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className='border-t p-4'>
+                    <div className='grid gap-6 md:grid-cols-3'>
+                      <FormField
+                        control={form.control}
+                        name='PayAddress'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Legacy Epay endpoint')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder={t('https://pay.example.com')}
+                                {...field}
+                                onChange={(event) =>
+                                  field.onChange(event.target.value)
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='EpayId'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t('Legacy Epay merchant ID')}
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder='10001'
+                                autoComplete='off'
+                                {...field}
+                                onChange={(event) =>
+                                  field.onChange(event.target.value)
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='EpayKey'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Legacy Epay secret key')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                type='password'
+                                placeholder={t('Enter new key to update')}
+                                autoComplete='new-password'
+                                {...field}
+                                onChange={(event) =>
+                                  field.onChange(event.target.value)
+                                }
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t('Leave blank unless rotating the secret')}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </TabsContent>
 
@@ -1627,6 +2071,424 @@ export function PaymentSettingsSection({
                 payMethods={waffoPayMethods}
                 onPayMethodsChange={setWaffoPayMethods}
               />
+            </TabsContent>
+
+            <TabsContent value='monero' className={paymentTabContentClassName}>
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>{t('Monero Gateway')}</h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Create a unique subaddress per invoice and credit confirmed on-chain payments.'
+                    )}
+                  </p>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='MoneroEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable Monero payments')}</FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Requires a configured monero-wallet-rpc service and payment compliance confirmation.'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='MoneroWalletRPCURL'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Wallet RPC URL')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='http://127.0.0.1:18082/json_rpc'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Use monero-wallet-rpc with a trusted remote daemon such as a Cake Wallet-compatible node; do not expose this RPC endpoint publicly.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='MoneroWalletRPCUsername'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Wallet RPC username')}</FormLabel>
+                        <FormControl>
+                          <Input autoComplete='off' {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroWalletRPCPassword'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Wallet RPC password')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Leave blank unless rotating the secret')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroNetwork'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Monero network')}</FormLabel>
+                        <FormControl>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <SelectTrigger className='w-full'>
+                              <SelectValue>
+                                {t(MONERO_NETWORK_LABELS[field.value])}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectGroup>
+                                <SelectItem value='mainnet'>
+                                  {t('Mainnet')}
+                                </SelectItem>
+                                <SelectItem value='testnet'>
+                                  {t('Testnet')}
+                                </SelectItem>
+                                <SelectItem value='stagenet'>
+                                  {t('Stagenet')}
+                                </SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'The selected network must match the monero-wallet-rpc process.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroConfirmations'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Required confirmations')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={1}
+                            max={60}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Credit payments after this many confirmed blocks.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroMaxSubaddresses'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Maximum Monero subaddresses')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={1}
+                            max={1000000}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Stop creating Monero invoices when the configured wallet reaches this total address count, including its primary address.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroUSDToCurrencyRate'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Monero USD to system currency rate')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step='any'
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Optional override for Monero invoices: one USD equals this many system currency units. Set 0 to use the system rate.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent
+              value='nowpayments'
+              className={paymentTabContentClassName}
+            >
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>
+                    {t('NOWPayments Gateway')}
+                  </h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Accept BTC, USDT and other configured cryptocurrencies through NOWPayments. Payments are credited only after a verified gateway callback.'
+                    )}
+                  </p>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='NowPaymentsEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable NOWPayments')}</FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Requires an API key, IPN secret, callback address, and at least one enabled currency.'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='NowPaymentsAPIBaseURL'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('NOWPayments API base URL')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='https://api.nowpayments.io'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Use the official NOWPayments API URL, or a compatible proxy that exposes the same endpoints.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsAPIKey'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('NOWPayments API key')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t('Leave blank unless updating')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Leave blank unless rotating the API key.')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsIPNSecret'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('NOWPayments IPN secret')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t('Leave blank unless updating')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Secret used to verify NOWPayments callbacks.')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='NowPaymentsPayCurrencies'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Enabled cryptocurrency codes')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='btc,usdtbsc,eth'
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value.toLowerCase())
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Comma-separated NOWPayments currency codes. Users can choose any code in this list, such as btc or usdtbsc.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className='grid gap-6 md:grid-cols-3'>
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsMinTopUp'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Minimum NOWPayments top-up')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step={1}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Minimum amount in the current wallet display unit.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsUSDToCurrencyRate'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('NOWPayments USD to system currency rate')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step='any'
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Optional override: one USD equals this many system currency units. Set 0 to use the system rate.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsPaymentExpirationMins'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Invoice expiration (minutes)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={5}
+                            max={1440}
+                            step={1}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('How long a generated invoice remains valid.')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </SettingsForm>

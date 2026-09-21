@@ -27,6 +27,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/common_handler"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	kitreasoning "github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -50,6 +51,11 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	openaiRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
 	if !ok {
 		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
+	}
+	if info.SupportStreamOptions && info.IsStream {
+		openaiRequest.StreamOptions = &dto.StreamOptions{
+			IncludeUsage: true,
+		}
 	}
 	return a.ConvertOpenAIRequest(c, info, openaiRequest)
 }
@@ -262,23 +268,26 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		info.SetReasoningEffort(request.ReasoningEffort)
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
-		initialIntent, err := kitreasoning.FromOpenAIChat(request)
+		initialIntent, diagnostics, err := kitreasoning.FromOpenAIChat(request)
 		if err != nil {
 			return nil, kitreasoning.AsClientError(err)
 		}
+		recordReasoningDiagnostics(c, info, diagnostics)
 		if request.THINKING != nil && strings.HasPrefix(info.UpstreamModelName, "anthropic") {
 			var thinking dto.Thinking
 			if err := common.Unmarshal(request.THINKING, &thinking); err != nil {
 				return nil, fmt.Errorf("error Unmarshal thinking: %w", err)
 			}
-			legacyIntent, err := kitreasoning.FromClaude(&dto.ClaudeRequest{Thinking: &thinking})
+			legacyIntent, diagnostics, err := kitreasoning.FromClaude(&dto.ClaudeRequest{Thinking: &thinking})
 			if err != nil {
 				return nil, kitreasoning.AsClientError(err)
 			}
-			initialIntent, err = kitreasoning.MergeExplicit(initialIntent, legacyIntent, request.Model)
+			recordReasoningDiagnostics(c, info, diagnostics)
+			initialIntent, diagnostics, err = kitreasoning.MergeExplicit(initialIntent, legacyIntent, request.Model)
 			if err != nil {
 				return nil, kitreasoning.AsClientError(err)
 			}
+			recordReasoningDiagnostics(c, info, diagnostics)
 			request.THINKING = nil
 		}
 		if len(request.Usage) == 0 {
@@ -298,7 +307,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			if effort == kitreasoning.EffortNone {
 				mode = kitreasoning.ModeDisabled
 			}
-			initialIntent, err = kitreasoning.MergeExplicitAndSuffix(initialIntent, kitreasoning.Intent{Mode: mode, Effort: effort, Source: kitreasoning.SourceSuffix}, modelName)
+			var diagnostics []types.ConversionDiagnostic
+			initialIntent, diagnostics, err = kitreasoning.MergeExplicitAndSuffix(initialIntent, kitreasoning.Intent{Mode: mode, Effort: effort, Source: kitreasoning.SourceSuffix}, modelName)
+			recordReasoningDiagnostics(c, info, diagnostics)
 			return err
 		}
 		if !preserveSuffix {
@@ -362,10 +373,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		if preserveSuffix {
 			effort = ""
 		}
-		currentIntent, err := kitreasoning.FromOpenAIChat(request)
+		currentIntent, diagnostics, err := kitreasoning.FromOpenAIChat(request)
 		if err != nil {
 			return nil, kitreasoning.AsClientError(err)
 		}
+		recordReasoningDiagnostics(c, info, diagnostics)
 		mergeSuffix := func(modelName, rawEffort string) error {
 			if rawEffort == "" {
 				return nil
@@ -378,7 +390,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			if suffixEffort == kitreasoning.EffortNone {
 				mode = kitreasoning.ModeDisabled
 			}
-			currentIntent, err = kitreasoning.MergeExplicitAndSuffix(currentIntent, kitreasoning.Intent{Mode: mode, Effort: suffixEffort, Source: kitreasoning.SourceSuffix}, modelName)
+			var diagnostics []types.ConversionDiagnostic
+			currentIntent, diagnostics, err = kitreasoning.MergeExplicitAndSuffix(currentIntent, kitreasoning.Intent{Mode: mode, Effort: suffixEffort, Source: kitreasoning.SourceSuffix}, modelName)
+			recordReasoningDiagnostics(c, info, diagnostics)
 			return err
 		}
 		if err := mergeSuffix(info.UpstreamModelName, effort); err != nil {
@@ -422,6 +436,12 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	if capabilities.UseDeveloperRole && len(request.Messages) > 0 && request.Messages[0].Role == "system" {
 		request.Messages[0].Role = "developer"
+	}
+	if info.GetReasoningEffort() == "" {
+		info.SetReasoningEffort(request.ReasoningEffort)
+	}
+	if helper.ApplyEffortModelRoute(info) {
+		request.Model = info.UpstreamModelName
 	}
 
 	return request, nil
@@ -663,6 +683,10 @@ func detectImageMimeType(filename string) string {
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	if err := request.NormalizeInputAsList(); err != nil {
+		return nil, err
+	}
+
 	//  转换模型推理力度后缀
 	effort, originModel := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(request.Model)
 	preserveSuffix := model_setting.ShouldPreserveThinkingSuffix(request.Model) || (info != nil && model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName))
@@ -674,7 +698,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		originEffort, _ = reasoning.ParseOpenAIReasoningEffortFromModelSuffix(info.OriginModelName)
 	}
 	crossProtocol := info != nil && len(info.RequestConversionChain) > 1
-	if (info == nil || info.ChannelType != constant.ChannelTypeOpenRouter) && !crossProtocol && effort == "" && originEffort == "" && request.ReasoningConversion == nil && info.ReasoningState() == nil {
+	if (info == nil || info.ChannelMeta == nil || info.ChannelType != constant.ChannelTypeOpenRouter) && !crossProtocol && effort == "" && originEffort == "" && request.ReasoningConversion == nil && info.ReasoningState() == nil {
 		if info != nil {
 			rawEffort := ""
 			if request.Reasoning != nil {
@@ -682,12 +706,16 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 			}
 			info.SetReasoningEffort(rawEffort)
 		}
+		if helper.ApplyEffortModelRoute(info) {
+			request.Model = info.UpstreamModelName
+		}
 		return request, nil
 	}
-	currentIntent, err := kitreasoning.FromOpenAIResponses(&request)
+	currentIntent, diagnostics, err := kitreasoning.FromOpenAIResponses(&request)
 	if err != nil {
 		return nil, kitreasoning.AsClientError(err)
 	}
+	recordReasoningDiagnostics(c, info, diagnostics)
 	mergeSuffix := func(modelName, rawEffort string) error {
 		if rawEffort == "" {
 			return nil
@@ -700,7 +728,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		if suffixEffort == kitreasoning.EffortNone {
 			mode = kitreasoning.ModeDisabled
 		}
-		currentIntent, err = kitreasoning.MergeExplicitAndSuffix(currentIntent, kitreasoning.Intent{Mode: mode, Effort: suffixEffort, Source: kitreasoning.SourceSuffix}, modelName)
+		var diagnostics []types.ConversionDiagnostic
+		currentIntent, diagnostics, err = kitreasoning.MergeExplicitAndSuffix(currentIntent, kitreasoning.Intent{Mode: mode, Effort: suffixEffort, Source: kitreasoning.SourceSuffix}, modelName)
+		recordReasoningDiagnostics(c, info, diagnostics)
 		return err
 	}
 	if err := mergeSuffix(request.Model, effort); err != nil {
@@ -726,6 +756,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		if info != nil {
 			info.SetReasoningEffort(string(canonicalEffort))
 		}
+	}
+	if helper.ApplyEffortModelRoute(info) {
+		request.Model = info.UpstreamModelName
 	}
 	return request, nil
 }
@@ -810,4 +843,16 @@ func (a *Adaptor) GetChannelName() string {
 	default:
 		return ChannelName
 	}
+}
+
+// recordReasoningDiagnostics attaches best-effort reasoning resolutions made
+// while merging request fields with model-name effort tails to the request log.
+func recordReasoningDiagnostics(c *gin.Context, info *relaycommon.RelayInfo, diagnostics []types.ConversionDiagnostic) {
+	if info == nil || len(diagnostics) == 0 {
+		return
+	}
+	for i := range diagnostics {
+		diagnostics[i].From = info.RelayFormat
+	}
+	info.RecordConversionDiagnostics(c, diagnostics)
 }

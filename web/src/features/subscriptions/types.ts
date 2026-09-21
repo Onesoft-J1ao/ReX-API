@@ -37,8 +37,17 @@ export const subscriptionPlanSchema = z.object({
   sort_order: z.number(),
   allow_balance_pay: z.boolean().optional().default(true),
   allow_wallet_overflow: z.boolean().optional().default(true),
+  wallet_only_groups_enabled: z.boolean().default(false),
+  wallet_only_groups_mode: z
+    .enum(['blacklist', 'whitelist'])
+    .default('blacklist'),
+  wallet_only_groups: z.string().optional().default(''),
+  rate_limit_groups: z.string().optional().default('[]'),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
+  five_hour_limit: z.number().optional(),
+  weekly_limit: z.number().optional(),
+  monthly_limit: z.number().optional(),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -67,6 +76,15 @@ export const userSubscriptionSchema = z.object({
   amount_total: z.number(),
   amount_used: z.number(),
   next_reset_time: z.number().optional(),
+  five_hour_limit: z.number().optional(),
+  five_hour_used: z.number().optional(),
+  five_hour_next_reset_time: z.number().optional(),
+  weekly_limit: z.number().optional(),
+  weekly_used: z.number().optional(),
+  weekly_next_reset_time: z.number().optional(),
+  monthly_limit: z.number().optional(),
+  monthly_used: z.number().optional(),
+  monthly_next_reset_time: z.number().optional(),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>
@@ -120,10 +138,16 @@ export interface CreateUserSubscriptionRequest {
 export interface ResetUserSubscriptionsRequest {
   plan_id: number
   advance_reset_time: boolean
+  reset_total: boolean
+  reset_five_hour: boolean
+  reset_weekly: boolean
 }
 
 export interface ResetPlanSubscriptionsRequest {
   advance_reset_time: boolean
+  reset_total: boolean
+  reset_five_hour: boolean
+  reset_weekly: boolean
 }
 
 export interface SubscriptionResetResult {
@@ -152,4 +176,5 @@ export type SubscriptionsDialogType =
   | 'create'
   | 'update'
   | 'toggle-status'
+  | 'delete'
   | 'reset-subscriptions'

@@ -77,6 +77,8 @@ export interface UserProfile {
   wechat_id?: string
   /** GitHub ID (OAuth) */
   github_id?: string
+  /** GitHub account creation timestamp */
+  github_created_at?: number
   /** Discord ID (OAuth) */
   discord_id?: string
   /** OIDC ID (OAuth) */
@@ -120,6 +122,10 @@ export interface UserSettings {
   record_ip_log?: boolean
   /** Receive upstream model update notifications (admin only) */
   upstream_model_update_notify_enabled?: boolean
+  /** Exclude the user from public user leaderboards */
+  exclude_from_leaderboard?: boolean
+  /** Require two-factor verification during login; defaults to true */
+  login_two_factor_enabled?: boolean
   /** Preferred interface/API response language */
   language?: string
 }
@@ -162,6 +168,7 @@ export interface UpdateUserSettingsRequest {
   accept_unset_model_ratio_model?: boolean
   record_ip_log?: boolean
   upstream_model_update_notify_enabled?: boolean
+  exclude_from_leaderboard?: boolean
 }
 
 /**
@@ -172,6 +179,7 @@ export interface BindingItem {
   label: string
   icon: React.ElementType
   value?: string
+  secondaryValue?: string
   isBound: boolean
   isEnabled: boolean
   onBind: () => void
@@ -222,8 +230,34 @@ export interface CheckinStats {
 export interface CheckinStatusResponse {
   /** Whether check-in feature is enabled */
   enabled: boolean
+  /** Minimum user quota required for check-in; zero disables the gate */
+  min_user_quota: number
+  min_used_quota: number
+  daily_user_limit: number
+  daily_quota_limit: number
+  eligible?: boolean
+  current_quota?: number
+  current_used_quota?: number
+  today_user_count?: number
+  today_quota_awarded?: number
+  daily_quota_remaining?: number
+  eligibility?: CheckinEligibility
   /** Check-in statistics */
   stats: CheckinStats
+}
+
+export interface CheckinEligibility {
+  eligible: boolean
+  already_checked_in: boolean
+  balance_met: boolean
+  total_spend_met: boolean
+  daily_user_limit_met: boolean
+  daily_quota_limit_met: boolean
+  current_quota: number
+  current_used_quota: number
+  today_user_count: number
+  today_quota_awarded: number
+  daily_quota_remaining: number
 }
 
 /**

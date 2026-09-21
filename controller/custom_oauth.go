@@ -301,7 +301,7 @@ type UpdateCustomOAuthProviderRequest struct {
 	ClientSecret          string  `json:"client_secret"` // Optional: if empty, keep existing
 	AuthorizationEndpoint string  `json:"authorization_endpoint"`
 	TokenEndpoint         string  `json:"token_endpoint"`
-	UserInfoEndpoint      *string `json:"user_info_endpoint"`
+	UserInfoEndpoint      *string `json:"user_info_endpoint"` // Optional: if nil, keep existing
 	IdentitySource        *string `json:"identity_source"`
 	Issuer                *string `json:"issuer"`
 	JWKSURI               *string `json:"jwks_uri"`

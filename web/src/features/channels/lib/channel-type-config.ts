@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CHANNEL_TYPES } from '../constants'
+import {
+  CHANNEL_TYPES,
+  CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
+} from '../constants'
 
 // ============================================================================
 // Channel Type Configuration
@@ -45,6 +49,26 @@ export interface ChannelTypeConfig {
  * Configuration for each channel type
  */
 export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
+  [CHANNEL_TYPE_SGLANG]: {
+    id: CHANNEL_TYPE_SGLANG,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_SGLANG],
+    icon: 'SGLang',
+    hints: {
+      baseUrl: 'SGLang server address, without /v1',
+      key: 'SGLang API key, or EMPTY if authentication is disabled',
+      models: 'Models fetched from upstream /v1/models',
+    },
+  },
+  [CHANNEL_TYPE_VLLM]: {
+    id: CHANNEL_TYPE_VLLM,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_VLLM],
+    icon: 'Vllm',
+    hints: {
+      baseUrl: 'vLLM server address, without /v1',
+      key: 'vLLM API key, or EMPTY if authentication is disabled',
+      models: 'Models fetched from upstream /v1/models',
+    },
+  },
   1: {
     id: 1,
     name: CHANNEL_TYPES[1],
@@ -139,6 +163,39 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   59: {
     id: 59,
     name: CHANNEL_TYPES[59],
+    icon: 'meshy',
+    supportedModels: [
+      'meshy-6',
+      'meshy-6-draft',
+      'meshy-6-texture',
+      'meshy-5.3',
+      'meshy-5.3-draft',
+      'meshy-5.3-texture',
+      'meshy-5.1',
+      'meshy-5.1-draft',
+      'meshy-5.1-texture',
+      'meshy-5',
+      'meshy-5-draft',
+      'meshy-5-texture',
+      'meshy-4',
+      'meshy-4-draft',
+      'meshy-4-texture',
+    ],
+    hints: {
+      baseUrl: 'Meshy2API service URL',
+      key: 'Meshy2API API key',
+      models: 'Meshy 3D model names',
+    },
+  },
+  60: {
+    id: 60,
+    name: CHANNEL_TYPES[60],
+    icon: 'openai',
+    supportedModels: ['unreal-speech-v8'],
+  },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
     icon: 'Sub2API',
     hints: {
       baseUrl: 'Sub2API gateway base URL',
@@ -146,14 +203,39 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models fetched from upstream /v1/models',
     },
   },
-  60: {
-    id: 60,
-    name: CHANNEL_TYPES[60],
+  62: {
+    id: 62,
+    name: CHANNEL_TYPES[62],
     icon: 'NewAPI',
     hints: {
       baseUrl: 'Base URL is required for this channel type',
       key: 'Enter API key for this channel',
       models: 'Models',
+    },
+  },
+  63: {
+    id: 63,
+    name: CHANNEL_TYPES[63],
+    icon: 'AgnesAI',
+    supportedModels: [
+      'agnes-video-v2.0',
+      'agnes-video-2.5',
+      'agnes-video-2.5-flash',
+    ],
+    hints: {
+      baseUrl: 'Default: https://apihub.agnes-ai.com',
+      key: 'Agnes API key',
+      models: 'agnes-video-v2.0,agnes-video-2.5,agnes-video-2.5-flash',
+    },
+  },
+  64: {
+    id: 64,
+    name: CHANNEL_TYPES[64],
+    icon: 'plugin',
+    hints: {
+      baseUrl: 'Task plugin service URL',
+      key: 'Task plugin channel key',
+      models: 'Models exposed by the task plugin',
     },
   },
 }

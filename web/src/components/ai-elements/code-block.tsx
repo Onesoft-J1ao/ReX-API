@@ -352,6 +352,10 @@ function CodeMirrorCodeView({
   }, [onChange, onKeyDown])
 
   useEffect(() => {
+    onKeyDownRef.current = onKeyDown
+  }, [onKeyDown])
+
+  useEffect(() => {
     const editorHost = editorHostRef.current
     if (!editorHost) {
       return

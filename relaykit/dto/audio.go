@@ -12,10 +12,20 @@ type AudioRequest struct {
 	Model          string          `json:"model"`
 	Input          string          `json:"input"`
 	Voice          string          `json:"voice"`
+	Text           string          `json:"text,omitempty"`
+	VoiceID        string          `json:"voiceid,omitempty"`
 	Instructions   string          `json:"instructions,omitempty"`
 	ResponseFormat string          `json:"response_format,omitempty"`
 	Speed          *float64        `json:"speed,omitempty"`
+	Volume         *float64        `json:"volume,omitempty"`
+	Pitch          *float64        `json:"pitch,omitempty"`
+	Bitrate        string          `json:"bitrate,omitempty"`
+	Codec          string          `json:"codec,omitempty"`
+	Temperature    *float64        `json:"temperature,omitempty"`
+	TimestampType  string          `json:"timestamptype,omitempty"`
 	StreamFormat   string          `json:"stream_format,omitempty"`
+	Stream         *bool           `json:"stream,omitempty"`
+	Speech         *bool           `json:"speech,omitempty"`
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
 	// vllm-omini
 	TaskType                json.RawMessage `json:"task_type,omitempty"`
@@ -27,6 +37,17 @@ type AudioRequest struct {
 	InitialCodecChunkFrames json.RawMessage `json:"initial_codec_chunk_frames,omitempty"`
 	// TODO：ensure that the logic remains correct after the stream is started.
 	//Stream                  json.RawMessage `json:"stream,omitempty"`
+}
+
+func (r *AudioRequest) NormalizeUnrealSpeechAliases() {
+	if r.Input == "" {
+		r.Input = r.Text
+	}
+	if r.Voice == "" {
+		r.Voice = r.VoiceID
+	}
+	r.Text = ""
+	r.VoiceID = ""
 }
 
 func (r *AudioRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -52,6 +73,23 @@ func (r *AudioRequest) SetModelName(modelName string) {
 
 type AudioResponse struct {
 	Text string `json:"text"`
+}
+
+type AudioSpeechTaskError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type AudioSpeechTaskResponse struct {
+	ID            string                `json:"id"`
+	Object        string                `json:"object"`
+	CreatedAt     int64                 `json:"created_at"`
+	Status        string                `json:"status"`
+	Model         string                `json:"model"`
+	Progress      int                   `json:"progress"`
+	ContentURL    string                `json:"content_url,omitempty"`
+	TimestampsURL string                `json:"timestamps_url,omitempty"`
+	Error         *AudioSpeechTaskError `json:"error,omitempty"`
 }
 
 type WhisperVerboseJSONResponse struct {

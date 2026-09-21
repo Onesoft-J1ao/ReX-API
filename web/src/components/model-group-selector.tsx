@@ -439,7 +439,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                       {group.label}
                     </span>
                     {(group.desc || group.description) && (
-                      <div className='text-muted-foreground truncate text-xs leading-tight'>
+                      <div className='text-muted-foreground max-w-full text-xs leading-tight break-words whitespace-pre-wrap'>
                         {group.desc || group.description}
                         {group.ratio && (
                           <>
@@ -499,7 +499,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                         {group.label}
                       </span>
                       {(group.desc || group.description) && (
-                        <div className='text-muted-foreground mt-0.5 text-xs'>
+                        <div className='text-muted-foreground mt-0.5 max-w-full text-xs break-words whitespace-pre-wrap'>
                           {group.desc || group.description}
                           {group.ratio && (
                             <>
@@ -589,6 +589,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const isMobile = useIsMobile()
   const groupScrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const modelScrollContainerRef = useRef<HTMLDivElement | null>(null)
   const selectedGroupOptionRef = useRef<HTMLButtonElement | null>(null)
   const selectedModelOptionRef = useRef<HTMLDivElement | null>(null)
 
@@ -648,7 +649,10 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
           selectedGroupOptionRef.current,
           groupScrollContainerRef.current
         )
-        scrollSelectedOptionIntoView(selectedModelOptionRef.current)
+        scrollSelectedOptionIntoView(
+          selectedModelOptionRef.current,
+          modelScrollContainerRef.current
+        )
       })
     })
 
@@ -685,8 +689,9 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   const renderGroupList = () => (
     <div
       className={cn(
-        'min-w-0 space-y-2',
-        !isMobile && modelGroupSelectorLayoutClasses.groupColumn
+        isMobile
+          ? modelGroupSelectorLayoutClasses.mobileGroupColumn
+          : modelGroupSelectorLayoutClasses.groupColumn
       )}
     >
       <div className='text-muted-foreground px-1 text-xs leading-4 font-medium'>
@@ -694,8 +699,9 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       </div>
       <div
         className={cn(
-          'grid gap-1',
-          !isMobile && modelGroupSelectorLayoutClasses.groupScroll
+          isMobile
+            ? modelGroupSelectorLayoutClasses.mobileGroupScroll
+            : modelGroupSelectorLayoutClasses.groupScroll
         )}
         ref={groupScrollContainerRef}
       >
@@ -734,10 +740,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
 
   const renderModelList = () => (
     <Command
-      className={cn(
-        'min-w-0 rounded-xl border-0 bg-transparent p-1',
-        !isMobile && modelGroupSelectorLayoutClasses.modelCommand
-      )}
+      className={cn('min-w-0', modelGroupSelectorLayoutClasses.modelCommand)}
       filter={() => 1}
       shouldFilter={false}
     >
@@ -748,9 +751,8 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
         value={searchQuery}
       />
       <CommandList
-        className={
-          isMobile ? 'max-h-[45vh]' : modelGroupSelectorLayoutClasses.modelList
-        }
+        className={modelGroupSelectorLayoutClasses.modelList}
+        ref={modelScrollContainerRef}
       >
         {filteredModels.length === 0 ? (
           <div className='text-muted-foreground px-3 py-8 text-center text-xs leading-5'>
@@ -803,15 +805,16 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
     <div
       className={
         isMobile
-          ? 'grid gap-3 p-2 md:grid-cols-[9.5rem_minmax(0,1fr)]'
+          ? modelGroupSelectorLayoutClasses.mobileContent
           : modelGroupSelectorLayoutClasses.desktopContent
       }
     >
       {renderGroupList()}
       <div
         className={cn(
-          'min-w-0 overflow-hidden rounded-xl border',
-          !isMobile && modelGroupSelectorLayoutClasses.modelColumn
+          isMobile
+            ? modelGroupSelectorLayoutClasses.mobileModelColumn
+            : modelGroupSelectorLayoutClasses.modelColumn
         )}
       >
         {renderModelList()}
@@ -822,11 +825,11 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   return isMobile ? (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>{renderTrigger()}</DrawerTrigger>
-      <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
+      <DrawerContent className={modelGroupSelectorLayoutClasses.mobileDrawer}>
         <DrawerHeader className='pb-3 text-left'>
           <DrawerTitle>{t('Select Model')}</DrawerTitle>
         </DrawerHeader>
-        <div className='min-h-0 flex-1 overflow-y-auto px-4 pb-5'>
+        <div className={modelGroupSelectorLayoutClasses.mobileBody}>
           {renderContent()}
         </div>
       </DrawerContent>

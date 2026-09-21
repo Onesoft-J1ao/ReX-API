@@ -2,13 +2,17 @@ package model
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -78,6 +82,38 @@ type Log struct {
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	Other             string `json:"other"`
+	ModelIcon         string `json:"model_icon,omitempty" gorm:"-"`
+	ProviderIcon      string `json:"provider_icon,omitempty" gorm:"-"`
+}
+
+// GetLogMultiKeyIndex returns the submit-time multi-key index recorded in a
+// task consumption log so async polling can recover the original credential.
+func GetLogMultiKeyIndex(requestID string, channelID int) (int, bool, error) {
+	if LOG_DB == nil || requestID == "" || channelID == 0 {
+		return 0, false, nil
+	}
+	var entry Log
+	err := LOG_DB.Select("other").
+		Where("request_id = ? AND channel_id = ? AND type = ?", requestID, channelID, LogTypeConsume).
+		Take(&entry).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	var payload struct {
+		AdminInfo struct {
+			MultiKeyIndex *int `json:"multi_key_index"`
+		} `json:"admin_info"`
+	}
+	if err := common.UnmarshalJsonStr(entry.Other, &payload); err != nil {
+		return 0, false, err
+	}
+	if payload.AdminInfo.MultiKeyIndex == nil {
+		return 0, false, nil
+	}
+	return *payload.AdminInfo.MultiKeyIndex, true, nil
 }
 
 // don't use iota, avoid change log type value
@@ -144,6 +180,7 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	}
 	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order(order).Limit(common.MaxRecentItems).Find(&logs).Error
 	formatUserLogs(logs, 0)
+	fillLogModelIcons(logs)
 	return logs, err
 }
 
@@ -461,19 +498,20 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB
-	} else {
-		tx = LOG_DB.Where("logs.type = ?", logType)
+func buildLogsQuery(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string) (*gorm.DB, error) {
+	tx := LOG_DB.Model(&Log{})
+	if userId > 0 {
+		tx = tx.Where("logs.user_id = ?", userId)
 	}
-
+	if logType != LogTypeUnknown {
+		tx = tx.Where("logs.type = ?", logType)
+	}
+	var err error
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
@@ -495,6 +533,104 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	}
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
+	}
+	return tx, nil
+}
+
+var logCSVHeader = []string{
+	"id", "created_at", "type", "user_id", "username", "token_name", "model_name",
+	"quota", "prompt_tokens", "completion_tokens", "use_time", "is_stream", "channel_id",
+	"group", "ip", "request_id", "upstream_request_id", "content", "other",
+}
+
+var userLogCSVHeader = []string{
+	"id", "created_at", "type", "user_id", "username", "token_name", "model_name",
+	"quota", "prompt_tokens", "completion_tokens", "use_time", "is_stream", "group",
+	"ip", "request_id", "content", "other",
+}
+
+// WriteLogsCSV streams matching usage logs without materializing the complete
+// result set or requiring client-side pagination.
+func WriteLogsCSV(writer io.Writer, userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string, viewerRole int, selfView bool) error {
+	if selfView {
+		// Self exports are intentionally independent of administrator-only
+		// channel and upstream-request filters as well as their hidden columns.
+		username = ""
+		channel = 0
+		upstreamRequestId = ""
+	}
+	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+	if err != nil {
+		return err
+	}
+	order := "logs.created_at desc, logs.id desc"
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		order = clickHouseLogOrder("logs.")
+	}
+	rows, err := tx.Order(order).Rows()
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	csvWriter := csv.NewWriter(writer)
+	header := logCSVHeader
+	if selfView {
+		header = userLogCSVHeader
+	}
+	if err := csvWriter.Write(header); err != nil {
+		return err
+	}
+	visibility := logOtherVisibilityUser
+	if !selfView && viewerRole >= common.RoleRootUser {
+		visibility = logOtherVisibilityRoot
+	} else if !selfView && viewerRole >= common.RoleAdminUser {
+		visibility = logOtherVisibilityAdmin
+	}
+	rowID := 0
+	for rows.Next() {
+		var entry Log
+		if err := tx.ScanRows(rows, &entry); err != nil {
+			return err
+		}
+		rowID++
+		if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+			entry.Id = rowID
+		}
+		if selfView {
+			entry.Other = formatLogOtherJSON(entry.Other, logOtherVisibilityUser)
+		} else {
+			entry.Other = formatLogOtherJSON(entry.Other, visibility)
+		}
+		record := []string{
+			strconv.Itoa(entry.Id), strconv.FormatInt(entry.CreatedAt, 10), strconv.Itoa(entry.Type),
+			strconv.Itoa(entry.UserId), entry.Username, entry.TokenName, entry.ModelName,
+			strconv.Itoa(entry.Quota), strconv.Itoa(entry.PromptTokens), strconv.Itoa(entry.CompletionTokens),
+			strconv.Itoa(entry.UseTime), strconv.FormatBool(entry.IsStream),
+		}
+		if !selfView {
+			record = append(record, strconv.Itoa(entry.ChannelId))
+		}
+		record = append(record, entry.Group, entry.Ip, entry.RequestId)
+		if !selfView {
+			record = append(record, entry.UpstreamRequestId)
+		}
+		record = append(record, entry.Content, entry.Other)
+		if err := csvWriter.Write(record); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	csvWriter.Flush()
+	return csvWriter.Error()
+}
+
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+	tx, err := buildLogsQuery(0, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+	if err != nil {
+		return nil, 0, err
 	}
 	err = tx.Model(&Log{}).Count(&total).Error
 	if err != nil {
@@ -552,39 +688,17 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		}
 	}
 
+	fillLogModelIcons(logs)
+
 	return logs, total, err
 }
 
 const logSearchCountLimit = 10000
 
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
-	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
-	}
-
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, "", tokenName, 0, group, requestId, upstreamRequestId)
+	if err != nil {
 		return nil, 0, err
-	}
-	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
-	}
-	if requestId != "" {
-		tx = tx.Where("logs.request_id = ?", requestId)
-	}
-	if upstreamRequestId != "" {
-		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-	if group != "" {
-		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
 	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
 	if err != nil {
@@ -602,6 +716,12 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 
 	formatUserLogs(logs, startIdx)
+	fillLogModelIcons(logs)
+	if console_setting.GetConsoleSetting().HideUpstreamRequestID {
+		for _, entry := range logs {
+			entry.UpstreamRequestId = ""
+		}
+	}
 	return logs, total, err
 }
 
@@ -609,6 +729,112 @@ type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
 	Tpm   int `json:"tpm"`
+}
+
+// fillLogModelIcons populates the transient model/provider icon fields on each
+// log row from the model metadata tables so the log UI can render icons without
+// an extra request. Icons are not persisted on the log table (gorm:"-").
+func fillLogModelIcons(logs []*Log) {
+	if len(logs) == 0 || DB == nil {
+		return
+	}
+	names := make([]string, 0, len(logs))
+	seen := make(map[string]struct{}, len(logs))
+	for _, entry := range logs {
+		if entry.ModelName == "" {
+			continue
+		}
+		if _, ok := seen[entry.ModelName]; ok {
+			continue
+		}
+		seen[entry.ModelName] = struct{}{}
+		names = append(names, entry.ModelName)
+	}
+	if len(names) == 0 {
+		return
+	}
+	var models []Model
+	if err := DB.Select("model_name", "icon", "vendor_id").Where("model_name IN ?", names).Find(&models).Error; err != nil {
+		return
+	}
+	icons := make(map[string]string, len(models))
+	vendorIDs := make([]int, 0, len(models))
+	seenVendors := make(map[int]struct{})
+	for _, item := range models {
+		icons[item.ModelName] = item.Icon
+		if item.VendorID > 0 {
+			if _, ok := seenVendors[item.VendorID]; !ok {
+				seenVendors[item.VendorID] = struct{}{}
+				vendorIDs = append(vendorIDs, item.VendorID)
+			}
+		}
+	}
+	vendorIcons := make(map[int]string, len(vendorIDs))
+	if len(vendorIDs) > 0 {
+		var vendors []Vendor
+		if err := DB.Select("id", "icon").Where("id IN ?", vendorIDs).Find(&vendors).Error; err == nil {
+			for _, vendor := range vendors {
+				vendorIcons[vendor.Id] = vendor.Icon
+			}
+		}
+	}
+	for _, entry := range logs {
+		entry.ModelIcon = icons[entry.ModelName]
+		for _, item := range models {
+			if item.ModelName == entry.ModelName {
+				entry.ProviderIcon = vendorIcons[item.VendorID]
+				break
+			}
+		}
+	}
+}
+
+// GetTokenRPM returns consume-log counts for the last minute in one grouped query.
+func GetTokenRPM(tokenIDs []int) (map[int]int, error) {
+	result := make(map[int]int, len(tokenIDs))
+	if len(tokenIDs) == 0 {
+		return result, nil
+	}
+	for _, tokenID := range tokenIDs {
+		result[tokenID] = 0
+	}
+	if LOG_DB == nil {
+		return result, errors.New("日志数据库未初始化")
+	}
+	var rows []struct {
+		TokenID int `gorm:"column:token_id"`
+		RPM     int `gorm:"column:rpm"`
+	}
+	err := LOG_DB.Table("logs").
+		Select("token_id, COUNT(*) AS rpm").
+		Where("type = ? AND created_at >= ? AND token_id IN ?", LogTypeConsume, time.Now().Add(-60*time.Second).Unix(), tokenIDs).
+		Group("token_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.TokenID] = row.RPM
+	}
+	return result, nil
+}
+
+// GetUserTokenRPM limits token RPM results to tokens owned by the user.
+func GetUserTokenRPM(userID int, tokenIDs []int) (map[int]int, error) {
+	result := make(map[int]int, len(tokenIDs))
+	if userID <= 0 || len(tokenIDs) == 0 {
+		return result, nil
+	}
+	if DB == nil {
+		return result, errors.New("主数据库未初始化")
+	}
+	ownedTokenIDs := make([]int, 0, len(tokenIDs))
+	if err := DB.Model(&Token{}).
+		Where("user_id = ? AND id IN ?", userID, tokenIDs).
+		Pluck("id", &ownedTokenIDs).Error; err != nil {
+		return nil, err
+	}
+	return GetTokenRPM(ownedTokenIDs)
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {

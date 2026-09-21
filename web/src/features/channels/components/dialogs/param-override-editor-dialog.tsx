@@ -583,15 +583,15 @@ const getModeTagTailwind = (mode: string): string => {
   // distinguishable at a glance; error/prune and sync keep the status tokens,
   // where the colour actually carries meaning.
   if (mode.includes('header'))
-    return 'bg-category-1/10 text-category-1 border-category-1/20'
+    {return 'bg-category-1/10 text-category-1 border-category-1/20'}
   if (mode.includes('replace') || mode.includes('trim'))
-    return 'bg-category-2/10 text-category-2 border-category-2/20'
+    {return 'bg-category-2/10 text-category-2 border-category-2/20'}
   if (mode.includes('copy') || mode.includes('move'))
-    return 'bg-category-3/10 text-category-3 border-category-3/20'
+    {return 'bg-category-3/10 text-category-3 border-category-3/20'}
   if (mode.includes('error') || mode.includes('prune'))
-    return 'bg-destructive/10 text-destructive border-destructive/20'
+    {return 'bg-destructive/10 text-destructive border-destructive/20'}
   if (mode.includes('sync'))
-    return 'bg-success/10 text-success border-success/20'
+    {return 'bg-success/10 text-success border-success/20'}
   return 'bg-muted text-muted-foreground'
 }
 

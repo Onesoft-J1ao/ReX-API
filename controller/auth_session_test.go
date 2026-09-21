@@ -149,7 +149,7 @@ func TestSessionLimitDoesNotRecordRejectedLoginAsSuccessful(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/login", nil)
-	setupLogin(user, c)
+	setupLogin(user, nil, c)
 
 	// With the eviction model, the second login succeeds by revoking the
 	// oldest session instead of being rejected with AUTH_SESSION_LIMIT.

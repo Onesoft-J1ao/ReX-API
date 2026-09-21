@@ -125,13 +125,12 @@ export function deleteUserAccount(
  */
 export async function sendEmailVerification(
   email: string,
-  turnstileToken?: string
+  captchaToken?: string,
+  captchaParamName: string = 'turnstile'
 ): Promise<ApiResponse> {
-  const params = new URLSearchParams({ email })
-  if (turnstileToken) {
-    params.append('turnstile', turnstileToken)
-  }
-  const res = await api.get(`/api/verification?${params}`)
+  const res = await api.get('/api/verification', {
+    params: { email, [captchaParamName]: captchaToken },
+  })
   return res.data
 }
 
@@ -297,10 +296,11 @@ export async function getCheckinStatus(
  * Perform daily checkin
  */
 export async function performCheckin(
-  turnstileToken?: string
+  captchaToken?: string,
+  captchaParamName: string = 'turnstile'
 ): Promise<ApiResponse<CheckinResponse>> {
-  const url = turnstileToken
-    ? `/api/user/checkin?turnstile=${encodeURIComponent(turnstileToken)}`
+  const url = captchaToken
+    ? `/api/user/checkin?${captchaParamName}=${encodeURIComponent(captchaToken)}`
     : '/api/user/checkin'
   const res = await api.post(url)
   return res.data

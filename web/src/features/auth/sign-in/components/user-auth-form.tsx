@@ -25,7 +25,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
+import { Cap } from '@/components/cap'
 import { Dialog } from '@/components/dialog'
+import { HCaptcha } from '@/components/hcaptcha'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
@@ -40,11 +42,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { login, wechatLoginByCode } from '@/features/auth/api'
+import { getBannedLoginResponse } from '@/features/auth/components/banned-login-response'
+import { BannedUserDialog } from '@/features/auth/components/banned-user-dialog'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
 import {
   requestPasskeyAssertion,
@@ -79,7 +83,8 @@ export function UserAuthForm({
   useEffect(() => () => passkeyOperation.current?.abort(), [])
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
+  const [bannedHtml, setBannedHtml] = useState<string | null>(null)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
   const loginFailedMessage = t('Login failed')
 
@@ -96,12 +101,17 @@ export function UserAuthForm({
       status?.data?.password_login_encryption_enabled ??
       false) === true
   const {
+    isCaptchaEnabled,
     isTurnstileEnabled,
+    isHCaptchaEnabled,
+    isCapEnabled,
     turnstileSiteKey,
-    turnstileToken,
-    setTurnstileToken,
-    validateTurnstile,
-  } = useTurnstile()
+    hCaptchaSiteKey,
+    capApiEndpoint,
+    captchaToken,
+    setCaptchaToken,
+    validateCaptcha,
+  } = useCaptcha()
   const { handleLoginResult } = useAuthRedirect()
 
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
@@ -165,12 +175,23 @@ export function UserAuthForm({
       return
     }
 
-    if (!validateTurnstile()) return
+    if (!validateCaptcha()) return
 
-    const submittedTurnstileToken = turnstileToken
-    if (isTurnstileEnabled) {
-      setTurnstileToken('')
-      setTurnstileWidgetKey((current) => current + 1)
+    const captchaPayload: {
+      turnstile?: string
+      hcaptcha?: string
+      cap_token?: string
+    } = {}
+    if (isCapEnabled) {
+      captchaPayload.cap_token = captchaToken
+    } else if (isHCaptchaEnabled) {
+      captchaPayload.hcaptcha = captchaToken
+    } else {
+      captchaPayload.turnstile = captchaToken
+    }
+    if (isCaptchaEnabled) {
+      setCaptchaToken('')
+      setCaptchaWidgetKey((current) => current + 1)
     }
 
     setIsLoading(true)
@@ -178,7 +199,7 @@ export function UserAuthForm({
       const res = await login({
         username: data.username,
         password: data.password,
-        turnstile: submittedTurnstileToken,
+        ...captchaPayload,
         passwordEncryptionEnabled: passwordLoginEncryptionEnabled,
       })
 
@@ -188,9 +209,19 @@ export function UserAuthForm({
           toast.success(t('Welcome back!'))
         }
       } else {
+        const banned = getBannedLoginResponse(res)
+        if (banned) {
+          setBannedHtml(banned.html)
+          return
+        }
         handleServerError(createServerError(res, loginFailedMessage))
       }
     } catch (error: unknown) {
+      const banned = getBannedLoginResponse(error)
+      if (banned) {
+        setBannedHtml(banned.html)
+        return
+      }
       handleServerError(AuthOperationError.from(error, loginFailedMessage))
     } finally {
       setIsLoading(false)
@@ -229,9 +260,21 @@ export function UserAuthForm({
           toast.success(t('Signed in via WeChat'))
         }
       } else {
+        const banned = getBannedLoginResponse(res)
+        if (banned) {
+          handleWeChatDialogChange(false)
+          setBannedHtml(banned.html)
+          return
+        }
         handleServerError(createServerError(res, loginFailedMessage))
       }
     } catch (error: unknown) {
+      const banned = getBannedLoginResponse(error)
+      if (banned) {
+        handleWeChatDialogChange(false)
+        setBannedHtml(banned.html)
+        return
+      }
       handleServerError(
         new AuthOperationError(loginFailedMessage, undefined, { cause: error })
       )
@@ -273,6 +316,11 @@ export function UserAuthForm({
       )
       controller.signal.throwIfAborted()
       if (!finish.success) {
+        const banned = getBannedLoginResponse(finish)
+        if (banned) {
+          setBannedHtml(banned.html)
+          return
+        }
         throw createServerError(finish, t('Failed to complete Passkey login'))
       }
 
@@ -282,6 +330,11 @@ export function UserAuthForm({
       }
     } catch (error: unknown) {
       if (controller.signal.aborted) return
+      const banned = getBannedLoginResponse(error)
+      if (banned) {
+        setBannedHtml(banned.html)
+        return
+      }
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
         toast.info(t('Passkey login was cancelled or timed out'))
       } else if (error instanceof Error) {
@@ -405,14 +458,35 @@ export function UserAuthForm({
               {t('Sign in')}
             </Button>
 
-            {/* Turnstile */}
+            {/* Captcha */}
             {isTurnstileEnabled && (
               <div className='mt-2'>
                 <Turnstile
-                  key={turnstileWidgetKey}
+                  key={captchaWidgetKey}
                   siteKey={turnstileSiteKey}
-                  onVerify={setTurnstileToken}
-                  onExpire={() => setTurnstileToken('')}
+                  onVerify={setCaptchaToken}
+                  onExpire={() => setCaptchaToken('')}
+                />
+              </div>
+            )}
+            {isHCaptchaEnabled && (
+              <div className='mt-2'>
+                <HCaptcha
+                  key={captchaWidgetKey}
+                  siteKey={hCaptchaSiteKey}
+                  onVerify={setCaptchaToken}
+                  onExpire={() => setCaptchaToken('')}
+                  onError={() => setCaptchaToken('')}
+                />
+              </div>
+            )}
+            {isCapEnabled && (
+              <div className='mt-2'>
+                <Cap
+                  key={captchaWidgetKey}
+                  apiEndpoint={capApiEndpoint}
+                  onVerify={setCaptchaToken}
+                  onReset={() => setCaptchaToken('')}
                 />
               </div>
             )}
@@ -494,6 +568,14 @@ export function UserAuthForm({
           </div>
         </Dialog>
       )}
+
+      <BannedUserDialog
+        open={bannedHtml !== null}
+        html={bannedHtml ?? ''}
+        onOpenChange={(open) => {
+          if (!open) setBannedHtml(null)
+        }}
+      />
     </Form>
   )
 }

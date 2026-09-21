@@ -25,6 +25,15 @@ import {
 } from './section-registry.tsx'
 
 const defaultContentSettings: ContentSettings = {
+  PlaygroundSettings:
+    '{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[],"video":[]},"speech_model_types":{}}',
+  StatusCheckGroups: '[]',
+  StatusCheckCacheExcludedModels: '[]',
+  StatusCheckAnnouncement: '',
+  StatusCheckFlexibleMode:
+    '{"enabled":false,"idle_minutes":15,"max_consecutive_probes":40}',
+  GroupRatio: '{}',
+  ModelRatio: '{}',
   'console_setting.api_info': '[]',
   'console_setting.announcements': '[]',
   'console_setting.faq': '[]',
@@ -48,6 +57,7 @@ const defaultContentSettings: ContentSettings = {
   MjForwardUrlEnabled: false,
   MjModeClearEnabled: false,
   MjActionCheckSuccessEnabled: false,
+  CustomTabs: '[]',
 }
 
 function resolveContentSettings(

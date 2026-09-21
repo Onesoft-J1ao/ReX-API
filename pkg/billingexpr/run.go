@@ -3,6 +3,7 @@ package billingexpr
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,10 +16,14 @@ import (
 
 // RunExpr compiles (with cache) and executes an expression string.
 // The environment exposes:
-//   - p, c             — prompt / completion tokens (auto-excluding separately-priced sub-categories)
-//   - len              — total input context length for tier conditions (never reduced by sub-category exclusion)
-//   - cr, cc, cc1h     — cache read / creation / creation-1h tokens
-//   - tier(name, value) — trace callback that records which tier matched
+//   - p, c               — prompt / completion tokens (auto-excluding separately-priced sub-categories)
+//   - len                — total input context length for tier conditions (never reduced by sub-category exclusion)
+//   - cr, cc, cc1h       — cache read / creation / creation-1h tokens
+//   - img, img_cr, img_o — image input / cached image input / image output tokens
+//   - image_count        — validated generated-image quantity
+//   - req                — one request, represented as 1M units so its coefficient is $/request
+//   - tier(name, value)  — trace callback that records which tier matched
+//   - image_resolution() — normalized requested image resolution (1K, 2K, 4K, ...)
 //   - max, min, abs, ceil, floor — standard math helpers
 //
 // Returns the resulting float64 quota (before group ratio) and a TraceResult
@@ -80,6 +85,7 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 		"img_o":       params.ImgO,
 		"ai":          params.AI,
 		"ao":          params.AO,
+		"req":         float64(1_000_000),
 		"tier": func(name string, value float64) float64 {
 			trace.MatchedTier = name
 			trace.Cost = value
@@ -122,6 +128,9 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 			}
 			return result.Value()
 		},
+		"image_resolution": func() string {
+			return normalizedImageResolution(request.Body)
+		},
 		"u": func(name string) any {
 			if request.Usage == nil {
 				return nil
@@ -155,6 +164,65 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 		return 0, trace, fmt.Errorf("expr result is %T, want float64", out)
 	}
 	return f, trace, nil
+}
+
+func normalizedImageResolution(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+
+	for _, path := range []string{"quality", "size"} {
+		value := strings.TrimSpace(gjson.GetBytes(body, path).String())
+		if value == "" {
+			continue
+		}
+		if resolution := normalizeKResolution(value); resolution != "" {
+			return resolution
+		}
+		if path == "size" {
+			return normalizeDimensionResolution(value)
+		}
+	}
+	return ""
+}
+
+func normalizeKResolution(value string) string {
+	normalized := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), " ", ""))
+	if !strings.HasSuffix(normalized, "K") {
+		return ""
+	}
+	n, err := strconv.ParseFloat(strings.TrimSuffix(normalized, "K"), 64)
+	if err != nil || math.IsNaN(n) || math.IsInf(n, 0) || n <= 0 || n > 64 {
+		return ""
+	}
+	return strconv.FormatFloat(n, 'f', -1, 64) + "K"
+}
+
+func normalizeDimensionResolution(value string) string {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(value), " ", ""))
+	parts := strings.Split(normalized, "x")
+	if len(parts) != 2 {
+		return ""
+	}
+	width, widthErr := strconv.Atoi(parts[0])
+	height, heightErr := strconv.Atoi(parts[1])
+	if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
+		return ""
+	}
+
+	maxDimension := max(width, height)
+	switch {
+	case maxDimension <= 1024:
+		return "1K"
+	case maxDimension <= 2048:
+		return "2K"
+	case maxDimension <= 4096:
+		return "4K"
+	case maxDimension <= 8192:
+		return "8K"
+	default:
+		return ""
+	}
 }
 
 func timeInZone(tz string) time.Time {

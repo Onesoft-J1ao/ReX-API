@@ -1,3 +1,4 @@
+import type { NowPaymentsInvoice } from '@/features/wallet/types'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -63,6 +64,11 @@ export async function patchPlanStatus(
   const res = await api.patch(`/api/subscription/admin/plans/${id}`, {
     enabled,
   })
+  return res.data
+}
+
+export async function deletePlan(id: number): Promise<ApiResponse> {
+  const res = await api.delete(`/api/subscription/admin/plans/${id}`)
   return res.data
 }
 
@@ -162,6 +168,14 @@ export async function paySubscriptionBalance(
   return res.data
 }
 
+export async function paySubscriptionNowPayments(data: {
+  plan_id: number
+  pay_currency: string
+}): Promise<ApiResponse<NowPaymentsInvoice>> {
+  const res = await api.post('/api/subscription/nowpayments/pay', data)
+  return res.data
+}
+
 // Mints a Pancake OnetimeProduct (see controller for the OnetimeProduct vs
 // SubscriptionProduct rationale) using persisted creds + StoreID.
 export async function createWaffoPancakeSubscriptionProduct(data: {
@@ -192,7 +206,10 @@ export async function listWaffoPancakeSubscriptionProductOptions(): Promise<
 }
 
 export async function paySubscriptionEpay(
-  data: SubscriptionPayRequest & { payment_method: string }
+  data: SubscriptionPayRequest & {
+    payment_method: string
+    epay_gateway?: string
+  }
 ): Promise<SubscriptionPayResponse & { url?: string }> {
   const res = await api.post('/api/subscription/epay/pay', data)
   return {

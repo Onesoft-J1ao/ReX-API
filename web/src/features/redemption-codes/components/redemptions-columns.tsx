@@ -155,6 +155,47 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       size: 320,
     },
     {
+      id: 'type',
+      header: t('Type'),
+      cell: ({ row }) => {
+        const planId = row.original.subscription_plan_id || 0
+        return planId > 0 ? (
+          <StatusBadge
+            label={t('Subscription #{{id}}', { id: planId })}
+            variant='info'
+            copyable={false}
+          />
+        ) : (
+          <StatusBadge
+            label={t('Wallet balance')}
+            variant='neutral'
+            copyable={false}
+          />
+        )
+      },
+      size: 150,
+    },
+    {
+      accessorKey: 'creator_type',
+      header: t('Creator'),
+      meta: { mobileHidden: true },
+      cell: ({ row }) => {
+        const creatorType = row.original.creator_type || 'admin'
+        return (
+          <StatusBadge
+            label={
+              creatorType === 'user'
+                ? t('User-purchased')
+                : t('Administrator-created')
+            }
+            variant={creatorType === 'user' ? 'info' : 'neutral'}
+            copyable={false}
+          />
+        )
+      },
+      size: 170,
+    },
+    {
       accessorKey: 'quota',
       header: t('Quota'),
       cell: ({ row }) => {

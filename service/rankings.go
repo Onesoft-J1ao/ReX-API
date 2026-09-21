@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/model"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -30,10 +31,29 @@ type RankingsResponse struct {
 	VendorShareHistory VendorShareSeries  `json:"vendor_share_history"`
 }
 
+// UserRankingsResponse contains the two user leaderboard columns. Each list
+// is independently ranked by its metric, while retaining both totals so the
+// client can show a secondary value without another request.
+type UserRankingsResponse struct {
+	Period   string       `json:"period"`
+	ByQuota  []RankedUser `json:"by_quota"`
+	ByTokens []RankedUser `json:"by_tokens"`
+}
+
+type RankedUser struct {
+	Rank        int    `json:"rank"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name,omitempty"`
+	TotalQuota  int64  `json:"total_quota"`
+	TotalTokens int64  `json:"total_tokens"`
+	TopGroup    string `json:"top_group,omitempty"`
+}
+
 type RankedModel struct {
 	Rank         int     `json:"rank"`
 	PreviousRank *int    `json:"previous_rank,omitempty"`
 	ModelName    string  `json:"model_name"`
+	ModelIcon    string  `json:"model_icon,omitempty"`
 	Vendor       string  `json:"vendor"`
 	VendorIcon   string  `json:"vendor_icon,omitempty"`
 	Category     string  `json:"category"`
@@ -55,6 +75,7 @@ type RankedVendor struct {
 
 type RankingMover struct {
 	ModelName   string  `json:"model_name"`
+	ModelIcon   string  `json:"model_icon,omitempty"`
 	Vendor      string  `json:"vendor"`
 	VendorIcon  string  `json:"vendor_icon,omitempty"`
 	RankDelta   int     `json:"rank_delta"`
@@ -115,9 +136,15 @@ type rankingCacheItem struct {
 	data      *RankingsResponse
 }
 
+type userRankingCacheItem struct {
+	expiresAt time.Time
+	data      *UserRankingsResponse
+}
+
 type rankingModelMeta struct {
 	vendor     string
 	vendorIcon string
+	modelIcon  string
 }
 
 type vendorAggregate struct {
@@ -131,9 +158,18 @@ type vendorAggregate struct {
 }
 
 var (
-	rankingCacheMu sync.Mutex
-	rankingCache   = map[string]rankingCacheItem{}
+	rankingCacheMu     sync.Mutex
+	rankingCache       = map[string]rankingCacheItem{}
+	userRankingCacheMu sync.Mutex
+	userRankingCache   = map[string]userRankingCacheItem{}
+	userRankingBuilds  singleflight.Group
 )
+
+func InvalidateUserRankingsCache() {
+	userRankingCacheMu.Lock()
+	clear(userRankingCache)
+	userRankingCacheMu.Unlock()
+}
 
 func GetRankingsSnapshot(period string) (*RankingsResponse, error) {
 	config, err := rankingConfig(period)
@@ -162,6 +198,113 @@ func GetRankingsSnapshot(period string) (*RankingsResponse, error) {
 	rankingCacheMu.Unlock()
 
 	return data, nil
+}
+
+// GetUserRankingsSnapshot returns the top twenty users by quota and token usage
+// for the same rolling period used by the model rankings. Results are cached
+// briefly because the source table is an hourly rollup and the page is often
+// revisited while switching between periods.
+func GetUserRankingsSnapshot(period string) (*UserRankingsResponse, error) {
+	config, err := rankingConfig(period)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheKey := fmt.Sprintf("%s:%p", config.id, model.DB)
+	now := time.Now()
+	userRankingCacheMu.Lock()
+	if item, ok := userRankingCache[cacheKey]; ok && now.Before(item.expiresAt) {
+		userRankingCacheMu.Unlock()
+		return item.data, nil
+	}
+	userRankingCacheMu.Unlock()
+
+	result, err, _ := userRankingBuilds.Do(cacheKey, func() (any, error) {
+		buildTime := time.Now()
+		userRankingCacheMu.Lock()
+		if item, ok := userRankingCache[cacheKey]; ok && buildTime.Before(item.expiresAt) {
+			userRankingCacheMu.Unlock()
+			return item.data, nil
+		}
+		userRankingCacheMu.Unlock()
+
+		data, buildErr := buildUserRankingsSnapshot(config, buildTime)
+		if buildErr != nil {
+			return nil, buildErr
+		}
+
+		userRankingCacheMu.Lock()
+		userRankingCache[cacheKey] = userRankingCacheItem{
+			expiresAt: buildTime.Add(rankingCacheTTL),
+			data:      data,
+		}
+		userRankingCacheMu.Unlock()
+
+		return data, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.(*UserRankingsResponse), nil
+}
+
+func buildUserRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*UserRankingsResponse, error) {
+	startTime, endTime := rankingTimeRange(config, now)
+	usage, err := model.GetRankingUserUsage(startTime, endTime, rankingLeaderboardUserLimit)
+	if err != nil {
+		return nil, err
+	}
+
+	groupsByUser := make(map[int][]model.RankingUserGroupTotal)
+	for _, group := range usage.Groups {
+		groupsByUser[group.UserID] = append(groupsByUser[group.UserID], group)
+	}
+
+	return &UserRankingsResponse{
+		Period:   config.id,
+		ByQuota:  buildRankedUsers(usage.ByQuota, groupsByUser, rankingUserMetricQuota),
+		ByTokens: buildRankedUsers(usage.ByTokens, groupsByUser, rankingUserMetricTokens),
+	}, nil
+}
+
+const (
+	rankingLeaderboardUserLimit = 20
+	rankingUserMetricQuota      = "quota"
+	rankingUserMetricTokens     = "tokens"
+)
+
+func buildRankedUsers(totals []model.RankingUserTotal, groupsByUser map[int][]model.RankingUserGroupTotal, metric string) []RankedUser {
+	rows := make([]RankedUser, 0, len(totals))
+	for idx, item := range totals {
+		rows = append(rows, RankedUser{
+			Rank:        idx + 1,
+			Username:    item.Username,
+			DisplayName: item.DisplayName,
+			TotalQuota:  item.TotalQuota,
+			TotalTokens: item.TotalTokens,
+			TopGroup:    rankingUserTopGroup(groupsByUser[item.UserID], metric),
+		})
+	}
+	return rows
+}
+
+func rankingUserTopGroup(groups []model.RankingUserGroupTotal, metric string) string {
+	bestGroup := ""
+	bestValue := int64(0)
+	for _, group := range groups {
+		value := group.TotalQuota
+		if metric == rankingUserMetricTokens {
+			value = group.TotalTokens
+		}
+		if value <= 0 {
+			continue
+		}
+		if value > bestValue || (value == bestValue && (bestGroup == "" || group.UseGroup < bestGroup)) {
+			bestGroup = group.UseGroup
+			bestValue = value
+		}
+	}
+	return bestGroup
 }
 
 func rankingConfig(period string) (rankingPeriodConfig, error) {
@@ -243,6 +386,7 @@ func buildRankingModelMeta() map[string]rankingModelMeta {
 	meta := make(map[string]rankingModelMeta)
 	for _, pricing := range model.GetPricing() {
 		item := rankingModelMeta{vendor: rankingUnknownVendor}
+		item.modelIcon = pricing.Icon
 		if vendor, ok := vendorByID[pricing.VendorID]; ok {
 			item.vendor = vendor.Name
 			item.vendorIcon = vendor.Icon
@@ -280,6 +424,7 @@ func buildRankedModels(totals []model.RankingQuotaTotal, totalTokens int64, prev
 			ModelName:    item.ModelName,
 			Vendor:       modelMeta.vendor,
 			VendorIcon:   modelMeta.vendorIcon,
+			ModelIcon:    modelMeta.modelIcon,
 			Category:     "all",
 			TotalTokens:  item.TotalTokens,
 			Share:        rankingShare(item.TotalTokens, totalTokens),
@@ -487,6 +632,7 @@ func buildRankingMovers(models []RankedModel) ([]RankingMover, []RankingMover) {
 			ModelName:   item.ModelName,
 			Vendor:      item.Vendor,
 			VendorIcon:  item.VendorIcon,
+			ModelIcon:   item.ModelIcon,
 			RankDelta:   delta,
 			CurrentRank: item.Rank,
 			GrowthPct:   item.GrowthPct,

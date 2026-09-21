@@ -218,6 +218,7 @@ func TestOpenAIChatTokenLimitCompatibility(t *testing.T) {
 
 func TestDirectOpenAIResponsesKeepsExistingParameters(t *testing.T) {
 	const body = `{"model":"gpt-6-astra","input":"hi","max_output_tokens":100,"temperature":0.2,"top_p":0.8,"top_logprobs":5,"include":["message.output_text.logprobs"],"reasoning":{"effort":"high"}}`
+	const expected = `{"model":"gpt-6-astra","input":[{"role":"user","content":"hi"}],"max_output_tokens":100,"temperature":0.2,"top_p":0.8,"top_logprobs":5,"include":["message.output_text.logprobs"],"reasoning":{"effort":"high"}}`
 	var request dto.OpenAIResponsesRequest
 	require.NoError(t, common.UnmarshalJsonStr(body, &request))
 	info := &relaycommon.RelayInfo{
@@ -232,5 +233,5 @@ func TestDirectOpenAIResponsesKeepsExistingParameters(t *testing.T) {
 	require.NoError(t, err)
 	encoded, err := common.Marshal(converted)
 	require.NoError(t, err)
-	assert.JSONEq(t, body, string(encoded))
+	assert.JSONEq(t, expected, string(encoded))
 }

@@ -26,6 +26,10 @@ import type {
   SearchApiKeysParams,
   ApiKeyFormData,
   TokenAutoGroupsConfig,
+  TokenGroupNames,
+  TokenGroupMigrationResult,
+  TokenAutoRouteStatusResponse,
+  TokenAutoRoutesResponse,
 } from './types'
 
 // ============================================================================
@@ -55,6 +59,17 @@ export async function searchApiKeys(
   return res.data
 }
 
+// Get RPM values for the currently visible API keys without replacing their
+// list rows or status/quota fields.
+export async function getApiKeyRPMs(
+  ids: number[]
+): Promise<ApiResponse<{ rpms: Record<string, number> }>> {
+  const queryParams = new URLSearchParams()
+  for (const id of ids) queryParams.append('ids', String(id))
+  const res = await api.get(`/api/token/rpm?${queryParams.toString()}`)
+  return res.data
+}
+
 // Get single API key by ID
 export async function getApiKey(id: number): Promise<ApiResponse<ApiKey>> {
   const res = await api.get(`/api/token/${id}`)
@@ -66,6 +81,45 @@ export async function getTokenAutoGroups(): Promise<
   ApiResponse<TokenAutoGroupsConfig>
 > {
   const res = await api.get('/api/token/auto-groups')
+  return res.data
+}
+
+export async function getTokenAutoRouteStatus(
+  id: number
+): Promise<ApiResponse<TokenAutoRouteStatusResponse>> {
+  const res = await api.get(`/api/token/${id}/auto-routes/status`)
+  return res.data
+}
+
+export async function getTokenAutoRoutes(
+  id: number
+): Promise<ApiResponse<TokenAutoRoutesResponse>> {
+  const res = await api.get(`/api/token/${id}/auto-routes`)
+  return res.data
+}
+
+export async function resetApiKeyUsedQuota(
+  id: number
+): Promise<ApiResponse<ApiKey>> {
+  const res = await api.post(`/api/token/${id}/reset-used-quota`)
+  return res.data
+}
+
+export async function getTokenGroupNames(): Promise<
+  ApiResponse<TokenGroupNames>
+> {
+  const res = await api.get('/api/token/group-names')
+  return res.data
+}
+
+export async function migrateTokenGroup(
+  sourceGroup: string,
+  targetGroup: string
+): Promise<ApiResponse<TokenGroupMigrationResult>> {
+  const res = await api.post('/api/token/group/migrate', {
+    source_group: sourceGroup,
+    target_group: targetGroup,
+  })
   return res.data
 }
 

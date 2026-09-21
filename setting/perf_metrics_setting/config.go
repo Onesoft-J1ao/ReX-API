@@ -7,10 +7,11 @@ import (
 )
 
 type PerfMetricsSetting struct {
-	Enabled       bool   `json:"enabled"`
-	FlushInterval int    `json:"flush_interval"`
-	BucketTime    string `json:"bucket_time"`
-	RetentionDays int    `json:"retention_days"`
+	Enabled                  bool   `json:"enabled"`
+	ExcludeUpstream400Errors bool   `json:"exclude_upstream_400_errors"`
+	FlushInterval            int    `json:"flush_interval"`
+	BucketTime               string `json:"bucket_time"`
+	RetentionDays            int    `json:"retention_days"`
 
 	// UpstreamSummaryUrl mirrors another new-api instance's public perf-metrics
 	// summary. Pay-per-request models cost real money to probe, so an upstream
@@ -26,10 +27,11 @@ type PerfMetricsSetting struct {
 }
 
 var perfMetricsSetting = PerfMetricsSetting{
-	Enabled:       true,
-	FlushInterval: 5,
-	BucketTime:    "hour",
-	RetentionDays: 0,
+	Enabled:                  true,
+	ExcludeUpstream400Errors: false,
+	FlushInterval:            5,
+	BucketTime:               "hour",
+	RetentionDays:            0,
 
 	UpstreamSummaryUrl:     "https://ai.furry.vg/api/perf-metrics/summary",
 	UpstreamEnabled:        true,

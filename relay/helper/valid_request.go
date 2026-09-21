@@ -15,6 +15,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/playground_setting"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -51,7 +52,7 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateRerankRequest(c)
 	case types.RelayFormatOpenAIAudio:
 		request, err = GetAndValidAudioRequest(c, relayMode)
-	case types.RelayFormatOpenAIRealtime:
+	case types.RelayFormatOpenAIRealtime, types.RelayFormatUnrealSpeechWebSocket:
 		request = &dto.BaseRequest{}
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
@@ -65,10 +66,33 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 	if err != nil {
 		return nil, err
 	}
+	audioRequest.NormalizeUnrealSpeechAliases()
 	switch relayMode {
 	case relayconstant.RelayModeAudioSpeech:
 		if audioRequest.Model == "" {
 			return nil, errors.New("model is required")
+		}
+		if strings.HasPrefix(c.Request.URL.Path, "/pg/") {
+			if audioRequest.Speed == nil {
+				return nil, errors.New("speed is required")
+			}
+			modelType := playground_setting.GetSpeechModelType(audioRequest.Model)
+			if modelType == playground_setting.SpeechModelTypeUnreal {
+				if math.IsNaN(*audioRequest.Speed) || math.IsInf(*audioRequest.Speed, 0) || *audioRequest.Speed < -1 || *audioRequest.Speed > 1 {
+					return nil, errors.New("UnrealSpeech speed must be between -1 and 1")
+				}
+			} else if math.IsNaN(*audioRequest.Speed) || math.IsInf(*audioRequest.Speed, 0) || *audioRequest.Speed < 0.25 || *audioRequest.Speed > 4 {
+				return nil, errors.New("speed must be between 0.25 and 4")
+			}
+		}
+		if strings.HasPrefix(c.Request.URL.Path, "/pg/") {
+			modelType := playground_setting.GetSpeechModelType(audioRequest.Model)
+			if modelType != playground_setting.SpeechModelTypeAzure && audioRequest.Volume != nil {
+				return nil, errors.New("volume is only supported by Azure playground speech models")
+			}
+			if modelType != playground_setting.SpeechModelTypeAzure && modelType != playground_setting.SpeechModelTypeUnreal && audioRequest.Pitch != nil {
+				return nil, errors.New("pitch is only supported by Azure and UnrealSpeech playground speech models")
+			}
 		}
 	default:
 		if audioRequest.Model == "" {
@@ -123,7 +147,8 @@ func GetAndValidateEmbeddingRequest(c *gin.Context, relayMode int) (*dto.Embeddi
 // overflow the conversion and corrupt billing.
 const maxTokensLimit = math.MaxInt32 / 2
 
-func exceedsMaxTokensLimit(values ...*uint) bool {
+// ExceedsMaxTokensLimit checks token limits before they reach billing arithmetic.
+func ExceedsMaxTokensLimit(values ...*uint) bool {
 	for _, v := range values {
 		if lo.FromPtrOr(v, uint(0)) > maxTokensLimit {
 			return true
@@ -144,7 +169,7 @@ func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest
 	if request.Input == nil {
 		return nil, errors.New("input is required")
 	}
-	if exceedsMaxTokensLimit(request.MaxOutputTokens) {
+	if ExceedsMaxTokensLimit(request.MaxOutputTokens) {
 		return nil, errors.New("max_output_tokens is invalid")
 	}
 	return request, nil
@@ -300,7 +325,7 @@ func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 	if textRequest.Model == "" {
 		return nil, errors.New("field model is required")
 	}
-	if exceedsMaxTokensLimit(textRequest.MaxTokens, textRequest.MaxTokensToSample) {
+	if ExceedsMaxTokensLimit(textRequest.MaxTokens, textRequest.MaxTokensToSample) {
 		return nil, errors.New("max_tokens is invalid")
 	}
 
@@ -325,8 +350,11 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 		textRequest.Model = c.Param("model")
 	}
 
-	if exceedsMaxTokensLimit(textRequest.MaxTokens, textRequest.MaxCompletionTokens) {
+	if ExceedsMaxTokensLimit(textRequest.MaxTokens, textRequest.MaxCompletionTokens) {
 		return nil, errors.New("max_tokens is invalid")
+	}
+	if ExceedsMaxTokensLimit(textRequest.MinTokens) {
+		return nil, errors.New("min_tokens is invalid")
 	}
 	if textRequest.Model == "" {
 		return nil, errors.New("model is required")
@@ -378,7 +406,7 @@ func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error)
 	if len(request.Contents) == 0 && len(request.Requests) == 0 {
 		return nil, errors.New("contents is required")
 	}
-	if exceedsMaxTokensLimit(request.GenerationConfig.MaxOutputTokens) {
+	if ExceedsMaxTokensLimit(request.GenerationConfig.MaxOutputTokens) {
 		return nil, errors.New("maxOutputTokens is invalid")
 	}
 

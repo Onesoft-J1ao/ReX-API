@@ -9,6 +9,7 @@ import (
 	_ "github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
+	"github.com/QuantumNous/new-api/relay/channel/agnes"
 	"github.com/QuantumNous/new-api/relay/channel/ali"
 	"github.com/QuantumNous/new-api/relay/channel/aws"
 	"github.com/QuantumNous/new-api/relay/channel/baidu"
@@ -36,7 +37,10 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/sub2api"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
+	taskagnes "github.com/QuantumNous/new-api/relay/channel/task/agnes"
 	jspluginadaptor "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
+	"github.com/QuantumNous/new-api/relay/channel/task/meshy"
+	taskunrealspeech "github.com/QuantumNous/new-api/relay/channel/task/unrealspeech"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
@@ -123,6 +127,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &sub2api.Adaptor{}
 	case constant.APITypeNewAPI:
 		return &newapi.Adaptor{}
+	case constant.APITypeAgnes:
+		return &agnes.Adaptor{}
 	}
 	return nil
 }
@@ -186,6 +192,18 @@ func TaskPlatformUnavailableError(platform constant.TaskPlatform) (string, strin
 }
 
 func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
+	// Agnes, Meshy2API and UnrealSpeech remain built-in adaptors while the
+	// other task providers are served by the upstream JS plugin registry.
+	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
+		switch channelType {
+		case constant.ChannelTypeAgnes:
+			return &taskagnes.TaskAdaptor{}
+		case constant.ChannelTypeMeshy2API:
+			return &meshy.TaskAdaptor{}
+		case constant.ChannelTypeUnrealSpeech:
+			return &taskunrealspeech.TaskAdaptor{}
+		}
+	}
 	plugin, ok := ResolveTaskPluginForPlatform(pluginruntime.DefaultRegistry.Generation(), platform)
 	if !ok {
 		return nil
@@ -218,6 +236,19 @@ func getTaskAdaptorForRequest(c *gin.Context, platform constant.TaskPlatform) (c
 				return platform, jspluginadaptor.New(pinned.Plugin)
 			}
 			return platform, nil
+		}
+	}
+	// These task providers are implemented in-process and must be resolved
+	// before looking up the JS plugin registry. In particular, Agnes uses a
+	// numeric channel type (63), which is also a valid task platform.
+	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
+		switch channelType {
+		case constant.ChannelTypeAgnes:
+			return platform, &taskagnes.TaskAdaptor{}
+		case constant.ChannelTypeMeshy2API:
+			return platform, &meshy.TaskAdaptor{}
+		case constant.ChannelTypeUnrealSpeech:
+			return platform, &taskunrealspeech.TaskAdaptor{}
 		}
 	}
 	generation := pluginruntime.DefaultRegistry.Generation()

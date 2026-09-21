@@ -94,6 +94,18 @@ type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
 
+type ThreeDConverter interface {
+	ConvertToThreeD(originTask *model.Task) ([]byte, error)
+}
+
+type OpenAIAudioTaskConverter interface {
+	ConvertToOpenAIAudioTask(originTask *model.Task) ([]byte, error)
+}
+
+type TokenBilledTaskAdaptor interface {
+	GetTokenCountMeta(c *gin.Context, info *relaycommon.RelayInfo) *types.TokenCountMeta
+}
+
 type TaskArtifact = hosttypes.TaskArtifact
 
 type TaskArtifactClientRequest struct {

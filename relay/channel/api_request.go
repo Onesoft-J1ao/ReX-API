@@ -12,8 +12,8 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 	rootconstant "github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -398,11 +398,16 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	return resp, nil
 }
 
+// DoWssRequest dials the adaptor's upstream over WebSocket for the realtime
+// and Responses WebSocket relays. It honors the channel proxy, is bound to the
+// request context, and reports a rejected handshake as a *types.NewAPIError
+// carrying the upstream status code (types.NewError preserves it).
 func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
+	fullRequestURL = toWebSocketURL(fullRequestURL)
 	targetHeader := http.Header{}
 	err = a.SetupRequestHeader(c, &targetHeader, info)
 	if err != nil {
@@ -418,14 +423,39 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		targetHeader.Set(key, value)
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
-	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
-	if err != nil {
-		return nil, fmt.Errorf("dial failed to %s: %w", common.SanitizeURLForLog(fullRequestURL), err)
+	dialer := *websocket.DefaultDialer
+	if info.ChannelSetting.Proxy != "" {
+		proxyURL, _, proxyErr := common2.ParseProxyURLRuntime(info.ChannelSetting.Proxy)
+		if proxyErr != nil {
+			return nil, proxyErr
+		}
+		dialer.Proxy = http.ProxyURL(proxyURL)
 	}
-	// send request body
-	//all, err := io.ReadAll(requestBody)
-	//err = service.WssString(c, targetConn, string(all))
+	targetConn, resp, err := dialer.DialContext(c.Request.Context(), fullRequestURL, targetHeader)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if resp != nil {
+			statusCode = resp.StatusCode
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+		}
+		return nil, types.NewErrorWithStatusCode(fmt.Errorf("dial failed to %s: %w", common.SanitizeURLForLog(fullRequestURL), err), types.ErrorCodeDoRequestFailed, statusCode)
+	}
 	return targetConn, nil
+}
+
+// toWebSocketURL maps an http(s) endpoint to ws(s). Realtime adaptors already
+// return ws(s) URLs, which pass through unchanged.
+func toWebSocketURL(raw string) string {
+	switch {
+	case strings.HasPrefix(raw, "https://"):
+		return "wss://" + strings.TrimPrefix(raw, "https://")
+	case strings.HasPrefix(raw, "http://"):
+		return "ws://" + strings.TrimPrefix(raw, "http://")
+	default:
+		return raw
+	}
 }
 
 func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) (context.CancelFunc, <-chan struct{}) {
@@ -507,6 +537,55 @@ func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	return doRequest(c, req, info)
 }
 
+type streamFirstResponseGuard struct {
+	once   sync.Once
+	timer  *time.Timer
+	cancel context.CancelFunc
+}
+
+func newStreamFirstResponseGuard(cancel context.CancelFunc, timeout time.Duration) *streamFirstResponseGuard {
+	guard := &streamFirstResponseGuard{cancel: cancel}
+	guard.timer = time.AfterFunc(timeout, func() {
+		guard.once.Do(cancel)
+	})
+	return guard
+}
+
+func (g *streamFirstResponseGuard) resolve() bool {
+	if g == nil {
+		return true
+	}
+	resolvedBeforeTimeout := false
+	g.once.Do(func() {
+		resolvedBeforeTimeout = true
+	})
+	g.timer.Stop()
+	return resolvedBeforeTimeout
+}
+
+type prefetchedResponseBody struct {
+	reader io.Reader
+	body   io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *prefetchedResponseBody) Read(p []byte) (int, error) {
+	return b.reader.Read(p)
+}
+
+func (b *prefetchedResponseBody) Close() error {
+	b.cancel()
+	return b.body.Close()
+}
+
+func streamFirstResponseTimeoutError(timeout time.Duration) *types.NewAPIError {
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("upstream stream produced no response bytes within %s", timeout),
+		types.ErrorCodeChannelStreamFirstResponseTimeout,
+		http.StatusGatewayTimeout,
+	)
+}
+
 // keepUpstreamRedirectResponse stops net/http from following redirects while
 // returning the upstream 3xx response to the relay without an extra error.
 func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
@@ -524,6 +603,20 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	// transparent stream retries.
 	relayClient := *client
 	relayClient.CheckRedirect = keepUpstreamRedirectResponse
+	firstResponseTimeout := time.Duration(0)
+	if info != nil && info.IsStream && info.ChannelSetting.StreamFirstResponseTimeout > 0 {
+		firstResponseTimeout = time.Duration(info.ChannelSetting.StreamFirstResponseTimeout) * time.Second
+	}
+	var (
+		firstResponseGuard *streamFirstResponseGuard
+		cancelRequest      context.CancelFunc
+	)
+	if firstResponseTimeout > 0 {
+		requestContext, cancel := context.WithCancel(req.Context())
+		cancelRequest = cancel
+		req = req.Clone(requestContext)
+		firstResponseGuard = newStreamFirstResponseGuard(cancel, firstResponseTimeout)
+	}
 	if common2.DebugEnabled && req != nil && req.URL != nil {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)
 		logger.LogDebug(c, fmt.Sprintf(
@@ -541,7 +634,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		helper.SetEventStreamHeaders(c)
 		// 处理流式请求的 ping 保活
 		generalSettings := operation_setting.GetGeneralSetting()
-		if generalSettings.PingIntervalEnabled && !info.DisablePing {
+		if firstResponseTimeout == 0 && generalSettings.PingIntervalEnabled && !info.DisablePing {
 			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
 			stopPinger, pingerDone = startPingKeepAlive(c, pingInterval)
 			// 使用defer确保在任何情况下都能停止ping goroutine
@@ -557,15 +650,57 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	resp, err := relayClient.Do(req)
 	if err != nil {
+		timedOut := firstResponseGuard != nil && !firstResponseGuard.resolve()
+		if cancelRequest != nil {
+			cancelRequest()
+		}
+		if timedOut {
+			return nil, streamFirstResponseTimeoutError(firstResponseTimeout)
+		}
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
+		if firstResponseGuard != nil {
+			firstResponseGuard.resolve()
+		}
+		if cancelRequest != nil {
+			cancelRequest()
+		}
 		return nil, errors.New("resp is nil")
 	}
-	// Cap non-stream upstream bodies: handlers read them fully with
-	// io.ReadAll, so an unbounded body from a misbehaving upstream would OOM
-	// the gateway. Streams are consumed incrementally and stay uncapped.
+	if firstResponseGuard != nil {
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			firstResponseGuard.resolve()
+			resp.Body = &prefetchedResponseBody{
+				reader: resp.Body,
+				body:   resp.Body,
+				cancel: cancelRequest,
+			}
+		} else {
+			firstByte := make([]byte, 1)
+			n, readErr := resp.Body.Read(firstByte)
+			if !firstResponseGuard.resolve() {
+				_ = resp.Body.Close()
+				cancelRequest()
+				return nil, streamFirstResponseTimeoutError(firstResponseTimeout)
+			}
+			if n == 0 && readErr != nil {
+				_ = resp.Body.Close()
+				cancelRequest()
+				return nil, fmt.Errorf("read upstream stream first response byte failed: %w", readErr)
+			}
+			resp.Body = &prefetchedResponseBody{
+				reader: io.MultiReader(strings.NewReader(string(firstByte[:n])), resp.Body),
+				body:   resp.Body,
+				cancel: cancelRequest,
+			}
+		}
+	}
+	// Cap non-stream upstream bodies: handlers read them fully with io.ReadAll,
+	// so an unbounded body from a misbehaving upstream would OOM the gateway.
+	// Streams are consumed incrementally and stay uncapped. This wraps whatever
+	// the first-response guard produced, so both protections apply.
 	if !info.IsStream && resp.Body != nil {
 		maxBytes := int64(rootconstant.MaxRelayResponseMB) << 20
 		if maxBytes <= 0 {
@@ -594,7 +729,12 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	return resp, nil
 }
 
-func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+type taskRequestBuilder interface {
+	BuildRequestURL(info *common.RelayInfo) (string, error)
+	BuildRequestHeader(c *gin.Context, req *http.Request, info *common.RelayInfo) error
+}
+
+func DoTaskApiRequest(a taskRequestBuilder, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	fullRequestURL, err := a.BuildRequestURL(info)
 	if err != nil {
 		return nil, err

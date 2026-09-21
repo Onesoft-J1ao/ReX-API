@@ -59,6 +59,9 @@ export interface PublicHeaderProps {
   showNavigation?: boolean
   showAuthButtons?: boolean
   showNotifications?: boolean
+  floating?: boolean
+  /** Keep a floating header in its final shape on first paint. */
+  animateFloatingEntrance?: boolean
   className?: string
 }
 
@@ -72,12 +75,15 @@ export function PublicHeader(props: PublicHeaderProps) {
     homeUrl = '/',
     showAuthButtons = true,
     showNotifications = true,
+    floating = false,
+    animateFloatingEntrance = true,
     rightContent,
   } = props
 
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [scrolled, setScrolled] = useState(false)
+  const [floatingEntered, setFloatingEntered] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [authPromptTarget, setAuthPromptTarget] =
     useState<AuthPromptTarget | null>(null)
@@ -131,6 +137,25 @@ export function PublicHeader(props: PublicHeaderProps) {
   }, [])
 
   useEffect(() => {
+    if (!floating || !animateFloatingEntrance) {
+      setFloatingEntered(floating)
+      return
+    }
+
+    setFloatingEntered(false)
+    let secondFrameId = 0
+    const firstFrameId = window.requestAnimationFrame(() => {
+      secondFrameId = window.requestAnimationFrame(() => {
+        setFloatingEntered(true)
+      })
+    })
+    return () => {
+      window.cancelAnimationFrame(firstFrameId)
+      window.cancelAnimationFrame(secondFrameId)
+    }
+  }, [floating, animateFloatingEntrance])
+
+  useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : ''
     return () => {
       document.body.style.overflow = ''
@@ -167,6 +192,35 @@ export function PublicHeader(props: PublicHeaderProps) {
     navigate({ to: '/sign-in', search: { redirect } })
   }, [authPromptTarget?.href, navigate])
 
+  const floatingActive =
+    floating && (floatingEntered || !animateFloatingEntrance)
+  let headerContainerClass = 'max-w-7xl px-4 pt-0 md:px-6'
+  if (floating) {
+    headerContainerClass = 'max-w-[1230px] px-4 pt-0 sm:px-6 lg:px-0'
+  }
+  if (!floating && scrolled) headerContainerClass = 'max-w-[52rem] px-3 pt-3'
+
+  let navigationClass = 'h-16 px-2'
+  if (floating) {
+    navigationClass = floatingActive
+      ? 'border-white/15 h-14 rounded-2xl border bg-slate-950/65 px-3 text-white shadow-[0_18px_50px_-24px_rgba(0,0,0,0.9)] backdrop-blur-xl'
+      : 'h-16 border-b border-white/10 bg-slate-950/25 px-5 text-white backdrop-blur-sm sm:px-8'
+  } else if (scrolled) {
+    navigationClass =
+      'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
+  } else if (props.className) {
+    navigationClass = cn(navigationClass, props.className)
+  }
+
+  const getLinkColor = (active: boolean) => {
+    if (floating) {
+      return active ? 'text-white' : 'text-white/65 hover:text-white'
+    }
+    return active
+      ? 'text-foreground'
+      : 'text-muted-foreground hover:text-foreground'
+  }
+
   const handleNavLinkClick = useCallback(
     (
       event: React.MouseEvent<HTMLAnchorElement>,
@@ -200,19 +254,24 @@ export function PublicHeader(props: PublicHeaderProps) {
 
   return (
     <>
-      <header className='pointer-events-none fixed inset-x-0 top-0 z-50'>
+      <header
+        data-floating-state={floatingActive ? 'floating' : 'docked'}
+        className={cn(
+          'pointer-events-none inset-x-0 z-50 transition-[top] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+          floatingActive ? 'fixed top-4' : 'fixed top-0'
+        )}
+      >
         <div
           className={cn(
             'pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            scrolled ? 'max-w-[52rem] px-3 pt-3' : 'max-w-7xl px-4 pt-0 md:px-6'
+            headerContainerClass
           )}
         >
           <nav
+            data-slot='public-navigation'
             className={cn(
               'flex items-center justify-between gap-2 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-              scrolled
-                ? 'bg-background/60 ring-border/50 h-12 rounded-xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
-                : 'h-16 px-2'
+              navigationClass
             )}
           >
             {/* Logo */}
@@ -225,7 +284,10 @@ export function PublicHeader(props: PublicHeaderProps) {
                   {logoContent}
                 </div>
                 <span
-                  className='max-w-48 truncate text-sm font-semibold tracking-tight'
+                  className={cn(
+                    'max-w-48 truncate text-sm font-semibold tracking-tight',
+                    floating && 'text-white'
+                  )}
                   title={displaySiteName}
                 >
                   {loading ? (
@@ -254,7 +316,10 @@ export function PublicHeader(props: PublicHeaderProps) {
                       tabIndex={link.disabled ? -1 : undefined}
                       onClick={(event) => handleNavLinkClick(event, link)}
                       className={cn(
-                        'text-muted-foreground hover:text-foreground min-w-0 truncate rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-200',
+                        'min-w-0 truncate rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200',
+                        floating
+                          ? 'text-white/65 hover:text-white'
+                          : 'text-muted-foreground hover:text-foreground',
                         link.disabled && 'pointer-events-none opacity-50'
                       )}
                     >
@@ -270,10 +335,8 @@ export function PublicHeader(props: PublicHeaderProps) {
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
-                      'min-w-0 truncate rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-200',
-                      isActive
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground',
+                      'min-w-0 truncate rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200',
+                      getLinkColor(isActive),
                       link.disabled && 'pointer-events-none opacity-50'
                     )}
                   >
@@ -300,6 +363,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                   notice={notifications.notice}
                   announcements={notifications.announcements}
                   loading={notifications.loading}
+                  displayMode={notifications.noticeButtonMode}
                 />
               )}
 
@@ -354,7 +418,8 @@ export function PublicHeader(props: PublicHeaderProps) {
       {/* Mobile full-screen overlay */}
       <div
         className={cn(
-          'bg-background/98 fixed inset-0 z-40 backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:pointer-events-none lg:hidden',
+          'fixed inset-0 z-40 backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:pointer-events-none lg:hidden',
+          floating ? 'bg-slate-950/98 text-white' : 'bg-background/98',
           mobileOpen
             ? 'pointer-events-auto opacity-100'
             : 'pointer-events-none opacity-0'

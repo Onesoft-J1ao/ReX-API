@@ -21,11 +21,14 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 type Theme = 'dark' | 'light' | 'system'
 type ResolvedTheme = Exclude<Theme, 'system'>
@@ -43,6 +46,7 @@ type ThemeProviderProps = {
 
 type ThemeProviderState = {
   defaultTheme: Theme
+  isForced: boolean
   resolvedTheme: ResolvedTheme
   theme: Theme
   setTheme: (theme: Theme) => void
@@ -51,6 +55,7 @@ type ThemeProviderState = {
 
 const initialState: ThemeProviderState = {
   defaultTheme: DEFAULT_THEME,
+  isForced: false,
   resolvedTheme: 'light',
   theme: DEFAULT_THEME,
   setTheme: () => null,
@@ -81,14 +86,43 @@ export function ThemeProvider({
   storageKey = THEME_COOKIE_NAME,
   ...props
 }: ThemeProviderProps) {
-  const [theme, _setTheme] = useState<Theme>(() =>
-    getStoredTheme(storageKey, defaultTheme)
+  const configuredDefaultTheme = useSystemConfigStore(
+    (state) => state.config.appearance?.defaultTheme
+  )
+  const configuredThemeOverride = useSystemConfigStore(
+    (state) => state.config.appearance?.defaultThemeOverride
+  )
+  const forcedTheme: ResolvedTheme | null =
+    configuredThemeOverride === 'light' || configuredThemeOverride === 'dark'
+      ? configuredThemeOverride
+      : null
+  const effectiveDefaultTheme =
+    forcedTheme ??
+    (THEMES.has(configuredDefaultTheme as Theme)
+      ? (configuredDefaultTheme as Theme)
+      : defaultTheme)
+  const previousForcedTheme = useRef<ResolvedTheme | null>(forcedTheme)
+  const [theme, _setTheme] = useState<Theme>(
+    () => forcedTheme ?? getStoredTheme(storageKey, effectiveDefaultTheme)
   )
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(getStoredTheme(storageKey, defaultTheme))
+    resolveTheme(
+      forcedTheme ?? getStoredTheme(storageKey, effectiveDefaultTheme)
+    )
   )
 
   useEffect(() => {
+    if (forcedTheme) {
+      _setTheme(forcedTheme)
+    } else if (previousForcedTheme.current) {
+      _setTheme(getStoredTheme(storageKey, effectiveDefaultTheme))
+    } else if (!getCookie(storageKey)) {
+      _setTheme(effectiveDefaultTheme)
+    }
+    previousForcedTheme.current = forcedTheme
+  }, [effectiveDefaultTheme, forcedTheme, storageKey])
+
+  useLayoutEffect(() => {
     const root = window.document.documentElement
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
@@ -96,6 +130,7 @@ export function ThemeProvider({
       const nextResolvedTheme = theme === 'system' ? getSystemTheme() : theme
       root.classList.remove('light', 'dark')
       root.classList.add(nextResolvedTheme)
+      root.style.colorScheme = nextResolvedTheme
       setResolvedTheme(nextResolvedTheme)
     }
 
@@ -107,27 +142,40 @@ export function ThemeProvider({
   }, [theme])
 
   const setTheme = useCallback(
-    (theme: Theme) => {
-      setCookie(storageKey, theme, THEME_COOKIE_MAX_AGE)
-      _setTheme(theme)
+    (nextTheme: Theme) => {
+      if (forcedTheme) return
+      setCookie(storageKey, nextTheme, THEME_COOKIE_MAX_AGE)
+      _setTheme(nextTheme)
     },
-    [storageKey]
+    [forcedTheme, storageKey]
   )
 
   const resetTheme = useCallback(() => {
+    if (forcedTheme) {
+      _setTheme(forcedTheme)
+      return
+    }
     removeCookie(storageKey)
-    _setTheme(defaultTheme)
-  }, [defaultTheme, storageKey])
+    _setTheme(effectiveDefaultTheme)
+  }, [effectiveDefaultTheme, forcedTheme, storageKey])
 
   const contextValue = useMemo(
     () => ({
-      defaultTheme,
+      defaultTheme: effectiveDefaultTheme,
+      isForced: forcedTheme !== null,
       resolvedTheme,
       resetTheme,
       theme,
       setTheme,
     }),
-    [defaultTheme, resolvedTheme, resetTheme, theme, setTheme]
+    [
+      effectiveDefaultTheme,
+      forcedTheme,
+      resolvedTheme,
+      resetTheme,
+      theme,
+      setTheme,
+    ]
   )
 
   return (

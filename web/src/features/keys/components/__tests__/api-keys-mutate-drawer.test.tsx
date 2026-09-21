@@ -47,13 +47,27 @@ const originalGet = apiClient.get
 const originalPost = apiClient.post
 let renderedDrawer: RenderedDrawer | null = null
 
-function installApiFixtures(createdPayloads: Array<Record<string, unknown>>) {
-  apiClient.get = async (url) => {
+function installApiFixtures(
+  createdPayloads: Array<Record<string, unknown>>,
+  modelRequests: string[] = []
+) {
+  apiClient.get = async (url, requestOptions) => {
     switch (url) {
       case '/api/status':
         return { data: { data: { default_use_auto_group: true } } }
-      case '/api/user/models':
-        return { data: { success: true, data: [] } }
+      case '/api/user/models': {
+        const group = (
+          requestOptions as { params?: { group?: string } } | undefined
+        )?.params?.group
+        modelRequests.push(group || '')
+        let models: string[] = []
+        if (group === 'default') {
+          models = ['default-model']
+        } else if (group === 'vip') {
+          models = ['vip-model']
+        }
+        return { data: { success: true, data: models } }
+      }
       case '/api/user/self/groups':
         return {
           data: {
@@ -62,6 +76,7 @@ function installApiFixtures(createdPayloads: Array<Record<string, unknown>>) {
               auto: { desc: 'Automatic routing', ratio: 'auto' },
               default: { desc: 'Standard access', ratio: 1 },
               vip: { desc: 'Priority access', ratio: 2 },
+              unnamed: { desc: '', ratio: 3 },
             },
           },
         }
@@ -107,6 +122,7 @@ async function renderCreateDrawer(): Promise<void> {
         auto: { desc: 'Automatic routing', ratio: 'auto' },
         default: { desc: 'Standard access', ratio: 1 },
         vip: { desc: 'Priority access', ratio: 2 },
+        unnamed: { desc: '', ratio: 3 },
       },
     },
     { updatedAt: freshAt }
@@ -204,6 +220,21 @@ afterEach(() => {
 })
 
 describe('API keys mutate drawer Auto group integration', () => {
+  test('does not repeat a group name as its missing description', async () => {
+    installApiFixtures([])
+    await renderCreateDrawer()
+
+    fireEvent.click(getControlByLabel('Group'))
+    const option = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="command-item"]'),
+    ].find((candidate) => candidate.textContent?.includes('unnamed'))
+
+    expect(option).toBeTruthy()
+    expect(
+      option ? screen.getAllByText('unnamed', { exact: true }) : []
+    ).toHaveLength(1)
+  })
+
   test('inherits the root Auto order and sends an empty override for every batch-created key', async () => {
     const createdPayloads: Array<Record<string, unknown>> = []
     installApiFixtures(createdPayloads)
@@ -276,5 +307,39 @@ describe('API keys mutate drawer Auto group integration', () => {
     fireEvent.click(findButton('Save changes', true))
     await waitFor(() => expect(createdPayloads).toHaveLength(1))
     expect(createdPayloads[0]?.auto_groups).toEqual(['vip'])
+  })
+
+  test('opens the virtual model editor in create mode', async () => {
+    installApiFixtures([])
+    await renderCreateDrawer()
+    fireEvent.click(findButton('Add virtual model', true))
+    await waitFor(() => {
+      expect(screen.getByText('Edit virtual model route')).toBeTruthy()
+    })
+  })
+
+  test('filters route models by the selected route group', async () => {
+    const modelRequests: string[] = []
+    installApiFixtures([], modelRequests)
+    await renderCreateDrawer()
+
+    fireEvent.click(findButton('Add virtual model', true))
+
+    await waitFor(() => expect(modelRequests).toContain('default'))
+    const routeSelector = screen
+      .getAllByRole('combobox')
+      .find((candidate) => candidate.textContent?.includes('default'))
+    if (!routeSelector) {
+      throw new Error('Expected virtual route model selector')
+    }
+
+    await waitFor(() => expect(routeSelector).toBeEnabled())
+    fireEvent.click(routeSelector)
+    await waitFor(() => expect(screen.getByText('default-model')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: 'vip' }))
+    await waitFor(() => expect(modelRequests).toContain('vip'))
+    await waitFor(() => expect(screen.getByText('vip-model')).toBeTruthy())
+    expect(screen.queryByText('default-model')).toBe(null)
   })
 })

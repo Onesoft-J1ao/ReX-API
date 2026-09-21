@@ -3,8 +3,9 @@ package helper
 import (
 	"errors"
 	"fmt"
+	"strings"
 
-	rootcommon "github.com/QuantumNous/new-api/common"
+	newapicommon "github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
@@ -20,13 +21,23 @@ func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.
 	modelMapping := c.GetString("model_mapping")
 	if modelMapping != "" && modelMapping != "{}" {
 		modelMap := make(map[string]string)
-		err := rootcommon.Unmarshal([]byte(modelMapping), &modelMap)
+		err := newapicommon.Unmarshal([]byte(modelMapping), &modelMap)
 		if err != nil {
 			return fmt.Errorf("unmarshal_model_mapping_failed")
 		}
 
 		// 支持链式模型重定向，最终使用链尾的模型
-		currentModel := info.OriginModelName
+		currentModel := info.UpstreamModelName
+		// Auto routing selects a concrete candidate for channel lookup, but the
+		// channel mapping is keyed by the client-facing virtual model. Start
+		// from that virtual name so auto/terra -> provider-model mappings still
+		// apply after a concrete candidate has been selected.
+		if strings.HasPrefix(info.OriginModelName, "auto/") {
+			currentModel = info.OriginModelName
+		} else if currentModel == "" {
+			currentModel = info.OriginModelName
+		}
+		info.IsModelMapped = false
 		visitedModels := map[string]bool{
 			currentModel: true,
 		}
@@ -43,10 +54,10 @@ func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.
 						if currentModel == info.OriginModelName {
 							info.IsModelMapped = false
 							return nil
+						} else {
+							info.IsModelMapped = true
+							break
 						}
-
-						info.IsModelMapped = true
-						break
 					}
 					return errors.New("model_mapping_contains_cycle")
 				}
@@ -61,7 +72,6 @@ func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.
 			info.UpstreamModelName = currentModel
 		}
 	}
-
 	if request != nil {
 		request.SetModelName(info.UpstreamModelName)
 	}

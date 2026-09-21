@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQuery } from '@tanstack/react-query'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { MultiSelect } from '@/components/multi-select'
 import {
   Form,
   FormControl,
@@ -33,6 +35,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { getGroups } from '@/features/users/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import {
   SettingsForm,
@@ -47,6 +51,11 @@ const schema = z.object({
   enabled: z.boolean(),
   minQuota: z.coerce.number().int().min(0),
   maxQuota: z.coerce.number().int().min(0),
+  minUserQuota: z.coerce.number().int().min(0),
+  minUsedQuota: z.coerce.number().int().min(0),
+  dailyUserLimit: z.coerce.number().int().min(0),
+  dailyQuotaLimit: z.coerce.number().int().min(0),
+  deductibleGroups: z.array(z.string()),
 })
 
 type Values = z.infer<typeof schema>
@@ -58,6 +67,11 @@ export function CheckinSettingsSection({
     enabled: boolean
     minQuota: number
     maxQuota: number
+    minUserQuota: number
+    minUsedQuota: number
+    dailyUserLimit: number
+    dailyQuotaLimit: number
+    deductibleGroups: string
   }
 }) {
   const { t } = useTranslation()
@@ -69,8 +83,26 @@ export function CheckinSettingsSection({
       enabled: defaultValues.enabled,
       minQuota: defaultValues.minQuota,
       maxQuota: defaultValues.maxQuota,
+      minUserQuota: defaultValues.minUserQuota,
+      minUsedQuota: defaultValues.minUsedQuota ?? 0,
+      dailyUserLimit: defaultValues.dailyUserLimit ?? 0,
+      dailyQuotaLimit: defaultValues.dailyQuotaLimit ?? 0,
+      deductibleGroups: (defaultValues.deductibleGroups ?? '')
+        .split(',')
+        .map((group) => group.trim())
+        .filter(Boolean),
     },
   })
+
+  const { data: groupResponse } = useQuery({
+    queryKey: ['groups'],
+    queryFn: async () => requireServerSuccess(await getGroups()),
+    staleTime: 5 * 60 * 1000,
+  })
+  const groupOptions = (groupResponse?.data ?? []).map((group) => ({
+    value: group,
+    label: group,
+  }))
 
   const { isDirty, isSubmitting } = form.formState
   const enabled = form.watch('enabled')
@@ -96,6 +128,47 @@ export function CheckinSettingsSection({
       updates.push({
         key: 'checkin_setting.max_quota',
         value: String(values.maxQuota),
+      })
+    }
+
+    if (values.minUserQuota !== defaultValues.minUserQuota) {
+      updates.push({
+        key: 'checkin_setting.min_user_quota',
+        value: String(values.minUserQuota),
+      })
+    }
+
+    if (values.minUsedQuota !== (defaultValues.minUsedQuota ?? 0)) {
+      updates.push({
+        key: 'checkin_setting.min_used_quota',
+        value: String(values.minUsedQuota),
+      })
+    }
+
+    if (values.dailyUserLimit !== (defaultValues.dailyUserLimit ?? 0)) {
+      updates.push({
+        key: 'checkin_setting.daily_user_limit',
+        value: String(values.dailyUserLimit),
+      })
+    }
+
+    if (values.dailyQuotaLimit !== (defaultValues.dailyQuotaLimit ?? 0)) {
+      updates.push({
+        key: 'checkin_setting.daily_quota_limit',
+        value: String(values.dailyQuotaLimit),
+      })
+    }
+
+    const deductibleGroups = values.deductibleGroups.join(',')
+    const defaultDeductibleGroups = (defaultValues.deductibleGroups ?? '')
+      .split(',')
+      .map((group) => group.trim())
+      .filter(Boolean)
+      .join(',')
+    if (deductibleGroups !== defaultDeductibleGroups) {
+      updates.push({
+        key: 'checkin_setting.deductible_groups',
+        value: deductibleGroups,
       })
     }
 
@@ -146,7 +219,7 @@ export function CheckinSettingsSection({
           />
 
           {enabled && (
-            <div className='grid gap-6 sm:grid-cols-2'>
+            <div className='grid gap-6 md:grid-cols-2 lg:grid-cols-4'>
               <FormField
                 control={form.control}
                 name='minQuota'
@@ -163,6 +236,56 @@ export function CheckinSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Minimum quota amount awarded for check-in')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='minUsedQuota'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Check-in spending threshold')}</FormLabel>
+                    <FormControl>
+                      <Input type='number' min={0} placeholder='0' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Set to 0 to disable. Users must have spent at least this quota amount.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='dailyUserLimit'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Daily check-in user limit')}</FormLabel>
+                    <FormControl>
+                      <Input type='number' min={0} placeholder='0' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Set to 0 for unlimited daily check-in users.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='dailyQuotaLimit'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Daily check-in quota limit')}</FormLabel>
+                    <FormControl>
+                      <Input type='number' min={0} placeholder='0' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Set to 0 for unlimited daily check-in rewards.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -185,6 +308,53 @@ export function CheckinSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Maximum quota amount awarded for check-in')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='minUserQuota'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Check-in balance threshold (quota)')}
+                    </FormLabel>
+                    <FormControl>
+                      <Input type='number' min={0} placeholder='0' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Set to 0 to disable. Eligible users must have a balance greater than this quota value.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='deductibleGroups'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Check-in deductible groups')}</FormLabel>
+                    <FormControl>
+                      <MultiSelect
+                        id='checkin-deductible-groups'
+                        options={groupOptions}
+                        selected={field.value}
+                        onChange={field.onChange}
+                        placeholder={t('Select groups')}
+                        maxVisibleChips={5}
+                        disabled={updateOption.isPending || isSubmitting}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Comma-separated groups where check-in credit is used before wallet balance.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

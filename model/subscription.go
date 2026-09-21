@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,16 +42,19 @@ var (
 )
 
 const (
-	subscriptionPlanCacheNamespace     = "new-api:subscription_plan:v1"
-	subscriptionPlanInfoCacheNamespace = "new-api:subscription_plan_info:v1"
+	subscriptionPlanCacheNamespace      = "new-api:subscription_plan:v2"
+	subscriptionPlanInfoCacheNamespace  = "new-api:subscription_plan_info:v1"
+	subscriptionRateLimitCacheNamespace = "new-api:subscription_rate_limit:v1"
 )
 
 var (
-	subscriptionPlanCacheOnce     sync.Once
-	subscriptionPlanInfoCacheOnce sync.Once
+	subscriptionPlanCacheOnce      sync.Once
+	subscriptionPlanInfoCacheOnce  sync.Once
+	subscriptionRateLimitCacheOnce sync.Once
 
-	subscriptionPlanCache     *cachex.HybridCache[SubscriptionPlan]
-	subscriptionPlanInfoCache *cachex.HybridCache[SubscriptionPlanInfo]
+	subscriptionPlanCache      *cachex.HybridCache[SubscriptionPlan]
+	subscriptionPlanInfoCache  *cachex.HybridCache[SubscriptionPlanInfo]
+	subscriptionRateLimitCache *cachex.HybridCache[subscriptionRateLimitEntitlements]
 )
 
 func subscriptionPlanCacheTTL() time.Duration {
@@ -65,6 +69,14 @@ func subscriptionPlanInfoCacheTTL() time.Duration {
 	ttlSeconds := common.GetEnvOrDefault("SUBSCRIPTION_PLAN_INFO_CACHE_TTL", 120)
 	if ttlSeconds <= 0 {
 		ttlSeconds = 120
+	}
+	return time.Duration(ttlSeconds) * time.Second
+}
+
+func subscriptionRateLimitCacheTTL() time.Duration {
+	ttlSeconds := common.GetEnvOrDefault("SUBSCRIPTION_RATE_LIMIT_CACHE_TTL", 300)
+	if ttlSeconds <= 0 {
+		ttlSeconds = 300
 	}
 	return time.Duration(ttlSeconds) * time.Second
 }
@@ -127,6 +139,75 @@ func getSubscriptionPlanInfoCache() *cachex.HybridCache[SubscriptionPlanInfo] {
 	return subscriptionPlanInfoCache
 }
 
+const MaxSubscriptionRateLimitRPM = 2147483647
+
+type SubscriptionRateLimitGroup struct {
+	Group string `json:"group"`
+	RPM   int    `json:"rpm"`
+}
+
+func NormalizeSubscriptionRateLimitGroups(raw string) (string, []SubscriptionRateLimitGroup, error) {
+	if strings.TrimSpace(raw) == "" {
+		return "[]", []SubscriptionRateLimitGroup{}, nil
+	}
+	var values []SubscriptionRateLimitGroup
+	if err := common.UnmarshalJsonStr(raw, &values); err != nil {
+		return "", nil, fmt.Errorf("RPM 权益分组必须为 JSON 数组")
+	}
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]SubscriptionRateLimitGroup, 0, len(values))
+	for _, value := range values {
+		value.Group = strings.TrimSpace(value.Group)
+		if value.Group == "" {
+			return "", nil, fmt.Errorf("RPM 权益分组不能为空")
+		}
+		if value.RPM <= 0 || value.RPM > MaxSubscriptionRateLimitRPM {
+			return "", nil, fmt.Errorf("分组 %s 的 RPM 必须介于 1 和 %d 之间", value.Group, MaxSubscriptionRateLimitRPM)
+		}
+		if _, exists := seen[value.Group]; exists {
+			return "", nil, fmt.Errorf("RPM 权益分组不能重复: %s", value.Group)
+		}
+		seen[value.Group] = struct{}{}
+		normalized = append(normalized, value)
+	}
+	sort.Slice(normalized, func(i, j int) bool { return normalized[i].Group < normalized[j].Group })
+	data, err := common.Marshal(normalized)
+	if err != nil {
+		return "", nil, err
+	}
+	return string(data), normalized, nil
+}
+
+type subscriptionRateLimitOverride struct {
+	RPM     int   `json:"rpm"`
+	EndTime int64 `json:"end_time"`
+}
+
+type subscriptionRateLimitEntitlements struct {
+	Overrides map[string]subscriptionRateLimitOverride `json:"overrides"`
+}
+
+func getSubscriptionRateLimitCache() *cachex.HybridCache[subscriptionRateLimitEntitlements] {
+	subscriptionRateLimitCacheOnce.Do(func() {
+		ttl := subscriptionRateLimitCacheTTL()
+		subscriptionRateLimitCache = cachex.NewHybridCache[subscriptionRateLimitEntitlements](cachex.HybridCacheConfig[subscriptionRateLimitEntitlements]{
+			Namespace: cachex.Namespace(subscriptionRateLimitCacheNamespace),
+			Redis:     common.RDB,
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			RedisCodec: cachex.JSONCodec[subscriptionRateLimitEntitlements]{},
+			Memory: func() *hot.HotCache[string, subscriptionRateLimitEntitlements] {
+				return hot.NewHotCache[string, subscriptionRateLimitEntitlements](hot.LRU, subscriptionPlanInfoCacheCapacity()).
+					WithTTL(ttl).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return subscriptionRateLimitCache
+}
+
 func subscriptionPlanCacheKey(id int) string {
 	if id <= 0 {
 		return ""
@@ -142,6 +223,44 @@ func InvalidateSubscriptionPlanCache(planId int) {
 	_, _ = cache.DeleteMany([]string{subscriptionPlanCacheKey(planId)})
 	infoCache := getSubscriptionPlanInfoCache()
 	_ = infoCache.Purge()
+	_ = getSubscriptionRateLimitCache().Purge()
+}
+
+func InvalidateUserSubscriptionRateLimitCache(userId int) {
+	if userId <= 0 {
+		return
+	}
+	_, _ = getSubscriptionRateLimitCache().DeleteMany([]string{strconv.Itoa(userId)})
+}
+
+// DeleteSubscriptionPlan removes a plan only when no user currently has an
+// active subscription for it. Expired and cancelled history remains intact.
+func DeleteSubscriptionPlan(planId int) error {
+	if planId <= 0 {
+		return errors.New("invalid plan id")
+	}
+	now := common.GetTimestamp()
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var plan SubscriptionPlan
+		if err := lockForUpdate(tx).Where("id = ?", planId).First(&plan).Error; err != nil {
+			return err
+		}
+		var activeCount int64
+		if err := tx.Model(&UserSubscription{}).
+			Where("plan_id = ? AND status = ? AND end_time > ?", planId, "active", now).
+			Count(&activeCount).Error; err != nil {
+			return err
+		}
+		if activeCount > 0 {
+			return errors.New("cannot delete a plan with active subscriptions")
+		}
+		return tx.Delete(&plan).Error
+	})
+	if err != nil {
+		return err
+	}
+	InvalidateSubscriptionPlanCache(planId)
+	return nil
 }
 
 // Subscription plan
@@ -180,13 +299,19 @@ type SubscriptionPlan struct {
 	// Downgrade user group on expiry (empty = revert to the group held before purchase)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 
+	// Wallet-only group routing. In blacklist mode, listed groups bypass this
+	// subscription; in whitelist mode, only listed groups may use it.
+	WalletOnlyGroupsEnabled bool   `json:"wallet_only_groups_enabled"`
+	WalletOnlyGroupsMode    string `json:"wallet_only_groups_mode" gorm:"type:varchar(16);default:'blacklist'"`
+	WalletOnlyGroups        string `json:"wallet_only_groups" gorm:"type:text"`
+
+	// RateLimitGroups stores JSON RPM entitlements for active subscribers.
+	RateLimitGroups string `json:"rate_limit_groups" gorm:"type:text"`
+
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
 
-	// Additional independent usage caps, snapshotted onto each subscription at
-	// purchase. A plan can then bound a burst (12 units per 5 hours) while still
-	// metering a longer allowance (60 per week) out of the same total quota.
-	// Zero disables that cap.
+	// Additional independent usage caps. A zero value disables the cap.
 	FiveHourLimit int64 `json:"five_hour_limit" gorm:"type:bigint;not null;default:0"`
 	WeeklyLimit   int64 `json:"weekly_limit" gorm:"type:bigint;not null;default:0"`
 	MonthlyLimit  int64 `json:"monthly_limit" gorm:"type:bigint;not null;default:0"`
@@ -212,12 +337,112 @@ func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 }
 
 func (p *SubscriptionPlan) NormalizeDefaults() {
+	if p.TotalAmount < 0 {
+		// Benefits-only subscriptions do not consume quota, so independent
+		// usage caps must not accidentally turn them into quota-limited plans.
+		p.TotalAmount = -1
+		p.FiveHourLimit = 0
+		p.WeeklyLimit = 0
+		p.MonthlyLimit = 0
+	}
 	if p.AllowBalancePay == nil {
 		p.AllowBalancePay = common.GetPointer(true)
 	}
 	if p.AllowWalletOverflow == nil {
 		p.AllowWalletOverflow = common.GetPointer(true)
 	}
+	p.WalletOnlyGroupsMode = NormalizeWalletOnlyGroupsMode(p.WalletOnlyGroupsMode)
+	p.WalletOnlyGroups = NormalizeWalletOnlyGroups(p.WalletOnlyGroups)
+}
+
+func NormalizeWalletOnlyGroupsMode(mode string) string {
+	if strings.EqualFold(strings.TrimSpace(mode), "whitelist") {
+		return "whitelist"
+	}
+	return "blacklist"
+}
+
+func NormalizeWalletOnlyGroups(groups string) string {
+	seen := make(map[string]struct{})
+	values := make([]string, 0)
+	for _, value := range strings.Split(groups, ",") {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	return strings.Join(values, ",")
+}
+
+func (p *SubscriptionPlan) IsWalletOnlyForGroup(group string) bool {
+	if p == nil || !p.WalletOnlyGroupsEnabled {
+		return false
+	}
+	group = strings.TrimSpace(group)
+	listed := false
+	for _, value := range strings.Split(p.WalletOnlyGroups, ",") {
+		if strings.TrimSpace(value) == group {
+			listed = true
+			break
+		}
+	}
+	if p.WalletOnlyGroupsMode == "whitelist" {
+		return !listed
+	}
+	return listed
+}
+
+// GetActiveSubscriptionRateLimit returns the highest RPM entitlement from the
+// user's active subscriptions for the effective request group.
+func GetActiveSubscriptionRateLimit(userId int, group string) (int, bool, error) {
+	if userId <= 0 || strings.TrimSpace(group) == "" {
+		return 0, false, nil
+	}
+	cacheKey := strconv.Itoa(userId)
+	now := common.GetTimestamp()
+	cache := getSubscriptionRateLimitCache()
+	if cached, found, err := cache.Get(cacheKey); err == nil && found {
+		if override, ok := cached.Overrides[group]; ok && override.EndTime > now {
+			return override.RPM, true, nil
+		}
+		if _, ok := cached.Overrides[group]; !ok {
+			return 0, false, nil
+		}
+	}
+
+	type rateLimitRow struct {
+		Groups  string `gorm:"column:rate_limit_groups"`
+		EndTime int64  `gorm:"column:end_time"`
+	}
+	var rows []rateLimitRow
+	if err := DB.Table("user_subscriptions AS subscriptions").
+		Select("plans.rate_limit_groups AS rate_limit_groups, subscriptions.end_time AS end_time").
+		Joins("JOIN subscription_plans AS plans ON plans.id = subscriptions.plan_id").
+		Where("subscriptions.user_id = ? AND subscriptions.status = ? AND subscriptions.end_time > ?", userId, "active", now).
+		Find(&rows).Error; err != nil {
+		return 0, false, err
+	}
+	cacheValue := subscriptionRateLimitEntitlements{Overrides: make(map[string]subscriptionRateLimitOverride)}
+	for _, row := range rows {
+		_, groups, err := NormalizeSubscriptionRateLimitGroups(row.Groups)
+		if err != nil {
+			continue
+		}
+		for _, rateLimit := range groups {
+			current, exists := cacheValue.Overrides[rateLimit.Group]
+			if !exists || rateLimit.RPM > current.RPM || (rateLimit.RPM == current.RPM && row.EndTime > current.EndTime) {
+				cacheValue.Overrides[rateLimit.Group] = subscriptionRateLimitOverride{RPM: rateLimit.RPM, EndTime: row.EndTime}
+			}
+		}
+	}
+	_ = cache.SetWithTTL(cacheKey, cacheValue, subscriptionRateLimitCacheTTL())
+	override, found := cacheValue.Overrides[group]
+	return override.RPM, found, nil
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)
@@ -230,6 +455,7 @@ type SubscriptionOrder struct {
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	EpayGatewayID   string `json:"epay_gateway_id" gorm:"type:varchar(100);index"`
 	Status          string `json:"status"`
 	CreateTime      int64  `json:"create_time"`
 	CompleteTime    int64  `json:"complete_time"`
@@ -272,14 +498,13 @@ type UserSubscription struct {
 	EndTime   int64  `json:"end_time" gorm:"bigint;index;index:idx_user_sub_active,priority:3"`
 	Status    string `json:"status" gorm:"type:varchar(32);index;index:idx_user_sub_active,priority:2"` // active/expired/cancelled
 
-	Source string `json:"source" gorm:"type:varchar(32);default:'order'"` // order/admin
+	Source string `json:"source" gorm:"type:varchar(32);default:'order'"` // order/admin/redemption
 
 	LastResetTime int64 `json:"last_reset_time" gorm:"type:bigint;default:0"`
 	NextResetTime int64 `json:"next_reset_time" gorm:"type:bigint;default:0;index"`
 
-	// Independent usage caps, snapshotted from the plan at purchase so a later
-	// plan edit cannot retroactively change a live subscription's limit. Each
-	// window is anchored by its own reset pair and advances lazily.
+	// Independent subscription usage caps are snapshotted from the plan so
+	// changing a plan only affects subscriptions created after the change.
 	FiveHourLimit         int64 `json:"five_hour_limit" gorm:"type:bigint;not null;default:0"`
 	FiveHourUsed          int64 `json:"five_hour_used" gorm:"type:bigint;not null;default:0"`
 	FiveHourLastResetTime int64 `json:"five_hour_last_reset_time" gorm:"type:bigint;default:0"`
@@ -332,6 +557,26 @@ type SubscriptionResetResult struct {
 	AffectedUserIds  []int  `json:"-"`
 }
 
+// SubscriptionResetOptions controls which usage buckets an administrator
+// clears. ResetMonthly is kept internal to the compatibility wrapper and is
+// also selected when the total quota option is requested, because the monthly
+// cap is an independent view of the same billing-cycle usage.
+type SubscriptionResetOptions struct {
+	ResetTotal    bool
+	ResetFiveHour bool
+	ResetWeekly   bool
+	ResetMonthly  bool
+}
+
+func allSubscriptionResetOptions() SubscriptionResetOptions {
+	return SubscriptionResetOptions{
+		ResetTotal:    true,
+		ResetFiveHour: true,
+		ResetWeekly:   true,
+		ResetMonthly:  true,
+	}
+}
+
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
 	if plan == nil {
 		return 0, errors.New("plan is nil")
@@ -372,11 +617,21 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 		return 0
 	}
 	period := NormalizeResetPeriod(plan.QuotaResetPeriod)
+	return calcSubscriptionResetTime(base, period, plan.QuotaResetCustomSeconds, endUnix)
+}
+
+func calcSubscriptionUsageLimitNextResetTime(base time.Time, period string, endUnix int64) int64 {
+	return calcSubscriptionResetTime(base, period, 0, endUnix)
+}
+
+func calcSubscriptionResetTime(base time.Time, period string, customSeconds int64, endUnix int64) int64 {
 	if period == SubscriptionResetNever {
 		return 0
 	}
 	var next time.Time
 	switch period {
+	case SubscriptionResetFiveHour:
+		next = base.Add(5 * time.Hour)
 	case SubscriptionResetDaily:
 		next = time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, base.Location()).
 			AddDate(0, 0, 1)
@@ -395,10 +650,10 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 		next = time.Date(base.Year(), base.Month(), 1, 0, 0, 0, 0, base.Location()).
 			AddDate(0, 1, 0)
 	case SubscriptionResetCustom:
-		if plan.QuotaResetCustomSeconds <= 0 {
+		if customSeconds <= 0 {
 			return 0
 		}
-		next = base.Add(time.Duration(plan.QuotaResetCustomSeconds) * time.Second)
+		next = base.Add(time.Duration(customSeconds) * time.Second)
 	default:
 		return 0
 	}
@@ -528,7 +783,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestamp(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -559,29 +814,51 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if plan.AllowWalletOverflow != nil {
 		allowWalletOverflow = *plan.AllowWalletOverflow
 	}
+	fiveHourLastResetTime := int64(0)
+	fiveHourNextResetTime := int64(0)
+	// A 5-hour window starts with the first successful consumption, not when
+	// the subscription row is created. Keep both timestamps empty until then.
+	weeklyLastResetTime := int64(0)
+	weeklyNextResetTime := int64(0)
+	if plan.WeeklyLimit > 0 {
+		weeklyLastResetTime = now.Unix()
+		weeklyNextResetTime = calcSubscriptionUsageLimitNextResetTime(now, SubscriptionResetWeekly, endUnix)
+	}
+	monthlyLastResetTime := int64(0)
+	monthlyNextResetTime := int64(0)
+	if plan.MonthlyLimit > 0 {
+		monthlyLastResetTime = now.Unix()
+		monthlyNextResetTime = calcSubscriptionUsageLimitNextResetTime(now, SubscriptionResetMonthly, endUnix)
+	}
 	sub := &UserSubscription{
-		UserId:              userId,
-		PlanId:              plan.Id,
-		AmountTotal:         plan.TotalAmount,
-		AmountUsed:          0,
-		StartTime:           now.Unix(),
-		EndTime:             endUnix,
-		Status:              "active",
-		Source:              source,
-		LastResetTime:       lastReset,
-		NextResetTime:       nextReset,
-		UpgradeGroup:        upgradeGroup,
-		PrevUserGroup:       prevGroup,
-		DowngradeGroup:      strings.TrimSpace(plan.DowngradeGroup),
-		AllowWalletOverflow: allowWalletOverflow,
-		// The caps are snapshotted rather than read live from the plan, so a
-		// later plan edit cannot change the limits a live subscription was sold
-		// under. Each window anchors itself at its first consumption.
-		FiveHourLimit: plan.FiveHourLimit,
-		WeeklyLimit:   plan.WeeklyLimit,
-		MonthlyLimit:  plan.MonthlyLimit,
-		CreatedAt:     common.GetTimestamp(),
-		UpdatedAt:     common.GetTimestamp(),
+		UserId:                userId,
+		PlanId:                plan.Id,
+		AmountTotal:           plan.TotalAmount,
+		AmountUsed:            0,
+		StartTime:             now.Unix(),
+		EndTime:               endUnix,
+		Status:                "active",
+		Source:                source,
+		LastResetTime:         lastReset,
+		NextResetTime:         nextReset,
+		FiveHourLimit:         plan.FiveHourLimit,
+		FiveHourUsed:          0,
+		FiveHourLastResetTime: fiveHourLastResetTime,
+		FiveHourNextResetTime: fiveHourNextResetTime,
+		WeeklyLimit:           plan.WeeklyLimit,
+		WeeklyUsed:            0,
+		WeeklyLastResetTime:   weeklyLastResetTime,
+		WeeklyNextResetTime:   weeklyNextResetTime,
+		MonthlyLimit:          plan.MonthlyLimit,
+		MonthlyUsed:           0,
+		MonthlyLastResetTime:  monthlyLastResetTime,
+		MonthlyNextResetTime:  monthlyNextResetTime,
+		UpgradeGroup:          upgradeGroup,
+		PrevUserGroup:         prevGroup,
+		DowngradeGroup:        strings.TrimSpace(plan.DowngradeGroup),
+		AllowWalletOverflow:   allowWalletOverflow,
+		CreatedAt:             common.GetTimestamp(),
+		UpdatedAt:             common.GetTimestamp(),
 	}
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
@@ -599,83 +876,116 @@ func refreshSubscriptionUserGroupCache(userId int, operation string) {
 // expectedPaymentProvider guards against cross-gateway callback attacks (empty skips the check).
 // actualPaymentMethod updates the order's PaymentMethod to reflect the real payment type used (empty skips update).
 func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string) error {
+	return completeSubscriptionOrder(tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, nil)
+}
+
+// CompleteSubscriptionOrderWithPaymentAmount completes an order using the
+// amount verified by its payment provider.
+func CompleteSubscriptionOrderWithPaymentAmount(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount float64) error {
+	if paymentAmount < 0 || math.IsNaN(paymentAmount) || math.IsInf(paymentAmount, 0) {
+		return errors.New("payment amount is invalid")
+	}
+	return completeSubscriptionOrder(tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, &paymentAmount)
+}
+
+type subscriptionCompletionResult struct {
+	userID        int
+	planTitle     string
+	money         float64
+	paymentMethod string
+	upgradeGroup  string
+}
+
+func completeSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount *float64) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
+	}
+	var result subscriptionCompletionResult
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		result, err = completeSubscriptionOrderTx(tx, tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, paymentAmount)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	finalizeSubscriptionCompletion(result)
+	return nil
+}
+
+func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount *float64) (subscriptionCompletionResult, error) {
+	var result subscriptionCompletionResult
+	if tx == nil || tradeNo == "" {
+		return result, errors.New("invalid subscription completion transaction")
 	}
 	refCol := "`trade_no`"
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		refCol = `"trade_no"`
 	}
-	var logUserId int
-	var logPlanTitle string
-	var logMoney float64
-	var logPaymentMethod string
-	var upgradeGroup string
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		var order SubscriptionOrder
-		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
-			return ErrSubscriptionOrderNotFound
-		}
-		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
-			return ErrPaymentMethodMismatch
-		}
-		if order.Status == common.TopUpStatusSuccess {
-			return nil
-		}
-		if order.Status != common.TopUpStatusPending {
-			return ErrSubscriptionOrderStatusInvalid
-		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
-		if err != nil {
-			return err
-		}
-		if !plan.Enabled {
-			// still allow completion for already purchased orders
-		}
-		// 锁定用户行：并发完成同一用户的不同订单（包括多实例部署下）时，
-		// 使 CreateUserSubscriptionFromPlanTx 的 MaxPurchasePerUser 检查按用户串行。
-		var userRow User
-		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
-			return err
-		}
-		subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
-		if err != nil {
-			return err
-		}
-		if subscription.PrevUserGroup != "" {
-			upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
-		}
-		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
-			return err
-		}
-		order.Status = common.TopUpStatusSuccess
-		order.CompleteTime = common.GetTimestamp()
-		if providerPayload != "" {
-			order.ProviderPayload = providerPayload
-		}
-		if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
-			order.PaymentMethod = actualPaymentMethod
-		}
-		if err := tx.Save(&order).Error; err != nil {
-			return err
-		}
-		logUserId = order.UserId
-		logPlanTitle = plan.Title
-		logMoney = order.Money
-		logPaymentMethod = order.PaymentMethod
-		return nil
-	})
+	var order SubscriptionOrder
+	if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+		return result, ErrSubscriptionOrderNotFound
+	}
+	if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
+		return result, ErrPaymentMethodMismatch
+	}
+	if order.Status == common.TopUpStatusSuccess {
+		return result, nil
+	}
+	if order.Status != common.TopUpStatusPending {
+		return result, ErrSubscriptionOrderStatusInvalid
+	}
+	plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 	if err != nil {
-		return err
+		return result, err
 	}
-	if upgradeGroup != "" && logUserId > 0 {
-		refreshSubscriptionUserGroupCache(logUserId, "subscription payment completion")
+	// 锁定用户行：并发完成同一用户的不同订单（包括多实例部署下）时，
+	// 使 CreateUserSubscriptionFromPlanTx 的 MaxPurchasePerUser 检查按用户串行。
+	var userRow User
+	if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
+		return result, err
 	}
-	if logUserId > 0 {
-		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
-		RecordLog(logUserId, LogTypeTopup, msg)
+	subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+	if err != nil {
+		return result, err
 	}
-	return nil
+	if subscription.PrevUserGroup != "" {
+		result.upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
+	}
+	if paymentAmount != nil {
+		order.Money = *paymentAmount
+	}
+	if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
+		return result, err
+	}
+	order.Status = common.TopUpStatusSuccess
+	order.CompleteTime = common.GetTimestamp()
+	if providerPayload != "" {
+		order.ProviderPayload = providerPayload
+	}
+	if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
+		order.PaymentMethod = actualPaymentMethod
+	}
+	if err := tx.Save(&order).Error; err != nil {
+		return result, err
+	}
+	result.userID = order.UserId
+	result.planTitle = plan.Title
+	result.money = order.Money
+	result.paymentMethod = order.PaymentMethod
+	return result, nil
+}
+
+func finalizeSubscriptionCompletion(result subscriptionCompletionResult) {
+	if result.upgradeGroup != "" && result.userID > 0 {
+		refreshSubscriptionUserGroupCache(result.userID, "subscription payment completion")
+	}
+	if result.userID <= 0 {
+		return
+	}
+	InvalidateUserSubscriptionRateLimitCache(result.userID)
+	msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", result.planTitle, result.money, result.paymentMethod)
+	RecordLog(result.userID, LogTypeTopup, msg)
 }
 
 func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
@@ -687,14 +997,16 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			topup = TopUp{
-				UserId:        order.UserId,
-				Amount:        0,
-				Money:         order.Money,
-				TradeNo:       order.TradeNo,
-				PaymentMethod: order.PaymentMethod,
-				CreateTime:    order.CreateTime,
-				CompleteTime:  now,
-				Status:        common.TopUpStatusSuccess,
+				UserId:          order.UserId,
+				Amount:          0,
+				Money:           order.Money,
+				TradeNo:         order.TradeNo,
+				PaymentMethod:   order.PaymentMethod,
+				PaymentProvider: order.PaymentProvider,
+				EpayGatewayID:   order.EpayGatewayID,
+				CreateTime:      order.CreateTime,
+				CompleteTime:    now,
+				Status:          common.TopUpStatusSuccess,
 			}
 			return tx.Create(&topup).Error
 		}
@@ -704,6 +1016,16 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if topup.PaymentMethod == "" {
 		topup.PaymentMethod = order.PaymentMethod
 	} else if topup.PaymentMethod != order.PaymentMethod {
+		return ErrPaymentMethodMismatch
+	}
+	if topup.PaymentProvider == "" {
+		topup.PaymentProvider = order.PaymentProvider
+	} else if order.PaymentProvider != "" && topup.PaymentProvider != order.PaymentProvider {
+		return ErrPaymentMethodMismatch
+	}
+	if topup.EpayGatewayID == "" {
+		topup.EpayGatewayID = order.EpayGatewayID
+	} else if order.EpayGatewayID != "" && topup.EpayGatewayID != order.EpayGatewayID {
 		return ErrPaymentMethodMismatch
 	}
 	if topup.CreateTime == 0 {
@@ -764,6 +1086,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	if err != nil {
 		return "", err
 	}
+	InvalidateUserSubscriptionRateLimitCache(userId)
 	if groupChanged {
 		refreshSubscriptionUserGroupCache(userId, "admin subscription creation")
 		return fmt.Sprintf("用户分组将升级到 %s", plan.UpgradeGroup), nil
@@ -868,6 +1191,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			common.SysLog("failed to decrease user quota cache after subscription balance purchase: " + err.Error())
 		}
 	}
+	InvalidateUserSubscriptionRateLimitCache(userId)
 	if upgradeGroup != "" {
 		refreshSubscriptionUserGroupCache(userId, "subscription balance purchase")
 	}
@@ -892,38 +1216,101 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	return buildSubscriptionSummaries(subs), nil
 }
 
-// HasActiveUserSubscription returns whether the user has any active subscription.
-// This is a lightweight existence check to avoid heavy pre-consume transactions.
-func HasActiveUserSubscription(userId int) (bool, error) {
+// GetActiveSubscriptionAvailability reports whether the user has any active
+// subscription and whether at least one can be used by the current group.
+func GetActiveSubscriptionAvailability(userId int) (bool, bool, error) {
+	return GetActiveSubscriptionAvailabilityForGroup(userId, "")
+}
+
+// GetActiveSubscriptionAvailabilityForGroup reports subscription availability
+// for the effective request group. An empty group falls back to the user's
+// persisted group for callers that do not route requests across groups.
+func GetActiveSubscriptionAvailabilityForGroup(userId int, group string) (bool, bool, error) {
 	if userId <= 0 {
-		return false, errors.New("invalid userId")
+		return false, false, errors.New("invalid userId")
+	}
+	group = strings.TrimSpace(group)
+	if group == "" {
+		var err error
+		group, err = GetUserGroup(userId, false)
+		if err != nil {
+			return false, false, err
+		}
 	}
 	now := common.GetTimestamp()
-	var count int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
-		Count(&count).Error; err != nil {
-		return false, err
+	var subs []UserSubscription
+	if err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Find(&subs).Error; err != nil {
+		return false, false, err
 	}
-	return count > 0, nil
+	if len(subs) == 0 {
+		return false, false, nil
+	}
+	for _, sub := range subs {
+		if sub.AmountTotal < 0 {
+			continue
+		}
+		plan, err := GetSubscriptionPlanById(sub.PlanId)
+		if err != nil {
+			return true, false, err
+		}
+		if !plan.IsWalletOnlyForGroup(group) {
+			return true, true, nil
+		}
+	}
+	return true, false, nil
+}
+
+// HasActiveUserSubscription returns whether the user has an active
+// subscription that is eligible for the user's current group.
+func HasActiveUserSubscription(userId int) (bool, error) {
+	_, hasEligible, err := GetActiveSubscriptionAvailability(userId)
+	return hasEligible, err
 }
 
 // UserActiveSubscriptionsAllowWalletOverflow returns whether wallet balance may be used
 // after the user's subscription quota is exhausted. A single active subscription that
 // disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
 func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
+	return UserActiveSubscriptionsAllowWalletOverflowForGroup(userId, "")
+}
+
+// UserActiveSubscriptionsAllowWalletOverflowForGroup checks wallet fallback
+// only against subscriptions eligible for the effective request group.
+func UserActiveSubscriptionsAllowWalletOverflowForGroup(userId int, group string) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
+	group = strings.TrimSpace(group)
+	if group == "" {
+		var err error
+		group, err = GetUserGroup(userId, false)
+		if err != nil {
+			return false, err
+		}
+	}
 	now := common.GetTimestamp()
-	var strictCount int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
-			userId, "active", now, false).
-		Count(&strictCount).Error; err != nil {
+	var subs []UserSubscription
+	if err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Find(&subs).Error; err != nil {
 		return false, err
 	}
-	return strictCount == 0, nil
+	for _, sub := range subs {
+		if sub.AmountTotal < 0 {
+			continue
+		}
+		plan, err := GetSubscriptionPlanById(sub.PlanId)
+		if err != nil {
+			return false, err
+		}
+		if plan.IsWalletOnlyForGroup(group) {
+			continue
+		}
+		if !sub.AllowWalletOverflow {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
@@ -971,7 +1358,7 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 			return err
 		}
 		userId = sub.UserId
-		if err := tx.Model(&sub).Updates(map[string]any{
+		if err := tx.Model(&sub).Updates(map[string]interface{}{
 			"status":     "cancelled",
 			"end_time":   now,
 			"updated_at": now,
@@ -994,6 +1381,7 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 	if cacheGroup != "" && userId > 0 {
 		refreshSubscriptionUserGroupCache(userId, "admin subscription update")
 	}
+	InvalidateUserSubscriptionRateLimitCache(userId)
 	if downgradeGroup != "" {
 		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
 	}
@@ -1035,18 +1423,30 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 	if cacheGroup != "" && userId > 0 {
 		refreshSubscriptionUserGroupCache(userId, "admin subscription deletion")
 	}
+	InvalidateUserSubscriptionRateLimitCache(userId)
 	if downgradeGroup != "" {
 		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
 	}
 	return "", nil
 }
 
-func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64, advanceResetTime bool) error {
+func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64, advanceResetTime bool, options SubscriptionResetOptions) error {
 	if tx == nil || sub == nil || plan == nil {
 		return errors.New("invalid reset args")
 	}
-	sub.AmountUsed = 0
-	if advanceResetTime {
+	if options.ResetTotal {
+		sub.AmountUsed = 0
+	}
+	if options.ResetFiveHour {
+		sub.FiveHourUsed = 0
+	}
+	if options.ResetWeekly {
+		sub.WeeklyUsed = 0
+	}
+	if options.ResetMonthly {
+		sub.MonthlyUsed = 0
+	}
+	if advanceResetTime && options.ResetTotal {
 		nextReset := calcNextResetTime(time.Unix(now, 0), plan, sub.EndTime)
 		sub.NextResetTime = nextReset
 		if nextReset > 0 {
@@ -1054,6 +1454,18 @@ func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *Subscript
 		} else {
 			sub.LastResetTime = 0
 		}
+	}
+	if advanceResetTime && options.ResetFiveHour && sub.FiveHourLimit > 0 {
+		sub.FiveHourLastResetTime = now
+		sub.FiveHourNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetFiveHour, sub.EndTime)
+	}
+	if advanceResetTime && options.ResetWeekly && sub.WeeklyLimit > 0 {
+		sub.WeeklyLastResetTime = now
+		sub.WeeklyNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetWeekly, sub.EndTime)
+	}
+	if advanceResetTime && options.ResetMonthly && sub.MonthlyLimit > 0 {
+		sub.MonthlyLastResetTime = now
+		sub.MonthlyNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetMonthly, sub.EndTime)
 	}
 	return tx.Save(sub).Error
 }
@@ -1079,7 +1491,7 @@ func buildSubscriptionResetResult(plan *SubscriptionPlan, subs []UserSubscriptio
 	}
 }
 
-func adminResetUserSubscriptionsByPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, now int64, advanceResetTime bool) (*SubscriptionResetResult, error) {
+func adminResetUserSubscriptionsByPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, now int64, advanceResetTime bool, options SubscriptionResetOptions) (*SubscriptionResetResult, error) {
 	if tx == nil || plan == nil {
 		return nil, errors.New("invalid reset args")
 	}
@@ -1094,14 +1506,14 @@ func adminResetUserSubscriptionsByPlanTx(tx *gorm.DB, userId int, plan *Subscrip
 		return nil, errors.New("该用户没有有效的此套餐订阅")
 	}
 	for i := range subs {
-		if err := resetUserSubscriptionTx(tx, &subs[i], plan, now, advanceResetTime); err != nil {
+		if err := resetUserSubscriptionTx(tx, &subs[i], plan, now, advanceResetTime, options); err != nil {
 			return nil, err
 		}
 	}
 	return buildSubscriptionResetResult(plan, subs, advanceResetTime), nil
 }
 
-func adminResetPlanSubscriptionsTx(tx *gorm.DB, plan *SubscriptionPlan, now int64, advanceResetTime bool) (*SubscriptionResetResult, error) {
+func adminResetPlanSubscriptionsTx(tx *gorm.DB, plan *SubscriptionPlan, now int64, advanceResetTime bool, options SubscriptionResetOptions) (*SubscriptionResetResult, error) {
 	if tx == nil || plan == nil {
 		return nil, errors.New("invalid reset args")
 	}
@@ -1113,7 +1525,7 @@ func adminResetPlanSubscriptionsTx(tx *gorm.DB, plan *SubscriptionPlan, now int6
 		return nil, err
 	}
 	for i := range subs {
-		if err := resetUserSubscriptionTx(tx, &subs[i], plan, now, advanceResetTime); err != nil {
+		if err := resetUserSubscriptionTx(tx, &subs[i], plan, now, advanceResetTime, options); err != nil {
 			return nil, err
 		}
 	}
@@ -1121,6 +1533,10 @@ func adminResetPlanSubscriptionsTx(tx *gorm.DB, plan *SubscriptionPlan, now int6
 }
 
 func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime bool) (*SubscriptionResetResult, error) {
+	return AdminResetUserSubscriptionsByPlanWithOptions(userId, planId, advanceResetTime, allSubscriptionResetOptions())
+}
+
+func AdminResetUserSubscriptionsByPlanWithOptions(userId int, planId int, advanceResetTime bool, options SubscriptionResetOptions) (*SubscriptionResetResult, error) {
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
 	}
@@ -1131,7 +1547,7 @@ func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime 
 		if err != nil {
 			return err
 		}
-		result, err = adminResetUserSubscriptionsByPlanTx(tx, userId, plan, now, advanceResetTime)
+		result, err = adminResetUserSubscriptionsByPlanTx(tx, userId, plan, now, advanceResetTime, options)
 		return err
 	})
 	if err != nil {
@@ -1141,6 +1557,10 @@ func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime 
 }
 
 func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*SubscriptionResetResult, error) {
+	return AdminResetPlanSubscriptionsWithOptions(planId, advanceResetTime, allSubscriptionResetOptions())
+}
+
+func AdminResetPlanSubscriptionsWithOptions(planId int, advanceResetTime bool, options SubscriptionResetOptions) (*SubscriptionResetResult, error) {
 	if planId <= 0 {
 		return nil, errors.New("invalid planId")
 	}
@@ -1151,7 +1571,7 @@ func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*Subscripti
 		if err != nil {
 			return err
 		}
-		result, err = adminResetPlanSubscriptionsTx(tx, plan, now, advanceResetTime)
+		result, err = adminResetPlanSubscriptionsTx(tx, plan, now, advanceResetTime, options)
 		return err
 	})
 	if err != nil {
@@ -1196,7 +1616,7 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		err := DB.Transaction(func(tx *gorm.DB) error {
 			res := tx.Model(&UserSubscription{}).
 				Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
-				Updates(map[string]any{
+				Updates(map[string]interface{}{
 					"status":     "expired",
 					"updated_at": common.GetTimestamp(),
 				})
@@ -1290,15 +1710,65 @@ func (r *SubscriptionPreConsumeRecord) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+func maybeResetSubscriptionUsageLimit(used *int64, lastResetTime *int64, nextResetTime *int64, limit int64, period string, startTime int64, endTime int64, now int64) bool {
+	if limit <= 0 {
+		return false
+	}
+
+	changed := false
+	// An untouched 5-hour window has no reset anchor yet. Do not silently
+	// anchor it to subscription creation; the first consumption sets the
+	// window in initializeSubscriptionUsageWindow.
+	if *used == 0 && *lastResetTime == 0 && *nextResetTime == 0 && period == SubscriptionResetFiveHour {
+		return false
+	}
+	baseUnix := *lastResetTime
+	if baseUnix <= 0 {
+		baseUnix = startTime
+		if baseUnix <= 0 {
+			baseUnix = now
+		}
+		*lastResetTime = baseUnix
+		changed = true
+	}
+
+	nextUnix := *nextResetTime
+	if nextUnix <= 0 {
+		nextUnix = calcSubscriptionUsageLimitNextResetTime(time.Unix(baseUnix, 0), period, endTime)
+		if nextUnix > 0 {
+			*nextResetTime = nextUnix
+			changed = true
+		}
+	}
+	if nextUnix <= 0 || nextUnix > now {
+		return changed
+	}
+
+	for nextUnix > 0 && nextUnix <= now {
+		baseUnix = nextUnix
+		nextUnix = calcSubscriptionUsageLimitNextResetTime(time.Unix(baseUnix, 0), period, endTime)
+	}
+	*used = 0
+	*lastResetTime = baseUnix
+	*nextResetTime = nextUnix
+	return true
+}
+
+func initializeSubscriptionUsageWindow(usedBefore int64, usedAfter int64, lastResetTime *int64, nextResetTime *int64, limit int64, period string, endTime int64, now int64) bool {
+	if limit <= 0 || usedBefore != 0 || usedAfter <= 0 || *lastResetTime != 0 || *nextResetTime != 0 {
+		return false
+	}
+	base := time.Unix(now, 0)
+	*lastResetTime = now
+	*nextResetTime = calcSubscriptionUsageLimitNextResetTime(base, period, endTime)
+	return true
+}
+
 func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) error {
 	if tx == nil || sub == nil || plan == nil {
 		return errors.New("invalid reset args")
 	}
 
-	// Each usage window is independent: the 5-hour cap must roll even while the
-	// weekly total still has time left on it. Resetting only the total (and
-	// returning early) would leave a burst window stuck shut for the rest of the
-	// week, so every window is evaluated here.
 	changed := false
 	if sub.NextResetTime <= now && NormalizeResetPeriod(plan.QuotaResetPeriod) != SubscriptionResetNever {
 		baseUnix := sub.LastResetTime
@@ -1325,20 +1795,38 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		}
 	}
 	if maybeResetSubscriptionUsageLimit(
-		&sub.FiveHourUsed, &sub.FiveHourLastResetTime, &sub.FiveHourNextResetTime,
-		sub.FiveHourLimit, SubscriptionResetFiveHour, sub.StartTime, sub.EndTime, now,
+		&sub.FiveHourUsed,
+		&sub.FiveHourLastResetTime,
+		&sub.FiveHourNextResetTime,
+		sub.FiveHourLimit,
+		SubscriptionResetFiveHour,
+		sub.StartTime,
+		sub.EndTime,
+		now,
 	) {
 		changed = true
 	}
 	if maybeResetSubscriptionUsageLimit(
-		&sub.WeeklyUsed, &sub.WeeklyLastResetTime, &sub.WeeklyNextResetTime,
-		sub.WeeklyLimit, SubscriptionResetWeekly, sub.StartTime, sub.EndTime, now,
+		&sub.WeeklyUsed,
+		&sub.WeeklyLastResetTime,
+		&sub.WeeklyNextResetTime,
+		sub.WeeklyLimit,
+		SubscriptionResetWeekly,
+		sub.StartTime,
+		sub.EndTime,
+		now,
 	) {
 		changed = true
 	}
 	if maybeResetSubscriptionUsageLimit(
-		&sub.MonthlyUsed, &sub.MonthlyLastResetTime, &sub.MonthlyNextResetTime,
-		sub.MonthlyLimit, SubscriptionResetMonthly, sub.StartTime, sub.EndTime, now,
+		&sub.MonthlyUsed,
+		&sub.MonthlyLastResetTime,
+		&sub.MonthlyNextResetTime,
+		sub.MonthlyLimit,
+		SubscriptionResetMonthly,
+		sub.StartTime,
+		sub.EndTime,
+		now,
 	) {
 		changed = true
 	}
@@ -1348,10 +1836,6 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	return tx.Save(sub).Error
 }
 
-// canIncreaseSubscriptionUsage reports whether `delta` more may be charged
-// without crossing `limit`. A non-positive limit means the cap is disabled. The
-// subtraction is checked rather than added so an overflow cannot wrap into a
-// negative and let an oversized charge through.
 func canIncreaseSubscriptionUsage(used int64, limit int64, delta int64) bool {
 	if used < 0 || delta <= 0 || delta > math.MaxInt64-used {
 		return false
@@ -1359,9 +1843,6 @@ func canIncreaseSubscriptionUsage(used int64, limit int64, delta int64) bool {
 	return limit <= 0 || used <= limit-delta
 }
 
-// decreaseSubscriptionUsage returns `used` reduced by `delta` (a negative
-// number), clamped at zero. A refund may arrive after the window has rolled
-// over, in which case the counter is already lower than the amount.
 func decreaseSubscriptionUsage(used int64, delta int64) int64 {
 	if used <= 0 || delta >= 0 || delta < -used {
 		return 0
@@ -1369,102 +1850,62 @@ func decreaseSubscriptionUsage(used int64, delta int64) int64 {
 	return used + delta
 }
 
-// calcSubscriptionUsageLimitNextResetTime returns when a named usage window
-// next resets, or 0 when it never does.
-func calcSubscriptionUsageLimitNextResetTime(base time.Time, period string, endUnix int64) int64 {
-	if period == SubscriptionResetNever {
-		return 0
+func (sub *UserSubscription) applyUsageDelta(delta int64) error {
+	if sub == nil || delta == 0 {
+		return nil
 	}
-	var next time.Time
-	switch period {
-	case SubscriptionResetFiveHour:
-		next = base.Add(5 * time.Hour)
-	case SubscriptionResetDaily:
-		next = time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, base.Location()).
-			AddDate(0, 0, 1)
-	case SubscriptionResetWeekly:
-		// Align to next Monday 00:00
-		weekday := int(base.Weekday()) // Sunday=0
-		// Convert to Monday=1..Sunday=7
-		if weekday == 0 {
-			weekday = 7
+	if delta < 0 {
+		sub.AmountUsed = decreaseSubscriptionUsage(sub.AmountUsed, delta)
+		if sub.FiveHourLimit > 0 {
+			sub.FiveHourUsed = decreaseSubscriptionUsage(sub.FiveHourUsed, delta)
 		}
-		daysUntil := 8 - weekday
-		next = time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, base.Location()).
-			AddDate(0, 0, daysUntil)
-	case SubscriptionResetMonthly:
-		next = time.Date(base.Year(), base.Month(), 1, 0, 0, 0, 0, base.Location()).
-			AddDate(0, 1, 0)
-	default:
-		return 0
-	}
-	if endUnix > 0 && next.Unix() > endUnix {
-		return 0
-	}
-	return next.Unix()
-}
-
-// maybeResetSubscriptionUsageLimit advances one usage window when its reset
-// time has passed, and reports whether anything changed.
-func maybeResetSubscriptionUsageLimit(used *int64, lastResetTime *int64, nextResetTime *int64, limit int64, period string, startTime int64, endTime int64, now int64) bool {
-	if limit <= 0 {
-		return false
-	}
-
-	changed := false
-	// An untouched 5-hour window has no reset anchor yet. Anchoring it to
-	// subscription creation would start the clock before the user ever made a
-	// request, so the first consumption sets the window instead.
-	if *used == 0 && *lastResetTime == 0 && *nextResetTime == 0 && period == SubscriptionResetFiveHour {
-		return false
-	}
-	baseUnix := *lastResetTime
-	if baseUnix <= 0 {
-		baseUnix = startTime
-		if baseUnix <= 0 {
-			baseUnix = now
+		if sub.WeeklyLimit > 0 {
+			sub.WeeklyUsed = decreaseSubscriptionUsage(sub.WeeklyUsed, delta)
 		}
-		*lastResetTime = baseUnix
-		changed = true
-	}
-
-	nextUnix := *nextResetTime
-	if nextUnix <= 0 {
-		nextUnix = calcSubscriptionUsageLimitNextResetTime(time.Unix(baseUnix, 0), period, endTime)
-		if nextUnix > 0 {
-			*nextResetTime = nextUnix
-			changed = true
+		if sub.MonthlyLimit > 0 {
+			sub.MonthlyUsed = decreaseSubscriptionUsage(sub.MonthlyUsed, delta)
 		}
-	}
-	if nextUnix <= 0 || nextUnix > now {
-		return changed
+		return nil
 	}
 
-	base := time.Unix(baseUnix, 0)
-	next := nextUnix
-	for next > 0 && next <= now {
-		base = time.Unix(next, 0)
-		next = calcSubscriptionUsageLimitNextResetTime(base, period, endTime)
+	if !canIncreaseSubscriptionUsage(sub.AmountUsed, sub.AmountTotal, delta) {
+		return fmt.Errorf("subscription quota insufficient: billing-period quota limit")
 	}
-	*used = 0
-	*lastResetTime = base.Unix()
-	*nextResetTime = next
-	return true
-}
+	if sub.FiveHourLimit > 0 && !canIncreaseSubscriptionUsage(sub.FiveHourUsed, sub.FiveHourLimit, delta) {
+		return fmt.Errorf("subscription quota insufficient: 5-hour quota limit")
+	}
+	if sub.WeeklyLimit > 0 && !canIncreaseSubscriptionUsage(sub.WeeklyUsed, sub.WeeklyLimit, delta) {
+		return fmt.Errorf("subscription quota insufficient: weekly quota limit")
+	}
+	if sub.MonthlyLimit > 0 && !canIncreaseSubscriptionUsage(sub.MonthlyUsed, sub.MonthlyLimit, delta) {
+		return fmt.Errorf("subscription quota insufficient: monthly quota limit")
+	}
 
-// initializeSubscriptionUsageWindow opens a window's first period at the moment
-// of its first consumption.
-func initializeSubscriptionUsageWindow(usedBefore int64, usedAfter int64, lastResetTime *int64, nextResetTime *int64, limit int64, period string, endTime int64, now int64) bool {
-	if limit <= 0 || usedBefore != 0 || usedAfter <= 0 || *lastResetTime != 0 || *nextResetTime != 0 {
-		return false
+	sub.AmountUsed += delta
+	if sub.FiveHourLimit > 0 {
+		sub.FiveHourUsed += delta
 	}
-	*lastResetTime = now
-	*nextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), period, endTime)
-	return true
+	if sub.WeeklyLimit > 0 {
+		sub.WeeklyUsed += delta
+	}
+	if sub.MonthlyLimit > 0 {
+		sub.MonthlyUsed += delta
+	}
+	return nil
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscriptionForGroup(requestId, userId, modelName, quotaType, amount, "")
+}
+
+// PreConsumeUserSubscriptionForGroup pre-consumes from an active subscription
+// that is eligible for the effective request group.
+func PreConsumeUserSubscriptionForGroup(requestId string, userId int, modelName string, quotaType int, amount int64, group string) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscriptionForGroup(requestId, userId, modelName, quotaType, amount, group)
+}
+
+func preConsumeUserSubscriptionForGroup(requestId string, userId int, modelName string, quotaType int, amount int64, group string) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1501,6 +1942,14 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		}
 
 		var subs []UserSubscription
+		effectiveGroup := strings.TrimSpace(group)
+		if effectiveGroup == "" {
+			var err error
+			effectiveGroup, err = getUserGroupByIdTx(tx, userId)
+			if err != nil {
+				return err
+			}
+		}
 		if err := lockForUpdate(tx).
 			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 			Order("end_time asc, id asc").
@@ -1510,40 +1959,42 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
-		// Records which named cap blocked the request, so the caller is told to
-		// wait on the short window rather than to buy more quota.
-		limitHit := ""
+		// Keeps the most specific limit rejection seen while walking the
+		// subscriptions. Without it the caller only ever sees a generic
+		// "insufficient", and a user blocked by the short window cannot tell
+		// that waiting — not buying more quota — is what unblocks them.
+		var limitErr error
 		for _, candidate := range subs {
 			sub := candidate
+			if sub.AmountTotal < 0 {
+				continue
+			}
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
+			}
+			if plan.IsWalletOnlyForGroup(effectiveGroup) {
+				continue
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
 			}
 			usedBefore := sub.AmountUsed
-			// Every cap is checked before anything is written, so a rejected
-			// attempt leaves no trace and a later subscription in this loop may
-			// still cover the request.
-			if !canIncreaseSubscriptionUsage(sub.AmountUsed, sub.AmountTotal, amount) {
-				if sub.AmountTotal > 0 {
-					limitHit = "billing-period"
-				}
+			fiveHourUsedBefore := sub.FiveHourUsed
+			if err := sub.applyUsageDelta(amount); err != nil {
+				limitErr = err
 				continue
 			}
-			if !canIncreaseSubscriptionUsage(sub.FiveHourUsed, sub.FiveHourLimit, amount) {
-				limitHit = "5-hour"
-				continue
-			}
-			if !canIncreaseSubscriptionUsage(sub.WeeklyUsed, sub.WeeklyLimit, amount) {
-				limitHit = "weekly"
-				continue
-			}
-			if !canIncreaseSubscriptionUsage(sub.MonthlyUsed, sub.MonthlyLimit, amount) {
-				limitHit = "monthly"
-				continue
-			}
+			initializeSubscriptionUsageWindow(
+				fiveHourUsedBefore,
+				sub.FiveHourUsed,
+				&sub.FiveHourLastResetTime,
+				&sub.FiveHourNextResetTime,
+				sub.FiveHourLimit,
+				SubscriptionResetFiveHour,
+				sub.EndTime,
+				now,
+			)
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,
 				UserId:             userId,
@@ -1566,23 +2017,6 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				}
 				return err
 			}
-			usedAfter := usedBefore + amount
-			// A 5-hour window starts at its first consumption, not at purchase,
-			// so an idle subscription's clock does not run down unused. The
-			// anchor is saved by the same write below.
-			initializeSubscriptionUsageWindow(usedBefore, usedAfter,
-				&sub.FiveHourLastResetTime, &sub.FiveHourNextResetTime,
-				sub.FiveHourLimit, SubscriptionResetFiveHour, sub.EndTime, now)
-			sub.AmountUsed = usedAfter
-			if sub.FiveHourLimit > 0 {
-				sub.FiveHourUsed += amount
-			}
-			if sub.WeeklyLimit > 0 {
-				sub.WeeklyUsed += amount
-			}
-			if sub.MonthlyLimit > 0 {
-				sub.MonthlyUsed += amount
-			}
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
@@ -1593,8 +2027,8 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountUsedAfter = sub.AmountUsed
 			return nil
 		}
-		if limitHit != "" {
-			return fmt.Errorf("subscription quota insufficient: %s quota limit, need=%d", limitHit, amount)
+		if limitErr != nil {
+			return limitErr
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})
@@ -1609,6 +2043,12 @@ func RefundSubscriptionPreConsume(requestId string) error {
 	if strings.TrimSpace(requestId) == "" {
 		return errors.New("requestId is empty")
 	}
+	// Read the clock before opening the transaction: GetDBTimestamp issues its
+	// own query, and inside the transaction it would need a second connection
+	// from the pool. A pool capped at one connection would deadlock against
+	// itself. Writing the call inside the closure is not enough — the closure
+	// body runs with the transaction already open.
+	now := GetDBTimestamp()
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var record SubscriptionPreConsumeRecord
 		if err := lockForUpdate(tx).
@@ -1622,7 +2062,7 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed); err != nil {
+		if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed, now); err != nil {
 			return err
 		}
 		record.Status = "refunded"
@@ -1630,15 +2070,19 @@ func RefundSubscriptionPreConsume(requestId string) error {
 	})
 }
 
-// ResetDueSubscriptions resets subscriptions whose next_reset_time has passed.
+// ResetDueSubscriptions resets subscriptions whose billing-period or independent
+// usage-limit reset time has passed.
 func ResetDueSubscriptions(limit int) (int, error) {
 	if limit <= 0 {
 		limit = 200
 	}
 	now := GetDBTimestamp()
 	var subs []UserSubscription
-	if err := DB.Where("next_reset_time > 0 AND next_reset_time <= ? AND status = ?", now, "active").
-		Order("next_reset_time asc").
+	if err := DB.Where(
+		"status = ? AND ((next_reset_time > 0 AND next_reset_time <= ?) OR (five_hour_next_reset_time > 0 AND five_hour_next_reset_time <= ?) OR (weekly_next_reset_time > 0 AND weekly_next_reset_time <= ?) OR (monthly_next_reset_time > 0 AND monthly_next_reset_time <= ?))",
+		"active", now, now, now, now,
+	).
+		Order("id asc").
 		Limit(limit).
 		Find(&subs).Error; err != nil {
 		return 0, err
@@ -1656,7 +2100,10 @@ func ResetDueSubscriptions(limit int) (int, error) {
 		err = DB.Transaction(func(tx *gorm.DB) error {
 			var locked UserSubscription
 			if err := lockForUpdate(tx).
-				Where("id = ? AND next_reset_time > 0 AND next_reset_time <= ?", subCopy.Id, now).
+				Where(
+					"id = ? AND status = ? AND ((next_reset_time > 0 AND next_reset_time <= ?) OR (five_hour_next_reset_time > 0 AND five_hour_next_reset_time <= ?) OR (weekly_next_reset_time > 0 AND weekly_next_reset_time <= ?) OR (monthly_next_reset_time > 0 AND monthly_next_reset_time <= ?))",
+					subCopy.Id, "active", now, now, now, now,
+				).
 				First(&locked).Error; err != nil {
 				return nil
 			}
@@ -1712,7 +2159,9 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 	return info, nil
 }
 
-// Update subscription used amount by delta (positive consume more, negative refund).
+// Update subscription used amounts by delta (positive consume more, negative refund).
+// All configured usage windows move together so settlement and refunds preserve
+// the same caps enforced during pre-consume.
 func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error {
 	if userSubscriptionId <= 0 {
 		return errors.New("invalid userSubscriptionId")
@@ -1720,17 +2169,28 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 	if delta == 0 {
 		return nil
 	}
+	// The timestamp is read before the transaction opens: GetDBTimestamp issues
+	// its own query, and inside a transaction it would need a second connection
+	// from the pool. A pool capped at one connection (the tests cap it, and so
+	// can an operator) would deadlock against itself. Passing it as an argument
+	// to the closure is not enough — Go evaluates the argument inside the
+	// transaction.
+	now := GetDBTimestamp()
 	return DB.Transaction(func(tx *gorm.DB) error {
-		return postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta)
+		return postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta, now)
 	})
 }
 
 // postConsumeUserSubscriptionDeltaTx applies one settled delta inside the
-// caller's transaction. Refunds already hold a transaction open, and opening a
-// second one there would deadlock on a single-connection database such as
-// SQLite, so the work is shared with PostConsumeUserSubscriptionDelta rather
-// than nested.
-func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64) error {
+// caller's transaction. A refund already holds a transaction open, and opening
+// a second one there deadlocks on a single-connection database such as SQLite —
+// the inner transaction waits forever on the outer one's lock. The refund
+// therefore calls this directly instead of nesting.
+//
+// `now` is passed in rather than read here, for the same single-connection
+// reason: any query issued inside the transaction needs a connection the
+// transaction is already holding.
+func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64, now int64) error {
 	if userSubscriptionId <= 0 {
 		return errors.New("invalid userSubscriptionId")
 	}
@@ -1743,40 +2203,21 @@ func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, del
 		First(&sub).Error; err != nil {
 		return err
 	}
-	if delta < 0 {
-		sub.AmountUsed = decreaseSubscriptionUsage(sub.AmountUsed, delta)
-		if sub.FiveHourLimit > 0 {
-			sub.FiveHourUsed = decreaseSubscriptionUsage(sub.FiveHourUsed, delta)
-		}
-		if sub.WeeklyLimit > 0 {
-			sub.WeeklyUsed = decreaseSubscriptionUsage(sub.WeeklyUsed, delta)
-		}
-		if sub.MonthlyLimit > 0 {
-			sub.MonthlyUsed = decreaseSubscriptionUsage(sub.MonthlyUsed, delta)
-		}
-		return tx.Save(&sub).Error
+	fiveHourUsedBefore := sub.FiveHourUsed
+	if err := sub.applyUsageDelta(delta); err != nil {
+		return err
 	}
-	if !canIncreaseSubscriptionUsage(sub.AmountUsed, sub.AmountTotal, delta) {
-		return fmt.Errorf("subscription quota insufficient: billing-period quota limit")
-	}
-	if sub.FiveHourLimit > 0 && !canIncreaseSubscriptionUsage(sub.FiveHourUsed, sub.FiveHourLimit, delta) {
-		return fmt.Errorf("subscription quota insufficient: 5-hour quota limit")
-	}
-	if sub.WeeklyLimit > 0 && !canIncreaseSubscriptionUsage(sub.WeeklyUsed, sub.WeeklyLimit, delta) {
-		return fmt.Errorf("subscription quota insufficient: weekly quota limit")
-	}
-	if sub.MonthlyLimit > 0 && !canIncreaseSubscriptionUsage(sub.MonthlyUsed, sub.MonthlyLimit, delta) {
-		return fmt.Errorf("subscription quota insufficient: monthly quota limit")
-	}
-	sub.AmountUsed += delta
-	if sub.FiveHourLimit > 0 {
-		sub.FiveHourUsed += delta
-	}
-	if sub.WeeklyLimit > 0 {
-		sub.WeeklyUsed += delta
-	}
-	if sub.MonthlyLimit > 0 {
-		sub.MonthlyUsed += delta
+	if delta > 0 {
+		initializeSubscriptionUsageWindow(
+			fiveHourUsedBefore,
+			sub.FiveHourUsed,
+			&sub.FiveHourLastResetTime,
+			&sub.FiveHourNextResetTime,
+			sub.FiveHourLimit,
+			SubscriptionResetFiveHour,
+			sub.EndTime,
+			now,
+		)
 	}
 	return tx.Save(&sub).Error
 }

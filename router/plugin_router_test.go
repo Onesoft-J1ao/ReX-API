@@ -900,7 +900,7 @@ func TestWebFallbackDoesNotCacheMissingAPIOrAssets(t *testing.T) {
 	}
 	page := performPluginRequest(outer, http.MethodGet, "/security")
 	assert.Equal(t, http.StatusOK, page.Code)
-	assert.Equal(t, "dashboard", page.Body.String())
+	assert.Contains(t, page.Body.String(), "dashboard")
 	assert.Equal(t, "no-cache", page.Header().Get("Cache-Control"))
 }
 

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
+import { getBannedLoginResponse } from '@/features/auth/components/banned-login-response'
 import { AuthOperationError } from '@/lib/secure-verification'
 import type { AuthBundle } from '@/stores/auth-store'
 
@@ -319,6 +320,12 @@ export function useSecureVerification() {
       dispatch({ type: 'reset' })
     } catch (error) {
       if (pending.current !== current) return
+      if (current.kind === 'login' && getBannedLoginResponse(error)) {
+        pending.current = null
+        dispatch({ type: 'reset' })
+        current.reject(error)
+        return
+      }
       const failure = AuthOperationError.from(error)
       if (failure.code === 'AUTH_CANCELLED') {
         cancel()

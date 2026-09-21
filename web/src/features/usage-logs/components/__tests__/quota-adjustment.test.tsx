@@ -165,6 +165,8 @@ describe('quota adjustment log localization', () => {
         username: 'quota-user',
         token_name: '',
         model_name: '',
+        model_icon: '',
+        provider_icon: '',
         quota: 0,
         prompt_tokens: 0,
         completion_tokens: 0,

@@ -59,14 +59,26 @@ type Channel struct {
 	Keys []string `json:"-" gorm:"-"`
 }
 
+const ChannelStatusReasonAllKeysDisabled = "All keys are disabled"
+
 type ChannelInfo struct {
-	IsMultiKey             bool                  `json:"is_multi_key"`                        // 是否多Key模式
-	MultiKeySize           int                   `json:"multi_key_size"`                      // 多Key模式下的Key数量
-	MultiKeyStatusList     map[int]int           `json:"multi_key_status_list"`               // key状态列表，key index -> status
-	MultiKeyDisabledReason map[int]string        `json:"multi_key_disabled_reason,omitempty"` // key禁用原因列表，key index -> reason
-	MultiKeyDisabledTime   map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key禁用时间列表，key index -> time
-	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // 多Key模式下轮询的key索引
-	MultiKeyMode           constant.MultiKeyMode `json:"multi_key_mode"`
+	IsMultiKey                      bool                  `json:"is_multi_key"`                        // 是否多Key模式
+	MultiKeySize                    int                   `json:"multi_key_size"`                      // 多Key模式下的Key数量
+	MultiKeyStatusList              map[int]int           `json:"multi_key_status_list"`               // key状态列表，key index -> status
+	MultiKeyDisabledReason          map[int]string        `json:"multi_key_disabled_reason,omitempty"` // key禁用原因列表，key index -> reason
+	MultiKeyDisabledTime            map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key禁用时间列表，key index -> time
+	MultiKeyPollingIndex            int                   `json:"multi_key_polling_index"`             // 多Key模式下轮询的key索引
+	MultiKeyMode                    constant.MultiKeyMode `json:"multi_key_mode"`
+	MultiKeyDisableRules            []MultiKeyDisableRule `json:"multi_key_disable_rules,omitempty"`
+	MultiKeyAutoRetry               bool                  `json:"multi_key_auto_retry,omitempty"`
+	MultiKeyAutoRecovery            bool                  `json:"multi_key_auto_recovery,omitempty"`
+	MultiKeyRecoveryIntervalMinutes int                   `json:"multi_key_recovery_interval_minutes,omitempty"`
+	MultiKeyLastRecoveryTime        int64                 `json:"multi_key_last_recovery_time,omitempty"`
+}
+
+type MultiKeyDisableRule struct {
+	StatusCode int    `json:"status_code,omitempty"`
+	Message    string `json:"message,omitempty"`
 }
 
 type ChannelSortOptions struct {
@@ -291,6 +303,39 @@ func (channel *Channel) SaveChannelInfo() error {
 	return DB.Model(channel).Update("channel_info", channel.ChannelInfo).Error
 }
 
+func (channel *Channel) MatchesMultiKeyDisableRule(statusCode int, message string) bool {
+	if channel == nil || !channel.ChannelInfo.IsMultiKey {
+		return false
+	}
+	lowerMessage := strings.ToLower(message)
+	for _, rule := range channel.ChannelInfo.MultiKeyDisableRules {
+		if rule.StatusCode == 0 && strings.TrimSpace(rule.Message) == "" {
+			continue
+		}
+		if rule.StatusCode != 0 && rule.StatusCode != statusCode {
+			continue
+		}
+		if expected := strings.TrimSpace(rule.Message); expected != "" && !strings.Contains(lowerMessage, strings.ToLower(expected)) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func (channel *Channel) HasEnabledMultiKey() bool {
+	if channel == nil || !channel.ChannelInfo.IsMultiKey {
+		return false
+	}
+	keys := channel.GetKeys()
+	for index := range keys {
+		if channel.ChannelInfo.MultiKeyStatusList == nil || channel.ChannelInfo.MultiKeyStatusList[index] == common.ChannelStatusEnabled || channel.ChannelInfo.MultiKeyStatusList[index] == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (channel *Channel) GetModels() []string {
 	if channel.Models == "" {
 		return []string{}
@@ -378,6 +423,23 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOpti
 		err = order.Apply(DB).Limit(num).Offset(startIdx).Omit("key").Find(&channels).Error
 	}
 	return channels, err
+}
+
+// GetEnabledChannelForStatusCheckProbe returns one stable enabled channel for
+// an explicit group. Flexible status probes never revive or disable channels.
+func GetEnabledChannelForStatusCheckProbe(group string) (*Channel, error) {
+	var channel Channel
+	query := ApplyChannelGroupFilter(DB, group).
+		Where("status = ?", common.ChannelStatusEnabled).
+		Order("priority desc").
+		Order("id asc")
+	if err := query.First(&channel).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &channel, nil
 }
 
 func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
@@ -697,6 +759,12 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 		}
 		if status == common.ChannelStatusEnabled {
 			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
+			if channel.ChannelInfo.MultiKeyDisabledReason != nil {
+				delete(channel.ChannelInfo.MultiKeyDisabledReason, keyIndex)
+			}
+			if channel.ChannelInfo.MultiKeyDisabledTime != nil {
+				delete(channel.ChannelInfo.MultiKeyDisabledTime, keyIndex)
+			}
 		} else {
 			channel.ChannelInfo.MultiKeyStatusList[keyIndex] = status
 			if channel.ChannelInfo.MultiKeyDisabledReason == nil {
@@ -711,10 +779,10 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 		if !hasEnabledMultiKey(keys, channel.ChannelInfo.MultiKeyStatusList) {
 			channel.Status = common.ChannelStatusAutoDisabled
 			info := channel.GetOtherInfo()
-			info["status_reason"] = "All keys are disabled"
+			info["status_reason"] = ChannelStatusReasonAllKeysDisabled
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
-		} else if status == common.ChannelStatusEnabled {
+		} else if status == common.ChannelStatusEnabled && channel.Status == common.ChannelStatusAutoDisabled {
 			channel.Status = common.ChannelStatusEnabled
 		}
 	}
@@ -782,7 +850,14 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 	if err != nil {
 		return false
 	} else {
-		if channel.Status == status {
+		// A manual channel operation must replace the exhaustion reason even
+		// when the status value is already manually disabled.
+		overridesKeyExhaustion := channel.ChannelInfo.IsMultiKey && usingKey == "" &&
+			status == common.ChannelStatusManuallyDisabled && reason != ChannelStatusReasonAllKeysDisabled &&
+			channel.GetOtherInfo()["status_reason"] == ChannelStatusReasonAllKeysDisabled
+		// Multi-key updates must still run when the aggregate status is unchanged
+		// so the selected key's status and disable reason are persisted.
+		if channel.Status == status && !channel.ChannelInfo.IsMultiKey && !overridesKeyExhaustion {
 			return false
 		}
 
@@ -819,6 +894,19 @@ func EnableChannelByTag(tag string) error {
 }
 
 func DisableChannelByTag(tag string) error {
+	// Explicit tag-level disable also cancels automatic restoration for
+	// channels that were already disabled because all keys were unavailable.
+	var channels []Channel
+	if err := DB.Where("tag = ?", tag).Find(&channels).Error; err != nil {
+		return err
+	}
+	for _, channel := range channels {
+		if channel.ChannelInfo.IsMultiKey && channel.GetOtherInfo()["status_reason"] == ChannelStatusReasonAllKeysDisabled {
+			if !UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "manual tag operation") {
+				return fmt.Errorf("failed to disable channel #%d by tag", channel.Id)
+			}
+		}
+	}
 	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusManuallyDisabled).Error
 	if err != nil {
 		return err
@@ -992,7 +1080,10 @@ func (channel *Channel) ValidateSettings() error {
 	if err := channelOtherSettings.ValidateToolLossPolicy(); err != nil {
 		return err
 	}
-	if channel.Type == constant.ChannelTypeAdvancedCustom {
+	if preset := common.GetAdvancedCustomPreset(channel.Type); preset != nil {
+		channelOtherSettings.AdvancedCustom = preset
+	}
+	if constant.IsAdvancedCustomChannel(channel.Type) {
 		if channelOtherSettings.AdvancedCustom == nil {
 			return fmt.Errorf("advanced_custom is required")
 		}
@@ -1002,7 +1093,7 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
-	if channel.Type == constant.ChannelTypeAdvancedCustom && channelOtherSettings.UpstreamModelUpdateCheckEnabled {
+	if constant.IsAdvancedCustomChannel(channel.Type) && channelOtherSettings.UpstreamModelUpdateCheckEnabled {
 		if _, ok := channelOtherSettings.AdvancedCustom.ModelListRoute(); !ok {
 			return fmt.Errorf("advanced custom channels require a %s route when upstream model update checks are enabled", dto.AdvancedCustomModelListPath)
 		}
@@ -1041,6 +1132,9 @@ func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
 			channel.OtherSettings = "{}" // 清空设置以避免后续错误
 			_ = channel.Save()           // 保存修改
 		}
+	}
+	if preset := common.GetAdvancedCustomPreset(channel.Type); preset != nil {
+		setting.AdvancedCustom = preset
 	}
 	return setting
 }

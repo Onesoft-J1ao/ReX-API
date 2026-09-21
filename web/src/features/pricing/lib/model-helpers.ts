@@ -28,13 +28,15 @@ import type { PricingModel } from '../types'
  */
 export function getAvailableGroups(
   model: PricingModel,
-  usableGroup: Record<string, { desc: string; ratio: number }>
+  usableGroup: Record<string, { desc: string; ratio: number }>,
+  visibleGroups: readonly string[] = []
 ): string[] {
   const modelEnableGroups = Array.isArray(model.enable_groups)
     ? model.enable_groups
     : []
+  const groups = new Set([...Object.keys(usableGroup), ...visibleGroups])
 
-  return Object.keys(usableGroup)
+  return [...groups]
     .filter((g) => !EXCLUDED_GROUPS.includes(g))
     .filter((g) => modelEnableGroups.includes(g))
 }
@@ -74,24 +76,13 @@ export function getDisplayGroupRatio(
     return getConfiguredGroupRatio(groupRatio, selectedGroup)
   }
 
-  if (modelEnableGroups.length === 0) {
-    return 1
-  }
+  const enabledAllGroups = modelEnableGroups.includes('all')
+  const availableRatios = Object.entries(groupRatio)
+    .filter(([group]) => enabledAllGroups || modelEnableGroups.includes(group))
+    .map(([, ratio]) => ratio)
+    .filter((ratio) => typeof ratio === 'number' && Number.isFinite(ratio))
 
-  let minRatio = Number.POSITIVE_INFINITY
-
-  for (const group of modelEnableGroups) {
-    const ratio = groupRatio[group]
-    if (
-      typeof ratio === 'number' &&
-      Number.isFinite(ratio) &&
-      ratio < minRatio
-    ) {
-      minRatio = ratio
-    }
-  }
-
-  return minRatio === Number.POSITIVE_INFINITY ? 1 : minRatio
+  return availableRatios.length > 0 ? Math.min(...availableRatios) : 1
 }
 
 /**

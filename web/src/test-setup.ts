@@ -17,10 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import i18next from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import { afterEach, beforeAll } from 'vitest'
+
+// The testing-library default of 1000ms for findBy*/waitFor is too tight for
+// this suite on contended CI runners, where a first-in-file test also pays the
+// full cold-render cost. Keep it below vitest's testTimeout so async lookup
+// failures still report the missing element instead of a generic test timeout.
+configure({ asyncUtilTimeout: 5000 })
 
 beforeAll(async () => {
   await i18next.use(initReactI18next).init({
@@ -38,10 +44,18 @@ afterEach(() => {
   cleanup()
 })
 
+// Prefer reduced motion in tests: entrance animations write inline
+// `opacity: 0` on their first frame, and jsdom advances frames through a
+// setTimeout-based rAF shim, so jest-dom visibility assertions would race the
+// animation. The reduced-motion code paths render the same DOM without
+// transient hidden states. Both `(prefers-reduced-motion: reduce)` and the
+// boolean `(prefers-reduced-motion)` form match; `no-preference` does not.
 Object.defineProperty(window, 'matchMedia', {
   configurable: true,
   value: (query: string): MediaQueryList => ({
-    matches: false,
+    matches:
+      query.includes('prefers-reduced-motion') &&
+      !query.includes('no-preference'),
     media: query,
     onchange: null,
     addListener: () => undefined,
@@ -89,10 +103,9 @@ Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
   value: () => undefined,
 })
 
-// Node.js 25+ defines `localStorage`/`sessionStorage` accessors on the global
-// object that resolve to `undefined` unless `--localstorage-file` is set, and
-// vitest's jsdom environment does not replace globals that already exist.
-// Provide an in-memory Storage so tests see the same API as in a browser.
+// Node.js 25+ exposes storage accessors that resolve to undefined unless a
+// backing file is configured. Keep both browser storage APIs available in
+// jsdom without sharing state between them.
 for (const name of ['localStorage', 'sessionStorage'] as const) {
   if (typeof globalThis[name]?.setItem === 'function') continue
   const entries = new Map<string, string>()

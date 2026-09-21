@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { getBannedLoginResponse } from '@/features/auth/components/banned-login-response'
+import { BannedUserDialog } from '@/features/auth/components/banned-user-dialog'
 import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { useAuthStore } from '@/stores/auth-store'
@@ -32,6 +34,7 @@ import {
 
 export function OtpForm() {
   const { t } = useTranslation()
+  const [bannedHtml, setBannedHtml] = useState<string | null>(null)
   // Transfer the pending challenge from the navigation handoff into this page's
   // lifetime. Reloading or leaving the page cannot resume it from browser storage.
   const pending = useRef(
@@ -78,6 +81,11 @@ export function OtpForm() {
         toast.success(t('Signed in'))
       } catch (error) {
         if (!active) return
+        const banned = getBannedLoginResponse(error)
+        if (banned) {
+          setBannedHtml(banned.html)
+          return
+        }
         handleServerError(AuthOperationError.from(error))
         redirectToLogin()
       }
@@ -97,5 +105,16 @@ export function OtpForm() {
     t,
   ])
 
-  return <SecureVerificationDialog {...verification.dialogProps} />
+  return (
+    <>
+      <SecureVerificationDialog {...verification.dialogProps} />
+      <BannedUserDialog
+        open={bannedHtml !== null}
+        html={bannedHtml ?? ''}
+        onOpenChange={(open) => {
+          if (!open) redirectToLogin()
+        }}
+      />
+    </>
+  )
 }

@@ -38,12 +38,13 @@ export interface ModelCardGridProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  pageSize?: number
 }
 
 export function ModelCardGrid(props: ModelCardGridProps) {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
-  const pageSize = DEFAULT_PRICING_PAGE_SIZE
+  const pageSize = props.pageSize ?? DEFAULT_PRICING_PAGE_SIZE
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const totalPages = Math.max(1, Math.ceil(props.models.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -63,7 +64,11 @@ export function ModelCardGrid(props: ModelCardGridProps) {
   const perfMap = useMemo(() => {
     const map = new Map<string, ModelPerfBadgeData>()
     for (const model of perfQuery.data?.data?.models ?? []) {
-      map.set(model.model_name, model)
+      map.set(model.model_name, {
+        ...model,
+        window_start: perfQuery.data?.data.window_start,
+        window_end: perfQuery.data?.data.window_end,
+      })
     }
     return map
   }, [perfQuery.data])

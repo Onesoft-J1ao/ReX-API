@@ -35,14 +35,14 @@ import { cn } from '@/lib/utils'
 
 export function ThemeSwitch() {
   const { t } = useTranslation()
-  const { theme, setTheme } = useTheme()
+  const { isForced, resolvedTheme, theme, setTheme } = useTheme()
   const { customization, setPreset } = useThemeCustomization()
 
   useEffect(() => {
-    const themeColor = theme === 'dark' ? '#020817' : '#fff'
+    const themeColor = resolvedTheme === 'dark' ? '#202020' : '#fff'
     const metaThemeColor = document.querySelector("meta[name='theme-color']")
     if (metaThemeColor) metaThemeColor.setAttribute('content', themeColor)
-  }, [theme])
+  }, [resolvedTheme])
 
   return (
     <DropdownMenu modal={false}>
@@ -54,21 +54,24 @@ export function ThemeSwitch() {
         <span className='sr-only'>{t('Toggle theme')}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-52'>
-        <DropdownMenuItem onClick={() => setTheme('light')}>
+        <DropdownMenuItem disabled={isForced} onClick={() => setTheme('light')}>
           {t('Light')}
           <Check
             size={14}
             className={cn('ms-auto', theme !== 'light' && 'hidden')}
           />
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme('dark')}>
+        <DropdownMenuItem disabled={isForced} onClick={() => setTheme('dark')}>
           {t('Dark')}
           <Check
             size={14}
             className={cn('ms-auto', theme !== 'dark' && 'hidden')}
           />
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme('system')}>
+        <DropdownMenuItem
+          disabled={isForced}
+          onClick={() => setTheme('system')}
+        >
           {t('System')}
           <Check
             size={14}

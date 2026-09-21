@@ -42,6 +42,13 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -50,6 +57,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { getAdminPlans } from '@/features/subscriptions/api'
+import type { PlanRecord } from '@/features/subscriptions/types'
 import {
   formatQuotaWithCurrency,
   getCurrencyDisplay,
@@ -98,6 +107,7 @@ export function RedemptionsMutateDrawer({
   const [createdCodes, setCreatedCodes] = useState<RedemptionExportData | null>(
     null
   )
+  const [subscriptionPlans, setSubscriptionPlans] = useState<PlanRecord[]>([])
   const [redemptionLoadState, setRedemptionLoadState] = useState<
     'idle' | 'loading' | 'ready' | 'error'
   >('idle')
@@ -160,6 +170,34 @@ export function RedemptionsMutateDrawer({
       ignoreResult = true
     }
   }, [open, isUpdate, redemptionId, form, t])
+
+  useEffect(() => {
+    if (!open) {
+      setSubscriptionPlans([])
+      return
+    }
+
+    let ignoreResult = false
+    setSubscriptionPlans([])
+
+    void getAdminPlans()
+      .then((result) => {
+        if (ignoreResult) return
+
+        setSubscriptionPlans(
+          result.success && Array.isArray(result.data) ? result.data : []
+        )
+      })
+      .catch(() => {
+        if (!ignoreResult) {
+          setSubscriptionPlans([])
+        }
+      })
+
+    return () => {
+      ignoreResult = true
+    }
+  }, [open])
 
   const isUpdateReady =
     !isUpdate ||
@@ -250,6 +288,16 @@ export function RedemptionsMutateDrawer({
   const quotaPlaceholder = tokensOnly
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
+  const subscriptionPlanId = form.watch('subscription_plan_id')
+  const redemptionTypeItems = [
+    { value: 'wallet', label: t('Wallet balance code') },
+    ...subscriptionPlans
+      .filter(({ plan }) => plan.enabled || plan.id === subscriptionPlanId)
+      .map(({ plan }) => ({
+        value: String(plan.id),
+        label: `${plan.title} (#${plan.id})`,
+      })),
+  ]
   let submitButtonLabel = t('Save changes')
   if (isLoadingRedemption) {
     submitButtonLabel = t('Loading...')
@@ -325,6 +373,7 @@ export function RedemptionsMutateDrawer({
                           <Input
                             {...field}
                             type='number'
+                            disabled={subscriptionPlanId !== null}
                             step={quotaStep}
                             placeholder={quotaPlaceholder}
                             onChange={(e) =>
@@ -340,6 +389,51 @@ export function RedemptionsMutateDrawer({
                             : t('Enter the quota amount in {{currency}}', {
                                 currency: currencyLabel,
                               })}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='subscription_plan_id'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Redemption type')}</FormLabel>
+                        <Select
+                          items={redemptionTypeItems}
+                          value={field.value ? String(field.value) : 'wallet'}
+                          onValueChange={(value) => {
+                            if (!value) return
+
+                            field.onChange(
+                              value === 'wallet' ? null : Number(value)
+                            )
+                            if (value !== 'wallet') {
+                              form.setValue('quota_dollars', 0, {
+                                shouldValidate: true,
+                              })
+                            }
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger className='w-full'>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent alignItemWithTrigger={false}>
+                            {redemptionTypeItems.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {t(
+                            'Wallet balance codes add quota; subscription codes grant the selected plan.'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

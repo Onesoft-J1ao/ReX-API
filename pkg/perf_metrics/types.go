@@ -16,12 +16,26 @@ type Sample struct {
 	Success      bool
 	OutputTokens int64
 	GenerationMs int64
+	CacheHit     bool
+	CacheSample  bool
+	CachedTokens int64
+	InputTokens  int64
 }
 
 type QueryParams struct {
 	Model string
 	Group string
 	Hours int
+	// AllowedGroups restricts both the per-group results and the model summary;
+	// nil allows every group.
+	AllowedGroups []string
+}
+
+// Summary is the request-weighted aggregate over every bucket in the window.
+type Summary struct {
+	AvgLatencyMs int64   `json:"avg_latency_ms"`
+	SuccessRate  float64 `json:"success_rate"`
+	AvgTps       float64 `json:"avg_tps"`
 }
 
 type BucketPoint struct {
@@ -41,9 +55,40 @@ type GroupResult struct {
 	Series       []BucketPoint `json:"series"`
 }
 
+type StatusGroup struct {
+	Group            string               `json:"group"`
+	Availability     float64              `json:"availability"`
+	AvgLatencyMs     int64                `json:"avg_latency_ms"`
+	AvgTtftMs        int64                `json:"avg_ttft_ms"`
+	CacheHitRate     float64              `json:"cache_hit_rate"`
+	CacheSampleCount int64                `json:"cache_sample_count"`
+	CacheInputTokens int64                `json:"cache_input_tokens"`
+	RequestCount     int64                `json:"request_count"`
+	Availability24   []float64            `json:"availability_24h"`
+	History24        []StatusHistoryPoint `json:"history_24h"`
+}
+
+type StatusHistoryPoint struct {
+	Ts               int64   `json:"ts"`
+	AvgLatencyMs     int64   `json:"avg_latency_ms"`
+	AvgTtftMs        int64   `json:"avg_ttft_ms"`
+	TtftSampleCount  int64   `json:"ttft_sample_count"`
+	CacheHitRate     float64 `json:"cache_hit_rate"`
+	CacheSampleCount int64   `json:"cache_sample_count"`
+	CacheInputTokens int64   `json:"cache_input_tokens"`
+}
+
+type StatusResult struct {
+	Groups []StatusGroup `json:"groups"`
+}
+
 type QueryResult struct {
 	ModelName    string        `json:"model_name"`
 	SeriesSchema string        `json:"series_schema"`
+	Summary      *Summary      `json:"summary"`
+	Series       []BucketPoint `json:"series"`
+	WindowStart  int64         `json:"window_start"`
+	WindowEnd    int64         `json:"window_end"`
 	Groups       []GroupResult `json:"groups"`
 }
 
@@ -62,7 +107,10 @@ type ModelSummary struct {
 }
 
 type SummaryAllResult struct {
-	Models []ModelSummary `json:"models"`
+	Summary     *Summary       `json:"summary"`
+	WindowStart int64          `json:"window_start"`
+	WindowEnd   int64          `json:"window_end"`
+	Models      []ModelSummary `json:"models"`
 }
 
 type bucketKey struct {
@@ -72,23 +120,31 @@ type bucketKey struct {
 }
 
 type counters struct {
-	requestCount   int64
-	successCount   int64
-	totalLatencyMs int64
-	ttftSumMs      int64
-	ttftCount      int64
-	outputTokens   int64
-	generationMs   int64
+	requestCount     int64
+	successCount     int64
+	totalLatencyMs   int64
+	ttftSumMs        int64
+	ttftCount        int64
+	outputTokens     int64
+	generationMs     int64
+	cacheHitCount    int64
+	cacheSampleCount int64
+	cachedTokens     int64
+	inputTokens      int64
 }
 
 type atomicBucket struct {
-	requestCount   atomic.Int64
-	successCount   atomic.Int64
-	totalLatencyMs atomic.Int64
-	ttftSumMs      atomic.Int64
-	ttftCount      atomic.Int64
-	outputTokens   atomic.Int64
-	generationMs   atomic.Int64
+	requestCount     atomic.Int64
+	successCount     atomic.Int64
+	totalLatencyMs   atomic.Int64
+	ttftSumMs        atomic.Int64
+	ttftCount        atomic.Int64
+	outputTokens     atomic.Int64
+	generationMs     atomic.Int64
+	cacheHitCount    atomic.Int64
+	cacheSampleCount atomic.Int64
+	cachedTokens     atomic.Int64
+	inputTokens      atomic.Int64
 }
 
 func (b *atomicBucket) add(sample Sample) {
@@ -107,29 +163,57 @@ func (b *atomicBucket) add(sample Sample) {
 		b.outputTokens.Add(sample.OutputTokens)
 		b.generationMs.Add(sample.GenerationMs)
 	}
+	if sample.CacheHit {
+		b.cacheHitCount.Add(1)
+	}
+	if sample.CacheSample {
+		b.cacheSampleCount.Add(1)
+	}
+	if sample.InputTokens > 0 {
+		cachedTokens := sample.CachedTokens
+		if cachedTokens < 0 {
+			cachedTokens = 0
+		}
+		inputTokens := sample.InputTokens
+		if cachedTokens > inputTokens {
+			inputTokens = adjustedCacheInputTokens(inputTokens, cachedTokens)
+		}
+		b.inputTokens.Add(inputTokens)
+		if cachedTokens > 0 {
+			b.cachedTokens.Add(cachedTokens)
+		}
+	}
 }
 
 func (b *atomicBucket) snapshot() counters {
 	return counters{
-		requestCount:   b.requestCount.Load(),
-		successCount:   b.successCount.Load(),
-		totalLatencyMs: b.totalLatencyMs.Load(),
-		ttftSumMs:      b.ttftSumMs.Load(),
-		ttftCount:      b.ttftCount.Load(),
-		outputTokens:   b.outputTokens.Load(),
-		generationMs:   b.generationMs.Load(),
+		requestCount:     b.requestCount.Load(),
+		successCount:     b.successCount.Load(),
+		totalLatencyMs:   b.totalLatencyMs.Load(),
+		ttftSumMs:        b.ttftSumMs.Load(),
+		ttftCount:        b.ttftCount.Load(),
+		outputTokens:     b.outputTokens.Load(),
+		generationMs:     b.generationMs.Load(),
+		cacheHitCount:    b.cacheHitCount.Load(),
+		cacheSampleCount: b.cacheSampleCount.Load(),
+		cachedTokens:     b.cachedTokens.Load(),
+		inputTokens:      b.inputTokens.Load(),
 	}
 }
 
 func (b *atomicBucket) drain() counters {
 	return counters{
-		requestCount:   b.requestCount.Swap(0),
-		successCount:   b.successCount.Swap(0),
-		totalLatencyMs: b.totalLatencyMs.Swap(0),
-		ttftSumMs:      b.ttftSumMs.Swap(0),
-		ttftCount:      b.ttftCount.Swap(0),
-		outputTokens:   b.outputTokens.Swap(0),
-		generationMs:   b.generationMs.Swap(0),
+		requestCount:     b.requestCount.Swap(0),
+		successCount:     b.successCount.Swap(0),
+		totalLatencyMs:   b.totalLatencyMs.Swap(0),
+		ttftSumMs:        b.ttftSumMs.Swap(0),
+		ttftCount:        b.ttftCount.Swap(0),
+		outputTokens:     b.outputTokens.Swap(0),
+		generationMs:     b.generationMs.Swap(0),
+		cacheHitCount:    b.cacheHitCount.Swap(0),
+		cacheSampleCount: b.cacheSampleCount.Swap(0),
+		cachedTokens:     b.cachedTokens.Swap(0),
+		inputTokens:      b.inputTokens.Swap(0),
 	}
 }
 
@@ -154,5 +238,17 @@ func (b *atomicBucket) addCounters(c counters) {
 	}
 	if c.generationMs != 0 {
 		b.generationMs.Add(c.generationMs)
+	}
+	if c.cacheHitCount != 0 {
+		b.cacheHitCount.Add(c.cacheHitCount)
+	}
+	if c.cacheSampleCount != 0 {
+		b.cacheSampleCount.Add(c.cacheSampleCount)
+	}
+	if c.cachedTokens != 0 {
+		b.cachedTokens.Add(c.cachedTokens)
+	}
+	if c.inputTokens != 0 {
+		b.inputTokens.Add(c.inputTokens)
 	}
 }

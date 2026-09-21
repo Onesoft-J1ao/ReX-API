@@ -5,10 +5,8 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/logger"
-	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
 
@@ -83,9 +81,8 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 			return err
 		}
 
-		// BillingSession 绕过了 postConsumeQuotaWithResult，而性能采样只埋在旧路径里，
-		// 不在这里补上，走新计费会话的请求就永远不会被记录。
-		recordRelayPerfSample(relayInfo, outputTokens)
+		// 性能采样不在这里记录：controller/relay.go 已在请求边界统一调用
+		// perfmetrics.RecordRelayResult，覆盖成功与失败两条路径。这里再记一次会重复计数。
 
 		// 发送额度通知（订阅计费使用订阅剩余额度）
 		if actualQuota != 0 {
@@ -103,18 +100,6 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 	if quotaDelta != 0 {
 		return PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)
 	}
-	// 按次计费下预扣与实际相等，旧路径不会走到 PostConsumeQuota，
-	// 采样需要单独补一次，否则这类请求在性能面板上完全不可见。
-	recordRelayPerfSample(relayInfo, outputTokens)
+	// 按次计费下预扣与实际相等，旧路径不会走到 PostConsumeQuota。采样同样由请求边界负责。
 	return nil
-}
-
-// recordRelayPerfSample 提交一次成功的 relay 性能采样。
-func recordRelayPerfSample(relayInfo *relaycommon.RelayInfo, outputTokens int) {
-	if relayInfo == nil {
-		return
-	}
-	gopool.Go(func() {
-		perfmetrics.RecordRelaySample(relayInfo, true, int64(outputTokens))
-	})
 }

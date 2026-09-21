@@ -123,6 +123,13 @@ describe('API key group combobox Auto effect', () => {
     expect(triggerRatio).not.toHaveTextContent('Ratio')
     expect(triggerRatio).not.toHaveTextContent('x')
     expect(trigger).not.toHaveTextContent('自动')
+    expect(screen.getByText('Global automatic routing')).toHaveClass(
+      'whitespace-normal',
+      'break-words'
+    )
+    expect(screen.getByText('Global automatic routing')).not.toHaveClass(
+      'truncate'
+    )
     expect(triggerRatio).toHaveClass(
       'relative',
       'overflow-visible',
@@ -155,6 +162,10 @@ describe('API key group combobox Auto effect', () => {
     ).toHaveClass('auto-group-flow-border-subtle')
 
     const defaultOption = getCommandItem('User group')
+    expect(within(defaultOption).getByText('User group')).toHaveClass(
+      'whitespace-normal',
+      'break-words'
+    )
     expect(defaultOption).not.toHaveAttribute('data-auto-group-effect')
     expect(defaultOption.querySelector('[data-auto-group-flow-border]')).toBe(
       null

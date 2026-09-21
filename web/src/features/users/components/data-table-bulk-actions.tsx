@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -32,9 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 
-import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
-
-import { manageUser } from '../api'
+import { batchManageUsers } from '../api'
 import { USER_ROLE, USER_STATUS, isUserDeleted } from '../constants'
 import { getUserActionMessage } from '../lib'
 import type { User } from '../types'
@@ -161,50 +160,30 @@ export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
     users: User[],
     action: 'disable' | 'enable'
   ): Promise<void> => {
-    let ok = 0
-    let failed = 0
-    for (const user of users) {
-      try {
-        const result = await manageUser(user.id, action)
-        if (result.success) {
-          ok += 1
-        } else {
-          failed += 1
-        }
-      } catch {
-        failed += 1
-      }
-    }
-    if (failed > 0) {
-      toast.warning(
-        t('{{ok}} succeeded, {{failed}} failed', { ok, failed })
+    try {
+      const result = await batchManageUsers(
+        users.map((user) => user.id),
+        action
       )
-    } else {
+      if (!result.success) throw new Error(result.message)
       toast.success(t(getUserActionMessage(action)))
+    } catch {
+      toast.error(t('An unexpected error occurred'))
     }
     table.resetRowSelection()
     triggerRefresh()
   }
 
   const runDelete = async (users: User[]): Promise<void> => {
-    let ok = 0
-    let failed = 0
-    for (const user of users) {
-      try {
-        const result = await manageUser(user.id, 'delete')
-        if (result.success) {
-          ok += 1
-        } else {
-          failed += 1
-        }
-      } catch {
-        failed += 1
-      }
-    }
-    if (failed > 0) {
-      toast.warning(t('{{ok}} succeeded, {{failed}} failed', { ok, failed }))
-    } else {
+    try {
+      const result = await batchManageUsers(
+        users.map((user) => user.id),
+        'delete'
+      )
+      if (!result.success) throw new Error(result.message)
       toast.success(t(getUserActionMessage('delete')))
+    } catch {
+      toast.error(t('An unexpected error occurred'))
     }
     table.resetRowSelection()
     triggerRefresh()
@@ -228,7 +207,9 @@ export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
   let confirmTitle: string
   let confirmDesc: string
   if (confirmAction === 'delete') {
-    confirmTitle = t('Delete {{count}} users?', { count: deletableUsers.length })
+    confirmTitle = t('Delete {{count}} users?', {
+      count: deletableUsers.length,
+    })
     confirmDesc = t(
       'This will permanently delete {{count}} selected users. This action cannot be undone.',
       { count: deletableUsers.length }
@@ -296,7 +277,11 @@ export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
               })}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => exportUsersCsv(table.getFilteredRowModel().rows.map((row) => row.original))}
+              onClick={() =>
+                exportUsersCsv(
+                  table.getFilteredRowModel().rows.map((row) => row.original)
+                )
+              }
             >
               {t('Export all filtered ({{count}})', {
                 count: table.getFilteredRowModel().rows.length,
@@ -317,7 +302,8 @@ export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
         onOpenChange={(open) => !open && setConfirmAction(null)}
         title={confirmTitle}
         desc={confirmDesc}
-        confirmText={confirmAction ? confirmTextFor(confirmAction, t) : ''}        destructive={confirmAction === 'delete' || confirmAction === 'disable'}
+        confirmText={confirmAction ? confirmTextFor(confirmAction, t) : ''}
+        destructive={confirmAction === 'delete' || confirmAction === 'disable'}
         isLoading={running}
         handleConfirm={handleConfirm}
       />

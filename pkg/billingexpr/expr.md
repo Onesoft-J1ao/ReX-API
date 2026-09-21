@@ -12,7 +12,7 @@ The expression is the billing contract between the administrator and the system.
 
 2. **Variables are opt-in** — `p` (prompt) and `c` (completion) are the base. Cache (`cr`, `cc`, `cc1h`), image (`img`), and audio (`ai`, `ao`) variables are optional. If omitted, those tokens are included in `p`/`c` and priced at their rate. The system automatically detects which variables the expression uses (via AST introspection) and adjusts token normalization accordingly.
 
-3. **Prices are real prices** — Token coefficients are actual $/1M tokens prices as published by providers. `p * 2.5` means $2.50 per 1M prompt tokens; `fixed(0.01)` means $0.01 per request. No ratio conversion or `/2` convention is required.
+3. **Prices are real prices** — Expression coefficients are actual $/1M tokens prices as published by providers. No ratio conversion, no `/2` convention. `p * 2.5` means $2.50 per 1M prompt tokens.
 
 4. **Upstream-agnostic** — The expression doesn't need to know whether the upstream API is OpenAI-format (prompt_tokens includes cache) or Claude-format (input_tokens excludes cache). The system normalizes token counts before evaluation based on the upstream response format.
 
@@ -38,6 +38,7 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | `img` | 图片输入 token 数 |
 | `img_cr` | 图片缓存读取 token 数；只有表达式显式引用且上游提供有效缓存模态明细时才单独拆分 |
 | `ai` | 音频输入 token 数 |
+| `req` | 单次请求；固定为 1,000,000，因此系数单位为 $/request |
 
 **输出侧变量：**
 
@@ -94,52 +95,15 @@ Anthropic 的独立缓存计数语义不采用这一 OpenAI 图片拆分。
 文本/图片日志的 `cache_tokens` 继续保留上游缓存总量。Images 的 `output_tokens` 是图片输出，
 内置图片价格使用 `c`，无需上游额外报告 `output_tokens_details.image_tokens`。
 
-### 旧定价转换
+### Supported Pricing Modes
 
-旧倍率和旧按次模式仍可运行，管理界面标记为弃用，新建定价默认使用表达式。
-`POST /api/option/model_pricing/convert` 接收 `{model_name, pricing}`，其中 `pricing`
-为完整的旧定价草稿，缺少的键继承运行时默认值。接口返回表达式及本次转换使用的生效定价快照，或具体不支持原因，不写数据库。
-管理界面先用该快照显示左右对照预览，确认后才更新草稿；取消不改变原草稿。
-保存仍使用现有 `PATCH /api/option/model_pricing` 及 `expected_version` 冲突检查。
-
-倍率转换以 `ModelRatio * 1000000 / QuotaPerUnit` 得到 USD/百万 tokens 的基础单价，
-保留输出、缓存读取、适用的缓存创建和图片输入的生效倍率及显式零值。
-常规按次价格转换为 `tier("request", fixed(price))`。旧价格字段继续保存，供切回旧模式使用。
-转换后的预扣及舍入采用表达式规则，不保证旧模式每笔舍入结果完全一致。
-迁移、已保存价格展示与草稿价格预览共用生效价格解析：输出使用模型族的硬编码兜底/强制倍率；
-缺少配置的缓存读取、缓存创建、图片输入分别使用运行时的 1、1.25、1 倍。
-图片倍率为 1 时，转换不生成独立 `img` 项，图片输入继续包含在 `p` 中按相同价格计费；
-图片倍率为其他值（包括显式 0）时才生成 `img` 项。
-缓存读取倍率为 1 时在价格预览中合并为输入价格；没有独立图片输入或缓存写入项时，转换同时省略 `cr`。
-存在这些独立项目时，缓存计数可能交叠，输入余量的零下限使直接合并不再等价，因此保留原 `cr` 计算项而不单列同价价格。
-基础输入价为 0 时可直接省略倍率为 1 的 `cr`；其他缓存读取倍率（包括显式 0）保留独立项。
-省略 `cr` 时，Anthropic 用量中单独报告的缓存读取数会加回 `p`，而 `len` 保持完整上下文长度。
-缓存创建按对外计费名和原始配置处理：名称包含 `claude`（不区分大小写）时保留 `cc` 和 `cc1h`，
-其中 1h 价格沿用旧引擎的 `CreateCacheRatio * 6 / 3.75`；其他名称仅在草稿已配置 `CreateCacheRatio`
-时生成通用 `cc`（包括显式 0），不生成 `cc1h`。没有配置的通用 1.25 倍兜底不产生新计费项。
-不按渠道映射或模型白名单扩展缓存类型，也不要求管理员另选类型。
-定价快照条目、草稿预览响应和转换结果附带只读 `cache_write_mode`（`none` / `standard` / `claude_ttl`），
-用于统一展示。`POST /api/option/model_pricing/preview` 的响应统一为
-`{success, message, data: {effective, cache_write_mode, billing_details}}`，调用者从 `data.effective`
-读取生效价格；转换接口和快照条目的 JSON 结构不变。元信息不保存、不参与表达式执行。
-未设置与显式 0 必须区分。草稿关闭某项覆盖后按保存后的回退规则解析，不能继续读取运行进程中尚未被保存替换的旧值。
-图片和普通音频规则均可自动迁移，具体规则如下；任务插件、视频、Realtime，以及依赖上游 cost
-反推缓存写入用量的 OpenRouter Claude 分支仍返回具体原因，不按渠道类型或未知端点一概拦截。
-
-Gemini 音频输入使用旧结算实际采用的美元单价生成 `ai`，不乘普通输入倍率，因此普通输入价为零时
-仍保留独立音频费用。普通音频的 `ai` 单价为基础输入价乘 AudioRatio，`ao` 再乘 AudioCompletionRatio，
-缺省倍率按 1 处理，显式零保留。普通音频结算不使用缓存/图片倍率；模型同时配置这些价格时，
-转换生成音频请求与纯文本请求两个分支。音频分支使用 `max(len - ai, 0)` 计量普通输入，避免纯文本
-分支中引用的缓存变量改变音频费用。Gemini 文本结算仍保留缓存/音频交叠后的输入余量零下限。
-只读 `billing_details` 为预览提供实际音频单价、图片数量和请求倍率规则，不成为新的持久化价格来源。
-同一计费名在 Gemini/兼容音频入口存在相互冲突的单价，或活动图片渠道采用不同请求倍率时，
-转换返回该具体冲突，不能静默选择其中一条规则覆盖其他入口。
-
-图片按次价格转换为 `tier("image", fixed(price)) * image_count`，再追加旧尺寸、质量及适用的
-prompt_extend 条件倍率。DALL·E 尺寸/质量规则按原始请求模型名生成，模型映射不会额外引入这些规则。
-OpenAI 已于 2026-05-12 下线 DALL·E 2/3；其校验、默认值和倍率保留在独立 legacy 文件，
-仅用于历史配置及兼容上游。转换从 DTO 的旧计费逻辑获取倍率，不维护第二份价格表。
-图片 token 定价不额外乘数量。所有金额和倍率固化在表达式中，不再叠加旧 OtherRatios。
+Ratio-based per-token pricing, fixed per-request pricing, and expression pricing
+are all supported. Administrators can select and save any mode directly; no
+migration is required. `POST /api/option/model_pricing/preview` resolves a draft
+with runtime defaults and returns `{effective, cache_write_mode, billing_details}`
+without writing configuration. The read-only billing details keep explicit zero
+values and expose audio, image quantity, and request multiplier information used
+by the pricing preview.
 
 ### Image Quantity
 
@@ -160,9 +124,9 @@ Ali JSON 和 multipart 请求都明确发送该生效数量。每次渠道重试
 | Function | Signature | Purpose |
 |----------|-----------|---------|
 | `tier` | `tier(name, value) → float64` | Records which pricing tier matched; must wrap the cost expression |
-| `fixed` | `fixed(amount) → float64` | A USD price per request, used only as the complete price in `tier(name, fixed(amount))` |
 | `param` | `param(path) → any` | Reads a JSON path from the request body (uses gjson) |
 | `header` | `header(key) → string` | Reads a request header value |
+| `image_resolution` | `image_resolution() → string` | Normalizes the requested image size to `1K`, `2K`, `4K`, or `8K`; an explicit K-valued `quality` takes precedence over `size` |
 | `has` | `has(source, substr) → bool` | Substring check |
 | `hour` | `hour(tz) → int` | Current hour in timezone (0-23) |
 | `minute` | `minute(tz) → int` | Current minute (0-59) |
@@ -181,11 +145,6 @@ Ali JSON 和 multipart 请求都明确发送该生效数量。每次渠道重试
 # Simple flat pricing
 tier("base", p * 2.5 + c * 15 + cr * 0.25)
 
-# Conditional per-request pricing, with token pricing for the fallback
-len <= 32000
-  ? tier("short", fixed(0.01))
-  : tier("long", p * 2 + c * 8)
-
 # Multi-tier (Claude Sonnet style) — use len for tier conditions
 len <= 200000
   ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6)
@@ -194,50 +153,19 @@ len <= 200000
 # Image model (no separate cache/audio pricing — those tokens stay in p/c)
 tier("base", p * 2 + c * 8 + img * 2.5)
 
+# Per-request image pricing with normalized resolution rules
+(tier("base", req * 0.04)) * (image_resolution() == "2K" ? 2 : 1) * (image_resolution() == "4K" ? 4 : 1)
+
 # Multimodal with audio
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
 ```
 
-### Fixed Request Prices
+### Request Rules
 
-`tier("request", fixed(0.01))` replaces all token charges in the selected leaf
-with a $0.01 base price for one successful HTTP/SSE request. Other leaves may
-still use token pricing. Group ratios and request multipliers continue to apply;
-existing tool surcharges are calculated separately and added as before. A stream
-does not incur a fixed fee per chunk. Realtime and task usage expressions reject
-`fixed()` before upstream submission or reservation.
-
-The amount must be a finite, non-negative numeric literal whose v1 scaled value
-is finite. Explicit `fixed(0)` is valid and stays free. Expressions using `fixed`
-must consist of a conditional pricing tree and the standard request multiplier
-factors described below, with each leaf wrapped in `tier()`. Adding fixed and
-token charges in one leaf, adding multiple tiers together, or multiplying a
-fixed price by tokens is rejected. Validation examines the original AST,
-including branches that optimization or short-circuiting would skip. Existing
-expressions without `fixed()` retain their original grammar and behavior.
-
-`fixed(amount)` returns `amount * 1,000,000` internally, preserving v1's existing
-quota conversion and rounding. Pre-consume matches conditions using estimates;
-settlement reevaluates against actual or existing locally estimated usage and
-reconciles any change of branch through the normal billing session. Missing
-upstream usage retains the existing estimation path; an actual request-priced
-branch can charge even with zero tokens. Failures retain the normal refund
-policy. Settlement evaluation errors retain the reservation and its estimated
-billing unit.
-
-Evaluation results expose `billing_unit` (`token` or `request`) and, for a
-request-priced leaf, `fixed_price` in USD before multipliers. Pre-consume snapshots
-carry `estimated_billing_unit` and `estimated_fixed_price`; consume logs append
-the actual values to `other`. An explicit zero price is present in these fields.
-Older snapshots and logs need no migration. The expression remains the sole
-pricing configuration.
-
-### Request Rules (appended after `|||`)
-
-Request-conditional multipliers are appended to the expression after a `|||` separator:
+Request-conditional multipliers are multiplied with the base expression:
 
 ```
-tier("base", p * 5 + c * 25)|||when(header("anthropic-beta") has "fast-mode") * 6
+(tier("base", p * 5 + c * 25)) * (has(header("anthropic-beta"), "fast-mode") ? 6 : 1)
 ```
 
 These factors are stored as ordinary multiplication in the final expression (for example, `(tier(...)) * (condition ? 6 : 1)`) and run in the same billing program.
@@ -265,6 +193,11 @@ Settlement copies the actual run's traces into the consume log as:
 ```
 
 The usage-log UI treats `request_rules` as the authoritative rule list and renders directly from it. It parses `cond` only to produce a friendly label and falls back to the canonical condition text when that parser does not recognize the condition. Pricing pages without log context continue to parse the stored expression for display.
+
+`image_resolution()` reads the frozen request body used by both pre-consume
+and settlement. Values such as `2K` and `2048x2048` normalize to `2K`;
+dimensions are classified by their longest edge. Missing or unsupported sizes
+return an empty string, so the base request price remains the fallback.
 
 ---
 
@@ -429,7 +362,7 @@ Two editing modes:
 - **Visual mode**: Fill in prices per variable, conditions per tier. Generates expression via `generateExprFromVisualConfig()`.
 - **Raw mode**: Edit the expression string directly. Includes preset templates for common models.
 
-The editor outputs a billing expression string and an optional request rule expression string. These are combined via `combineBillingExpr(billingExpr, requestRuleExpr)` before storage.
+The editor outputs a billing expression string and an optional request rule expression string. These are combined as one multiplicative expression via `combineBillingExpr(billingExpr, requestRuleExpr)` before storage.
 
 ### 2. Storage
 

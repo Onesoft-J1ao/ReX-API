@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Loader2 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -47,6 +48,8 @@ interface PaymentConfirmDialogProps {
   processing: boolean
   discountRate?: number
   usdExchangeRate?: number
+  amountLabel?: ReactNode
+  amountDisplay?: ReactNode
 }
 
 export function PaymentConfirmDialog({
@@ -60,10 +63,24 @@ export function PaymentConfirmDialog({
   processing,
   discountRate = DEFAULT_DISCOUNT_RATE,
   usdExchangeRate = 1,
+  amountLabel,
+  amountDisplay,
 }: PaymentConfirmDialogProps) {
   const { t } = useTranslation()
-  const hasDiscount = discountRate > 0 && discountRate < 1 && paymentAmount > 0
-  const originalAmount = hasDiscount ? paymentAmount / discountRate : 0
+  const fixedFee = Number(paymentMethod?.fee) || 0
+  const feeRate = Number(paymentMethod?.fee_rate) || 0
+  const hasFee = fixedFee > 0 || feeRate > 0
+  const baseBeforeFee = hasFee
+    ? (paymentAmount - fixedFee) / (1 + feeRate / 100)
+    : paymentAmount
+  const feeAmount = hasFee ? paymentAmount - baseBeforeFee : 0
+  const hasDiscount = discountRate > 0 && discountRate < 1 && baseBeforeFee > 0
+  const originalBaseAmount = hasDiscount
+    ? baseBeforeFee / discountRate
+    : baseBeforeFee
+  const originalAmount = hasFee
+    ? originalBaseAmount * (1 + feeRate / 100) + fixedFee
+    : originalBaseAmount
   const discountAmount = hasDiscount ? originalAmount - paymentAmount : 0
 
   return (
@@ -81,14 +98,15 @@ export function PaymentConfirmDialog({
         <div className='space-y-3 py-3 sm:space-y-4 sm:py-4'>
           <div className='flex items-center justify-between'>
             <span className='text-muted-foreground text-sm'>
-              {t('Topup Amount')}
+              {amountLabel ?? t('Topup Amount')}
             </span>
             <span className='text-lg font-semibold'>
-              {formatLocalCurrencyAmount(topupAmount * usdExchangeRate, {
-                digitsLarge: 2,
-                digitsSmall: 2,
-                abbreviate: false,
-              })}
+              {amountDisplay ??
+                formatLocalCurrencyAmount(topupAmount * usdExchangeRate, {
+                  digitsLarge: 2,
+                  digitsSmall: 2,
+                  abbreviate: false,
+                })}
             </span>
           </div>
 
@@ -120,6 +138,22 @@ export function PaymentConfirmDialog({
                   {formatCurrency(discountAmount)}
                 </span>
               </div>
+            </div>
+          )}
+
+          {hasFee && !calculating && (
+            <div className='bg-muted/50 rounded-lg p-3'>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>
+                  {t('Payment fee')}
+                </span>
+                <span className='font-semibold'>
+                  {formatCurrency(feeAmount)}
+                </span>
+              </div>
+              <p className='text-muted-foreground mt-1 text-xs'>
+                {t('The payment fee is included in the total shown above.')}
+              </p>
             </div>
           )}
 

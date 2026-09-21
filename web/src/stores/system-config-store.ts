@@ -21,6 +21,15 @@ import { persist } from 'zustand/middleware'
 
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 
+/** Aggregation bucket of the perf-metrics store, as configured by the admin. */
+export type PerfMetricsBucketTime = 'minute' | '5min' | 'hour'
+
+export function isPerfMetricsBucketTime(
+  value: unknown
+): value is PerfMetricsBucketTime {
+  return value === 'minute' || value === '5min' || value === 'hour'
+}
+
 export type CurrencyDisplayType = 'USD' | 'CNY' | 'TOKENS' | 'CUSTOM'
 
 export interface CurrencyConfig {
@@ -38,6 +47,54 @@ export interface CurrencyConfig {
   customCurrencyExchangeRate: number
 }
 
+export type SiteTheme = 'system' | 'light' | 'dark'
+export type SiteThemeOverride = 'none' | 'light' | 'dark'
+export type SiteThemePreset =
+  | 'default'
+  | 'anthropic'
+  | 'simple-large'
+  | 'underground'
+  | 'rose-garden'
+  | 'lake-view'
+  | 'sunset-glow'
+  | 'forest-whisper'
+  | 'ocean-breeze'
+  | 'lavender-dream'
+
+export interface SiteAppearanceConfig {
+  backgroundImage: string
+  backgroundBlurOpacity: number
+  legalBackgroundEnabled: boolean
+  defaultTheme: SiteTheme
+  defaultThemeOverride: SiteThemeOverride
+  defaultThemePreset: SiteThemePreset
+  defaultThemeFont: 'default' | 'sans' | 'serif'
+  defaultThemeRadius: 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
+  defaultThemeScale: 'default' | 'sm' | 'lg' | 'xl'
+  defaultSidebarVariant: 'inset' | 'floating' | 'sidebar'
+  defaultSidebarLayout: 'expanded' | 'icon' | 'offcanvas'
+  defaultContentLayout: 'full' | 'centered'
+  defaultDirection: 'ltr' | 'rtl'
+  modelSquareDefaultView: 'card' | 'table'
+  modelSquareCardPageSize: number
+  modelSquareTablePageSize: number
+}
+
+export interface SPAMetaConfig {
+  description: string
+  ogType: string
+  ogDescription: string
+}
+
+export type HomepageStyle = 'default' | 'custom' | 'preset-1'
+
+export interface HomepageConfig {
+  style: HomepageStyle
+  presetTitleMode: 'i18n' | 'english'
+  presetSlaEnabled: boolean
+  presetSlaText: string
+}
+
 export interface SystemConfig {
   systemName: string
   logo: string
@@ -45,6 +102,10 @@ export interface SystemConfig {
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
   currency: CurrencyConfig
+  appearance: SiteAppearanceConfig
+  spaMeta: SPAMetaConfig
+  homepage: HomepageConfig
+  charts: ChartsConfig
 }
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
@@ -54,6 +115,47 @@ export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
   usdExchangeRate: 1,
   customCurrencySymbol: '¤',
   customCurrencyExchangeRate: 1,
+}
+
+export const DEFAULT_SITE_APPEARANCE: SiteAppearanceConfig = {
+  backgroundImage: '',
+  backgroundBlurOpacity: 40,
+  legalBackgroundEnabled: true,
+  defaultTheme: 'system',
+  defaultThemeOverride: 'none',
+  defaultThemePreset: 'default',
+  defaultThemeFont: 'default',
+  defaultThemeRadius: 'default',
+  defaultThemeScale: 'default',
+  defaultSidebarVariant: 'inset',
+  defaultSidebarLayout: 'expanded',
+  defaultContentLayout: 'full',
+  defaultDirection: 'ltr',
+  modelSquareDefaultView: 'card',
+  modelSquareCardPageSize: 18,
+  modelSquareTablePageSize: 20,
+}
+
+export const DEFAULT_SPA_META: SPAMetaConfig = {
+  description: 'Unified AI API gateway and admin dashboard.',
+  ogType: 'website',
+  ogDescription: 'Unified AI API gateway and admin dashboard.',
+}
+
+export interface ChartsConfig {
+  /** Aggregation bucket the perf-metrics backend stores samples in. */
+  perfMetricsBucketTime: PerfMetricsBucketTime
+}
+
+export const DEFAULT_CHARTS_CONFIG: ChartsConfig = {
+  perfMetricsBucketTime: 'hour',
+}
+
+export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
+  style: 'default',
+  presetTitleMode: 'i18n',
+  presetSlaEnabled: true,
+  presetSlaText: '99% SLA guarantee',
 }
 
 interface SystemConfigState {
@@ -70,6 +172,10 @@ const initialSystemConfigState = {
     systemName: DEFAULT_SYSTEM_NAME,
     logo: DEFAULT_LOGO,
     currency: { ...DEFAULT_CURRENCY_CONFIG },
+    appearance: { ...DEFAULT_SITE_APPEARANCE },
+    spaMeta: { ...DEFAULT_SPA_META },
+    homepage: { ...DEFAULT_HOMEPAGE_CONFIG },
+    charts: { ...DEFAULT_CHARTS_CONFIG },
   },
   loading: true,
   loadedLogoUrl: DEFAULT_LOGO,
@@ -92,6 +198,22 @@ export const useSystemConfigStore = create<SystemConfigState>()(
               ...state.config.currency,
               ...newConfig.currency,
             },
+            appearance: {
+              ...(state.config.appearance ?? DEFAULT_SITE_APPEARANCE),
+              ...newConfig.appearance,
+            },
+            spaMeta: {
+              ...(state.config.spaMeta ?? DEFAULT_SPA_META),
+              ...newConfig.spaMeta,
+            },
+            homepage: {
+              ...(state.config.homepage ?? DEFAULT_HOMEPAGE_CONFIG),
+              ...newConfig.homepage,
+            },
+            charts: {
+              ...(state.config.charts ?? DEFAULT_CHARTS_CONFIG),
+              ...newConfig.charts,
+            },
           },
         })),
       setLoadedLogoUrl: (url) => set({ loadedLogoUrl: url }),
@@ -99,6 +221,37 @@ export const useSystemConfigStore = create<SystemConfigState>()(
     }),
     {
       name: 'system-config-storage',
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<SystemConfigState>
+        return {
+          ...current,
+          ...saved,
+          config: {
+            ...current.config,
+            ...saved.config,
+            currency: {
+              ...DEFAULT_CURRENCY_CONFIG,
+              ...saved.config?.currency,
+            },
+            appearance: {
+              ...DEFAULT_SITE_APPEARANCE,
+              ...saved.config?.appearance,
+            },
+            spaMeta: {
+              ...DEFAULT_SPA_META,
+              ...saved.config?.spaMeta,
+            },
+            homepage: {
+              ...DEFAULT_HOMEPAGE_CONFIG,
+              ...saved.config?.homepage,
+            },
+            charts: {
+              ...DEFAULT_CHARTS_CONFIG,
+              ...saved.config?.charts,
+            },
+          },
+        }
+      },
       partialize: (state) => ({
         config: state.config,
         loadedLogoUrl: state.loadedLogoUrl,

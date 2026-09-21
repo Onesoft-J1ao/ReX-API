@@ -10,6 +10,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/status_check_setting"
 )
 
 // RegisterScheduledSystemTasks wires the periodic channel test, upstream model
@@ -20,9 +22,110 @@ import (
 func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(channelTestHandler{})
 	service.RegisterSystemTaskHandler(groupHealthProbeHandler{})
+	service.RegisterSystemTaskHandler(multiKeyRecoveryHandler{})
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
+	service.RegisterSystemTaskHandler(statusCheckProbeHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+}
+
+// multiKeyRecoveryHandler periodically probes keys disabled by a matching
+// channel rule. It wakes once per minute and applies each channel's configured
+// interval, allowing different channels to use different recovery cadences.
+type multiKeyRecoveryHandler struct{}
+
+func (multiKeyRecoveryHandler) Type() string { return model.SystemTaskTypeMultiKeyRecovery }
+
+func (multiKeyRecoveryHandler) Enabled() bool {
+	channels, err := model.GetAllChannels(0, 0, true, true)
+	if err != nil {
+		return false
+	}
+	for _, channel := range channels {
+		if channel != nil && channel.ChannelInfo.IsMultiKey && channel.ChannelInfo.MultiKeyAutoRecovery && hasAutoDisabledKey(channel) {
+			return true
+		}
+	}
+	return false
+}
+
+func (multiKeyRecoveryHandler) Interval() time.Duration { return time.Minute }
+
+func (multiKeyRecoveryHandler) NewPayload() any { return nil }
+
+func (multiKeyRecoveryHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary, err := runMultiKeyRecoveryTask(ctx)
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
+}
+
+func hasAutoDisabledKey(channel *model.Channel) bool {
+	if channel == nil || !channel.ChannelInfo.IsMultiKey {
+		return false
+	}
+	for _, status := range channel.ChannelInfo.MultiKeyStatusList {
+		if status == common.ChannelStatusAutoDisabled {
+			return true
+		}
+	}
+	return false
+}
+
+// statusCheckProbeHandler runs low-frequency, per-group active checks only
+// when the administrator has enabled flexible status checking.
+type statusCheckProbeHandler struct{}
+
+func (statusCheckProbeHandler) Type() string { return model.SystemTaskTypeStatusCheckProbe }
+
+func (statusCheckProbeHandler) Enabled() bool {
+	// A flexible probe issues a real upstream request, which bills a paid model.
+	// The console's own probe path already refuses paid groups when only-free
+	// probing is on; this one must honour the same switch, or enabling it would
+	// quietly spend money on every cycle.
+	if !status_check_setting.ShouldProbeOnlyFreeModels() {
+		return len(statusCheckFlexibleProbeGroups()) > 0
+	}
+	for _, group := range statusCheckFlexibleProbeGroups() {
+		if groupHasFreeModel(group.Group) {
+			return true
+		}
+	}
+	return false
+}
+
+// groupHasFreeModel reports whether any model a group serves is free, which is
+// the same test the console's own probe applies before issuing a request.
+func groupHasFreeModel(group string) bool {
+	channel, err := model.GetEnabledChannelForStatusCheckProbe(group)
+	if err != nil || channel == nil {
+		return false
+	}
+	for _, name := range channel.GetModels() {
+		if ratio_setting.IsModelFreeInGroup(name, group) {
+			return true
+		}
+	}
+	return false
+}
+
+func (statusCheckProbeHandler) Interval() time.Duration {
+	// Per-group idle windows can differ, so the lightweight scheduler wakes once
+	// per minute and only performs a channel test after a group's own window.
+	return time.Minute
+}
+
+func (statusCheckProbeHandler) NewPayload() any { return nil }
+
+func (statusCheckProbeHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary, err := runStatusCheckProbeTask(ctx)
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and

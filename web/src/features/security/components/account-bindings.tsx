@@ -52,6 +52,7 @@ import {
   authRequestOptions,
   authResult,
 } from '@/lib/secure-verification'
+import { formatDate } from '@/lib/time'
 
 import { useAccountSecurity } from '../hooks/use-account-security'
 import { EmailBindDialog } from './dialogs/email-bind-dialog'
@@ -250,12 +251,13 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
       id: 'github',
       label: t('GitHub'),
       icon: SiGithub,
-      value: (profile as unknown as Record<string, unknown>).github_id as
-        | string
-        | undefined,
-      isBound: Boolean(
-        (profile as unknown as Record<string, unknown>).github_id
-      ),
+      value: profile.github_id,
+      secondaryValue: profile.github_created_at
+        ? t('GitHub account created on {{date}}', {
+            date: formatDate(profile.github_created_at),
+          })
+        : undefined,
+      isBound: Boolean(profile.github_id),
       isEnabled: status?.github_oauth || false,
       onBind: () => void startOAuthBinding('github'),
     },
@@ -353,6 +355,11 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
                   <p className='text-muted-foreground truncate text-xs'>
                     {binding.value || t('Not bound')}
                   </p>
+                  {binding.secondaryValue && (
+                    <p className='text-muted-foreground text-xs'>
+                      {binding.secondaryValue}
+                    </p>
+                  )}
                 </div>
               </div>
               <Button

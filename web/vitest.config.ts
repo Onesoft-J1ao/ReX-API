@@ -36,15 +36,21 @@ export default defineConfig({
     // Testing Library queries wait on real timers, so a loaded CI runner can
     // push an individual case past vitest's 5s default even though nothing is
     // wrong with it -- the channels suite has run 59 cases in 60s on a busy
-    // runner and blown one 5s timeout. 15s leaves room for that slowness while
-    // still failing a test that genuinely hangs.
-    testTimeout: 15000,
+    // runner and blown one 5s timeout. Several heavy jsdom suites
+    // (channel-configuration, visual-billing-editor) legitimately take >5s per
+    // test too; the heaviest measures ~3.2s uncontended. 20s keeps headroom for
+    // the ~4x slowdown observed on shared runners while still failing a test
+    // that genuinely hangs.
+    testTimeout: 20000,
     server: {
       deps: { inline: [/@lobehub\//, /antd-style/] },
     },
     setupFiles: ['./src/test-setup.ts'],
     clearMocks: true,
     restoreMocks: true,
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    include: [
+      'src/**/*.{test,spec}.{ts,tsx}',
+      'scripts/oxlint/__tests__/*.test.ts',
+    ],
   },
 })

@@ -49,7 +49,12 @@ import type {
 
 // User login with username and password
 export async function login(payload: LoginPayload): Promise<LoginResponse> {
-  const turnstile = payload.turnstile ?? ''
+  let params: Record<string, string> = { turnstile: payload.turnstile ?? '' }
+  if (payload.cap_token) {
+    params = { cap_token: payload.cap_token }
+  } else if (payload.hcaptcha) {
+    params = { hcaptcha: payload.hcaptcha }
+  }
   try {
     let passwordFields:
       | { password: string }
@@ -64,12 +69,9 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
       passwordFields = { password: payload.password }
     }
     const res = await api.post<LoginResponse>(
-      `/api/user/login?turnstile=${turnstile}`,
-      {
-        username: payload.username,
-        ...passwordFields,
-      },
-      { skipAuthRefresh: true }
+      '/api/user/login',
+      { username: payload.username, ...passwordFields },
+      { params, skipAuthRefresh: true, skipBusinessError: true }
     )
     if (payload.passwordEncryptionEnabled && !res.data?.success) {
       clearPasswordEncryptionCache()
@@ -148,10 +150,11 @@ export async function logout(): Promise<ApiResponse> {
 // Send password reset email
 export async function sendPasswordResetEmail(
   email: string,
-  turnstile?: string
+  captchaToken?: string,
+  captchaParamName = 'turnstile'
 ): Promise<ApiResponse> {
   const res = await api.get('/api/reset_password', {
-    params: { email, turnstile },
+    params: { email, [captchaParamName]: captchaToken },
   })
   return res.data
 }
@@ -270,22 +273,33 @@ export async function register(payload: RegisterPayload): Promise<ApiResponse> {
     (await getRegisterTicket()
       .then((res) => res.data?.ticket ?? '')
       .catch(() => ''))
-  const res = await api.post(`/api/user/register`, payload, {
-    params: {
-      turnstile: payload.turnstile ?? '',
-      register_ticket: ticket,
-    },
-  })
+  let params: Record<string, string> = {
+    turnstile: payload.turnstile ?? '',
+    register_ticket: ticket,
+  }
+  if (payload.cap_token) {
+    params = { cap_token: payload.cap_token, register_ticket: ticket }
+  } else if (payload.hcaptcha) {
+    params = { hcaptcha: payload.hcaptcha, register_ticket: ticket }
+  }
+  const {
+    cap_token: _capToken,
+    hcaptcha: _hcaptcha,
+    turnstile: _turnstile,
+    ...body
+  } = payload
+  const res = await api.post(`/api/user/register`, body, { params })
   return res.data
 }
 
 // Send email verification code
 export async function sendEmailVerification(
   email: string,
-  turnstile?: string
+  captchaToken?: string,
+  captchaParamName = 'turnstile'
 ): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
-    params: { email, turnstile },
+    params: { email, [captchaParamName]: captchaToken },
   })
   return res.data
 }

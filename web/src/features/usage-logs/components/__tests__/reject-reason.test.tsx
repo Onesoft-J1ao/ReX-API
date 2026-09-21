@@ -36,6 +36,8 @@ function makeLog(other: LogOtherData): UsageLog {
     username: 'user',
     token_name: 'token',
     model_name: 'gpt-test',
+    model_icon: '',
+    provider_icon: '',
     quota: 0,
     prompt_tokens: 0,
     completion_tokens: 0,

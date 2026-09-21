@@ -42,3 +42,17 @@ func TestValidateCustomOAuthProviderIdentitySources(t *testing.T) {
 		require.Error(t, validateCustomOAuthProvider(provider))
 	})
 }
+
+func TestValidateCustomOAuthProviderRequiresProfileEndpointOrDiscovery(t *testing.T) {
+	provider := &CustomOAuthProvider{
+		Name:                  "Custom",
+		Slug:                  "custom",
+		ClientId:              "client-id",
+		AuthorizationEndpoint: "https://provider.example.com/authorize",
+		TokenEndpoint:         "https://provider.example.com/token",
+	}
+	assert.Error(t, validateCustomOAuthProvider(provider))
+
+	provider.WellKnown = "https://provider.example.com/.well-known/openid-configuration"
+	assert.NoError(t, validateCustomOAuthProvider(provider))
+}

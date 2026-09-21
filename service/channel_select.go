@@ -2,13 +2,19 @@ package service
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,12 +44,15 @@ func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
 }
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
-	resetNextTry bool
+	Ctx             *gin.Context
+	TokenGroup      string
+	ModelName       string
+	SelectedModel   string
+	RequestPath     string
+	Retry           *int
+	Attempt         int
+	PinnedChannelID int
+	resetNextTry    bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -58,6 +67,7 @@ func (p *RetryParam) SetRetry(retry int) {
 }
 
 func (p *RetryParam) IncreaseRetry() {
+	p.Attempt++
 	if p.resetNextTry {
 		p.resetNextTry = false
 		return
@@ -70,6 +80,45 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+func (p *RetryParam) routeModelAndRetry() (string, int) {
+	p.SelectedModel = p.ModelName
+	modelRetry := p.GetRetry()
+	if p.TokenGroup != "auto" {
+		return p.SelectedModel, modelRetry
+	}
+	chain, ok := GetRequestAutoRoute(p.Ctx, p.ModelName)
+	if !ok {
+		return p.SelectedModel, modelRetry
+	}
+	index := p.Attempt
+	if index >= len(chain) {
+		index = len(chain) - 1
+	}
+	p.SelectedModel = chain[index]
+	// Each virtual candidate receives its own channel-priority retries after
+	// the first pass through the route chain.
+	modelRetry = p.Attempt - index
+	if modelRetry < 0 {
+		modelRetry = 0
+	}
+	return p.SelectedModel, modelRetry
+}
+
+func ChannelSupportsVirtualModel(channel *model.Channel, modelName string) bool {
+	if channel == nil || !strings.HasPrefix(modelName, "auto/") {
+		return channel != nil
+	}
+	mapping := strings.TrimSpace(channel.GetModelMapping())
+	if mapping == "" || mapping == "{}" {
+		return false
+	}
+	modelMap := make(map[string]string)
+	if err := common.Unmarshal([]byte(mapping), &modelMap); err != nil {
+		return false
+	}
+	return strings.TrimSpace(modelMap[modelName]) != ""
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -108,10 +157,19 @@ func (p *RetryParam) ResetRetryNextTry() {
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	if param.PinnedChannelID > 0 {
+		channel, err := model.CacheGetChannel(param.PinnedChannelID)
+		param.PinnedChannelID = 0
+		if err != nil {
+			return nil, param.TokenGroup, err
+		}
+		return channel, param.TokenGroup, nil
+	}
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+	selectionModel, modelRetry := param.routeModelAndRetry()
 	filters := GetChannelConstraints(param.Ctx).Filters
 
 	if param.TokenGroup == "auto" {
@@ -135,7 +193,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			autoGroup := autoGroups[i]
 			// Calculate priorityRetry for current group
 			// 计算当前分组的 priorityRetry
-			priorityRetry := param.GetRetry()
+			priorityRetry := modelRetry
 			// If moved to a new group, reset priorityRetry and update startRetryIndex
 			// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
 			if i > startGroupIndex {
@@ -143,16 +201,18 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(
-				autoGroup,
-				param.ModelName,
-				priorityRetry,
-				filters,
-			)
+			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, selectionModel, priorityRetry, filters)
+			// A token auto route may resolve selectionModel to a concrete model,
+			// but the channel still needs an explicit rewrite for the original
+			// virtual model. Otherwise the first group can accept the concrete
+			// model while forwarding an unmapped virtual request downstream.
+			if !ChannelSupportsVirtualModel(channel, param.ModelName) {
+				channel = nil
+			}
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
-				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", autoGroup, param.ModelName, priorityRetry)
+				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", autoGroup, selectionModel, priorityRetry)
 				// 重置状态以尝试下一个分组
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
@@ -167,12 +227,13 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 			// Prepare state for next retry
 			// 为下一次重试准备状态
-			if crossGroupRetry && priorityRetry >= common.RetryTimes {
+			groupRetryTimes := ratio_setting.GetGroupRetryTimes(autoGroup, common.RetryTimes)
+			if crossGroupRetry && priorityRetry >= groupRetryTimes {
 				// Current group has exhausted all retries, prepare to switch to next group
 				// This request still uses current group, but next retry will use next group
 				// 当前分组已用完所有重试次数，准备切换到下一个分组
 				// 本次请求仍使用当前分组，但下次重试将使用下一个分组
-				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, common.RetryTimes)
+				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, groupRetryTimes)
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
 				// Reset retry counter so outer loop can continue for next group
 				// 重置重试计数器，以便外层循环可以为下一个分组继续
@@ -188,12 +249,15 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	} else {
 		channel, err = model.GetRandomSatisfiedChannel(
 			param.TokenGroup,
-			param.ModelName,
-			param.GetRetry(),
+			selectionModel,
+			modelRetry,
 			filters,
 		)
 		if err != nil {
 			return nil, param.TokenGroup, err
+		}
+		if !ChannelSupportsVirtualModel(channel, param.ModelName) {
+			channel = nil
 		}
 	}
 	return channel, selectGroup, nil
@@ -249,4 +313,159 @@ func pinnedTaskPluginIdentities(c *gin.Context, expected string) ([]int, []strin
 		channelTypes = append(channelTypes, channelType)
 	}
 	return channelTypes, []string{expected}
+}
+
+// ChannelSelectError explains why SelectChannelForRequest found no channel.
+// Callers render it for their transport: the HTTP distributor localizes
+// MessageID with its own helpers and the Responses WebSocket relay wraps it in
+// a NewAPIError. Message is set instead of MessageID when the text is a fixed
+// error code that clients match on.
+type ChannelSelectError struct {
+	StatusCode int
+	Code       types.ErrorCode
+	MessageID  string
+	Params     map[string]any
+	Message    string
+	// FilterKind and Channel identify a candidate rejected by request filters.
+	FilterKind dto.ChannelFilterKind
+	Channel    *model.Channel
+	// NoAvailableChannel marks the "no channel for this group and model"
+	// outcome so the distributor can name the claiming task plugin.
+	NoAvailableChannel bool
+}
+
+// SelectChannelForRequest resolves the channel for one attempt with the rules
+// shared by the HTTP distributor and the Responses WebSocket relay: a pinned
+// channel wins, then session affinity (first attempt only), then a random
+// eligible channel; every candidate must satisfy the request's channel
+// filters. The group the channel was chosen from is returned for auto-group
+// callers. The caller still applies SetupContextForSelectedChannel.
+func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
+	constraints := GetChannelConstraints(c)
+	if pin, found, overridden := constraints.ResolvedPin(); found {
+		for _, lost := range overridden {
+			logger.LogWarn(c, fmt.Sprintf(
+				"channel pin overridden: winning_source=%s winning_channel_id=%d overridden_source=%s overridden_channel_id=%d",
+				pin.Source, pin.ChannelId, lost.Source, lost.ChannelId,
+			))
+		}
+		channel, err := model.CacheGetChannel(pin.ChannelId)
+		if err != nil {
+			return nil, "", pinnedChannelUnavailable(pin, http.StatusBadRequest, i18n.MsgDistributorInvalidChannelId)
+		}
+		if channel.Status != common.ChannelStatusEnabled {
+			return nil, "", pinnedChannelUnavailable(pin, http.StatusForbidden, i18n.MsgDistributorChannelDisabled)
+		}
+		if ok, kind := model.ChannelSatisfiesFilters(channel, modelName, constraints.Filters); !ok {
+			return nil, "", &ChannelSelectError{
+				StatusCode: http.StatusBadRequest, Code: types.ErrorCode(kind), MessageID: i18n.MsgDistributorNoAvailableChannel,
+				Params:     map[string]any{"Group": common.GetContextKeyString(c, constant.ContextKeyUsingGroup), "Model": modelName},
+				FilterKind: kind, Channel: channel,
+			}
+		}
+		return channel, "", nil
+	}
+
+	usingGroup := retry.TokenGroup
+	var channel *model.Channel
+	var selectGroup string
+	if retry.GetRetry() == 0 {
+		if preferredChannelID, found := GetPreferredChannelByAffinity(c, modelName, usingGroup); found {
+			affinityUsable := false
+			affinityModel := modelName
+			if usingGroup == "auto" {
+				if route, ok := GetRequestAutoRoute(c, modelName); ok && len(route) > 0 {
+					affinityModel = route[0]
+					retry.SelectedModel = affinityModel
+				}
+			}
+			preferred, err := model.CacheGetChannel(preferredChannelID)
+			affinitySatisfied := false
+			if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+				affinitySatisfied, _ = model.ChannelSatisfiesFilters(preferred, modelName, constraints.Filters)
+				affinitySatisfied = affinitySatisfied && channelSupportsRequestPath(preferred, retry.RequestPath, affinityModel)
+			}
+			if affinitySatisfied {
+				if usingGroup == "auto" {
+					userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+					for _, g := range GetRequestAutoGroups(c, userGroup) {
+						if model.IsChannelEnabledForGroupModel(g, affinityModel, preferred.Id) && ChannelSupportsVirtualModel(preferred, modelName) {
+							selectGroup = g
+							common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+							channel = preferred
+							affinityUsable = true
+							MarkChannelAffinityUsed(c, g, preferred.Id)
+							break
+						}
+					}
+				} else if model.IsChannelEnabledForGroupModel(usingGroup, modelName, preferred.Id) {
+					channel = preferred
+					selectGroup = usingGroup
+					affinityUsable = true
+					MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+				}
+			}
+			if !affinityUsable && !ShouldKeepChannelAffinityOnChannelDisabled() {
+				ClearCurrentChannelAffinityCache(c)
+			}
+			if !affinityUsable && RequestPolicy(c).SessionMode == "strict" {
+				return nil, "", &ChannelSelectError{StatusCode: http.StatusServiceUnavailable, Message: "strict_session_binding_unavailable"}
+			}
+		}
+	}
+
+	if channel == nil {
+		var err error
+		channel, selectGroup, err = CacheGetRandomSatisfiedChannel(retry)
+		if err != nil {
+			showGroup := usingGroup
+			if usingGroup == "auto" {
+				showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+			}
+			return nil, selectGroup, &ChannelSelectError{
+				StatusCode: http.StatusServiceUnavailable, Code: types.ErrorCodeModelNotFound, MessageID: i18n.MsgDistributorGetChannelFailed,
+				Params: map[string]any{"Group": showGroup, "Model": modelName, "Error": err.Error()},
+			}
+		}
+		if channel == nil {
+			return nil, selectGroup, &ChannelSelectError{
+				StatusCode: http.StatusServiceUnavailable, Code: types.ErrorCodeModelNotFound, MessageID: i18n.MsgDistributorNoAvailableChannel,
+				Params: map[string]any{"Group": usingGroup, "Model": modelName}, NoAvailableChannel: true,
+			}
+		}
+	}
+	if ok, kind := model.ChannelSatisfiesFilters(channel, modelName, constraints.Filters); !ok {
+		return nil, selectGroup, &ChannelSelectError{
+			StatusCode: http.StatusServiceUnavailable, Code: types.ErrorCodeModelNotFound, MessageID: i18n.MsgDistributorNoAvailableChannel,
+			Params:     map[string]any{"Group": common.GetContextKeyString(c, constant.ContextKeyUsingGroup), "Model": modelName},
+			FilterKind: kind, Channel: channel, NoAvailableChannel: true,
+		}
+	}
+	return channel, selectGroup, nil
+}
+
+func channelSupportsRequestPath(channel *model.Channel, requestPath, requestModel string) bool {
+	if channel == nil {
+		return false
+	}
+	if !constant.IsAdvancedCustomChannel(channel.Type) {
+		return true
+	}
+	config := channel.GetOtherSettings().AdvancedCustom
+	return config != nil && config.SupportsPathForModel(requestPath, requestModel)
+}
+
+// Origin-task pins report a fixed code so task polling can tell a retired
+// channel from a malformed request.
+func pinnedChannelUnavailable(pin dto.ChannelPin, statusCode int, messageID string) *ChannelSelectError {
+	if pin.Source == dto.PinSourceOriginTask {
+		return &ChannelSelectError{StatusCode: http.StatusBadRequest, Code: "origin_task_channel_disabled", Message: "origin_task_channel_disabled"}
+	}
+	return &ChannelSelectError{StatusCode: statusCode, MessageID: messageID}
+}
+
+// AppendUsedChannel records an attempted channel in the request's channel
+// trail, which the retry log and the consume log's admin_info both read.
+func AppendUsedChannel(c *gin.Context, channelID int) {
+	c.Set("use_channel", append(c.GetStringSlice("use_channel"), fmt.Sprintf("%d", channelID)))
 }

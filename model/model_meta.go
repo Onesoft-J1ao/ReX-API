@@ -405,6 +405,32 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 	return models, err
 }
 
+func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel, error) {
+	result := make(map[string][]BoundChannel)
+	if len(modelNames) == 0 {
+		return result, nil
+	}
+	type row struct {
+		Model string
+		Name  string
+		Type  int
+	}
+	var rows []row
+	err := DB.Table("channels").
+		Select("abilities.model as model, channels.name as name, channels.type as type").
+		Joins("JOIN abilities ON abilities.channel_id = channels.id").
+		Where("abilities.model IN ? AND abilities.enabled = ?", modelNames, true).
+		Distinct().
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range rows {
+		result[item.Model] = append(result[item.Model], BoundChannel{Name: item.Name, Type: item.Type})
+	}
+	return result, nil
+}
+
 // ModelConnection describes an enabled route independently of catalog visibility or price.
 type ModelConnection struct {
 	AbilityWithChannel

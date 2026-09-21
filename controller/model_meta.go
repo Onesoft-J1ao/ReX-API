@@ -339,3 +339,15 @@ func enrichModels(models []*model.Model) error {
 	}
 	return nil
 }
+
+// DeleteUnusedModelsMeta removes metadata rows that are not referenced by any configured channel.
+// This fork-only maintenance action intentionally remains separate from the upstream batch delete API.
+func DeleteUnusedModelsMeta(c *gin.Context) {
+	deleted, err := model.DeleteUnusedDescribedModels()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.RefreshPricing()
+	common.ApiSuccess(c, gin.H{"deleted": deleted})
+}

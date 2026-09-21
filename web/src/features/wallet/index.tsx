@@ -18,8 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { Cap } from '@/components/cap'
+import { Dialog } from '@/components/dialog'
+import { HCaptcha } from '@/components/hcaptcha'
 import { SectionPageLayout } from '@/components/layout'
+import { Turnstile } from '@/components/turnstile'
+import { Button } from '@/components/ui/button'
+import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
@@ -27,9 +34,13 @@ import { getSelf } from '@/lib/api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
+import { MoneroPaymentDialog } from './components/dialogs/monero-payment-dialog'
+import { NowPaymentsCurrencyDialog } from './components/dialogs/nowpayments-currency-dialog'
+import { NowPaymentsPaymentDialog } from './components/dialogs/nowpayments-payment-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
+import { RedemptionPurchaseCard } from './components/redemption-purchase-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { DEFAULT_DISCOUNT_RATE, PAYMENT_TYPES } from './constants'
@@ -41,10 +52,14 @@ import {
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useMoneroPayment,
+  useNowPaymentsPayment,
 } from './hooks'
 import {
   getDefaultPaymentType,
   getMinTopupAmount,
+  getPaymentMethodMinTopup,
+  getPaymentMethodKey,
   dispatchSelectedPayment,
 } from './lib'
 import type {
@@ -53,6 +68,8 @@ import type {
   PresetAmount,
   CreemProduct,
   WaffoPayMethod,
+  MoneroInvoice,
+  NowPaymentsInvoice,
 } from './types'
 
 interface WalletProps {
@@ -75,14 +92,43 @@ export function Wallet(props: WalletProps) {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
+  const [redemptionCaptchaOpen, setRedemptionCaptchaOpen] = useState(false)
+  const [redemptionCaptchaKey, setRedemptionCaptchaKey] = useState(0)
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [moneroInvoice, setMoneroInvoice] = useState<MoneroInvoice | null>(null)
+  const [moneroDialogOpen, setMoneroDialogOpen] = useState(false)
+  const [nowPaymentsInvoice, setNowPaymentsInvoice] =
+    useState<NowPaymentsInvoice | null>(null)
+  const [nowPaymentsDialogOpen, setNowPaymentsDialogOpen] = useState(false)
+  const [nowPaymentsCurrencyDialogOpen, setNowPaymentsCurrencyDialogOpen] =
+    useState(false)
+  const [selectedNowPaymentsCurrency, setSelectedNowPaymentsCurrency] =
+    useState('')
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+  const {
+    isRequired: isRedemptionCaptchaRequired,
+    isCaptchaEnabled: isRedemptionCaptchaEnabled,
+    isTurnstileEnabled,
+    isHCaptchaEnabled,
+    isCapEnabled,
+    turnstileSiteKey,
+    hCaptchaSiteKey,
+    capApiEndpoint,
+    setCaptchaToken,
+    tokenQueryParam,
+  } = useCaptcha('redemption')
+
+  const closeRedemptionCaptcha = () => {
+    setRedemptionCaptchaOpen(false)
+    setRedemptionCaptchaKey((value) => value + 1)
+    setCaptchaToken('')
+  }
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
   const effectiveUsdExchangeRate = useMemo(() => {
@@ -108,6 +154,11 @@ export function Wallet(props: WalletProps) {
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
+  const { processing: moneroProcessing, createInvoice } = useMoneroPayment()
+  const {
+    processing: nowPaymentsProcessing,
+    createInvoice: createNowPaymentsInvoice,
+  } = useNowPaymentsPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -124,6 +175,10 @@ export function Wallet(props: WalletProps) {
       setUserLoading(false)
     }
   }, [])
+
+  const handleMoneroPaymentSuccess = useCallback(() => {
+    void fetchUser()
+  }, [fetchUser])
 
   useEffect(() => {
     fetchUser()
@@ -146,47 +201,109 @@ export function Wallet(props: WalletProps) {
 
       // Calculate initial payment amount with default payment type
       const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      calculatePaymentAmount(minTopup, defaultPaymentType)
+      const defaultPaymentMethod = topupInfo.pay_methods?.find(
+        (method) => method.type === defaultPaymentType
+      )
+      calculatePaymentAmount(
+        minTopup,
+        defaultPaymentType,
+        defaultPaymentMethod?.gateway
+      )
     }
   }, [topupInfo, calculatePaymentAmount])
+
+  useEffect(() => {
+    const currencies = topupInfo?.nowpayments_pay_currencies || []
+    if (
+      currencies.length > 0 &&
+      !currencies.includes(selectedNowPaymentsCurrency)
+    ) {
+      setSelectedNowPaymentsCurrency(currencies[0])
+    }
+  }, [topupInfo?.nowpayments_pay_currencies, selectedNowPaymentsCurrency])
 
   // Get current payment type (selected or default)
   const getCurrentPaymentType = useCallback(() => {
     return selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
   }, [selectedPaymentMethod, topupInfo])
 
+  const getCurrentEpayGateway = useCallback(
+    () => selectedPaymentMethod?.gateway,
+    [selectedPaymentMethod]
+  )
+
   // Handle preset selection
   const handleSelectPreset = (preset: PresetAmount) => {
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
-    calculatePaymentAmount(preset.value, getCurrentPaymentType())
+    calculatePaymentAmount(
+      preset.value,
+      getCurrentPaymentType(),
+      getCurrentEpayGateway()
+    )
   }
 
   // Handle topup amount change
   const handleTopupAmountChange = (amount: number) => {
     setTopupAmount(amount)
     setSelectedPreset(null)
-    calculatePaymentAmount(amount, getCurrentPaymentType())
+    calculatePaymentAmount(
+      amount,
+      getCurrentPaymentType(),
+      getCurrentEpayGateway()
+    )
   }
 
   // Handle payment method selection
   const handlePaymentMethodSelect = async (method: PaymentMethod) => {
     setSelectedPaymentMethod(method)
     setSelectedWaffoMethodIndex(null)
-    setPaymentLoading(method.type)
+    setPaymentLoading(getPaymentMethodKey(method))
 
     try {
-      // Validate minimum topup
-      const minTopup = getMinTopupAmount(topupInfo)
+      // Validate the selected method's minimum, which may differ from the
+      // global minimum when multiple gateways are enabled.
+      const minTopup = getPaymentMethodMinTopup(method, topupInfo)
       if (topupAmount < minTopup) {
+        toast.error(t('Minimum topup amount: {{amount}}', { amount: minTopup }))
         return
       }
 
-      // Calculate payment amount and show confirmation dialog
-      await calculatePaymentAmount(topupAmount, method.type)
+      // Monero freezes its live XMR quote only when the invoice is created.
+      if (method.type === PAYMENT_TYPES.MONERO) {
+        const invoice = await createInvoice(topupAmount)
+        if (invoice) {
+          setMoneroInvoice(invoice)
+          setMoneroDialogOpen(true)
+        }
+        return
+      }
+
+      if (method.type === PAYMENT_TYPES.NOWPAYMENTS) {
+        setNowPaymentsCurrencyDialogOpen(true)
+        return
+      }
+
+      await calculatePaymentAmount(topupAmount, method.type, method.gateway)
       setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)
+    }
+  }
+
+  const handleNowPaymentsCurrencyConfirm = async () => {
+    const currency =
+      selectedNowPaymentsCurrency || topupInfo?.nowpayments_pay_currencies?.[0]
+    if (!currency) {
+      toast.error(t('No cryptocurrency payment currency is enabled'))
+      return
+    }
+
+    const invoice = await createNowPaymentsInvoice(topupAmount, currency)
+    if (invoice) {
+      setNowPaymentsCurrencyDialogOpen(false)
+      setNowPaymentsInvoice(invoice)
+      setNowPaymentsDialogOpen(true)
     }
   }
 
@@ -211,15 +328,40 @@ export function Wallet(props: WalletProps) {
     }
   }
 
+  const redeem = async (captchaToken?: string) => {
+    if (captchaToken) {
+      setRedemptionCaptchaOpen(false)
+      setCaptchaToken('')
+    }
+    const success = await redeemCode(
+      redemptionCode,
+      captchaToken,
+      captchaToken ? tokenQueryParam : 'turnstile'
+    )
+    if (success) {
+      setRedemptionCode('')
+      setCaptchaToken('')
+      await fetchUser()
+      return
+    }
+    if (captchaToken) {
+      setRedemptionCaptchaKey((value) => value + 1)
+      setCaptchaToken('')
+    }
+  }
+
   // Handle redemption
   const handleRedeem = async () => {
     if (!redemptionCode) return
-
-    const success = await redeemCode(redemptionCode)
-    if (success) {
-      setRedemptionCode('')
-      await fetchUser()
+    if (!isRedemptionCaptchaRequired) {
+      await redeem()
+      return
     }
+    if (!isRedemptionCaptchaEnabled) {
+      toast.error(t('Captcha is enabled but site key is empty.'))
+      return
+    }
+    setRedemptionCaptchaOpen(true)
   }
 
   // Handle transfer
@@ -284,6 +426,70 @@ export function Wallet(props: WalletProps) {
 
   return (
     <>
+      <Dialog
+        open={redemptionCaptchaOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setRedemptionCaptchaOpen(true)
+            return
+          }
+          closeRedemptionCaptcha()
+        }}
+        title={t('Security Check')}
+        contentClassName='sm:max-w-md'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <Button
+            type='button'
+            variant='outline'
+            onClick={closeRedemptionCaptcha}
+          >
+            {t('Cancel')}
+          </Button>
+        }
+      >
+        <div className='text-muted-foreground text-sm'>
+          {t('Please complete the security check to continue.')}
+        </div>
+        <div className='flex justify-center py-4'>
+          {isTurnstileEnabled && (
+            <Turnstile
+              key={redemptionCaptchaKey}
+              siteKey={turnstileSiteKey}
+              onVerify={(token) => void redeem(token)}
+              onExpire={() => setRedemptionCaptchaKey((value) => value + 1)}
+            />
+          )}
+          {isHCaptchaEnabled && (
+            <HCaptcha
+              key={redemptionCaptchaKey}
+              siteKey={hCaptchaSiteKey}
+              onVerify={(token) => void redeem(token)}
+              onExpire={() => {
+                setRedemptionCaptchaKey((value) => value + 1)
+                setCaptchaToken('')
+              }}
+              onError={() => {
+                setRedemptionCaptchaKey((value) => value + 1)
+                setCaptchaToken('')
+              }}
+            />
+          )}
+          {isCapEnabled && (
+            <Cap
+              key={redemptionCaptchaKey}
+              apiEndpoint={capApiEndpoint}
+              onVerify={(token) => void redeem(token)}
+              onReset={() => {
+                setRedemptionCaptchaKey((value) => value + 1)
+                setCaptchaToken('')
+              }}
+            />
+          )}
+        </div>
+      </Dialog>
+
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
@@ -328,6 +534,9 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  enableMoneroTopup={topupInfo?.enable_monero_topup}
+                  enableNowPaymentsTopup={topupInfo?.enable_nowpayments_topup}
+                  nowPaymentsCurrencies={topupInfo?.nowpayments_pay_currencies}
                 />
               </div>
 
@@ -338,6 +547,22 @@ export function Wallet(props: WalletProps) {
                 onPurchaseSuccess={fetchUser}
               />
             </div>
+
+            <RedemptionPurchaseCard
+              topupInfo={topupInfo}
+              presetAmounts={presetAmounts}
+              priceRatio={(status?.price as number) || 1}
+              usdExchangeRate={effectiveUsdExchangeRate}
+              onMoneroInvoice={(invoice) => {
+                setMoneroInvoice(invoice)
+                setMoneroDialogOpen(true)
+              }}
+              onNowPaymentsInvoice={(invoice) => {
+                setNowPaymentsInvoice(invoice)
+                setNowPaymentsDialogOpen(true)
+              }}
+              onRefreshUser={fetchUser}
+            />
 
             <AffiliateRewardsCard
               user={user}
@@ -360,7 +585,13 @@ export function Wallet(props: WalletProps) {
         paymentAmount={paymentAmount}
         paymentMethod={selectedPaymentMethod}
         calculating={calculating}
-        processing={processing || waffoProcessing || pancakeProcessing}
+        processing={
+          processing ||
+          waffoProcessing ||
+          pancakeProcessing ||
+          moneroProcessing ||
+          nowPaymentsProcessing
+        }
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
       />
@@ -384,6 +615,28 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleCreemConfirm}
         product={selectedCreemProduct}
         processing={creemProcessing}
+      />
+
+      <MoneroPaymentDialog
+        open={moneroDialogOpen}
+        onOpenChange={setMoneroDialogOpen}
+        invoice={moneroInvoice}
+        onPaymentSuccess={handleMoneroPaymentSuccess}
+      />
+      <NowPaymentsCurrencyDialog
+        open={nowPaymentsCurrencyDialogOpen}
+        onOpenChange={setNowPaymentsCurrencyDialogOpen}
+        currencies={topupInfo?.nowpayments_pay_currencies || []}
+        selectedCurrency={selectedNowPaymentsCurrency}
+        onSelectedCurrencyChange={setSelectedNowPaymentsCurrency}
+        onConfirm={handleNowPaymentsCurrencyConfirm}
+        loading={nowPaymentsProcessing}
+      />
+      <NowPaymentsPaymentDialog
+        open={nowPaymentsDialogOpen}
+        onOpenChange={setNowPaymentsDialogOpen}
+        invoice={nowPaymentsInvoice}
+        onPaymentSuccess={handleMoneroPaymentSuccess}
       />
     </>
   )

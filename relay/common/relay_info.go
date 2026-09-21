@@ -67,8 +67,8 @@ type ChannelMeta struct {
 	ApiKey               string
 	Organization         string
 	ChannelCreateTime    int64
-	ParamOverride        map[string]any
-	HeadersOverride      map[string]any
+	ParamOverride        map[string]interface{}
+	HeadersOverride      map[string]interface{}
 	ChannelSetting       dto.ChannelSettings
 	ChannelOtherSettings dto.ChannelOtherSettings
 	UpstreamModelName    string
@@ -102,12 +102,12 @@ type RelayInfo struct {
 	UsePrice               bool
 	RelayMode              int
 	OriginModelName        string
+	ResponseModel          *ResponseModel
 
 	// BillingModelName is the pricing identity for this request. It is kept
 	// separate from OriginModelName and UpstreamModelName so virtual pricing
 	// aliases never participate in channel selection or upstream routing.
-	BillingModelName string
-
+	BillingModelName   string
 	RequestURLPath     string
 	RequestHeaders     map[string]string
 	ShouldIncludeUsage bool
@@ -120,17 +120,21 @@ type RelayInfo struct {
 	IsFirstRequest     bool
 	AudioUsage         bool
 	ReasoningEffort    string
-	// ReasoningConversion is the suffix-derived reasoning intent attached
-	// after model mapping. Converters read it via ReasoningState().
+	// ReasoningConversion carries suffix-derived reasoning intent across
+	// model mapping and protocol conversion.
 	ReasoningConversion *dto.ReasoningConversionState
-	UserSetting         dto.UserSetting
-	UserEmail           string
-	UserQuota           int
-	RelayFormat         types.RelayFormat
-	SendResponseCount   int
-	// ClaudeToChatStreamState / ChatToGeminiStreamState hold per-attempt
-	// stream converters. InitChannelMeta nils them so a retry cannot resume a
-	// dirty converter (advanced tool index / finalized).
+	// EffortModelRouted marks that the upstream model was selected by the
+	// explicit effort route configuration. Provider adapters must preserve the
+	// configured target name instead of interpreting its suffix as a legacy
+	// thinking/effort suffix.
+	EffortModelRouted bool
+	UserSetting       dto.UserSetting
+	UserEmail         string
+	UserQuota         int
+	RelayFormat       types.RelayFormat
+	SendResponseCount int
+	// These hold per-attempt stream converter state and are reset when a retry
+	// selects another channel.
 	ClaudeToChatStreamState any
 	ChatToGeminiStreamState any
 	ReceivedResponseCount   int
@@ -163,7 +167,7 @@ type RelayInfo struct {
 	IsChannelTest                         bool // channel test request
 	RetryIndex                            int
 	LastError                             *types.NewAPIError
-	RuntimeHeadersOverride                map[string]any
+	RuntimeHeadersOverride                map[string]interface{}
 	UseRuntimeHeadersOverride             bool
 	ParamOverrideAudit                    []string
 
@@ -195,6 +199,11 @@ type RelayInfo struct {
 	FinalRequestRelayFormat types.RelayFormat
 
 	StreamStatus *StreamStatus
+	// PerformanceOutputTokens is captured by settlement and sampled once at
+	// the request boundary, independently of billing success or failure.
+	PerformanceOutputTokens      int64
+	PerformanceBusinessRejection bool
+	PerformanceUsage             *dto.Usage
 
 	// convOptions caches the converter settings snapshot (see ConvOptions).
 	convOptions *convmeta.Options
@@ -241,11 +250,12 @@ func (info *RelayInfo) RequestedImageCount() int {
 }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
+	// Per-attempt protocol state must not leak across an automatic channel
+	// retry. Request-level billing, diagnostics, and errors intentionally stay.
+	info.ResponseModel = nil
 	info.FinalRequestRelayFormat = ""
 	info.RequestConversionChain = nil
 	info.InitRequestConversionChain()
-	// Per-attempt only. Do not clear StreamStatus, conversion diagnostics,
-	// LastError, or billing accumulators — those are request-scoped.
 	info.SendResponseCount = 0
 	info.ClaudeToChatStreamState = nil
 	info.ChatToGeminiStreamState = nil
@@ -253,6 +263,10 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)
 	apiType, _ := common.ChannelType2APIType(channelType)
+	upstreamModel := common.GetContextKeyString(c, constant.ContextKeySelectedModel)
+	if upstreamModel == "" {
+		upstreamModel = common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	}
 	channelMeta := &ChannelMeta{
 		ChannelType:          channelType,
 		ChannelId:            common.GetContextKeyInt(c, constant.ContextKeyChannelId),
@@ -266,7 +280,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		ChannelCreateTime:    c.GetInt64("channel_create_time"),
 		ParamOverride:        paramOverride,
 		HeadersOverride:      headerOverride,
-		UpstreamModelName:    common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
+		UpstreamModelName:    upstreamModel,
 		IsModelMapped:        false,
 		SupportStreamOptions: false,
 	}
@@ -288,27 +302,36 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		channelMeta.ChannelOtherSettings = channelOtherSettings
 	}
 
+	if channelType == constant.ChannelTypeAdvancedCustom &&
+		!channelMeta.ChannelSetting.PassThroughBodyEnabled &&
+		c.Request != nil && c.Request.URL != nil {
+		route, matched := channelMeta.ChannelOtherSettings.AdvancedCustom.MatchPathForModel(c.Request.URL.Path, info.OriginModelName)
+		if matched && route.PassThroughBodyEnabled {
+			channelMeta.ChannelSetting.PassThroughBodyEnabled = true
+		}
+	}
+
 	if streamSupportedChannels[channelMeta.ChannelType] {
 		channelMeta.SupportStreamOptions = true
 	}
 
 	info.ChannelMeta = channelMeta
+	info.EffortModelRouted = false
+	info.ReasoningConversion = nil
 
 	// Channel identity feeds the converter options snapshot (e.g.
 	// OpenRouterDialect); drop the cache so a cross-channel retry rebuilds it.
 	info.convOptions = nil
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelMeta.ChannelSetting.PassThroughBodyEnabled {
 		info.ReasoningEffort = ""
-		info.ReasoningConversion = nil
 	} else {
 		info.ReasoningEffort = reasoningEffortFromRequest(info.Request)
-		info.ReasoningConversion = nil
 	}
 
 	// reset some fields based on channel meta
 	// 重置某些字段，例如模型名称等
 	if info.Request != nil {
-		info.Request.SetModelName(info.OriginModelName)
+		info.Request.SetModelName(info.UpstreamModelName)
 	}
 }
 
@@ -326,9 +349,6 @@ func (info *RelayInfo) ToString() string {
 	fmt.Fprintf(b, "IsPlayground: %t, ", info.IsPlayground)
 	fmt.Fprintf(b, "RequestURLPath: %q, ", info.RequestURLPath)
 	fmt.Fprintf(b, "OriginModelName: %q, ", info.OriginModelName)
-	if info.BillingModelName != "" && info.BillingModelName != info.OriginModelName {
-		fmt.Fprintf(b, "BillingModelName: %q, ", info.BillingModelName)
-	}
 	fmt.Fprintf(b, "EstimatePromptTokens: %d, ", info.estimatePromptTokens)
 	fmt.Fprintf(b, "ShouldIncludeUsage: %t, ", info.ShouldIncludeUsage)
 	fmt.Fprintf(b, "DisablePing: %t, ", info.DisablePing)
@@ -413,6 +433,8 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeAdvancedCustom: true,
 	constant.ChannelTypeSub2API:        true,
 	constant.ChannelTypeNewAPI:         true,
+	constant.ChannelTypeVLLM:           true,
+	constant.ChannelTypeSGLang:         true,
 	constant.ChannelTypeTencent:        true,
 }
 
@@ -423,6 +445,15 @@ func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
 	info.InputAudioFormat = "pcm16"
 	info.OutputAudioFormat = "pcm16"
 	info.IsFirstRequest = true
+	return info
+}
+
+func GenRelayInfoUnrealSpeechWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
+	info := genBaseRelayInfo(c, nil)
+	info.RelayFormat = types.RelayFormatUnrealSpeechWebSocket
+	info.RelayMode = relayconstant.RelayModeAudioSpeechWebSocket
+	info.ClientWs = ws
+	info.IsStream = true
 	return info
 }
 
@@ -534,6 +565,9 @@ func reasoningEffortFromRequest(request dto.Request) string {
 		if req != nil && req.GenerationConfig.ThinkingConfig != nil {
 			config := req.GenerationConfig.ThinkingConfig
 			effort = config.ThinkingLevel
+			if canonical, err := kitreasoning.ParseEffort(effort); err == nil {
+				effort = string(canonical)
+			}
 			if effort == "" && config.ThinkingBudget != nil {
 				effort = string(kitreasoning.EffortFromBudget(*config.ThinkingBudget))
 			}
@@ -573,7 +607,6 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		reqId = common.NewRequestId()
 	}
 	reasoningEffort := reasoningEffortFromRequest(request)
-	originModelName := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 	info := &RelayInfo{
 		Request:         request,
 		ReasoningEffort: reasoningEffort,
@@ -585,7 +618,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		UserQuota:  common.GetContextKeyInt(c, constant.ContextKeyUserQuota),
 		UserEmail:  common.GetContextKeyString(c, constant.ContextKeyUserEmail),
 
-		OriginModelName: originModelName,
+		OriginModelName: common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 
 		TokenId:        common.GetContextKeyInt(c, constant.ContextKeyTokenId),
 		TokenKey:       common.GetContextKeyString(c, constant.ContextKeyTokenKey),
@@ -661,6 +694,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoImage(c, request)
 	case types.RelayFormatOpenAIRealtime:
 		info = GenRelayInfoWs(c, ws)
+	case types.RelayFormatUnrealSpeechWebSocket:
+		info = GenRelayInfoUnrealSpeechWs(c, ws)
 	case types.RelayFormatClaude:
 		info = GenRelayInfoClaude(c, request)
 	case types.RelayFormatRerank:
@@ -955,8 +990,9 @@ type OriginTaskRef struct {
 }
 
 type TaskRelayInfo struct {
-	Action       string
-	OriginTaskID string
+	Action               string
+	OriginTaskID         string
+	OriginUpstreamTaskID string
 	// PublicTaskID 是提交时预生成的 task_xxxx 格式公开 ID，
 	// 供 DoResponse 在返回给客户端时使用（避免暴露上游真实 ID）。
 	PublicTaskID string
@@ -979,10 +1015,13 @@ type TaskSubmitReq struct {
 	Mode           string         `json:"mode,omitempty"`
 	Image          string         `json:"image,omitempty"`
 	Images         []string       `json:"images,omitempty"`
+	FirstFrame     *string        `json:"first_frame,omitempty"`
+	LastFrame      *string        `json:"last_frame,omitempty"`
 	Size           string         `json:"size,omitempty"`
 	Duration       int            `json:"duration,omitempty"`
 	Seconds        string         `json:"seconds,omitempty"`
 	InputReference string         `json:"input_reference,omitempty"`
+	SourceTaskID   string         `json:"source_task_id,omitempty"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
@@ -991,7 +1030,9 @@ func (t *TaskSubmitReq) GetPrompt() string {
 }
 
 func (t *TaskSubmitReq) HasImage() bool {
-	return len(t.Images) > 0
+	return len(t.Images) > 0 || strings.TrimSpace(t.Image) != "" ||
+		(t.FirstFrame != nil && strings.TrimSpace(*t.FirstFrame) != "") ||
+		(t.LastFrame != nil && strings.TrimSpace(*t.LastFrame) != "")
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
@@ -1091,7 +1132,7 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		return jsonData, nil
 	}
 
-	var data map[string]any
+	var data map[string]interface{}
 	if err := common.Unmarshal(jsonData, &data); err != nil {
 		common.SysError("RemoveDisabledFields Unmarshal error :" + err.Error())
 		return jsonData, nil
@@ -1135,7 +1176,7 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 	// 默认移除 stream_options.include_obfuscation，除非明确允许（避免关闭响应流混淆保护）
 	if !channelOtherSettings.AllowIncludeObfuscation {
 		if streamOptionsAny, exists := data["stream_options"]; exists {
-			if streamOptions, ok := streamOptionsAny.(map[string]any); ok {
+			if streamOptions, ok := streamOptionsAny.(map[string]interface{}); ok {
 				if _, includeExists := streamOptions["include_obfuscation"]; includeExists {
 					delete(streamOptions, "include_obfuscation")
 				}
@@ -1182,7 +1223,7 @@ func RemoveGeminiDisabledFields(jsonData []byte) ([]byte, error) {
 		return jsonData, nil
 	}
 
-	var data map[string]any
+	var data map[string]interface{}
 	if err := common.Unmarshal(jsonData, &data); err != nil {
 		common.SysError("RemoveGeminiDisabledFields Unmarshal error: " + err.Error())
 		return jsonData, nil
@@ -1190,18 +1231,18 @@ func RemoveGeminiDisabledFields(jsonData []byte) ([]byte, error) {
 
 	// Process contents array
 	// Handle both camelCase (functionResponse) and snake_case (function_response)
-	if contents, ok := data["contents"].([]any); ok {
+	if contents, ok := data["contents"].([]interface{}); ok {
 		for _, content := range contents {
-			if contentMap, ok := content.(map[string]any); ok {
-				if parts, ok := contentMap["parts"].([]any); ok {
+			if contentMap, ok := content.(map[string]interface{}); ok {
+				if parts, ok := contentMap["parts"].([]interface{}); ok {
 					for _, part := range parts {
-						if partMap, ok := part.(map[string]any); ok {
+						if partMap, ok := part.(map[string]interface{}); ok {
 							// Check functionResponse (camelCase)
-							if funcResp, ok := partMap["functionResponse"].(map[string]any); ok {
+							if funcResp, ok := partMap["functionResponse"].(map[string]interface{}); ok {
 								delete(funcResp, "id")
 							}
 							// Check function_response (snake_case)
-							if funcResp, ok := partMap["function_response"].(map[string]any); ok {
+							if funcResp, ok := partMap["function_response"].(map[string]interface{}); ok {
 								delete(funcResp, "id")
 							}
 						}

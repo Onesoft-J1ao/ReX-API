@@ -372,6 +372,34 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 }
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
+	if channel.Type == constant.ChannelTypeAgnes {
+		baseURL := constant.GetChannelBaseURL(channel.Type)
+		if channel.GetBaseURL() != "" {
+			baseURL = channel.GetBaseURL()
+		}
+		key, _, apiErr := channel.GetNextEnabledKey()
+		if apiErr != nil {
+			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		}
+		key = strings.TrimSpace(key)
+		baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+		if strings.HasSuffix(strings.ToLower(baseURL), "/v1") {
+			baseURL = strings.TrimRight(baseURL[:len(baseURL)-len("/v1")], "/")
+		}
+		if baseURL == "" {
+			baseURL = constant.GetChannelBaseURL(channel.Type)
+		}
+		url := baseURL + "/v1/models"
+		headers, err := buildFetchModelsHeaders(channel, key)
+		if err != nil {
+			return nil, sanitizeFetchModelsError(err, key)
+		}
+		body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
+		if err != nil {
+			return nil, sanitizeFetchModelsError(err, key)
+		}
+		return parseOpenAIModelIDs(body)
+	}
 	if channel.Type == constant.ChannelTypeTaskPlugin {
 		plugin, ok := jsplugin.DefaultRegistry.Get(channel.GetSetting().TaskPluginKey)
 		if !ok {
@@ -408,7 +436,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(models), nil
 	}
 
-	if channel.Type == constant.ChannelTypeAdvancedCustom {
+	if constant.IsAdvancedCustomChannel(channel.Type) {
 		return fetchAdvancedCustomUpstreamModelIDs(channel, baseURL)
 	}
 
@@ -486,7 +514,7 @@ func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string)
 		RelayMode:      relayconstant.RelayModeUnknown,
 		RequestURLPath: dto.AdvancedCustomModelListPath,
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType:          constant.ChannelTypeAdvancedCustom,
+			ChannelType:          channel.Type,
 			ChannelBaseUrl:       baseURL,
 			ApiKey:               key,
 			ChannelOtherSettings: channel.GetOtherSettings(),

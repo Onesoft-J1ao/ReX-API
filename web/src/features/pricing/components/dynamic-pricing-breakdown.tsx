@@ -33,6 +33,7 @@ import {
   MATCH_GTE,
   MATCH_LT,
   MATCH_RANGE,
+  SOURCE_IMAGE_RESOLUTION,
   SOURCE_TIME,
   parseTiersFromExpr,
   requestRuleGroupsFromTrace,
@@ -225,6 +226,9 @@ function describeCondition(
   cond: RequestCondition,
   t: (key: string) => string
 ): string {
+  if (cond.source === SOURCE_IMAGE_RESOLUTION) {
+    return `${t('Image size')} = ${cond.value}`
+  }
   if (cond.source === SOURCE_TIME) {
     const fn = t(TIME_FUNC_LABELS[cond.timeFunc] || cond.timeFunc)
     const tz = cond.timezone || 'UTC'

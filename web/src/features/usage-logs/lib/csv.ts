@@ -60,7 +60,7 @@ export function buildLogsCsv(
   for (const row of rows) {
     lines.push(columns.map((column) => csvField(row[column.id])).join(','))
   }
-  return '﻿' + lines.join('\r\n')
+  return `﻿${  lines.join('\r\n')}`
 }
 
 /** Timestamped file name, e.g. `common-logs-20260913-2115.csv`. */

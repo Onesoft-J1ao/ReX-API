@@ -27,6 +27,68 @@ type SubscriptionBalancePayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
+	if plan == nil {
+		return fmt.Errorf("套餐不能为空")
+	}
+	plan.Currency = strings.TrimSpace(plan.Currency)
+	if plan.Currency == "" {
+		plan.Currency = "USD"
+	}
+	plan.WalletOnlyGroupsMode = model.NormalizeWalletOnlyGroupsMode(plan.WalletOnlyGroupsMode)
+	plan.WalletOnlyGroups = model.NormalizeWalletOnlyGroups(plan.WalletOnlyGroups)
+	if plan.TotalAmount < 0 {
+		plan.TotalAmount = -1
+		plan.FiveHourLimit = 0
+		plan.WeeklyLimit = 0
+		plan.MonthlyLimit = 0
+	} else {
+		if plan.FiveHourLimit < 0 || plan.FiveHourLimit > int64(common.MaxQuota) {
+			return fmt.Errorf("5小时限额必须介于 0 和 %d 之间", common.MaxQuota)
+		}
+		if plan.WeeklyLimit < 0 || plan.WeeklyLimit > int64(common.MaxQuota) {
+			return fmt.Errorf("周限额必须介于 0 和 %d 之间", common.MaxQuota)
+		}
+		if plan.MonthlyLimit < 0 || plan.MonthlyLimit > int64(common.MaxQuota) {
+			return fmt.Errorf("月限额必须介于 0 和 %d 之间", common.MaxQuota)
+		}
+	}
+	_, rateLimits, err := model.NormalizeSubscriptionRateLimitGroups(plan.RateLimitGroups)
+	if err != nil {
+		return err
+	}
+	groups := ratio_setting.GetGroupRatioCopy()
+	filteredRateLimits := make([]model.SubscriptionRateLimitGroup, 0, len(rateLimits))
+	for _, rateLimit := range rateLimits {
+		if _, ok := groups[rateLimit.Group]; ok {
+			filteredRateLimits = append(filteredRateLimits, rateLimit)
+		}
+	}
+	encoded, encodeErr := common.Marshal(filteredRateLimits)
+	if encodeErr != nil {
+		return encodeErr
+	}
+	plan.RateLimitGroups = string(encoded)
+	walletGroups := make([]string, 0)
+	seenWallet := make(map[string]struct{})
+	for _, group := range strings.Split(plan.WalletOnlyGroups, ",") {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		if _, ok := groups[group]; !ok {
+			continue
+		}
+		if _, exists := seenWallet[group]; exists {
+			continue
+		}
+		seenWallet[group] = struct{}{}
+		walletGroups = append(walletGroups, group)
+	}
+	plan.WalletOnlyGroups = strings.Join(walletGroups, ",")
+	return nil
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -164,7 +226,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
-	req.Plan.Currency = "USD"
+	if err := normalizeSubscriptionPlanInput(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	if req.Plan.AllowBalancePay == nil {
 		req.Plan.AllowBalancePay = common.GetPointer(true)
 	}
@@ -179,10 +244,6 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
-		return
-	}
-	if req.Plan.TotalAmount < 0 {
-		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
@@ -244,7 +305,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
-	req.Plan.Currency = "USD"
+	if err := normalizeSubscriptionPlanInput(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
@@ -253,10 +317,6 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
-		return
-	}
-	if req.Plan.TotalAmount < 0 {
-		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
@@ -281,7 +341,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
-		updateMap := map[string]any{
+		updateMap := map[string]interface{}{
 			"title":                      req.Plan.Title,
 			"subtitle":                   req.Plan.Subtitle,
 			"price_amount":               req.Plan.PriceAmount,
@@ -296,8 +356,15 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
+			"five_hour_limit":            req.Plan.FiveHourLimit,
+			"weekly_limit":               req.Plan.WeeklyLimit,
+			"monthly_limit":              req.Plan.MonthlyLimit,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"downgrade_group":            req.Plan.DowngradeGroup,
+			"wallet_only_groups_enabled": req.Plan.WalletOnlyGroupsEnabled,
+			"wallet_only_groups_mode":    req.Plan.WalletOnlyGroupsMode,
+			"wallet_only_groups":         req.Plan.WalletOnlyGroups,
+			"rate_limit_groups":          req.Plan.RateLimitGroups,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
@@ -345,6 +412,23 @@ func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 		return
 	}
 	model.InvalidateSubscriptionPlanCache(id)
+	common.ApiSuccess(c, nil)
+}
+
+func AdminDeleteSubscriptionPlan(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
+	id, _ := strconv.Atoi(c.Param("id"))
+	if id <= 0 {
+		common.ApiErrorMsg(c, "无效的ID")
+		return
+	}
+	if err := model.DeleteSubscriptionPlan(id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, nil)
 }
 
@@ -398,6 +482,9 @@ type AdminCreateUserSubscriptionRequest struct {
 type AdminResetSubscriptionRequest struct {
 	PlanId           int   `json:"plan_id"`
 	AdvanceResetTime *bool `json:"advance_reset_time"`
+	ResetTotal       *bool `json:"reset_total"`
+	ResetFiveHour    *bool `json:"reset_five_hour"`
+	ResetWeekly      *bool `json:"reset_weekly"`
 }
 
 func resolveAdvanceResetTime(value *bool) bool {
@@ -405,6 +492,26 @@ func resolveAdvanceResetTime(value *bool) bool {
 		return true
 	}
 	return *value
+}
+
+func resolveSubscriptionResetOptions(req AdminResetSubscriptionRequest) model.SubscriptionResetOptions {
+	if req.ResetTotal == nil && req.ResetFiveHour == nil && req.ResetWeekly == nil {
+		return model.SubscriptionResetOptions{
+			ResetTotal:    true,
+			ResetFiveHour: true,
+			ResetWeekly:   true,
+			ResetMonthly:  true,
+		}
+	}
+	resetTotal := req.ResetTotal != nil && *req.ResetTotal
+	return model.SubscriptionResetOptions{
+		ResetTotal:    resetTotal,
+		ResetFiveHour: req.ResetFiveHour != nil && *req.ResetFiveHour,
+		ResetWeekly:   req.ResetWeekly != nil && *req.ResetWeekly,
+		// Monthly usage belongs to the total billing-cycle reset in the
+		// administrator UI, while legacy omitted options still reset it.
+		ResetMonthly: resetTotal,
+	}
 }
 
 func recordSubscriptionResetUserLogs(c *gin.Context, result *model.SubscriptionResetResult, adminInfo *model.AuditAdminInfo) {
@@ -461,19 +568,23 @@ func AdminResetUserSubscriptionsByPlan(c *gin.Context) {
 		return
 	}
 	advanceResetTime := resolveAdvanceResetTime(req.AdvanceResetTime)
-	result, err := model.AdminResetUserSubscriptionsByPlan(userId, req.PlanId, advanceResetTime)
+	options := resolveSubscriptionResetOptions(req)
+	result, err := model.AdminResetUserSubscriptionsByPlanWithOptions(userId, req.PlanId, advanceResetTime, options)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	recordSubscriptionResetUserLogs(c, result, auditOperatorInfo(c))
-	recordManageAuditFor(c, userId, "subscription.user_plan_reset", map[string]any{
+	recordManageAuditFor(c, userId, "subscription.user_plan_reset", map[string]interface{}{
 		"target_user_id":     userId,
 		"plan_id":            result.PlanId,
 		"plan_title":         result.PlanTitle,
 		"reset_count":        result.ResetCount,
 		"user_count":         result.UserCount,
 		"advance_reset_time": result.AdvanceResetTime,
+		"reset_total":        options.ResetTotal,
+		"reset_five_hour":    options.ResetFiveHour,
+		"reset_weekly":       options.ResetWeekly,
 	})
 	common.ApiSuccess(c, result)
 }
@@ -490,7 +601,8 @@ func AdminResetPlanSubscriptions(c *gin.Context) {
 		return
 	}
 	advanceResetTime := resolveAdvanceResetTime(req.AdvanceResetTime)
-	result, err := model.AdminResetPlanSubscriptions(planId, advanceResetTime)
+	options := resolveSubscriptionResetOptions(req)
+	result, err := model.AdminResetPlanSubscriptionsWithOptions(planId, advanceResetTime, options)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -498,12 +610,15 @@ func AdminResetPlanSubscriptions(c *gin.Context) {
 	recordSubscriptionResetUserLogs(c, result, auditOperatorInfo(c))
 	common.SysLog(fmt.Sprintf("admin reset subscription plan %d quota: reset_count=%d user_count=%d advance_reset_time=%t",
 		result.PlanId, result.ResetCount, result.UserCount, result.AdvanceResetTime))
-	recordManageAudit(c, "subscription.plan_reset", map[string]any{
+	recordManageAudit(c, "subscription.plan_reset", map[string]interface{}{
 		"plan_id":            result.PlanId,
 		"plan_title":         result.PlanTitle,
 		"reset_count":        result.ResetCount,
 		"user_count":         result.UserCount,
 		"advance_reset_time": result.AdvanceResetTime,
+		"reset_total":        options.ResetTotal,
+		"reset_five_hour":    options.ResetFiveHour,
+		"reset_weekly":       options.ResetWeekly,
 	})
 	common.ApiSuccess(c, result)
 }

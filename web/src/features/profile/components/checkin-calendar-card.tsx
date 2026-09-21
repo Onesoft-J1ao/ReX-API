@@ -29,7 +29,9 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Cap } from '@/components/cap'
 import { Dialog } from '@/components/dialog'
+import { HCaptcha } from '@/components/hcaptcha'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -41,6 +43,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
+import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -48,18 +51,14 @@ import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { getCheckinStatus, performCheckin } from '../api'
-import type { CheckinRecord } from '../types'
+import type { CheckinRecord, CheckinEligibility } from '../types'
 
 interface CheckinCalendarCardProps {
   checkinEnabled: boolean
-  turnstileEnabled: boolean
-  turnstileSiteKey: string
 }
 
 export function CheckinCalendarCard({
   checkinEnabled,
-  turnstileEnabled,
-  turnstileSiteKey,
 }: CheckinCalendarCardProps) {
   const { t } = useTranslation()
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -67,10 +66,22 @@ export function CheckinCalendarCard({
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [checkinLoading, setCheckinLoading] = useState(false)
-  const [turnstileModalVisible, setTurnstileModalVisible] = useState(false)
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const [captchaModalVisible, setCaptchaModalVisible] = useState(false)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
   const [initialLoaded, setInitialLoaded] = useState(false)
   const [collapsed, setCollapsed] = useState<boolean>(false)
+
+  const {
+    isCaptchaEnabled,
+    isTurnstileEnabled,
+    isHCaptchaEnabled,
+    isCapEnabled,
+    turnstileSiteKey,
+    hCaptchaSiteKey,
+    capApiEndpoint,
+    setCaptchaToken,
+    tokenQueryParam,
+  } = useCaptcha('checkin')
 
   const currentMonthStr = useMemo(() => {
     const y = currentMonth.getFullYear()
@@ -122,6 +133,38 @@ export function CheckinCalendarCard({
 
   const checkedToday = checkinData?.stats?.checked_in_today === true
   const todayAward = checkinRecordsMap[todayString]
+  const eligibility: CheckinEligibility | undefined = checkinData?.eligibility
+  const eligible = eligibility?.eligible ?? checkinData?.eligible ?? false
+  const balanceMet =
+    eligibility?.balance_met ?? (checkinData?.min_user_quota ?? 0) <= 0
+  const totalSpendMet =
+    eligibility?.total_spend_met ?? (checkinData?.min_used_quota ?? 0) <= 0
+  const dailyUserLimitMet = eligibility?.daily_user_limit_met ?? true
+  const dailyQuotaLimitMet = eligibility?.daily_quota_limit_met ?? true
+  const unmetConditions = [
+    !balanceMet &&
+      t('Balance must be greater than {{quota}}.', {
+        quota: formatQuotaWithCurrency(checkinData?.min_user_quota ?? 0, {
+          digitsLarge: 0,
+        }),
+      }),
+    !totalSpendMet &&
+      t('Total spending must reach {{quota}}.', {
+        quota: formatQuotaWithCurrency(checkinData?.min_used_quota ?? 0, {
+          digitsLarge: 0,
+        }),
+      }),
+    !dailyUserLimitMet && t("Today's check-in user limit has been reached."),
+    !dailyQuotaLimitMet &&
+      t("Today's remaining reward quota is below the maximum award."),
+  ].filter((condition): condition is string => Boolean(condition))
+  const remainingUnmetConditions = unmetConditions.slice(1)
+  let checkinSummary = t('Check in daily to receive random quota rewards')
+  if (!eligible && unmetConditions.length > 0) {
+    checkinSummary = unmetConditions[0]
+  } else if (checkedToday && todayAward !== undefined) {
+    checkinSummary = `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
+  }
 
   useEffect(() => {
     if (initialLoaded) return
@@ -131,37 +174,25 @@ export function CheckinCalendarCard({
     setInitialLoaded(true)
   }, [checkinData, checkedToday, initialLoaded, isLoading])
 
-  const shouldTriggerTurnstile = useCallback(
-    (message?: string) => {
-      if (!turnstileEnabled) return false
-      if (typeof message !== 'string') return true
-      return message.includes('Turnstile')
-    },
-    [turnstileEnabled]
-  )
-
   const doCheckin = useCallback(
     async (token?: string) => {
       setCheckinLoading(true)
       try {
-        const res = await performCheckin(token)
+        const res = await performCheckin(
+          token,
+          token ? tokenQueryParam : 'turnstile'
+        )
         if (res.success && res.data) {
           toast.success(
             `${t('Check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
           )
           refetch()
-          setTurnstileModalVisible(false)
+          setCaptchaModalVisible(false)
+          setCaptchaToken('')
         } else {
-          if (!token && shouldTriggerTurnstile(res.message)) {
-            if (!turnstileSiteKey) {
-              toast.error(t('Turnstile is enabled but site key is empty.'))
-              return
-            }
-            setTurnstileModalVisible(true)
-            return
-          }
-          if (token && shouldTriggerTurnstile(res.message)) {
-            setTurnstileWidgetKey((v) => v + 1)
+          if (token) {
+            setCaptchaWidgetKey((v) => v + 1)
+            setCaptchaToken('')
           }
           handleServerError(res, t('Check-in failed'))
         }
@@ -171,8 +202,41 @@ export function CheckinCalendarCard({
         setCheckinLoading(false)
       }
     },
-    [refetch, shouldTriggerTurnstile, t, turnstileSiteKey]
+    [refetch, setCaptchaToken, t, tokenQueryParam]
   )
+
+  const handleCheckinClick = useCallback(() => {
+    if (!eligible || checkedToday) return
+    if (!isCaptchaEnabled) {
+      void doCheckin()
+      return
+    }
+    if (isTurnstileEnabled && !turnstileSiteKey) {
+      toast.error(t('Captcha is enabled but site key is empty.'))
+      return
+    }
+    if (isHCaptchaEnabled && !hCaptchaSiteKey) {
+      toast.error(t('Captcha is enabled but site key is empty.'))
+      return
+    }
+    if (isCapEnabled && !capApiEndpoint) {
+      toast.error(t('Captcha is enabled but site key is empty.'))
+      return
+    }
+    setCaptchaModalVisible(true)
+  }, [
+    capApiEndpoint,
+    doCheckin,
+    isCapEnabled,
+    isCaptchaEnabled,
+    isHCaptchaEnabled,
+    isTurnstileEnabled,
+    hCaptchaSiteKey,
+    eligible,
+    checkedToday,
+    t,
+    turnstileSiteKey,
+  ])
 
   const handlePrevMonth = () => {
     setCurrentMonth(
@@ -249,16 +313,19 @@ export function CheckinCalendarCard({
     checkinButtonLabel = t('Loading...')
   } else if (checkedToday) {
     checkinButtonLabel = t('Checked in')
+  } else if (!eligible) {
+    checkinButtonLabel = t('Not eligible')
   }
 
   return (
     <TooltipProvider delay={100}>
       <Dialog
-        open={turnstileModalVisible}
+        open={captchaModalVisible}
         onOpenChange={(open) => {
-          setTurnstileModalVisible(open)
+          setCaptchaModalVisible(open)
           if (!open) {
-            setTurnstileWidgetKey((v) => v + 1)
+            setCaptchaWidgetKey((v) => v + 1)
+            setCaptchaToken('')
           }
         }}
         title={t('Security Check')}
@@ -270,16 +337,48 @@ export function CheckinCalendarCard({
           {t('Please complete the security check to continue.')}
         </div>
         <div className='flex justify-center py-4'>
-          <Turnstile
-            key={turnstileWidgetKey}
-            siteKey={turnstileSiteKey}
-            onVerify={(token) => {
-              doCheckin(token)
-            }}
-            onExpire={() => {
-              setTurnstileWidgetKey((v) => v + 1)
-            }}
-          />
+          {isTurnstileEnabled && (
+            <Turnstile
+              key={captchaWidgetKey}
+              siteKey={turnstileSiteKey}
+              onVerify={(token) => {
+                doCheckin(token)
+              }}
+              onExpire={() => {
+                setCaptchaWidgetKey((v) => v + 1)
+              }}
+            />
+          )}
+          {isHCaptchaEnabled && (
+            <HCaptcha
+              key={captchaWidgetKey}
+              siteKey={hCaptchaSiteKey}
+              onVerify={(token) => {
+                doCheckin(token)
+              }}
+              onExpire={() => {
+                setCaptchaWidgetKey((v) => v + 1)
+                setCaptchaToken('')
+              }}
+              onError={() => {
+                setCaptchaWidgetKey((v) => v + 1)
+                setCaptchaToken('')
+              }}
+            />
+          )}
+          {isCapEnabled && (
+            <Cap
+              key={captchaWidgetKey}
+              apiEndpoint={capApiEndpoint}
+              onVerify={(token) => {
+                doCheckin(token)
+              }}
+              onReset={() => {
+                setCaptchaWidgetKey((v) => v + 1)
+                setCaptchaToken('')
+              }}
+            />
+          )}
         </div>
       </Dialog>
 
@@ -318,15 +417,51 @@ export function CheckinCalendarCard({
                   </span>
                 </div>
                 <p className='text-muted-foreground mt-1 line-clamp-2 text-xs sm:text-sm'>
-                  {checkedToday && todayAward !== undefined
-                    ? `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
-                    : t('Check in daily to receive random quota rewards')}
+                  {checkinSummary}
                 </p>
+                {!eligible &&
+                  !checkedToday &&
+                  remainingUnmetConditions.length > 0 && (
+                    <ul className='text-muted-foreground mt-2 list-disc space-y-0.5 pl-4 text-xs'>
+                      {remainingUnmetConditions.map((condition) => (
+                        <li key={condition}>{condition}</li>
+                      ))}
+                    </ul>
+                  )}
+                {(checkinData?.daily_user_limit ?? 0) > 0 && (
+                  <p className='text-muted-foreground mt-2 text-xs tabular-nums'>
+                    {t('Today checked in {{count}}/{{limit}} users', {
+                      count:
+                        eligibility?.today_user_count ??
+                        checkinData?.today_user_count ??
+                        0,
+                      limit: checkinData?.daily_user_limit,
+                    })}
+                  </p>
+                )}
+                {(checkinData?.daily_quota_limit ?? 0) > 0 && (
+                  <p className='text-muted-foreground text-xs tabular-nums'>
+                    {t('Today awarded {{amount}}/{{limit}} quota', {
+                      amount: formatQuotaWithCurrency(
+                        eligibility?.today_quota_awarded ??
+                          checkinData?.today_quota_awarded ??
+                          0,
+                        { digitsLarge: 0 }
+                      ),
+                      limit: formatQuotaWithCurrency(
+                        checkinData?.daily_quota_limit ?? 0,
+                        {
+                          digitsLarge: 0,
+                        }
+                      ),
+                    })}
+                  </p>
+                )}
               </div>
             </button>
             <Button
-              onClick={() => doCheckin()}
-              disabled={checkinLoading || checkedToday}
+              onClick={handleCheckinClick}
+              disabled={checkinLoading || checkedToday || !eligible}
               size='sm'
               className='w-full shrink-0 sm:w-auto'
             >

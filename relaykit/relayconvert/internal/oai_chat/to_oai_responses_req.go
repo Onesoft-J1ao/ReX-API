@@ -1,12 +1,14 @@
 package oaichat
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/samber/lo"
@@ -74,7 +76,7 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 	return textRaw
 }
 
-func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
+func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
 	if req == nil {
 		return nil, errors.New("request is nil")
 	}
@@ -389,33 +391,35 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	}
 
 	out := &dto.OpenAIResponsesRequest{
-		Model:             req.Model,
-		Input:             inputRaw,
-		Instructions:      instructionsRaw,
-		Stream:            req.Stream,
-		Temperature:       req.Temperature,
-		Text:              textRaw,
-		ToolChoice:        toolChoiceRaw,
-		Tools:             toolsRaw,
-		TopP:              topP,
-		FrequencyPenalty:  frequencyPenaltyRaw,
-		PresencePenalty:   presencePenaltyRaw,
-		User:              req.User,
-		ParallelToolCalls: parallelToolCallsRaw,
-		Store:             req.Store,
-		Metadata:          req.Metadata,
-		PromptCacheKey:    promptCacheKeyRaw,
-		EnableThinking:    req.EnableThinking,
-		ThinkingBudget:    req.ThinkingBudget,
+		Model:                req.Model,
+		Input:                inputRaw,
+		Instructions:         instructionsRaw,
+		Stream:               req.Stream,
+		Temperature:          req.Temperature,
+		Text:                 textRaw,
+		ToolChoice:           toolChoiceRaw,
+		Tools:                toolsRaw,
+		TopP:                 topP,
+		FrequencyPenalty:     frequencyPenaltyRaw,
+		PresencePenalty:      presencePenaltyRaw,
+		User:                 req.User,
+		ParallelToolCalls:    parallelToolCallsRaw,
+		Store:                req.Store,
+		Metadata:             req.Metadata,
+		PromptCacheKey:       promptCacheKeyRaw,
+		PromptCacheRetention: req.PromptCacheRetention,
+		EnableThinking:       req.EnableThinking,
+		ThinkingBudget:       req.ThinkingBudget,
 	}
 	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)
 	}
 
-	reasoningIntent, err := reasoning.FromOpenAIChat(req)
+	reasoningIntent, diagnostics, err := reasoning.FromOpenAIChat(req)
 	if err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
+	convdiag.Add(ctx, diagnostics...)
 	if err := reasoning.ApplyToOpenAIResponses(out, reasoningIntent); err != nil {
 		return nil, reasoning.AsClientError(err)
 	}

@@ -1,3 +1,5 @@
+import { parsePlaygroundSettings } from '../models/playground-settings'
+import { PlaygroundSettingsCard } from '../models/playground-settings-card'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -21,9 +23,11 @@ import { createSectionRegistry } from '../utils/section-registry'
 import { AnnouncementsSection } from './announcements-section'
 import { ApiInfoSection } from './api-info-section'
 import { ChatSettingsSection } from './chat-settings-section'
+import { CustomTabsSection } from './custom-tabs-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
 import { FAQSection } from './faq-section'
+import { StatusCheckSection } from './status-check-section'
 import { SupportSection } from './support-section'
 import { UptimeKumaSection } from './uptime-kuma-section'
 import { UpstreamStatusSection } from './upstream-status-section'
@@ -40,6 +44,29 @@ function validateDataExportDefaultTime(value: string): 'week' | 'hour' | 'day' {
 }
 
 const CONTENT_SECTIONS = [
+  {
+    id: 'playground',
+    titleKey: 'Playground generation',
+    build: (settings: ContentSettings) => (
+      <PlaygroundSettingsCard
+        defaultValues={parsePlaygroundSettings(settings.PlaygroundSettings)}
+      />
+    ),
+  },
+  {
+    id: 'status-check',
+    titleKey: 'Status Check',
+    build: (settings: ContentSettings) => (
+      <StatusCheckSection
+        defaultValue={settings.StatusCheckGroups}
+        cacheExcludedModels={settings.StatusCheckCacheExcludedModels}
+        announcement={settings.StatusCheckAnnouncement}
+        flexibleMode={settings.StatusCheckFlexibleMode}
+        groupRatio={settings.GroupRatio}
+        modelRatio={settings.ModelRatio}
+      />
+    ),
+  },
   {
     id: 'dashboard',
     titleKey: 'Data Dashboard',
@@ -137,6 +164,13 @@ const CONTENT_SECTIONS = [
           MjActionCheckSuccessEnabled: settings.MjActionCheckSuccessEnabled,
         }}
       />
+    ),
+  },
+  {
+    id: 'custom-tabs',
+    titleKey: 'Custom Tabs',
+    build: (settings: ContentSettings) => (
+      <CustomTabsSection defaultValues={{ CustomTabs: settings.CustomTabs }} />
     ),
   },
 ] as const

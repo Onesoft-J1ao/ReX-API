@@ -14,12 +14,22 @@ var StartTime = time.Now().Unix() // unit: second
 var Version = "v0.0.0"            // this hard coding will be replaced automatically when building, no need to manually change
 var SystemName = "ReX API"
 var Footer = ""
+
+// UserBannedMessage is optional administrator-controlled HTML shown when a
+// disabled account attempts to sign in. An empty value uses the translated
+// default message.
+var UserBannedMessage = ""
 var Logo = ""
 var TopUpLink = ""
 
 // var ChatLink = ""
 // var ChatLink2 = ""
 var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
+
+// FreeModelPriceThresholdUSD is the smallest billable public model price.
+// Input/output prices use USD per million tokens; fixed prices use USD per request.
+const FreeModelPriceThresholdUSD = 0.000002
+
 // 保留旧变量以兼容历史逻辑，实际展示由 general_setting.quota_display_type 控制
 var DisplayInCurrencyEnabled = true
 var DisplayTokenStatEnabled = true
@@ -31,6 +41,7 @@ var DataExportDefaultTime = "hour" // unit: minute
 var DefaultCollapseSidebar = false // default value of collapse sidebar
 
 // Any options with "Secret", "Token" in its key won't be return by GetOptions
+const SensitiveOptionPlaceholder = "***"
 
 var SessionSecret = uuid.New().String()
 var CryptoSecret = uuid.New().String()
@@ -106,9 +117,11 @@ var SMTPForceAuthLogin = false
 var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""
+var EmailVerificationTemplate = DefaultEmailVerificationTemplate
 
 var GitHubClientId = ""
 var GitHubClientSecret = ""
+var GitHubAPIToken = ""
 var LinuxDOClientId = ""
 var LinuxDOClientSecret = ""
 var LinuxDOMinimumTrustLevel = 0
@@ -121,6 +134,67 @@ var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""
 var PhantomServiceURL = ""
 
+var HCaptchaEnabled = false
+var HCaptchaSiteKey = ""
+var HCaptchaSecretKey = ""
+
+// Fork additions - Cap CAPTCHA (PoW) and unified captcha settings.
+var CapEnabled = false
+var CapServerURL = ""
+var CapAdminAPIKey = ""
+var CapSiteKey = ""
+var CapSecretKey = ""
+var CapCheckinSiteKey = ""
+var CapCheckinSecretKey = ""
+var ForceCheckinCaptcha = false
+var ForceRedemptionCaptcha = false
+
+// CaptchaType selects the active captcha provider: "turnstile", "hcaptcha", or "cap".
+var CaptchaType = "turnstile"
+
+// Difficulty values are synchronized to the corresponding Cap Standalone keys.
+var LoginCaptchaDifficulty = 4
+
+var CheckinCaptchaDifficulty = 4
+
+// PaymentAnnouncement is optional markdown text shown on the topup page below payment methods
+var PaymentAnnouncement = ""
+
+// CustomTabs stores a JSON array of admin-defined sidebar tab entries
+var CustomTabs = "[]"
+
+// StatusCheckGroups stores the group names shown by the status page. An empty
+// JSON array shows every active group; flexible probes require explicit groups.
+var StatusCheckGroups = "[]"
+
+// StatusCheckCacheExcludedModels stores model names that should not contribute
+// to the status page's cache hit rate.
+var StatusCheckCacheExcludedModels = "[]"
+
+// StatusCheckAnnouncement is optional markdown text shown above the status
+// page's group metrics.
+var StatusCheckAnnouncement = ""
+
+// StatusCheckFlexibleMode controls low-frequency active probes for explicitly
+// configured status-check groups. Each group remains disabled until it gets an
+// enabled entry in this map.
+var StatusCheckFlexibleMode = `{"groups":{}}`
+
+// NoticePopupEnabled shows the system notice in the configured placement.
+var NoticePopupEnabled = false
+
+// NoticePopupMode controls where the system notice popup appears: home,
+// dashboard, or both.
+var NoticePopupMode = "home"
+
+// NoticePopupOnDashboardEnabled is retained for compatibility with older
+// installations that used a separate dashboard switch.
+var NoticePopupOnDashboardEnabled = false
+
+// NoticeHeaderButtonMode controls whether the top-bar notice button opens a
+// popover or a dialog.
+var NoticeHeaderButtonMode = "popover"
+
 var TelegramBotToken = ""
 var TelegramBotName = ""
 
@@ -130,8 +204,17 @@ var QuotaForInvitee = 0
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
+var ChannelAutoStatusEmailEnabled = true
+var QuotaRemindEnabled = true
 var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
+
+// SupportEnabled controls access to the in-console support inbox.
+var SupportEnabled = true
+
+// SupportMessageLimit caps retained messages in each user's support thread.
+// It is configurable through the SupportMessageLimit system option.
+var SupportMessageLimit = 100
 
 var RetryTimes = 0
 
@@ -220,6 +303,21 @@ var (
 	CriticalRateLimitEnable   bool
 	CriticalRateLimitNum            = 20
 	CriticalRateLimitDuration int64 = 20 * 60
+
+	// Authentication endpoints use dedicated buckets so normal sign-in and
+	// registration traffic cannot be exhausted by other critical operations.
+	LoginRateLimitNum               = 30
+	LoginRateLimitDuration    int64 = 10 * 60
+	RegisterRateLimitNum            = 20
+	RegisterRateLimitDuration int64 = 10 * 60
+	// OAuth state and callback requests use a more permissive dedicated bucket
+	// because a single login flow can legitimately make several redirects.
+	OAuthRateLimitNum            = 60
+	OAuthRateLimitDuration int64 = 10 * 60
+	// Redemption requests use a separate per-user bucket so normal critical
+	// operations cannot make valid codes fail due to a shared limit.
+	RedemptionRateLimitNum            = 60
+	RedemptionRateLimitDuration int64 = 20 * 60
 
 	UploadRateLimitNum            = 10
 	UploadRateLimitDuration int64 = 60

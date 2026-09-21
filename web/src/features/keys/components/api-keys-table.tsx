@@ -44,7 +44,7 @@ import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
-import { getApiKeys, searchApiKeys } from '../api'
+import { getApiKeyRPMs, getApiKeys, searchApiKeys } from '../api'
 import {
   API_KEY_STATUS,
   API_KEY_STATUS_OPTIONS,
@@ -70,7 +70,6 @@ const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
   { length: 5 },
   (_, index) => `api-key-mobile-skeleton-${index + 1}`
 )
-
 function isDisabledApiKeyRow(apiKey: ApiKey) {
   return apiKey.status !== API_KEY_STATUS.ENABLED
 }
@@ -294,8 +293,24 @@ export function ApiKeysTable() {
         )
       }
 
+      const items = result.data?.items || []
+      let rpms: Record<string, number> = {}
+      if (items.length > 0) {
+        try {
+          const rpmResult = await getApiKeyRPMs(items.map((item) => item.id))
+          if (rpmResult.success) {
+            rpms = rpmResult.data?.rpms ?? {}
+          }
+        } catch {
+          // RPM is supplemental; the API key list remains usable without it.
+        }
+      }
+
       return {
-        items: result.data?.items || [],
+        items: items.map((item) => {
+          const rpm = rpms[String(item.id)]
+          return rpm === undefined ? item : { ...item, rpm }
+        }),
         total: result.data?.total || 0,
       }
     },

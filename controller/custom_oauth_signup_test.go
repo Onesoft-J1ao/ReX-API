@@ -42,11 +42,11 @@ func setupCustomOAuthSignupTest(t *testing.T) *oauth.GenericOAuthProvider {
 func TestFindOrCreateCustomOAuthUserUsesProviderUsername(t *testing.T) {
 	provider := setupCustomOAuthSignupTest(t)
 
-	user, err := findOrCreateOAuthUser(nil, provider, &oauth.OAuthUser{
+	user, _, err := findOrCreateOAuthUser(nil, provider, &oauth.OAuthUser{
 		ProviderUserID: "linear-user-1",
 		Username:       "linear-user",
 		DisplayName:    "Linear User",
-	}, "")
+	}, nil, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, "linear-user", user.Username)
@@ -84,10 +84,10 @@ func TestFindOrCreateCustomOAuthUserFallsBackWhenUsernameUnavailable(t *testing.
 				test.prepare(t)
 			}
 
-			user, err := findOrCreateOAuthUser(nil, provider, &oauth.OAuthUser{
+			user, _, err := findOrCreateOAuthUser(nil, provider, &oauth.OAuthUser{
 				ProviderUserID: "linear-user",
 				Username:       test.username,
-			}, "")
+			}, nil, "")
 
 			require.NoError(t, err)
 			assert.NotEqual(t, test.username, user.Username)

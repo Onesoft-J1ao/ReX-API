@@ -25,18 +25,86 @@ import (
 // TaskPollingAdaptor 定义轮询所需的最小适配器接口，避免 service -> relay 的循环依赖
 type TaskPollingAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
-	FetchTask(baseURL string, key string, task *model.Task, proxy string) (*http.Response, error)
-	ParseTaskResult(task *model.Task, resp *http.Response, body []byte) (*relaycommon.TaskInfo, error)
 	// AdjustBillingOnComplete 在任务到达终态（成功/失败）时由轮询循环调用。
 	// 返回正数触发差额结算（补扣/退还），返回 0 保持预扣费金额不变。
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
+type legacyTaskPollingFetch interface {
+	FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error)
+}
+
+type modernTaskPollingFetch interface {
+	FetchTask(baseURL, key string, task *model.Task, proxy string) (*http.Response, error)
+}
+
+type legacyTaskPollingParse interface {
+	ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error)
+}
+
+type modernTaskPollingParse interface {
+	ParseTaskResult(task *model.Task, resp *http.Response, body []byte) (*relaycommon.TaskInfo, error)
+}
+
+func fetchTaskStatus(adaptor TaskPollingAdaptor, baseURL, key string, task *model.Task, body map[string]any, proxy string) (*http.Response, error) {
+	if modern, ok := adaptor.(modernTaskPollingFetch); ok {
+		return modern.FetchTask(baseURL, key, task, proxy)
+	}
+	if legacy, ok := adaptor.(legacyTaskPollingFetch); ok {
+		return legacy.FetchTask(baseURL, key, body, proxy)
+	}
+	return nil, fmt.Errorf("task adaptor does not implement FetchTask")
+}
+
+func parseTaskStatus(adaptor TaskPollingAdaptor, task *model.Task, resp *http.Response, body []byte) (*relaycommon.TaskInfo, error) {
+	if modern, ok := adaptor.(modernTaskPollingParse); ok {
+		return modern.ParseTaskResult(task, resp, body)
+	}
+	if legacy, ok := adaptor.(legacyTaskPollingParse); ok {
+		return legacy.ParseTaskResult(body)
+	}
+	return nil, fmt.Errorf("task adaptor does not implement ParseTaskResult")
+}
+
 type BatchTaskPollingAdaptor interface {
 	TaskPollingAdaptor
 	FetchMode() string
+}
+
+type legacyBatchTaskPollingFetch interface {
+	FetchBatchTasks(baseURL, key string, taskIDs []string, proxy string) (*http.Response, error)
+}
+
+type modernBatchTaskPollingFetch interface {
 	FetchBatchTasks(baseURL, key string, tasks []*model.Task, proxy string) (*http.Response, error)
+}
+
+type legacyBatchTaskPollingParse interface {
+	ParseBatchResult(body []byte) (map[string]*BatchTaskResult, error)
+}
+
+type modernBatchTaskPollingParse interface {
 	ParseBatchResult(tasks []*model.Task, resp *http.Response, body []byte) (map[string]*BatchTaskResult, error)
+}
+
+func fetchBatchTaskStatuses(adaptor BatchTaskPollingAdaptor, baseURL, key string, tasks []*model.Task, taskIDs []string, proxy string) (*http.Response, error) {
+	if modern, ok := adaptor.(modernBatchTaskPollingFetch); ok {
+		return modern.FetchBatchTasks(baseURL, key, tasks, proxy)
+	}
+	if legacy, ok := adaptor.(legacyBatchTaskPollingFetch); ok {
+		return legacy.FetchBatchTasks(baseURL, key, taskIDs, proxy)
+	}
+	return nil, fmt.Errorf("batch task adaptor does not implement FetchBatchTasks")
+}
+
+func parseBatchTaskStatuses(adaptor BatchTaskPollingAdaptor, tasks []*model.Task, resp *http.Response, body []byte) (map[string]*BatchTaskResult, error) {
+	if modern, ok := adaptor.(modernBatchTaskPollingParse); ok {
+		return modern.ParseBatchResult(tasks, resp, body)
+	}
+	if legacy, ok := adaptor.(legacyBatchTaskPollingParse); ok {
+		return legacy.ParseBatchResult(body)
+	}
+	return nil, fmt.Errorf("batch task adaptor does not implement ParseBatchResult")
 }
 
 const (
@@ -273,14 +341,16 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 			tasks = append(tasks, task)
 		}
 	}
-	info := &relaycommon.RelayInfo{}
-	info.ChannelMeta = &relaycommon.ChannelMeta{ChannelBaseUrl: baseURL}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: baseURL}}
 	info.ApiKey = ch.Key
 	adaptor.Init(info)
-	resp, err := adaptor.FetchBatchTasks(baseURL, ch.Key, tasks, proxy)
+	resp, err := fetchBatchTaskStatuses(adaptor, baseURL, ch.Key, tasks, taskIds, proxy)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("Get Task Do req error: %v", err))
 		return recordPollFailureForTasks(ctx, adaptor, tasks, pollClassTransport, 0, err.Error())
+	}
+	if resp == nil || resp.Body == nil {
+		return recordPollFailureForTasks(ctx, adaptor, tasks, pollClassTransport, 0, "empty response")
 	}
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(resp.Body)
@@ -297,7 +367,7 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 	case pollClassTransient:
 		return recordPollFailureForTasks(ctx, adaptor, tasks, pollClassTransient, resp.StatusCode, "")
 	}
-	responseItems, err := adaptor.ParseBatchResult(tasks, resp, responseBody)
+	responseItems, err := parseBatchTaskStatuses(adaptor, tasks, resp, responseBody)
 	if err != nil {
 		return recordPollFailureForTasks(ctx, adaptor, tasks, pollClassHookError, resp.StatusCode, err.Error())
 	}
@@ -490,11 +560,53 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	privateData := task.PrivateData
 	if privateData.Key != "" {
 		key = privateData.Key
+	} else if ch.Type == constant.ChannelTypeAgnes && ch.ChannelInfo.IsMultiKey {
+		keys := ch.GetKeys()
+		requestID := ""
+		if privateData.Execution != nil {
+			requestID = privateData.Execution.RequestID
+		}
+		keyIndex, found, indexErr := model.GetLogMultiKeyIndex(requestID, ch.Id)
+		if indexErr != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("recover Agnes polling key index for task %s: %v", taskId, indexErr))
+		}
+		if found && keyIndex >= 0 && keyIndex < len(keys) {
+			key = keys[keyIndex]
+		} else {
+			// Old task logs may not include an index. Still select one enabled key
+			// instead of sending the newline-delimited channel payload.
+			selectedKey, _, keyErr := ch.GetNextEnabledKey()
+			if keyErr != nil {
+				return fmt.Errorf("get Agnes polling key for task %s: %w", taskId, keyErr)
+			}
+			key = selectedKey
+		}
+	}
+	fetchBody := map[string]any{
+		"task_id": task.GetUpstreamTaskID(),
+		"action":  constant.NormalizeTaskAction(task.Action),
+	}
+	// Agnes v2.0 status queries require video_id, while older gateway builds
+	// persisted the response's internal task_id. Preserve the original submit
+	// response for the Agnes adaptor so it can recover video_id for those tasks.
+	if ch.Type == constant.ChannelTypeAgnes {
+		fetchBody["task_data"] = task.Data
+	}
+	// Providers that require the upstream model on status queries (such as
+	// Agnes 2.5) need the model persisted with the task. Prefer the resolved
+	// upstream name and fall back to the original request for older tasks.
+	if modelName := task.Properties.UpstreamModelName; modelName != "" {
+		fetchBody["model"] = modelName
+	} else if modelName := task.Properties.OriginModelName; modelName != "" {
+		fetchBody["model"] = modelName
 	}
 	snap := task.Snapshot()
-	resp, err := adaptor.FetchTask(baseURL, key, task, proxy)
+	resp, err := fetchTaskStatus(adaptor, baseURL, key, task, fetchBody, proxy)
 	if err != nil {
 		return recordPollFailure(ctx, adaptor, task, snap.Status, pollClassTransport, 0, err.Error())
+	}
+	if resp == nil || resp.Body == nil {
+		return recordPollFailure(ctx, adaptor, task, snap.Status, pollClassTransport, 0, "empty response")
 	}
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(resp.Body)
@@ -526,7 +638,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		taskResult.Progress = t.Progress
 		taskResult.Reason = t.FailReason
 		task.Data = t.Data
-	} else if taskResult, err = adaptor.ParseTaskResult(task, resp, responseBody); err != nil {
+	} else if taskResult, err = parseTaskStatus(adaptor, task, resp, responseBody); err != nil {
 		return recordPollFailure(ctx, adaptor, task, snap.Status, pollClassHookError, resp.StatusCode, err.Error())
 	}
 
@@ -663,6 +775,12 @@ func truncateBase64(s string) string {
 //
 // 表达式求值失败会保留预扣额度，因此也视为已接管，避免错误全退。
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) bool {
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.BillingFree {
+		if task.Quota != 0 {
+			RecalculateTaskQuota(ctx, task, 0, "模型价格低于免费阈值", nil)
+		}
+		return true
+	}
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.TieredSnapshot != nil {
 		// 用量表达式结算只适用于成功任务；失败任务由调用方全额退款。
 		if task.Status == model.TaskStatusFailure {
