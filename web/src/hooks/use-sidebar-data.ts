@@ -98,6 +98,10 @@ export function useSidebarData(): SidebarData {
             title: t('Audit Logs'),
             url: '/usage-logs/audit',
             icon: ClipboardList,
+            // The audit trail records the operator's address and every
+            // account's sign-in history. Ordinary users do not need it, and
+            // exposing it republishes the operator's own address.
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Task Logs'),

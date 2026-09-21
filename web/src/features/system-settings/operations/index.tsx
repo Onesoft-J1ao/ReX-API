@@ -60,6 +60,10 @@ const defaultOperationsSettings: OperationsSettings = {
   'perf_metrics_setting.upstream_summary_url': '',
   'perf_metrics_setting.upstream_timeout_seconds': 5,
   'status_check_setting.probe_free_models_only': true,
+  'model_catalog_setting.enabled': true,
+  'model_catalog_setting.source_url': 'https://models.dev/api.json',
+  'model_catalog_setting.timeout_seconds': 15,
+  'model_catalog_setting.cache_minutes': 360,
 }
 
 export function OperationsSettings() {
