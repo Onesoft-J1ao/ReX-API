@@ -95,7 +95,8 @@ func TestParseStatusPageURL(t *testing.T) {
 }
 
 // Kuma returns recent beats oldest-first, so the monitor's current state is the
-// newest entry. Reading the first one would report a state from ~100 minutes ago.
+// newest entry by timestamp rather than by position. The beats are carried
+// through as well: the console renders them as a status strip.
 func TestFetchGroupDataReportsTheNewestHeartbeat(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -116,8 +117,28 @@ func TestFetchGroupDataReportsTheNewestHeartbeat(t *testing.T) {
 
 	require.Equal(t, "上游状态", group.CategoryName)
 	require.Len(t, group.Monitors, 2)
-	assert.Equal(t, Monitor{Name: "主站", Group: "S3AI API", Status: 0, Uptime: 0.5}, group.Monitors[0])
-	assert.Equal(t, Monitor{Name: "源站", Group: "S3AI API", Status: 1, Uptime: 1}, group.Monitors[1])
+	// 主站's beats are oldest-first with the newest at 00:05 and status 0, so the
+	// reported status is 0 even though the first element says 1.
+	assert.Equal(t, Monitor{
+		Name:   "主站",
+		Group:  "S3AI API",
+		Status: 0,
+		Uptime: 0.5,
+		Heartbeats: []UptimeHeartbeat{
+			{Status: 1, Time: "2026-01-01 00:00:00.000"},
+			{Status: 0, Time: "2026-01-01 00:05:00.000"},
+		},
+	}, group.Monitors[0])
+	assert.Equal(t, Monitor{
+		Name:   "源站",
+		Group:  "S3AI API",
+		Status: 1,
+		Uptime: 1,
+		Heartbeats: []UptimeHeartbeat{
+			{Status: 1, Time: "2026-01-01 00:05:00.000"},
+			{Status: 1, Time: "2026-01-01 00:00:00.000"},
+		},
+	}, group.Monitors[1])
 }
 
 func TestFetchGroupDataReturnsNoMonitorsWhenTheStatusPageIsUnreachable(t *testing.T) {

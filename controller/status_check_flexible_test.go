@@ -7,23 +7,39 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
-	"github.com/QuantumNous/new-api/setting/config"
-	"github.com/QuantumNous/new-api/setting/status_check_setting"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// flexibleProbeSetting exposes the registered settings struct so a test can set
-// pacing values directly. Get returns the pointer that was registered, and the
-// copy is restored on cleanup.
-func flexibleProbeSetting(t *testing.T) *status_check_setting.StatusCheckSetting {
+// flexibleProbeMode installs the StatusCheckFlexibleMode document, which is
+// what the console writes and what the probe paths read. It returns the map so
+// a test can enable groups or change a group's pacing in place, and restores
+// the previous document on cleanup.
+func flexibleProbeMode(t *testing.T) map[string]any {
 	t.Helper()
-	setting, ok := config.GlobalConfig.Get("status_check_setting").(*status_check_setting.StatusCheckSetting)
-	require.True(t, ok, "status_check_setting must be registered as a pointer")
-	previous := *setting
-	t.Cleanup(func() { *setting = previous })
-	return setting
+	previous := common.StatusCheckFlexibleMode
+	t.Cleanup(func() { common.StatusCheckFlexibleMode = previous })
+
+	groups := map[string]any{}
+	encoded, err := common.Marshal(map[string]any{"groups": groups})
+	require.NoError(t, err)
+	common.StatusCheckFlexibleMode = string(encoded)
+	return groups
+}
+
+// enableFlexibleProbe turns flexible pacing on for one group with the given
+// pacing values, writing through the same document the console edits.
+func enableFlexibleProbe(t *testing.T, groups map[string]any, group string, idleMinutes, maxProbes int) {
+	t.Helper()
+	groups[group] = map[string]any{
+		"enabled":                true,
+		"idle_minutes":           idleMinutes,
+		"max_consecutive_probes": maxProbes,
+	}
+	encoded, err := common.Marshal(map[string]any{"groups": groups})
+	require.NoError(t, err)
+	common.StatusCheckFlexibleMode = string(encoded)
 }
 
 func setupFlexibleProbeTest(t *testing.T) {
@@ -37,7 +53,13 @@ func setupFlexibleProbeTest(t *testing.T) {
 	// the test does not depend on a server being reachable.
 	previousRedis := common.RedisEnabled
 	common.RedisEnabled = false
-	t.Cleanup(func() { common.RedisEnabled = previousRedis })
+	// The activity map is process-wide, so clear whatever a previous test left
+	// behind and clear what this one writes.
+	perfmetrics.ResetStatusCheckPassiveActivityForTest()
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedis
+		perfmetrics.ResetStatusCheckPassiveActivityForTest()
+	})
 }
 
 func probeStateFor(t *testing.T, group string) (model.StatusCheckProbeState, bool) {
@@ -50,8 +72,7 @@ func probeStateFor(t *testing.T, group string) (model.StatusCheckProbeState, boo
 
 func TestSelectFlexibleProbeGroupsLeavesEverythingAloneWhenDisabled(t *testing.T) {
 	setupFlexibleProbeTest(t)
-	setting := flexibleProbeSetting(t)
-	setting.FlexibleProbingEnabled = false
+	flexibleProbeMode(t) // no groups enabled
 
 	groups, err := selectFlexibleProbeGroups([]string{"default", "go-plan"}, time.Now().Unix())
 
@@ -66,10 +87,7 @@ func TestSelectFlexibleProbeGroupsLeavesEverythingAloneWhenDisabled(t *testing.T
 
 func TestSelectFlexibleProbeGroupsOpensTheIdleWindowOnFirstSight(t *testing.T) {
 	setupFlexibleProbeTest(t)
-	setting := flexibleProbeSetting(t)
-	setting.FlexibleProbingEnabled = true
-	setting.FlexibleIdleMinutes = 15
-	setting.FlexibleMaxConsecutiveProbes = 3
+	enableFlexibleProbe(t, flexibleProbeMode(t), "default", 15, 3)
 
 	now := time.Now().Unix()
 	groups, err := selectFlexibleProbeGroups([]string{"default"}, now)
@@ -86,28 +104,24 @@ func TestSelectFlexibleProbeGroupsOpensTheIdleWindowOnFirstSight(t *testing.T) {
 
 func TestSelectFlexibleProbeGroupsSkipsAGroupThatJustServedOrWasProbed(t *testing.T) {
 	setupFlexibleProbeTest(t)
-	setting := flexibleProbeSetting(t)
-	setting.FlexibleProbingEnabled = true
-	setting.FlexibleIdleMinutes = 15
-	setting.FlexibleMaxConsecutiveProbes = 3
+	groups := flexibleProbeMode(t)
+	enableFlexibleProbe(t, groups, "probed", 15, 3)
+	enableFlexibleProbe(t, groups, "serving", 15, 3)
 
 	now := time.Now().Unix()
 	require.NoError(t, model.InitializeStatusCheckProbeState("probed", now-5*60))
 	require.NoError(t, model.InitializeStatusCheckProbeState("serving", now-45*60))
 	require.NoError(t, model.TouchStatusCheckProbePassiveActivity("serving", now-5*60))
 
-	groups, err := selectFlexibleProbeGroups([]string{"probed", "serving"}, now)
+	selected, err := selectFlexibleProbeGroups([]string{"probed", "serving"}, now)
 
 	require.NoError(t, err)
-	assert.Empty(t, groups, "a recently probed or recently serving group needs no probe")
+	assert.Empty(t, selected, "a recently probed or recently serving group needs no probe")
 }
 
 func TestSelectFlexibleProbeGroupsProbesAQuietGroup(t *testing.T) {
 	setupFlexibleProbeTest(t)
-	setting := flexibleProbeSetting(t)
-	setting.FlexibleProbingEnabled = true
-	setting.FlexibleIdleMinutes = 15
-	setting.FlexibleMaxConsecutiveProbes = 3
+	enableFlexibleProbe(t, flexibleProbeMode(t), "default", 15, 3)
 
 	now := time.Now().Unix()
 	require.NoError(t, model.InitializeStatusCheckProbeState("default", now-16*60))
@@ -120,10 +134,7 @@ func TestSelectFlexibleProbeGroupsProbesAQuietGroup(t *testing.T) {
 
 func TestSelectFlexibleProbeGroupsStopsAtTheConsecutiveCap(t *testing.T) {
 	setupFlexibleProbeTest(t)
-	setting := flexibleProbeSetting(t)
-	setting.FlexibleProbingEnabled = true
-	setting.FlexibleIdleMinutes = 15
-	setting.FlexibleMaxConsecutiveProbes = 3
+	enableFlexibleProbe(t, flexibleProbeMode(t), "default", 15, 3)
 
 	now := time.Now().Unix()
 	require.NoError(t, model.InitializeStatusCheckProbeState("default", now-60*60))
@@ -142,10 +153,7 @@ func TestSelectFlexibleProbeGroupsStopsAtTheConsecutiveCap(t *testing.T) {
 
 func TestSelectFlexibleProbeGroupsResetsTheStreakAfterRealTraffic(t *testing.T) {
 	setupFlexibleProbeTest(t)
-	setting := flexibleProbeSetting(t)
-	setting.FlexibleProbingEnabled = true
-	setting.FlexibleIdleMinutes = 15
-	setting.FlexibleMaxConsecutiveProbes = 3
+	enableFlexibleProbe(t, flexibleProbeMode(t), "default", 15, 3)
 
 	now := time.Now().Unix()
 	// Five consecutive probes put the group over the cap...
@@ -168,36 +176,49 @@ func TestSelectFlexibleProbeGroupsResetsTheStreakAfterRealTraffic(t *testing.T) 
 		"traffic since the last probe restarts the streak, so the cap cannot mute a group that is in use")
 }
 
-func TestSelectFlexibleProbeGroupsFallsBackForOutOfRangeSettings(t *testing.T) {
+// An out-of-range document is rejected outright rather than silently clamped:
+// a typo must not quietly change the probe cadence, and a rejected document
+// leaves the feature off, which is the safe direction to fail.
+func TestSelectFlexibleProbeGroupsRejectsOutOfRangeSettings(t *testing.T) {
 	setupFlexibleProbeTest(t)
-	setting := flexibleProbeSetting(t)
-	setting.FlexibleProbingEnabled = true
-	setting.FlexibleIdleMinutes = -5
-	setting.FlexibleMaxConsecutiveProbes = 0
+	groups := flexibleProbeMode(t)
+	groups["default"] = map[string]any{
+		"enabled":                true,
+		"idle_minutes":           -5,
+		"max_consecutive_probes": 0,
+	}
+	encoded, err := common.Marshal(map[string]any{"groups": groups})
+	require.NoError(t, err)
+	common.StatusCheckFlexibleMode = string(encoded)
 
-	assert.Equal(t, status_check_setting.DefaultFlexibleIdleMinutes, status_check_setting.GetFlexibleIdleMinutes())
-	assert.Equal(t, status_check_setting.DefaultFlexibleMaxConsecutiveProbes, status_check_setting.GetFlexibleMaxConsecutiveProbes())
+	_, err = perfmetrics.ParseStatusCheckFlexibleConfig(common.StatusCheckFlexibleMode)
+	require.Error(t, err, "an out-of-range idle_minutes must be rejected")
+
+	// GetStatusCheckFlexibleConfig swallows the error and yields the empty
+	// default, so nothing is paced and every group keeps the ordinary cadence.
+	now := time.Now().Unix()
+	selected, err := selectFlexibleProbeGroups([]string{"default"}, now)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"default"}, selected)
 }
 
 // The relay path reports activity on every successful request, so the reporting
 // has to be a no-op unless flexible probing actually needs it.
 func TestNoteStatusCheckPassiveActivityRecordsOnlyTrackedGroups(t *testing.T) {
 	setupFlexibleProbeTest(t)
-	setting := flexibleProbeSetting(t)
-	setting.FlexibleProbingEnabled = false
-	setting.Groups = "default"
+	groups := flexibleProbeMode(t) // nothing enabled yet
 
 	perfmetrics.NoteStatusCheckPassiveActivity("default")
 	_, recorded := probeStateFor(t, "default")
 	assert.False(t, recorded, "a disabled feature must not write pacing state")
 
-	setting.FlexibleProbingEnabled = true
-	setting.Groups = "go-plan"
+	// Enabled for a different group: this one is still untracked.
+	enableFlexibleProbe(t, groups, "go-plan", 15, 3)
 	perfmetrics.NoteStatusCheckPassiveActivity("default")
 	_, recorded = probeStateFor(t, "default")
-	assert.False(t, recorded, "an unprobed group has nothing to pace")
+	assert.False(t, recorded, "an untracked group's traffic is not recorded")
 
-	setting.Groups = "default"
+	enableFlexibleProbe(t, groups, "default", 15, 3)
 	perfmetrics.NoteStatusCheckPassiveActivity("default")
 	state, recorded := probeStateFor(t, "default")
 	require.True(t, recorded, "a tracked group's traffic is recorded")

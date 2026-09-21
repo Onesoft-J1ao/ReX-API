@@ -440,6 +440,15 @@ func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 		path := t.TempDir() + "/audit.db"
 		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
 		require.NoError(t, err)
+		// The handle must be closed before the test ends: t.TempDir removes the
+		// directory in its own cleanup, and on Windows an open handle makes that
+		// removal fail. model.InitDB opens a second connection to the same file,
+		// so closing only the one modelManagementDB tracks is not enough.
+		t.Cleanup(func() {
+			if connection, err := db.DB(); err == nil {
+				_ = connection.Close()
+			}
+		})
 		return db, path
 	}
 	require.NotEmpty(t, dsn)
@@ -680,6 +689,20 @@ func TestAuditDatabaseMatrix(t *testing.T) {
 						require.NoError(t, db.Create(&releasedAuditUser{Username: "released-owner", Password: "placeholder", AccessToken: &legacy, AffCode: "released-aff", Quota: 1234}).Error)
 						require.NoError(t, db.Create(&releasedAuditLog{UserId: 1, Type: model.LogTypeLogin, Content: "historical login", CreatedAt: 100, RequestId: "legacy-request"}).Error)
 					}
+					// InitDB replaces model.DB with a fresh handle to the same
+					// file. It must be closed at the end too, or the open
+					// handle keeps t.TempDir from removing the directory on
+					// Windows even after newAuditTestDatabase closed its own.
+					t.Cleanup(func() {
+						for _, handle := range []*gorm.DB{model.DB, model.LOG_DB} {
+							if handle == nil {
+								continue
+							}
+							if connection, err := handle.DB(); err == nil {
+								_ = connection.Close()
+							}
+						}
+					})
 					for range 2 {
 						require.NoError(t, model.InitDB())
 						require.NoError(t, model.InitLogDB())
