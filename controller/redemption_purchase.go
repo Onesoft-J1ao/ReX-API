@@ -249,6 +249,22 @@ func newRedemptionTopUp(ctx *redemptionPurchaseContext, tradeNo string, provider
 	}
 }
 
+// GetRedemptionPurchaseOptions tells the console what it may offer: whether the
+// feature is on, which payment methods are usable, and the order bounds. The
+// console must not present a checkout that would fail after the buyer commits.
+func GetRedemptionPurchaseOptions(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data": gin.H{
+			"enabled":    redemptionPurchaseEnabled(),
+			"methods":    redemptionPurchasePaymentMethods(),
+			"max_count":  model.MaxRedemptionPurchaseCount,
+			"max_amount": getMaxTopUpAmount(),
+			"min_amount": getMinTopup(),
+		},
+	})
+}
+
 func RequestRedemptionPurchaseAmount(c *gin.Context) {
 	var req RedemptionPurchaseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

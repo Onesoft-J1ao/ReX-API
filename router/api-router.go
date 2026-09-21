@@ -135,6 +135,12 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/topup", middleware.UserCriticalRateLimit("redemption"), middleware.CaptchaCheckRedemption(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
 				selfRoute.POST("/amount", controller.RequestAmount)
+				// Buying redemption codes spends real money, so the routes that
+				// move it carry the same critical rate limit as the other
+				// payment routes. The options read is free.
+				selfRoute.GET("/redemption/purchase", controller.GetRedemptionPurchaseOptions)
+				selfRoute.POST("/redemption/purchase/amount", middleware.CriticalRateLimit(), controller.RequestRedemptionPurchaseAmount)
+				selfRoute.POST("/redemption/purchase", middleware.CriticalRateLimit(), controller.RequestRedemptionPurchase)
 				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.RequestStripePay)
 				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
 				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.RequestCreemPay)
@@ -160,6 +166,13 @@ func SetApiRouter(router *gin.Engine) {
 				// Check-in routes
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
 				selfRoute.POST("/checkin", middleware.CaptchaCheckCheckin(), controller.DoCheckin)
+
+				// Custom wallpaper (paid). Setting one moves money, so it
+				// carries the same critical rate limit as the other
+				// balance-spending routes; reading and clearing are free.
+				selfRoute.GET("/wallpaper", controller.GetUserWallpaper)
+				selfRoute.PUT("/wallpaper", middleware.CriticalRateLimit(), controller.UpdateUserWallpaper)
+				selfRoute.DELETE("/wallpaper", controller.DeleteUserWallpaper)
 
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
@@ -187,6 +200,12 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+
+				// Custom wallpaper read/clear for any user. Setting a paid
+				// wallpaper always spends the owner's own balance, so it stays
+				// owner-only.
+				adminRoute.GET("/:id/wallpaper", controller.AdminGetUserWallpaper)
+				adminRoute.DELETE("/:id/wallpaper", controller.AdminDeleteUserWallpaper)
 			}
 		}
 
@@ -244,6 +263,23 @@ func SetApiRouter(router *gin.Engine) {
 			supportAdminRoute.POST("/messages/:id/complete-order", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AdminCompleteSupportOrder)
 		}
 
+		// Refund requests (plan refunds and general cash refunds). Every route
+		// that creates a refund or moves it forward is admin-gated; the user
+		// route is read-only and scoped to the caller.
+		refundRoute := apiRouter.Group("/refund")
+		refundRoute.Use(middleware.UserAuth())
+		{
+			refundRoute.GET("/self", controller.GetUserRefundRequests)
+		}
+		refundAdminRoute := apiRouter.Group("/refund/admin")
+		refundAdminRoute.Use(middleware.AdminAuth())
+		{
+			refundAdminRoute.GET("/", controller.AdminListRefundRequests)
+			refundAdminRoute.POST("/plan", controller.AdminCreatePlanRefundRequest)
+			refundAdminRoute.POST("/cash", controller.AdminCreateCashRefundRequest)
+			refundAdminRoute.POST("/:id/advance", controller.AdminAdvanceRefundRequest)
+		}
+
 		// Subscription payment callbacks (no auth)
 		apiRouter.POST("/subscription/epay/notify", anonymousRequestBodyLimit, controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
@@ -271,6 +307,19 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/save", controller.SaveWaffoPancake)
 			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
+		}
+
+		// Outbound proxy pool (admin). The pool is an external service, so the
+		// read routes expose only reachability/count while assign/report write
+		// channel state. Admin-only: an unprivileged caller must not be able to
+		// route every channel's traffic through a URL they control.
+		proxyPoolRoute := apiRouter.Group("/proxy_pool")
+		proxyPoolRoute.Use(middleware.AdminAuth())
+		{
+			proxyPoolRoute.GET("/status", middleware.RequirePermission(authz.ChannelRead), controller.GetProxyPoolStatus)
+			proxyPoolRoute.GET("/all", middleware.RequirePermission(authz.ChannelRead), controller.ListProxyPoolProxies)
+			proxyPoolRoute.POST("/assign", middleware.RequirePermission(authz.ChannelWrite), controller.AssignProxyPoolProxies)
+			proxyPoolRoute.POST("/report_bad", middleware.RequirePermission(authz.ChannelOperate), controller.ReportBadProxyPoolProxy)
 		}
 
 		// Custom OAuth provider management (root only)
@@ -403,6 +452,20 @@ func SetApiRouter(router *gin.Engine) {
 			systemTaskRoute.DELETE("/history", controller.DeleteSystemTaskHistory)
 			systemTaskRoute.GET("/current", controller.GetCurrentSystemTask)
 			systemTaskRoute.GET("/:task_id", controller.GetSystemTask)
+		}
+		// Upstream price sentinel. The report and the manual run are root-only;
+		// applying an edit is reachable with the one-shot edit token mailed with
+		// the report, so a buyer of the link still needs the admin access token.
+		priceSentinelRoute := apiRouter.Group("/price-sentinel")
+		priceSentinelRoute.Use(middleware.RootAuth())
+		{
+			priceSentinelRoute.GET("/report", controller.GetPriceSentinelReport)
+			priceSentinelRoute.POST("/run", controller.RunPriceSentinelNow)
+		}
+		priceSentinelEditRoute := apiRouter.Group("/price-sentinel/edit")
+		{
+			priceSentinelEditRoute.POST("/validate", middleware.CriticalRateLimit(), controller.ValidatePriceSentinelToken)
+			priceSentinelEditRoute.POST("/apply", middleware.CriticalRateLimit(), controller.ApplyPriceSentinelEdit)
 		}
 		systemInfoRoute := apiRouter.Group("/system-info")
 		systemInfoRoute.Use(middleware.RootAuth())

@@ -103,9 +103,20 @@ Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
   value: () => undefined,
 })
 
-// Node.js 25+ exposes storage accessors that resolve to undefined unless a
-// backing file is configured. Keep both browser storage APIs available in
-// jsdom without sharing state between them.
+// jsdom does not implement the Web Animations API that Base UI's scroll area
+// reads when it settles a scroll after mounting.
+if (!Element.prototype.getAnimations) {
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    writable: true,
+    value: () => [],
+  })
+}
+
+// Node.js 25+ defines `localStorage`/`sessionStorage` accessors on the global
+// object that resolve to `undefined` unless `--localstorage-file` is set, and
+// vitest's jsdom environment does not replace globals that already exist.
+// Provide an in-memory Storage so tests see the same API as in a browser.
 for (const name of ['localStorage', 'sessionStorage'] as const) {
   if (typeof globalThis[name]?.setItem === 'function') continue
   const entries = new Map<string, string>()

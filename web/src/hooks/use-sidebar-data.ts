@@ -22,15 +22,17 @@ import {
   ClipboardList,
   CreditCard,
   Cpu,
+  Download,
+  ExternalLink,
   FileText,
   FlaskConical,
   Key,
   LayoutDashboard,
   ListTodo,
-  Mail,
   MessageSquare,
   PlugZap,
   Radio,
+  RotateCcw,
   ServerCog,
   Settings,
   ShieldCheck,
@@ -44,6 +46,7 @@ import { useTranslation } from 'react-i18next'
 import type { SidebarData } from '@/components/layout/types'
 import { useStatus } from '@/hooks/use-status'
 import { getCustomTabIcon, parseCustomTabs } from '@/lib/custom-tabs'
+import { parseSidebarAdminLinksFromStatus } from '@/lib/nav-modules'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -66,6 +69,14 @@ export function useSidebarData(): SidebarData {
         icon: getCustomTabIcon(tab.icon),
         external: tab.external,
       }))
+
+  // External tools the operator runs outside this console. Deliberately read
+  // from configuration rather than written here: the addresses are
+  // deployment-specific, so a hardcoded one would leak one deployment's
+  // internal host into every other.
+  const adminLinks = parseSidebarAdminLinksFromStatus(
+    status as Record<string, unknown> | null
+  )
 
   return {
     navGroups: [
@@ -166,21 +177,28 @@ export function useSidebarData(): SidebarData {
         ],
       },
       {
+        id: 'resources',
+        title: t('Resources'),
+        items: [
+          {
+            title: t('Tool Downloads'),
+            url: '/downloads',
+            icon: Download,
+          },
+        ],
+      },
+      {
         id: 'admin',
         title: t('Admin'),
         items: [
-          {
-            title: t('Kiro-Go'),
-            url: 'http://139.224.75.133:3030/admin',
-            icon: ServerCog,
+          // Titles come from the operator's own configuration, so they are
+          // rendered as written rather than passed through t().
+          ...adminLinks.map((link) => ({
+            title: link.title,
+            url: link.url,
+            icon: ExternalLink,
             requiredRole: ROLE.ADMIN,
-          },
-          {
-            title: t('Moemail'),
-            url: 'https://mail.j1ao.vip',
-            icon: Mail,
-            requiredRole: ROLE.ADMIN,
-          },
+          })),
           {
             title: t('Channels'),
             url: '/channels',
@@ -205,6 +223,11 @@ export function useSidebarData(): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Refund Requests'),
+            url: '/refunds',
+            icon: RotateCcw,
           },
           {
             title: t('System Info'),

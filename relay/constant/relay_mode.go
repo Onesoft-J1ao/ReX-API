@@ -61,6 +61,11 @@ func Path2RelayMode(path string) int {
 		path = "/v1/" + strings.TrimPrefix(path, "/pg/")
 	}
 	relayMode := RelayModeUnknown
+	// The playground mirrors the /v1 surface, so normalize its prefix once
+	// rather than repeating every /v1 path below.
+	if strings.HasPrefix(path, "/pg/") {
+		path = "/v1/" + strings.TrimPrefix(path, "/pg/")
+	}
 	if strings.HasPrefix(path, "/v1/chat/completions") {
 		relayMode = RelayModeChatCompletions
 	} else if strings.HasPrefix(path, "/v1/completions") {
@@ -71,9 +76,9 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeEmbeddings
 	} else if strings.HasPrefix(path, "/v1/moderations") {
 		relayMode = RelayModeModerations
-	} else if strings.HasPrefix(path, "/v1/images/generations") || strings.HasPrefix(path, "/pg/images/generations") {
+	} else if strings.HasPrefix(path, "/v1/images/generations") {
 		relayMode = RelayModeImagesGenerations
-	} else if strings.HasPrefix(path, "/v1/images/edits") || strings.HasPrefix(path, "/pg/images/edits") {
+	} else if strings.HasPrefix(path, "/v1/images/edits") {
 		relayMode = RelayModeImagesEdits
 	} else if strings.HasPrefix(path, "/v1/edits") {
 		relayMode = RelayModeEdits
@@ -87,13 +92,17 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeAudioSpeechTaskSubmit
 	} else if strings.HasPrefix(path, "/v1/audio/speech/tasks/") {
 		relayMode = RelayModeAudioSpeechTaskFetchByID
+	} else if path == "/v1/3d" {
+		relayMode = RelayModeThreeDSubmit
+	} else if strings.HasPrefix(path, "/v1/3d/") {
+		relayMode = RelayModeThreeDFetchByID
 	} else if strings.HasPrefix(path, "/v1/alpha/search") {
 		relayMode = RelayModeAlphaSearch
-	} else if strings.HasPrefix(path, "/v1/audio/speech") || strings.HasPrefix(path, "/pg/audio/speech") {
+	} else if strings.HasPrefix(path, "/v1/audio/speech") {
 		relayMode = RelayModeAudioSpeech
-	} else if strings.HasPrefix(path, "/v1/audio/transcriptions") || strings.HasPrefix(path, "/pg/audio/transcriptions") {
+	} else if strings.HasPrefix(path, "/v1/audio/transcriptions") {
 		relayMode = RelayModeAudioTranscription
-	} else if strings.HasPrefix(path, "/v1/audio/translations") || strings.HasPrefix(path, "/pg/audio/translations") {
+	} else if strings.HasPrefix(path, "/v1/audio/translations") {
 		relayMode = RelayModeAudioTranslation
 	} else if strings.HasPrefix(path, "/v1/rerank") {
 		relayMode = RelayModeRerank

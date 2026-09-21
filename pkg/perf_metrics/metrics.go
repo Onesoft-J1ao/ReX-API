@@ -34,7 +34,10 @@ func RecordRelayResult(ctx context.Context, info *relaycommon.RelayInfo, apiErr 
 	if info == nil {
 		return
 	}
-	if !info.IsChannelTest {
+	// Real traffic through a group proves the group is serving, which is what
+	// flexible status probing paces itself by. Only successes count: a group
+	// that is failing must keep being probed.
+	if !info.IsChannelTest && ClassifyRelayOutcome(ctx, info, apiErr) != OutcomeFailure {
 		NoteStatusCheckPassiveActivity(info.UsingGroup)
 	}
 	outcome := ClassifyRelayOutcome(ctx, info, apiErr)

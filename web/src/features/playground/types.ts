@@ -296,3 +296,80 @@ export interface VideoGenerationResponse {
   data?: { url: string }
   error?: { message: string; code: string }
 }
+
+// Video workbench types. The mode values are the provider modes the Agnes
+// adaptor validates, so the panel sends the selection without translating it.
+export type VideoWorkbenchMode = 'text' | 'reference' | 'keyframe'
+
+export interface VideoWorkbenchConfig {
+  model: string
+  group: string
+  duration: number
+}
+
+export interface VideoTaskInput {
+  mode: VideoWorkbenchMode
+  prompt: string
+  referenceImages: string[]
+  firstFrame: string
+  lastFrame: string
+}
+
+export interface VideoTask {
+  taskId: string
+  status: string
+  progress: string
+  resultUrl: string
+  failReason: string
+}
+
+export interface VideoTaskSubmitResponse {
+  id?: string
+  task_id?: string
+}
+
+// The task endpoints answer with the gateway's generic task record: the video
+// relay has no OpenAI-shaped converter, so the fetch response is wrapped.
+export interface VideoTaskFetchResponse {
+  code?: string
+  data?: {
+    task_id?: string
+    status?: string
+    progress?: string
+    result_url?: string
+    fail_reason?: string
+  }
+}
+
+// 3D workbench types. Meshy answers submit and fetch with the same object.
+export interface ThreeDWorkbenchConfig {
+  model: string
+  group: string
+  artStyle: string
+}
+
+export interface ThreeDTask {
+  taskId: string
+  status: string
+  progress: number
+  format: string
+  url: string
+  failReason: string
+}
+
+export interface ThreeDTaskResponse {
+  id?: string
+  object?: string
+  model?: string
+  status?: string
+  progress?: number
+  created_at?: number
+  data?: {
+    format?: string
+    url?: string
+  }
+  error?: {
+    code?: string
+    message?: string
+  }
+}

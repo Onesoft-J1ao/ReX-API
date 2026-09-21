@@ -41,6 +41,7 @@ const defaultSiteSettings: SiteSettings = {
   'legal.privacy_policy': '',
   HeaderNavModules: '',
   SidebarModulesAdmin: '',
+  SidebarAdminLinks: '',
   'console_setting.background_image': '',
   'console_setting.background_blur_opacity': 40,
   'console_setting.legal_background_enabled': true,

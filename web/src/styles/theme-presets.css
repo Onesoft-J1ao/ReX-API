@@ -740,3 +740,22 @@ For commercial licensing, please contact support@quantumnous.com
     width: 100%;
   }
 }
+
+/* ── Custom wallpaper ─────────────────────────────────────────────────── */
+/* Painted by the wallpaper axis of ThemeCustomizationProvider, which sets
+ * `--wallpaper-image` and `data-theme-wallpaper="custom"` on <body> when the
+ * signed-in user owns one. The console's inset panel is normally opaque
+ * `bg-background`; with a wallpaper active it drops to a translucent surface
+ * so the image reads through the workspace instead of hiding behind it. */
+body[data-theme-wallpaper='custom'] {
+  background-image: var(--wallpaper-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+body[data-theme-wallpaper='custom'] [data-slot='sidebar-inset'] {
+  background-color: color-mix(in oklab, var(--background) 82%, transparent);
+  backdrop-filter: blur(14px);
+}
+

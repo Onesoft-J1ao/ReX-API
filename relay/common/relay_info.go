@@ -992,6 +992,8 @@ type OriginTaskRef struct {
 type TaskRelayInfo struct {
 	Action               string
 	OriginTaskID         string
+	// OriginUpstreamTaskID is the upstream id of the task this request was
+	// derived from, read when a 3D texture is generated from an earlier task.
 	OriginUpstreamTaskID string
 	// PublicTaskID 是提交时预生成的 task_xxxx 格式公开 ID，
 	// 供 DoResponse 在返回给客户端时使用（避免暴露上游真实 ID）。

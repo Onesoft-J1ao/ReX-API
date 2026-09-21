@@ -68,14 +68,14 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         )}
         style={glassSurfaceStyle}
       >
-        <div className='relative h-8 w-8'>
+        <div className='relative h-8 max-w-[12rem]'>
           {loading ? (
-            <Skeleton className='absolute inset-0 rounded-full' />
+            <Skeleton className='h-full w-24 rounded-md' />
           ) : (
             <img
               src={logo}
               alt={t('Logo')}
-              className='h-8 w-8 rounded-full object-cover'
+              className='h-full w-auto rounded-md object-contain'
             />
           )}
         </div>

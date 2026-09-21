@@ -40,8 +40,8 @@ type FreeFunding struct{}
 
 func (f *FreeFunding) Source() string              { return BillingSourceFree }
 func (f *FreeFunding) PreConsume(amount int) error { return nil }
-func (f *FreeFunding) Settle(delta int) error       { return nil }
-func (f *FreeFunding) Refund() error                { return nil }
+func (f *FreeFunding) Settle(delta int) error      { return nil }
+func (f *FreeFunding) Refund() error               { return nil }
 
 // ---------------------------------------------------------------------------
 // WalletFunding — 钱包资金来源实现
@@ -62,6 +62,10 @@ func checkinGroupEligible(group string) bool {
 	return false
 }
 
+// WalletFunding spends a user's wallet quota, which contains check-in credit,
+// gifted promo credit and withdrawable cash. It tracks how much of this
+// session's charge came from the check-in and gift buckets so a refund returns
+// each amount to its own bucket instead of converting promo credit into cash.
 type WalletFunding struct {
 	userId             int
 	consumed           int // 实际预扣的钱包额度
@@ -69,6 +73,9 @@ type WalletFunding struct {
 	checkinEligible    bool
 	lastReserveCheckin int
 	lastReserveWallet  int
+	// giftConsumed is the gifted portion of consumed, burnt first on every
+	// charge and restored first on every refund.
+	giftConsumed int
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
@@ -94,7 +101,92 @@ func (w *WalletFunding) PreConsume(amount int) error {
 		return ErrInsufficientWalletQuota
 	}
 	w.consumed += remaining
+	w.burnGiftQuota(remaining)
 	return nil
+}
+
+// ConsumeUnchecked deducts without an availability check, so the balance may go
+// negative; this is the settlement path where the charge is already known. It
+// applies the same check-in-credit-first priority as the reserve path, so a
+// settlement top-up cannot silently spend wallet cash while the user still holds
+// deductible check-in credit.
+func (w *WalletFunding) ConsumeUnchecked(amount int) error {
+	if amount <= 0 {
+		return nil
+	}
+	checkinBefore := w.checkinConsumed
+	remaining, err := w.consumeCheckinCredit(amount)
+	if err != nil {
+		return err
+	}
+	if remaining == 0 {
+		return nil
+	}
+	if err := model.DecreaseUserQuota(w.userId, remaining, false); err != nil {
+		w.restoreCheckinCredit(w.checkinConsumed - checkinBefore)
+		return err
+	}
+	w.consumed += remaining
+	w.burnGiftQuota(remaining)
+	return nil
+}
+
+// RollbackConsume reverses ConsumeUnchecked. It unwinds in the reverse order of
+// the charge: check-in credit first, then gifted credit back to the gift bucket,
+// and only the remainder as withdrawable cash.
+func (w *WalletFunding) RollbackConsume(amount int) error {
+	if amount <= 0 {
+		return nil
+	}
+	refund := amount
+	if w.checkinConsumed > 0 {
+		creditCheckin := min(refund, w.checkinConsumed)
+		if err := model.IncreaseUserCheckinQuota(w.userId, creditCheckin); err != nil {
+			return err
+		}
+		w.checkinConsumed -= creditCheckin
+		refund -= creditCheckin
+	}
+	if refund > 0 {
+		creditGift := w.releaseGiftQuota(refund)
+		if err := model.IncreaseUserQuota(w.userId, refund-creditGift, false); err != nil {
+			return err
+		}
+	}
+	w.consumed -= amount
+	return nil
+}
+
+// burnGiftQuota moves the gifted portion of a charge out of the gift bucket.
+// Burning is attribution only: User.Quota was already reduced by the caller.
+// A failure here is logged, not fatal — it would leave gifted credit counted as
+// cash, which the refund path clamps against the real balance.
+func (w *WalletFunding) burnGiftQuota(amount int) {
+	if amount <= 0 {
+		return
+	}
+	used, err := model.TryConsumeUserGiftQuota(w.userId, amount)
+	if err != nil {
+		common.SysLog("failed to burn gift quota attribution: " + err.Error())
+		return
+	}
+	w.giftConsumed += used
+}
+
+// releaseGiftQuota returns up to amount of previously burnt gifted credit to
+// the gift bucket and reports how much was returned, so the caller credits only
+// the remainder as cash.
+func (w *WalletFunding) releaseGiftQuota(amount int) int {
+	if amount <= 0 || w.giftConsumed <= 0 {
+		return 0
+	}
+	creditGift := min(amount, w.giftConsumed)
+	if err := model.RestoreUserGiftQuota(w.userId, creditGift, false); err != nil {
+		common.SysLog("failed to restore gift quota attribution: " + err.Error())
+		return 0
+	}
+	w.giftConsumed -= creditGift
+	return creditGift
 }
 
 func (w *WalletFunding) Settle(delta int) error {
@@ -102,51 +194,19 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		checkinBefore := w.checkinConsumed
-		remaining, err := w.consumeCheckinCredit(delta)
-		if err != nil {
-			return err
-		}
-		if remaining == 0 {
-			return nil
-		}
-		if err := model.DecreaseUserQuota(w.userId, remaining, false); err != nil {
-			w.restoreCheckinCredit(w.checkinConsumed - checkinBefore)
-			return err
-		}
-		return nil
+		return w.ConsumeUnchecked(delta)
 	}
-	refund := -delta
-	if w.checkinConsumed > 0 {
-		creditRefund := refund
-		if creditRefund > w.checkinConsumed {
-			creditRefund = w.checkinConsumed
-		}
-		if err := model.IncreaseUserCheckinQuota(w.userId, creditRefund); err != nil {
-			return err
-		}
-		w.checkinConsumed -= creditRefund
-		refund -= creditRefund
-	}
-	if refund == 0 {
-		return nil
-	}
-	return model.IncreaseUserQuota(w.userId, refund, false)
+	return w.RollbackConsume(-delta)
 }
 
 func (w *WalletFunding) Refund() error {
-	if w.checkinConsumed > 0 {
-		if err := model.IncreaseUserCheckinQuota(w.userId, w.checkinConsumed); err != nil {
-			return err
-		}
-		w.checkinConsumed = 0
-	}
-	if w.consumed <= 0 {
+	if w.consumed <= 0 && w.checkinConsumed <= 0 {
 		return nil
 	}
 	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
 	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
-	return model.IncreaseUserQuota(w.userId, w.consumed, false)
+	// RollbackConsume 同时归还 check-in 与 gift 额度。
+	return w.RollbackConsume(w.consumed + w.checkinConsumed)
 }
 
 func (w *WalletFunding) SetCheckinEligible(value bool) { w.checkinEligible = value }

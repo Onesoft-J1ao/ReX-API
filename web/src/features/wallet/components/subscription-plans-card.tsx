@@ -446,6 +446,13 @@ export function SubscriptionPlansCard({
                       used: Number(subscription?.weekly_used || 0),
                       nextResetTime: subscription?.weekly_next_reset_time ?? 0,
                     },
+                    {
+                      key: 'monthly',
+                      label: t('Monthly Quota Limit'),
+                      limit: Number(subscription?.monthly_limit || 0),
+                      used: Number(subscription?.monthly_used || 0),
+                      nextResetTime: subscription?.monthly_next_reset_time ?? 0,
+                    },
                   ].filter((limit) => limit.limit > 0)
                   let statusBadge = (
                     <StatusBadge

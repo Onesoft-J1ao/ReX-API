@@ -246,6 +246,22 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if req.Plan.TotalAmount < 0 {
+		common.ApiErrorMsg(c, "总额度不能为负数")
+		return
+	}
+	if req.Plan.FiveHourLimit < 0 || req.Plan.FiveHourLimit > common.MaxWalletQuota {
+		common.ApiErrorMsg(c, "5小时限额超出允许范围")
+		return
+	}
+	if req.Plan.WeeklyLimit < 0 || req.Plan.WeeklyLimit > common.MaxWalletQuota {
+		common.ApiErrorMsg(c, "周限额超出允许范围")
+		return
+	}
+	if req.Plan.MonthlyLimit < 0 || req.Plan.MonthlyLimit > common.MaxWalletQuota {
+		common.ApiErrorMsg(c, "月限额超出允许范围")
+		return
+	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -317,6 +333,22 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
+		return
+	}
+	if req.Plan.TotalAmount < 0 {
+		common.ApiErrorMsg(c, "总额度不能为负数")
+		return
+	}
+	if req.Plan.FiveHourLimit < 0 || req.Plan.FiveHourLimit > common.MaxWalletQuota {
+		common.ApiErrorMsg(c, "5小时限额超出允许范围")
+		return
+	}
+	if req.Plan.WeeklyLimit < 0 || req.Plan.WeeklyLimit > common.MaxWalletQuota {
+		common.ApiErrorMsg(c, "周限额超出允许范围")
+		return
+	}
+	if req.Plan.MonthlyLimit < 0 || req.Plan.MonthlyLimit > common.MaxWalletQuota {
+		common.ApiErrorMsg(c, "月限额超出允许范围")
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)

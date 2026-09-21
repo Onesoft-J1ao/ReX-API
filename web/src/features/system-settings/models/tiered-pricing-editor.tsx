@@ -99,6 +99,7 @@ import {
   exprUsesExtraVars,
   generateExprFromVisualConfig,
 } from '@/features/pricing/lib/tier-expr'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { cn } from '@/lib/utils'
 
 import {
@@ -1058,10 +1059,9 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
   }, [modelName])
 
   const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(prompt)
+    if (await copyToClipboard(prompt)) {
       toast.success(t('Copied to clipboard'))
-    } catch {
+    } else {
       toast.error(t('Failed to copy'))
     }
   }, [prompt, t])

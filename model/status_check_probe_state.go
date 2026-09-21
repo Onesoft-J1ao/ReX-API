@@ -7,9 +7,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// StatusCheckProbeState stores the idle and backoff state for one explicitly
-// configured status-check group. It deliberately stores timestamps rather than
-// request details, so automatic probes cannot expose request content.
+// StatusCheckProbeState is the pacing state for one status-check group's
+// automatic probing: when the group last saw real traffic, when it was last
+// probed, and how many probes have run since that traffic.
+//
+// Only timestamps and a counter are stored. Pacing an automatic probe must
+// never require keeping anything about the requests that caused the traffic.
 type StatusCheckProbeState struct {
 	Group                 string `json:"group" gorm:"column:group;size:64;primaryKey"`
 	LastPassiveAt         int64  `json:"last_passive_at" gorm:"bigint;default:0"`
@@ -21,6 +24,8 @@ func (StatusCheckProbeState) TableName() string {
 	return "status_check_probe_states"
 }
 
+// GetStatusCheckProbeStates reads the state of the named groups. Groups with no
+// row yet are simply absent, which the caller treats as "never probed".
 func GetStatusCheckProbeStates(groups []string) (map[string]StatusCheckProbeState, error) {
 	states := make(map[string]StatusCheckProbeState, len(groups))
 	if len(groups) == 0 {
@@ -37,9 +42,9 @@ func GetStatusCheckProbeStates(groups []string) (map[string]StatusCheckProbeStat
 	return states, nil
 }
 
-// InitializeStatusCheckProbeState establishes the idle window when flexible
-// probing is first enabled for a group. The first probe therefore waits for
-// the configured idle interval instead of charging immediately after enable.
+// InitializeStatusCheckProbeState opens the idle window when flexible probing
+// is first seen for a group, so the first probe waits out the configured quiet
+// period instead of spending a probe immediately after it is switched on.
 func InitializeStatusCheckProbeState(group string, now int64) error {
 	group = strings.TrimSpace(group)
 	if group == "" {
@@ -51,8 +56,9 @@ func InitializeStatusCheckProbeState(group string, now int64) error {
 	}).Error
 }
 
-// TouchStatusCheckProbePassiveActivity advances the last real-request time.
-// The conditional update preserves newer activity written by another node.
+// TouchStatusCheckProbePassiveActivity advances the group's last real-request
+// time. The conditional update keeps a newer timestamp written by another node
+// rather than overwriting it with an older one.
 func TouchStatusCheckProbePassiveActivity(group string, timestamp int64) error {
 	group = strings.TrimSpace(group)
 	if group == "" || timestamp <= 0 {
@@ -69,8 +75,10 @@ func TouchStatusCheckProbePassiveActivity(group string, timestamp int64) error {
 	}).Error
 }
 
-// RecordStatusCheckProbeResult increments the automatic-probe backoff count.
-// A real request after the previous probe resets the count to this probe.
+// RecordStatusCheckProbeResult records that an automatic probe just ran, and
+// counts it against the group's streak. Real traffic since the previous probe
+// restarts the streak at one, so the cap only ever bounds probing that nothing
+// has needed.
 func RecordStatusCheckProbeResult(group string, timestamp int64) error {
 	group = strings.TrimSpace(group)
 	if group == "" || timestamp <= 0 {

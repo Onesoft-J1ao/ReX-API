@@ -1,6 +1,7 @@
 package model
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -238,4 +239,84 @@ func TestAdminResetPlanSubscriptionsNoMatchSucceeds(t *testing.T) {
 	assert.Zero(t, result.ResetCount)
 	assert.Zero(t, result.UserCount)
 	assert.Empty(t, result.AffectedUserIds)
+}
+
+// TestCanIncreaseSubscriptionUsageEnforcesTheFiveHourCap covers the predicate
+// behind the rolling 5-hour limit (the Go Plan caps it at 12 of the 60 total).
+func TestCanIncreaseSubscriptionUsageEnforcesTheFiveHourCap(t *testing.T) {
+	tests := []struct {
+		name  string
+		used  int64
+		limit int64
+		delta int64
+		want  bool
+	}{
+		{name: "an unused window admits the whole cap", used: 0, limit: 12, delta: 12, want: true},
+		{name: "a partially used window admits what is left", used: 4, limit: 12, delta: 8, want: true},
+		{name: "stopping exactly at the cap is allowed", used: 11, limit: 12, delta: 1, want: true},
+		{name: "one unit over the cap is rejected", used: 12, limit: 12, delta: 1, want: false},
+		{name: "a burst larger than the cap is rejected", used: 0, limit: 12, delta: 13, want: false},
+		{name: "a cap of zero means the window is unlimited", used: 1 << 40, limit: 0, delta: 1 << 20, want: true},
+		{name: "a negative cap is treated as unlimited", used: 100, limit: -1, delta: 1000, want: true},
+		{name: "a zero delta is not a consumption", used: 0, limit: 12, delta: 0, want: false},
+		{name: "a negative delta is not a consumption", used: 0, limit: 12, delta: -1, want: false},
+		{name: "negative recorded usage is rejected rather than trusted", used: -1, limit: 12, delta: 1, want: false},
+		{
+			name: "a delta that would overflow is rejected even without a cap",
+			used: math.MaxInt64 - 5, limit: 0, delta: 10, want: false,
+		},
+		{
+			name: "a delta that lands exactly on MaxInt64 is still admitted",
+			used: math.MaxInt64 - 5, limit: 0, delta: 5, want: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, canIncreaseSubscriptionUsage(tc.used, tc.limit, tc.delta))
+		})
+	}
+}
+
+// TestDecreaseSubscriptionUsageClampsAtZero asserts a settlement refund can
+// never push recorded usage below zero.
+func TestDecreaseSubscriptionUsageClampsAtZero(t *testing.T) {
+	tests := []struct {
+		name  string
+		used  int64
+		delta int64
+		want  int64
+	}{
+		{name: "a partial refund reduces usage", used: 10, delta: -4, want: 6},
+		{name: "refunding the whole usage returns to zero", used: 10, delta: -10, want: 0},
+		{name: "an over-refund clamps at zero", used: 10, delta: -25, want: 0},
+		{name: "usage that is already zero stays zero", used: 0, delta: -5, want: 0},
+		{name: "negative recorded usage is normalised to zero", used: -3, delta: -1, want: 0},
+		{name: "a positive delta is not a refund", used: 10, delta: 4, want: 0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, decreaseSubscriptionUsage(tc.used, tc.delta))
+		})
+	}
+}
+
+// TestCalcSubscriptionResetTimeFiveHourWindow asserts the independent 5-hour
+// cap advances by exactly the window length, unlike the calendar-aligned daily,
+// weekly and monthly periods.
+func TestCalcSubscriptionResetTimeFiveHourWindow(t *testing.T) {
+	base := time.Date(2026, 9, 18, 14, 37, 11, 0, time.UTC)
+
+	got := calcSubscriptionResetTime(base, SubscriptionResetFiveHour, 0, 0)
+	assert.Equal(t, base.Add(5*time.Hour).Unix(), got)
+	assert.Equal(t, int64(5*60*60), got-base.Unix())
+
+	// A midnight base must still advance by the window rather than snapping to
+	// a day boundary, which is what distinguishes it from the daily period.
+	midnight := time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC)
+	assert.Equal(t, midnight.Add(5*time.Hour).Unix(),
+		calcSubscriptionResetTime(midnight, SubscriptionResetFiveHour, 0, 0))
+
+	assert.Zero(t, calcSubscriptionResetTime(base, SubscriptionResetNever, 0, 0))
 }

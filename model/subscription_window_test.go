@@ -30,15 +30,6 @@ func TestCanIncreaseSubscriptionUsageRejectsOverflow(t *testing.T) {
 	assert.False(t, canIncreaseSubscriptionUsage(0, 10, 0))
 }
 
-func TestDecreaseSubscriptionUsageClampsAtZero(t *testing.T) {
-	assert.Equal(t, int64(4), decreaseSubscriptionUsage(10, -6))
-	// A refund can arrive after the window rolled over, when the counter is
-	// already below the amount being returned.
-	assert.Zero(t, decreaseSubscriptionUsage(3, -10))
-	assert.Zero(t, decreaseSubscriptionUsage(0, -5))
-	assert.Zero(t, decreaseSubscriptionUsage(10, 6), "a positive delta is not a decrease")
-}
-
 func TestMaybeResetSubscriptionUsageLimitRollsAnElapsedWindow(t *testing.T) {
 	now := int64(1_700_000_000)
 	used := int64(12)

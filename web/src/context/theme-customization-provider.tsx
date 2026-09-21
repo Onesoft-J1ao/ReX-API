@@ -36,6 +36,9 @@ import {
   THEME_PRESET_VALUES,
   THEME_RADIUS_VALUES,
   THEME_SCALE_VALUES,
+  THEME_WALLPAPER_ATTRIBUTE,
+  THEME_WALLPAPER_VALUE,
+  THEME_WALLPAPER_VARIABLE,
   type ThemeCustomization,
   type ThemeFont,
   type ThemePreset,
@@ -69,6 +72,9 @@ function applyAttribute(name: string, value: string | null) {
 type ThemeCustomizationContextType = {
   defaults: ThemeCustomization
   customization: ThemeCustomization
+  /** The caller's paid wallpaper, empty when none is set. */
+  wallpaperUrl: string
+  setWallpaper: (wallpaperUrl: string) => void
   setPreset: (preset: ThemePreset) => void
   setFont: (font: ThemeFont) => void
   setRadius: (radius: ThemeRadius) => void
@@ -89,6 +95,8 @@ type ThemeCustomizationContextType = {
 const FALLBACK_CONTEXT: ThemeCustomizationContextType = {
   defaults: DEFAULT_THEME_CUSTOMIZATION,
   customization: DEFAULT_THEME_CUSTOMIZATION,
+  wallpaperUrl: '',
+  setWallpaper: () => {},
   setPreset: () => {},
   setFont: () => {},
   setRadius: () => {},
@@ -164,6 +172,7 @@ export function ThemeCustomizationProvider(props: {
       defaults.contentLayout
     )
   )
+  const [wallpaperUrl, setWallpaper] = useState('')
 
   useEffect(() => {
     if (!getCookie(THEME_COOKIE_KEYS.preset)) _setPreset(defaults.preset)
@@ -212,6 +221,24 @@ export function ThemeCustomizationProvider(props: {
     applyAttribute('data-theme-content-layout', contentLayout)
   }, [contentLayout])
 
+  // The wallpaper is painted through a body-scoped CSS variable rather than an
+  // inline style on the provider's children, so it also covers the header and
+  // the area around the console's inset panel. The address was validated
+  // against quotes, parentheses and backslashes before it was stored, so it
+  // cannot break out of the `url("...")` it is quoted into.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const body = document.body
+    if (!body) return
+    if (wallpaperUrl === '') {
+      body.removeAttribute(THEME_WALLPAPER_ATTRIBUTE)
+      body.style.removeProperty(THEME_WALLPAPER_VARIABLE)
+      return
+    }
+    body.style.setProperty(THEME_WALLPAPER_VARIABLE, `url("${wallpaperUrl}")`)
+    body.setAttribute(THEME_WALLPAPER_ATTRIBUTE, THEME_WALLPAPER_VALUE)
+  }, [wallpaperUrl])
+
   const setPreset = useCallback((value: ThemePreset) => {
     _setPreset(value)
     setCookie(THEME_COOKIE_KEYS.preset, value, COOKIE_MAX_AGE)
@@ -237,6 +264,9 @@ export function ThemeCustomizationProvider(props: {
     setCookie(THEME_COOKIE_KEYS.contentLayout, value, COOKIE_MAX_AGE)
   }, [])
 
+  // The wallpaper is deliberately left alone: it was bought, so "reset" must
+  // not silently unpaint something the user paid for. Removing it is its own
+  // explicit action in the wallpaper settings.
   const resetPreset = useCallback(() => {
     removeCookie(THEME_COOKIE_KEYS.preset)
     _setPreset(defaults.preset)
@@ -270,6 +300,8 @@ export function ThemeCustomizationProvider(props: {
     () => ({
       defaults,
       customization: { preset, font, radius, scale, contentLayout },
+      wallpaperUrl,
+      setWallpaper,
       setPreset,
       setFont,
       setRadius,
@@ -288,6 +320,7 @@ export function ThemeCustomizationProvider(props: {
       radius,
       scale,
       contentLayout,
+      wallpaperUrl,
       setPreset,
       setFont,
       setRadius,
