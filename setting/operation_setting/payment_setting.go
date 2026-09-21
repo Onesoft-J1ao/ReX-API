@@ -24,15 +24,19 @@ type EpayGateway struct {
 var EpayGateways = []EpayGateway{}
 
 type PaymentSetting struct {
-	AmountOptions             []int           `json:"amount_options"`
-	AmountDiscount            map[int]float64 `json:"amount_discount"` // 充值金额对应的折扣，例如 100 元 0.9 表示 100 元充值享受 9 折优惠
-	RedemptionPurchaseEnabled bool            `json:"redemption_purchase_enabled"`
+	AmountOptions  []int           `json:"amount_options"`
+	AmountDiscount map[int]float64 `json:"amount_discount"` // 充值金额对应的折扣，例如 100 元 0.9 表示 100 元充值享受 9 折优惠
 
 	ComplianceConfirmed    bool   `json:"compliance_confirmed"`
 	ComplianceTermsVersion string `json:"compliance_terms_version"`
 	ComplianceConfirmedAt  int64  `json:"compliance_confirmed_at"`
 	ComplianceConfirmedBy  int    `json:"compliance_confirmed_by"`
 	ComplianceConfirmedIP  string `json:"compliance_confirmed_ip"`
+
+	// RedemptionPurchaseEnabled sells redemption codes through the payment
+	// providers: the buyer pays real money and receives codes, never wallet
+	// balance. Off by default because it moves real money.
+	RedemptionPurchaseEnabled bool `json:"redemption_purchase_enabled"`
 }
 
 const CurrentComplianceTermsVersion = "v1"

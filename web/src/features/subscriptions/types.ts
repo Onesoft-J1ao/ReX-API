@@ -45,9 +45,12 @@ export const subscriptionPlanSchema = z.object({
   rate_limit_groups: z.string().optional().default('[]'),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
-  five_hour_limit: z.number().optional(),
-  weekly_limit: z.number().optional(),
-  monthly_limit: z.number().optional(),
+  // Rolling 5-hour, weekly and monthly usage caps in quota units (0 = no cap).
+  // They run alongside total_amount, so a plan can grant a large allowance
+  // while still smoothing burst usage.
+  five_hour_limit: z.number().optional().default(0),
+  weekly_limit: z.number().optional().default(0),
+  monthly_limit: z.number().optional().default(0),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -76,6 +79,8 @@ export const userSubscriptionSchema = z.object({
   amount_total: z.number(),
   amount_used: z.number(),
   next_reset_time: z.number().optional(),
+  // Rolling 5-hour window, snapshotted from the plan at purchase. Both are 0
+  // until the first consumption anchors the window.
   five_hour_limit: z.number().optional(),
   five_hour_used: z.number().optional(),
   five_hour_next_reset_time: z.number().optional(),

@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/status_check_setting"
 )
 
 const (
@@ -105,19 +106,20 @@ func (config StatusCheckFlexibleConfig) EnabledGroup(group string) (StatusCheckF
 	return groupConfig, ok && groupConfig.Enabled
 }
 
+// statusCheckFlexibleGroupConfigured reports whether a group is one the status
+// page probes and flexible pacing is switched on. Both facts live in the
+// status_check_setting, which is the same source selectFlexibleProbeGroups
+// reads, so the traffic recorded here and the pacing applied there cannot
+// disagree about which groups are tracked.
 func statusCheckFlexibleGroupConfigured(group string) bool {
 	group = strings.TrimSpace(group)
 	if group == "" || group == "auto" {
 		return false
 	}
-	if _, enabled := GetStatusCheckFlexibleConfig().EnabledGroup(group); !enabled {
+	if !status_check_setting.FlexibleProbingEnabled() {
 		return false
 	}
-	var groups []string
-	if err := common.UnmarshalJsonStr(common.StatusCheckGroups, &groups); err != nil {
-		return false
-	}
-	for _, configuredGroup := range groups {
+	for _, configuredGroup := range status_check_setting.GetGroups() {
 		if strings.TrimSpace(configuredGroup) == group {
 			return true
 		}

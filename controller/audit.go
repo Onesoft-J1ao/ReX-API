@@ -73,6 +73,10 @@ var auditContentTemplates = map[string]string{
 
 	"subscription.plan_reset":      "Reset active subscriptions for plan ${plan_id}",
 	"subscription.user_plan_reset": "Reset active plan ${plan_id} subscriptions for user ${target_user_id}",
+
+	"refund.plan_create": "Created plan refund ${refund_id} for user ${target_user_id} (${quota} quota, ${amount} CNY)",
+	"refund.cash_create": "Created cash refund ${refund_id} for user ${target_user_id} (${quota} quota, ${amount} CNY, ratio ${ratio})",
+	"refund.advance":     "Advanced refund ${refund_id} (${kind}) to ${status}",
 }
 
 func recordPasskeyDomainAudit(c *gin.Context, change *model.PasskeyDomainChange, confirmed bool, err error) {

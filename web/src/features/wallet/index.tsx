@@ -27,6 +27,7 @@ import { SectionPageLayout } from '@/components/layout'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import { useCaptcha } from '@/features/auth/hooks/use-captcha'
+import { SelfRefundRequestsCard } from '@/features/refunds/components/self-refund-requests-card'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
@@ -546,6 +547,7 @@ export function Wallet(props: WalletProps) {
                 userQuota={user?.quota}
                 onPurchaseSuccess={fetchUser}
               />
+
             </div>
 
             <RedemptionPurchaseCard
@@ -573,6 +575,8 @@ export function Wallet(props: WalletProps) {
               }
               loading={affiliateLoading}
             />
+
+            <SelfRefundRequestsCard />
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>

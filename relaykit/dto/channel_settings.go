@@ -78,6 +78,8 @@ const (
 )
 
 type ChannelOtherSettings struct {
+	// AgnesAutoImageURL lets the Agnes adaptor pass image URLs through instead of
+	// uploading them, for upstreams that can fetch them directly.
 	AgnesAutoImageURL                     bool                  `json:"agnes_auto_image_url,omitempty"`
 	AzureResponsesVersion                 string                `json:"azure_responses_version,omitempty"`
 	VertexKeyType                         VertexKeyType         `json:"vertex_key_type,omitempty"` // "json" or "api_key"

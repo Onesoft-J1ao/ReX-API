@@ -28,13 +28,20 @@ const (
 
 // Subscription quota reset period
 const (
-	SubscriptionResetNever    = "never"
-	SubscriptionResetDaily    = "daily"
-	SubscriptionResetWeekly   = "weekly"
-	SubscriptionResetMonthly  = "monthly"
-	SubscriptionResetCustom   = "custom"
+	SubscriptionResetNever   = "never"
+	SubscriptionResetDaily   = "daily"
+	SubscriptionResetWeekly  = "weekly"
+	SubscriptionResetMonthly = "monthly"
+	SubscriptionResetCustom  = "custom"
+	// SubscriptionResetFiveHour drives the independent rolling 5-hour usage cap.
+	// It is never a valid QuotaResetPeriod: the cap runs alongside the billing
+	// period instead of replacing it.
 	SubscriptionResetFiveHour = "five_hour"
 )
+
+// FiveHourLimitWindow is the length of the rolling usage window created by
+// FiveHourLimit. Kept in one place so the reset maths and its tests cannot drift.
+const FiveHourLimitWindow = 5 * time.Hour
 
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
@@ -311,7 +318,9 @@ type SubscriptionPlan struct {
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
 
-	// Additional independent usage caps. A zero value disables the cap.
+	// Additional independent usage caps. A zero value disables the cap. The
+	// 5-hour cap runs alongside TotalAmount rather than replacing it, so a plan
+	// can grant a large total allowance while still smoothing burst usage.
 	FiveHourLimit int64 `json:"five_hour_limit" gorm:"type:bigint;not null;default:0"`
 	WeeklyLimit   int64 `json:"weekly_limit" gorm:"type:bigint;not null;default:0"`
 	MonthlyLimit  int64 `json:"monthly_limit" gorm:"type:bigint;not null;default:0"`
@@ -505,6 +514,10 @@ type UserSubscription struct {
 
 	// Independent subscription usage caps are snapshotted from the plan so
 	// changing a plan only affects subscriptions created after the change.
+	//
+	// The rolling 5-hour cap keeps both timestamps at 0 until the first
+	// consumption anchors the window at that moment; anchoring at purchase time
+	// would start the clock before the user has used anything.
 	FiveHourLimit         int64 `json:"five_hour_limit" gorm:"type:bigint;not null;default:0"`
 	FiveHourUsed          int64 `json:"five_hour_used" gorm:"type:bigint;not null;default:0"`
 	FiveHourLastResetTime int64 `json:"five_hour_last_reset_time" gorm:"type:bigint;default:0"`
@@ -620,6 +633,9 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 	return calcSubscriptionResetTime(base, period, plan.QuotaResetCustomSeconds, endUnix)
 }
 
+// calcSubscriptionUsageLimitNextResetTime computes the next boundary of an
+// independent usage window (currently only the 5-hour cap), which has no
+// custom-seconds option of its own.
 func calcSubscriptionUsageLimitNextResetTime(base time.Time, period string, endUnix int64) int64 {
 	return calcSubscriptionResetTime(base, period, 0, endUnix)
 }
@@ -631,7 +647,7 @@ func calcSubscriptionResetTime(base time.Time, period string, customSeconds int6
 	var next time.Time
 	switch period {
 	case SubscriptionResetFiveHour:
-		next = base.Add(5 * time.Hour)
+		next = base.Add(FiveHourLimitWindow)
 	case SubscriptionResetDaily:
 		next = time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, base.Location()).
 			AddDate(0, 0, 1)
@@ -1454,6 +1470,10 @@ func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *Subscript
 		} else {
 			sub.LastResetTime = 0
 		}
+		if sub.FiveHourLimit > 0 {
+			sub.FiveHourLastResetTime = now
+			sub.FiveHourNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetFiveHour, sub.EndTime)
+		}
 	}
 	if advanceResetTime && options.ResetFiveHour && sub.FiveHourLimit > 0 {
 		sub.FiveHourLastResetTime = now
@@ -1710,18 +1730,26 @@ func (r *SubscriptionPreConsumeRecord) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+// maybeResetSubscriptionUsageLimit advances an independent usage window (the
+// rolling 5-hour, weekly or monthly cap) when its boundary has passed. It
+// reports whether the subscription row changed and therefore needs saving.
+//
+// An untouched 5-hour window has no anchor yet: both timestamps are zero while
+// the cap has never been consumed from. Anchoring at subscription creation
+// would start the 5-hour clock before the user has used anything, so that state
+// is left alone until initializeSubscriptionUsageWindow sees the first charge.
 func maybeResetSubscriptionUsageLimit(used *int64, lastResetTime *int64, nextResetTime *int64, limit int64, period string, startTime int64, endTime int64, now int64) bool {
 	if limit <= 0 {
 		return false
 	}
-
-	changed := false
 	// An untouched 5-hour window has no reset anchor yet. Do not silently
 	// anchor it to subscription creation; the first consumption sets the
 	// window in initializeSubscriptionUsageWindow.
 	if *used == 0 && *lastResetTime == 0 && *nextResetTime == 0 && period == SubscriptionResetFiveHour {
 		return false
 	}
+
+	changed := false
 	baseUnix := *lastResetTime
 	if baseUnix <= 0 {
 		baseUnix = startTime
@@ -1754,6 +1782,9 @@ func maybeResetSubscriptionUsageLimit(used *int64, lastResetTime *int64, nextRes
 	return true
 }
 
+// initializeSubscriptionUsageWindow anchors an independent usage window at the
+// first successful charge. usedBefore is the value read before that charge, so
+// a window is only opened by the charge that actually consumes from it.
 func initializeSubscriptionUsageWindow(usedBefore int64, usedAfter int64, lastResetTime *int64, nextResetTime *int64, limit int64, period string, endTime int64, now int64) bool {
 	if limit <= 0 || usedBefore != 0 || usedAfter <= 0 || *lastResetTime != 0 || *nextResetTime != 0 {
 		return false
@@ -2017,6 +2048,8 @@ func preConsumeUserSubscriptionForGroup(requestId string, userId int, modelName 
 				}
 				return err
 			}
+			// applyUsageDelta already moved AmountUsed, FiveHourUsed and the
+			// other independent window counters.
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
@@ -2070,8 +2103,8 @@ func RefundSubscriptionPreConsume(requestId string) error {
 	})
 }
 
-// ResetDueSubscriptions resets subscriptions whose billing-period or independent
-// usage-limit reset time has passed.
+// ResetDueSubscriptions resets subscriptions whose billing-period boundary or
+// any independent usage-window boundary (5-hour, weekly, monthly) has passed.
 func ResetDueSubscriptions(limit int) (int, error) {
 	if limit <= 0 {
 		limit = 200

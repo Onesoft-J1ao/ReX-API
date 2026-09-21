@@ -83,18 +83,6 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 }
 
 // GetBodyStorage 获取请求体存储对象（用于需要多次读取的场景）
-func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
-	seeker, err := GetRequestBody(c)
-	if err != nil {
-		return nil, err
-	}
-	bs, ok := seeker.(BodyStorage)
-	if !ok {
-		return nil, errors.New("unexpected body storage type")
-	}
-	return bs, nil
-}
-
 // ReplaceRequestBody replaces the reusable request body after a server-side
 // normalization step while preserving retry support and disk-backed storage.
 func ReplaceRequestBody(c *gin.Context, data []byte) error {
@@ -112,6 +100,18 @@ func ReplaceRequestBody(c *gin.Context, data []byte) error {
 	c.Request.ContentLength = int64(len(data))
 	c.Request.Body = io.NopCloser(storage)
 	return nil
+}
+
+func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
+	seeker, err := GetRequestBody(c)
+	if err != nil {
+		return nil, err
+	}
+	bs, ok := seeker.(BodyStorage)
+	if !ok {
+		return nil, errors.New("unexpected body storage type")
+	}
+	return bs, nil
 }
 
 // CleanupBodyStorage 清理请求体存储（应在请求结束时调用）

@@ -79,4 +79,8 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodPost, path: "/upstream_updates/apply_all", permission: authz.ChannelWrite, handler: controller.ApplyAllChannelUpstreamModelUpdates},
 	{method: http.MethodPost, path: "/upstream_updates/detect", permission: authz.ChannelOperate, handler: controller.DetectChannelUpstreamModelUpdates},
 	{method: http.MethodPost, path: "/upstream_updates/detect_all", permission: authz.ChannelOperate, handler: controller.DetectAllChannelUpstreamModelUpdates},
+	// status sync: preview is read-only against this instance but makes an
+	// outbound request to the configured status page; apply writes channel status.
+	{method: http.MethodPost, path: "/status_sync/preview", permission: authz.ChannelRead, handler: controller.PreviewChannelStatusSync},
+	{method: http.MethodPost, path: "/status_sync/apply", permission: authz.ChannelOperate, handler: controller.ApplyChannelStatusSync},
 }

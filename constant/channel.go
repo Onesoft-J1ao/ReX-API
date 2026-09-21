@@ -56,18 +56,19 @@ const (
 	ChannelTypeReplicate      = 56
 	ChannelTypeCodex          = 57
 	ChannelTypeAdvancedCustom = 58
-	// Keep channel IDs stable for existing installations.
+	// Channel IDs are persisted on the channels table, so they are append-only:
+	// 59-64 come from the Steve fork and 65-66 were added here. deploy/all-prs
+	// numbered Sub2API/NewAPI/TaskPlugin/Meshy differently, but no persisted row
+	// references any id above 58, so these assignments are the ones in effect.
 	ChannelTypeMeshy2API    = 59
 	ChannelTypeUnrealSpeech = 60
 	ChannelTypeSub2API      = 61
 	ChannelTypeNewAPI       = 62
 	ChannelTypeAgnes        = 63
 	ChannelTypeTaskPlugin   = 64
-	// IDs 65 and 66 are intentionally appended so existing fork channels keep
-	// their persisted meaning across upstream synchronization.
-	ChannelTypeVLLM   = 65
-	ChannelTypeSGLang = 66
-	ChannelTypeDummy  // this one is only for count, do not add any channel after this
+	ChannelTypeVLLM         = 65
+	ChannelTypeSGLang       = 66
+	ChannelTypeDummy        // this one is only for count, do not add any channel after this
 
 )
 

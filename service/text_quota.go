@@ -378,8 +378,16 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 
 	if !summary.hasBillableUsage() {
 		summary.Quota = 0
-	} else if !ratio.IsZero() && summary.Quota == 0 {
-		summary.Quota = 1
+	} else if summary.Quota == 0 && !dGroupRatio.IsZero() {
+		// Settlement must agree with the pre-consume floor: a model priced at
+		// zero bills the configured minimum, otherwise the floored pre-consume
+		// would be refunded in full and the request would still be free. A
+		// non-zero but tiny ratio keeps the legacy minimum of one quota unit.
+		if operation_setting.ModelPricedAtZero(relayInfo.PriceData.UsePrice, summary.ModelRatio, summary.ModelPrice) {
+			summary.Quota = operation_setting.MinBillableQuota()
+		} else {
+			summary.Quota = 1
+		}
 	}
 	if relayInfo.PriceData.BillingFree {
 		quota, clamp := common.QuotaFromDecimalChecked(summary.ToolCallSurchargeQuota)

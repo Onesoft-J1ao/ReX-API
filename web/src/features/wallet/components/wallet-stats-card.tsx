@@ -76,27 +76,62 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
     },
   ]
 
+  // Gifted credit and plan refunds are non-withdrawable, so only the remainder
+  // counts as cash. Clamp in case the attribution ever exceeds the balance.
+  const quota = props.user?.quota ?? 0
+  const giftQuota = Math.min(props.user?.gift_quota ?? 0, quota)
+  const withdrawableQuota = Math.max(0, quota - giftQuota)
+
   return (
-    <div className='grid grid-cols-3 divide-x rounded-xl border'>
-      {stats.map((item) => (
-        <div key={item.label} className='min-w-0 px-3 py-2 sm:px-5 sm:py-4'>
-          <div className='flex items-center gap-1.5 sm:gap-2.5'>
-            <IconBadge tone={item.tone} size='stat'>
-              <item.icon />
-            </IconBadge>
-            <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase sm:text-xs'>
-              {item.label}
+    <div className='space-y-2'>
+      <div className='grid grid-cols-3 divide-x rounded-xl border'>
+        {stats.map((item) => (
+          <div key={item.label} className='min-w-0 px-3 py-2 sm:px-5 sm:py-4'>
+            <div className='flex items-center gap-1.5 sm:gap-2.5'>
+              <IconBadge tone={item.tone} size='stat'>
+                <item.icon />
+              </IconBadge>
+              <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase sm:text-xs'>
+                {item.label}
+              </div>
+            </div>
+
+            <div className='text-foreground mt-1.5 font-mono text-sm font-bold tracking-tight break-all tabular-nums sm:mt-2.5 sm:text-2xl'>
+              {item.value}
+            </div>
+            <div className='text-muted-foreground mt-1 hidden text-xs md:block'>
+              {item.description}
             </div>
           </div>
+        ))}
+      </div>
 
-          <div className='text-foreground mt-1.5 font-mono text-sm font-bold tracking-tight break-all tabular-nums sm:mt-2.5 sm:text-2xl'>
-            {item.value}
+      {giftQuota > 0 && (
+        <div className='grid grid-cols-2 divide-x rounded-xl border'>
+          <div className='min-w-0 px-3 py-2 sm:px-5 sm:py-3'>
+            <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
+              {t('Withdrawable Balance')}
+            </div>
+            <div className='text-foreground mt-1 font-mono text-sm font-bold tabular-nums sm:text-lg'>
+              {formatQuota(withdrawableQuota)}
+            </div>
+            <div className='text-muted-foreground mt-0.5 hidden text-xs md:block'>
+              {t('Paid balance that a cash refund can return')}
+            </div>
           </div>
-          <div className='text-muted-foreground mt-1 hidden text-xs md:block'>
-            {item.description}
+          <div className='min-w-0 px-3 py-2 sm:px-5 sm:py-3'>
+            <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
+              {t('Gifted / Plan Quota')}
+            </div>
+            <div className='text-foreground mt-1 font-mono text-sm font-bold tabular-nums sm:text-lg'>
+              {formatQuota(giftQuota)}
+            </div>
+            <div className='text-muted-foreground mt-0.5 hidden text-xs md:block'>
+              {t('Gifts and plan refunds, spendable but not withdrawable')}
+            </div>
           </div>
         </div>
-      ))}
+      )}
     </div>
   )
 }

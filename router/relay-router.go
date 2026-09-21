@@ -73,14 +73,17 @@ func SetRelayRouter(router *gin.Engine) {
 		// picks a channel the same way a real one does. steve's handler set is a
 		// superset of the earlier chat/image/audio trio: it adds 3D and video,
 		// and splits speech into an async task form with its own fetch/content/
-		// timestamps reads. Transcription and translation are served by the
-		// speech handlers rather than a separate audio entry point.
+		// timestamps reads. Transcription and translation ride the speech
+		// handler and are registered separately because the workbench posts to
+		// them directly.
 		playgroundRelayRouter := playgroundRouter.Group("")
 		playgroundRelayRouter.Use(middleware.Distribute())
 		playgroundRelayRouter.POST("/chat/completions", controller.PlaygroundChat)
 		playgroundRelayRouter.POST("/images/generations", controller.PlaygroundImage)
 		playgroundRelayRouter.POST("/images/edits", controller.PlaygroundImage)
 		playgroundRelayRouter.POST("/audio/speech", controller.PlaygroundSpeech)
+		playgroundRelayRouter.POST("/audio/transcriptions", controller.PlaygroundSpeech)
+		playgroundRelayRouter.POST("/audio/translations", controller.PlaygroundSpeech)
 		playgroundRelayRouter.POST("/audio/speech/tasks", controller.PlaygroundSpeechTask)
 		playgroundRelayRouter.POST("/3d", controller.PlaygroundThreeD)
 		playgroundRelayRouter.POST("/videos", controller.PlaygroundVideo)

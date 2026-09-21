@@ -171,6 +171,7 @@ export type SiteSettings = {
   'legal.privacy_policy': string
   HeaderNavModules: string
   SidebarModulesAdmin: string
+  SidebarAdminLinks: string
   'console_setting.background_image': string
   'console_setting.background_blur_opacity': number
   'console_setting.legal_background_enabled': boolean

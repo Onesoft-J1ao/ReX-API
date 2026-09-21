@@ -17,6 +17,10 @@ func setupCustomOAuthSignupTest(t *testing.T) *oauth.GenericOAuthProvider {
 
 	previousDB := model.DB
 	previousRegisterEnabled := common.RegisterEnabled
+	// Another test in this package turns Redis on and leaves it that way. With
+	// no Redis client behind the flag, the post-creation cache write panics, so
+	// this test pins the flag off and restores whatever it found.
+	previousRedisEnabled := common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
@@ -26,9 +30,11 @@ func setupCustomOAuthSignupTest(t *testing.T) *oauth.GenericOAuthProvider {
 	))
 	model.DB = db
 	common.RegisterEnabled = true
+	common.RedisEnabled = false
 	t.Cleanup(func() {
 		model.DB = previousDB
 		common.RegisterEnabled = previousRegisterEnabled
+		common.RedisEnabled = previousRedisEnabled
 	})
 
 	providerConfig := &model.CustomOAuthProvider{

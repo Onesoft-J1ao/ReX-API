@@ -22,6 +22,8 @@
   "Channel health is collected by a scheduled probe. Enable it in the system configuration to see per-group and per-model availability here.": "Channel health is collected by a scheduled probe. Enable it in the system configuration to see per-group and per-model availability here.",
   "Groups are configured, but no model probes have run yet. Enable the channel health probe to populate this page.": "Groups are configured, but no model probes have run yet. Enable the channel health probe to populate this page.",
   "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.": "Point any OpenAI-compatible client at this gateway and swap the model name. No SDK changes.",
+  "Selected users will be banned from signing in and consuming quota.": "Selected users will be banned from signing in and consuming quota.",
+  "Selected users will be able to sign in again.": "Selected users will be able to sign in again.",
   "Access models from nearly every provider at a lower cost. Each model has more than one path: choose a group for the task, then select the model.": "Access models from nearly every provider at a lower cost. Each model has more than one path: choose a group for the task, then select the model.",
   "Automatic failover is available only for Claude Code and Codex. Keep a backup group strategy for production workloads.": "Automatic failover is available only for Claude Code and Codex. Keep a backup group strategy for production workloads.",
   "Please avoid sending repeated messages while waiting for a reply. Platform-wide incidents, upstream risk controls, or overload can also affect primary routes.": "Please avoid sending repeated messages while waiting for a reply. Platform-wide incidents, upstream risk controls, or overload can also affect primary routes.",
@@ -41,5 +43,11 @@
   "This workbench mode is on the way.": "This workbench mode is on the way.",
   "Speech to text": "Speech to text",
   "Text to read aloud": "Text to read aloud",
-  "The transcript will appear here": "The transcript will appear here"
+  "The transcript will appear here": "The transcript will appear here",
+  "Text to video": "Text to video",
+  "Describe the video you want to generate": "Describe the video you want to generate",
+  "The provider returned no video": "The provider returned no video",
+  "Describe the 3D model you want to generate": "Describe the 3D model you want to generate",
+  "Reuse a completed draft task to add textures.": "Reuse a completed draft task to add textures.",
+  "The provider returned no 3D model": "The provider returned no 3D model"
 }

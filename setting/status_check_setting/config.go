@@ -20,16 +20,37 @@ type StatusCheckSetting struct {
 	// probe is a real upstream request, so probing a pay-per-request model
 	// bills us every cycle for a signal the mirrored upstream already reports.
 	ProbeFreeModelsOnly bool `json:"probe_free_models_only"`
+
+	// Flexible probing paces the automatic group probe by real traffic. A group
+	// that is already serving requests has just proven it works, so the probe
+	// waits for it to go quiet rather than paying for a scheduled test on top.
+	// Off by default: the probe cadence only changes when an operator asks.
+	FlexibleProbingEnabled       bool `json:"flexible_probing_enabled"`
+	FlexibleIdleMinutes          int  `json:"flexible_idle_minutes"`           // probe a group only after this much quiet
+	FlexibleMaxConsecutiveProbes int  `json:"flexible_max_consecutive_probes"` // cap on probes while nothing needs the group
 }
 
+// Bounds for the flexible pacing options. They exist to cap accidental spend
+// from a malformed setting: too small an idle window probes constantly, and
+// too large a cap lets an idle group be probed forever.
+const (
+	DefaultFlexibleIdleMinutes          = 15
+	DefaultFlexibleMaxConsecutiveProbes = 40
+	maxFlexibleIdleMinutes              = 24 * 60
+	maxFlexibleConsecutiveProbes        = 1000
+)
+
 var statusCheckSetting = StatusCheckSetting{
-	Enabled:              false,
-	ProbeIntervalMinutes: 10,
-	Groups:               "default",
-	ExcludedModels:       "",
-	Announcement:         "",
-	PassiveWindowHours:   24,
-	ProbeFreeModelsOnly:  true,
+	Enabled:                      false,
+	ProbeIntervalMinutes:         10,
+	Groups:                       "default",
+	ExcludedModels:               "",
+	Announcement:                 "",
+	PassiveWindowHours:           24,
+	ProbeFreeModelsOnly:          true,
+	FlexibleProbingEnabled:       false,
+	FlexibleIdleMinutes:          DefaultFlexibleIdleMinutes,
+	FlexibleMaxConsecutiveProbes: DefaultFlexibleMaxConsecutiveProbes,
 }
 
 func init() {
@@ -95,4 +116,30 @@ func GetPassiveWindowHours() int {
 // probe cycle.
 func ShouldProbeOnlyFreeModels() bool {
 	return statusCheckSetting.ProbeFreeModelsOnly
+}
+
+// FlexibleProbingEnabled reports whether the automatic probe should wait for a
+// group to go quiet instead of probing on every interval.
+func FlexibleProbingEnabled() bool { return statusCheckSetting.FlexibleProbingEnabled }
+
+// GetFlexibleIdleMinutes returns the quiet period a group must show before the
+// automatic probe runs again. Out-of-range values fall back to the default
+// rather than being clamped to a bound, so a typo cannot silently turn probing
+// off for a day.
+func GetFlexibleIdleMinutes() int {
+	minutes := statusCheckSetting.FlexibleIdleMinutes
+	if minutes < 1 || minutes > maxFlexibleIdleMinutes {
+		return DefaultFlexibleIdleMinutes
+	}
+	return minutes
+}
+
+// GetFlexibleMaxConsecutiveProbes returns how many automatic probes may run in
+// a row while real traffic never arrives.
+func GetFlexibleMaxConsecutiveProbes() int {
+	probes := statusCheckSetting.FlexibleMaxConsecutiveProbes
+	if probes < 1 || probes > maxFlexibleConsecutiveProbes {
+		return DefaultFlexibleMaxConsecutiveProbes
+	}
+	return probes
 }

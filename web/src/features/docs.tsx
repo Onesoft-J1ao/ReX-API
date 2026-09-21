@@ -31,6 +31,7 @@ import { useState, type ReactNode } from 'react'
 
 import { PublicLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
 /** Single source of truth for every address shown in these docs. */
 const API_HOST = 'https://ai.j1ao.vip'
@@ -60,11 +61,10 @@ function CodeBlock(props: { children: string; language?: string }) {
   const [copied, setCopied] = useState(false)
 
   const copyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(props.children)
+    if (await copyToClipboard(props.children)) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1600)
-    } catch {
+    } else {
       setCopied(false)
     }
   }

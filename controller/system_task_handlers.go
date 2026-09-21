@@ -27,6 +27,8 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(statusCheckProbeHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(channelStatusSyncHandler{})
+	service.RegisterSystemTaskHandler(priceSentinelHandler{})
 }
 
 // multiKeyRecoveryHandler periodically probes keys disabled by a matching

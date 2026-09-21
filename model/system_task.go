@@ -26,6 +26,8 @@ const (
 	SystemTaskTypeMultiKeyRecovery     = "multi_key_recovery"
 	SystemTaskTypeMoneroPaymentMonitor = "monero_payment_monitor"
 	SystemTaskTypeMoneroAddressAudit   = "monero_address_audit"
+	SystemTaskTypeChannelStatusSync    = "channel_status_sync"
+	SystemTaskTypePriceSentinel        = "price_sentinel"
 )
 
 var ErrSystemTaskLockLost = errors.New("system task lock lost")

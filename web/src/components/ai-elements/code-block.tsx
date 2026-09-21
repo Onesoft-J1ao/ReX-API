@@ -57,6 +57,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+// Aliased: this module already has a local `copyToClipboard` click handler.
+import { copyToClipboard as copyTextToClipboard } from '@/lib/copy-to-clipboard'
 import { cn } from '@/lib/utils'
 
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
@@ -656,18 +658,19 @@ export const CodeBlockCopyButton = ({
   const { code } = useContext(CodeBlockContext)
 
   const copyToClipboard = async () => {
-    if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
+    if (typeof window === 'undefined') {
       onError?.(new Error('Clipboard API not available'))
       return
     }
 
-    try {
-      await navigator.clipboard.writeText(code)
+    // Through the shared helper: an embedded browser without the async
+    // clipboard API still copies through the legacy path.
+    if (await copyTextToClipboard(code)) {
       setIsCopied(true)
       onCopy?.()
       setTimeout(() => setIsCopied(false), timeout)
-    } catch (error) {
-      onError?.(error as Error)
+    } else {
+      onError?.(new Error('Clipboard API not available'))
     }
   }
 

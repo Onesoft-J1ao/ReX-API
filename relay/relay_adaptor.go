@@ -53,6 +53,8 @@ import (
 
 func GetAdaptor(apiType int) channel.Adaptor {
 	switch apiType {
+	case constant.APITypeAgnes:
+		return &agnes.Adaptor{}
 	case constant.APITypeAli:
 		return &ali.Adaptor{}
 	case constant.APITypeAnthropic:
@@ -127,8 +129,6 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &sub2api.Adaptor{}
 	case constant.APITypeNewAPI:
 		return &newapi.Adaptor{}
-	case constant.APITypeAgnes:
-		return &agnes.Adaptor{}
 	}
 	return nil
 }
@@ -192,10 +192,12 @@ func TaskPlatformUnavailableError(platform constant.TaskPlatform) (string, strin
 }
 
 func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
-	// Agnes, Meshy2API and UnrealSpeech remain built-in adaptors while the
-	// other task providers are served by the upstream JS plugin registry.
+	// Agnes, Meshy2API and UnrealSpeech are implemented in-process, so they
+	// resolve before the JS plugin registry. Agnes in particular uses a numeric
+	// channel type, which is also a valid task platform, so the registry would
+	// never claim it.
 	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
-		switch channelType {
+		switch int(channelType) {
 		case constant.ChannelTypeAgnes:
 			return &taskagnes.TaskAdaptor{}
 		case constant.ChannelTypeMeshy2API:

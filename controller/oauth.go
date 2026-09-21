@@ -426,6 +426,17 @@ func handleOAuthBind(c *gin.Context, providerName string, provider oauth.Provide
 // findOrCreateOAuthUser finds the existing user or creates a new one. For a
 // legacy GitHub binding that still waits for the login verification, it also
 // returns the rewrite to carry into the challenge.
+// oauthClientIP reads the caller's address without requiring a gin context.
+// findOrCreateOAuthUser is also driven directly by tests and by providers that
+// reach it without an HTTP request, and gin's ClientIP dereferences the context
+// unconditionally, so a nil context would panic instead of yielding an empty IP.
+func oauthClientIP(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	return c.ClientIP()
+}
+
 func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, token *oauth.OAuthToken, affiliateCode string) (*model.User, *service.LegacyGitHubMigration, error) {
 	user := &model.User{}
 	if provider.ProviderUserIDColumn() == "telegram_id" {
@@ -558,7 +569,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
-	user.RegisterIp = c.ClientIP()
+	user.RegisterIp = oauthClientIP(c)
 
 	// Handle affiliate code
 	inviterId := 0

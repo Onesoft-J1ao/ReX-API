@@ -568,6 +568,45 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Group = req.Group
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 	}
+	if strings.HasPrefix(c.Request.URL.Path, "/pg/videos") {
+		// Playground workbench video tasks. The relay mode cannot come from the
+		// path here the way /pg/3d does: Path2RelayMode rewrites /pg/ to /v1/ and
+		// has no /v1/videos case, so the mode would stay Unknown. Decide it from
+		// the method, exactly as the /v1/videos endpoint above does.
+		if c.Request.Method == http.MethodPost {
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			modelRequest.Model = req.Model
+			modelRequest.Group = req.Group
+			common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
+			c.Set("relay_mode", relayconstant.RelayModeVideoSubmit)
+		} else {
+			// Fetching an existing task: the model belongs to the stored task, and
+			// no channel selection happens.
+			c.Set("relay_mode", relayconstant.RelayModeVideoFetchByID)
+			modelRequest.Model = getTaskOriginModelName(c)
+			shouldSelectChannel = false
+		}
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/pg/3d") {
+		// Playground workbench 3D tasks. Path2RelayMode already resolves /pg/3d
+		// (and /pg/3d/{id}) because it rewrites the prefix to /v1/3d, so only the
+		// model and group have to be read here.
+		if c.Request.Method == http.MethodPost {
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			modelRequest.Model = req.Model
+			modelRequest.Group = req.Group
+			common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
+		} else {
+			modelRequest.Model = getTaskOriginModelName(c)
+			shouldSelectChannel = false
+		}
+	}
 
 	return &modelRequest, shouldSelectChannel, nil
 }
@@ -655,7 +694,14 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
-	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
+	channelSetting := channel.GetSetting()
+	// A channel with no proxy of its own falls back to the shared outbound proxy
+	// pool. PoolProxyForRelay never blocks: it returns the cached proxy or "" and
+	// refills in the background, so relay latency never depends on the pool.
+	if channelSetting.Proxy == "" {
+		channelSetting.Proxy = service.PoolProxyForRelay()
+	}
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, channelSetting)
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
 	if channel.Type == constant.ChannelTypeTaskPlugin {
 		c.Set("task_plugin_key", channel.GetSetting().TaskPluginKey)
