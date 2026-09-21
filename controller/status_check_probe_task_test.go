@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,6 +19,13 @@ func TestRunStatusCheckProbeTaskRecordsOneProbeAndHonorsBackoff(t *testing.T) {
 	previousGroups := common.StatusCheckGroups
 	previousFlexibleMode := common.StatusCheckFlexibleMode
 	previousProbeTest := runStatusCheckProbeChannelTest
+	previousRatios := ratio_setting.GetGroupRatioCopy()
+	// A group is only probed when it is also a known group ratio, and other
+	// tests in this package replace the ratio table, so set it here rather than
+	// relying on whatever the previous test left behind.
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`))
+	// A group is only probed when it is both listed as a visible status group
+	// and enabled in the pacing document, so the test must set both.
 	common.StatusCheckGroups = `["default"]`
 	common.StatusCheckFlexibleMode = `{"groups":{"default":{"enabled":true,"idle_minutes":1,"max_consecutive_probes":1}}}`
 	runStatusCheckProbeChannelTest = func(context.Context, *model.Channel, int, string, string, bool) testResult {
@@ -27,6 +35,10 @@ func TestRunStatusCheckProbeTaskRecordsOneProbeAndHonorsBackoff(t *testing.T) {
 		common.StatusCheckGroups = previousGroups
 		common.StatusCheckFlexibleMode = previousFlexibleMode
 		runStatusCheckProbeChannelTest = previousProbeTest
+		encodedRatios, err := common.Marshal(previousRatios)
+		if err == nil {
+			_ = ratio_setting.UpdateGroupRatioByJSONString(string(encodedRatios))
+		}
 	})
 
 	rootUser := &model.User{

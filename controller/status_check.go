@@ -354,7 +354,18 @@ type groupHealthProbeSummary struct {
 // With flexible probing off every group is returned untouched and nothing is
 // read or written, so the existing cadence is preserved exactly.
 func selectFlexibleProbeGroups(groups []string, now int64) ([]string, error) {
-	if !status_check_setting.FlexibleProbingEnabled() {
+	flexibleConfig := perfmetrics.GetStatusCheckFlexibleConfig()
+
+	// Groups the console has not enabled are returned untouched: the feature is
+	// opt-in per group, and a group absent from the document keeps the ordinary
+	// cadence with nothing read or written.
+	enabled := make([]string, 0, len(groups))
+	for _, group := range groups {
+		if _, ok := flexibleConfig.EnabledGroup(group); ok {
+			enabled = append(enabled, group)
+		}
+	}
+	if len(enabled) == 0 {
 		return groups, nil
 	}
 
@@ -362,11 +373,17 @@ func selectFlexibleProbeGroups(groups []string, now int64) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	idleSeconds := int64(status_check_setting.GetFlexibleIdleMinutes()) * 60
-	maxConsecutive := status_check_setting.GetFlexibleMaxConsecutiveProbes()
 
 	eligible := make([]string, 0, len(groups))
 	for _, group := range groups {
+		groupConfig, ok := flexibleConfig.EnabledGroup(group)
+		if !ok {
+			eligible = append(eligible, group)
+			continue
+		}
+		idleSeconds := int64(groupConfig.IdleMinutes) * 60
+		maxConsecutive := groupConfig.MaxConsecutiveProbes
+
 		state, exists := states[group]
 		if !exists {
 			// Open the idle window instead of spending a probe the moment

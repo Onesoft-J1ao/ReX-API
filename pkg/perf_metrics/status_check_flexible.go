@@ -11,7 +11,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/status_check_setting"
 )
 
 const (
@@ -106,25 +105,18 @@ func (config StatusCheckFlexibleConfig) EnabledGroup(group string) (StatusCheckF
 	return groupConfig, ok && groupConfig.Enabled
 }
 
-// statusCheckFlexibleGroupConfigured reports whether a group is one the status
-// page probes and flexible pacing is switched on. Both facts live in the
-// status_check_setting, which is the same source selectFlexibleProbeGroups
-// reads, so the traffic recorded here and the pacing applied there cannot
-// disagree about which groups are tracked.
+// statusCheckFlexibleGroupConfigured reports whether flexible pacing is on for
+// this group. Both facts come from the StatusCheckFlexibleMode document, which
+// is what the console writes and what selectFlexibleProbeGroups reads, so the
+// traffic recorded here and the pacing applied there cannot disagree about
+// which groups are tracked.
 func statusCheckFlexibleGroupConfigured(group string) bool {
 	group = strings.TrimSpace(group)
 	if group == "" || group == "auto" {
 		return false
 	}
-	if !status_check_setting.FlexibleProbingEnabled() {
-		return false
-	}
-	for _, configuredGroup := range status_check_setting.GetGroups() {
-		if strings.TrimSpace(configuredGroup) == group {
-			return true
-		}
-	}
-	return false
+	_, enabled := GetStatusCheckFlexibleConfig().EnabledGroup(group)
+	return enabled
 }
 
 // NoteStatusCheckPassiveActivity tracks a normal relay request separately from
@@ -197,6 +189,16 @@ func LatestStatusCheckPassiveActivity(group string, stored int64) int64 {
 		return timestamp
 	}
 	return latest
+}
+
+// ResetStatusCheckPassiveActivityForTest clears the in-process activity map.
+// The map is process-wide state, so a test that writes it would otherwise leak
+// a fresh "last seen" timestamp into whatever runs next and make that test
+// depend on the order it happened to run in.
+func ResetStatusCheckPassiveActivityForTest() {
+	statusCheckPassiveActivityMu.Lock()
+	statusCheckPassiveActivities = map[string]passiveActivity{}
+	statusCheckPassiveActivityMu.Unlock()
 }
 
 // RecordStatusCheckProbe adds an active probe to availability and average
