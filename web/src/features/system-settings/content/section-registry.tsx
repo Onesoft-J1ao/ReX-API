@@ -24,6 +24,7 @@ import { ChatSettingsSection } from './chat-settings-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
 import { FAQSection } from './faq-section'
+import { SupportSection } from './support-section'
 import { UptimeKumaSection } from './uptime-kuma-section'
 import { UpstreamStatusSection } from './upstream-status-section'
 
@@ -102,6 +103,16 @@ const CONTENT_SECTIONS = [
         enabled={settings['console_setting.upstream_status_enabled']}
         url={settings['console_setting.upstream_status_url']}
         name={settings['console_setting.upstream_status_name']}
+      />
+    ),
+  },
+  {
+    id: 'support',
+    titleKey: 'Support group',
+    build: (settings: ContentSettings) => (
+      <SupportSection
+        enabled={settings['console_setting.support_qq_enabled']}
+        url={settings['console_setting.support_qq_url']}
       />
     ),
   },

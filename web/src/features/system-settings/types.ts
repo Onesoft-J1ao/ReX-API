@@ -210,6 +210,8 @@ export type ContentSettings = {
   'console_setting.upstream_status_url': string
   'console_setting.upstream_status_name': string
   'console_setting.upstream_status_enabled': boolean
+  'console_setting.support_qq_url': string
+  'console_setting.support_qq_enabled': boolean
   DataExportEnabled: boolean
   DataExportDefaultTime: string
   DataExportInterval: number
@@ -407,6 +409,10 @@ export type OperationsSettings = {
   'perf_metrics_setting.upstream_summary_url': string
   'perf_metrics_setting.upstream_timeout_seconds': number
   'status_check_setting.probe_free_models_only': boolean
+  'model_catalog_setting.enabled': boolean
+  'model_catalog_setting.source_url': string
+  'model_catalog_setting.timeout_seconds': number
+  'model_catalog_setting.cache_minutes': number
 }
 
 export type SecuritySettings = {

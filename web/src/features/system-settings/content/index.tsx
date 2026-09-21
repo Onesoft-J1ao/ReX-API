@@ -36,6 +36,8 @@ const defaultContentSettings: ContentSettings = {
   'console_setting.upstream_status_url': '',
   'console_setting.upstream_status_name': '上游状态',
   'console_setting.upstream_status_enabled': true,
+  'console_setting.support_qq_url': '',
+  'console_setting.support_qq_enabled': true,
   DataExportEnabled: false,
   DataExportDefaultTime: 'hour',
   DataExportInterval: 5,

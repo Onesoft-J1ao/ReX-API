@@ -63,6 +63,15 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.upstream_timeout_seconds'] ?? 5,
           'status_check_setting.probe_free_models_only':
             settings['status_check_setting.probe_free_models_only'] ?? true,
+          'model_catalog_setting.enabled':
+            settings['model_catalog_setting.enabled'] ?? true,
+          'model_catalog_setting.source_url':
+            settings['model_catalog_setting.source_url'] ??
+            'https://models.dev/api.json',
+          'model_catalog_setting.timeout_seconds':
+            settings['model_catalog_setting.timeout_seconds'] ?? 15,
+          'model_catalog_setting.cache_minutes':
+            settings['model_catalog_setting.cache_minutes'] ?? 360,
         }}
       />
     ),

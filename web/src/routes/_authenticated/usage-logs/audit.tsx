@@ -16,10 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { AuditLogs } from '@/features/usage-logs/audit'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated/usage-logs/audit')({
+  beforeLoad: () => {
+    const { auth } = useAuthStore.getState()
+
+    // The audit trail records the operator's address alongside every account's
+    // sign-in history, so it is an administrative surface, not a user one.
+    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+      throw redirect({
+        to: '/403',
+      })
+    }
+  },
   component: AuditLogs,
 })
