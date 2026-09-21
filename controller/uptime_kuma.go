@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,6 +25,10 @@ const (
 	uptimeKeySuffix  = "_24"
 	apiStatusPath    = "/api/status-page/"
 	apiHeartbeatPath = "/api/status-page/heartbeat/"
+	// heartbeatLimit caps how many recent beats are carried into the response.
+	// Kuma returns up to 100 per monitor; the console draws a short history, so
+	// the older ones would be dead weight on every dashboard load.
+	heartbeatLimit = 60
 
 	// upstreamStatusCacheTTL stops a third-party status page from being scraped
 	// once per dashboard load. Our own Kuma is on the LAN and cheap to poll; the
@@ -74,11 +77,19 @@ func flattenUpstreamGroups(group UptimeGroupResult, categoryName string) UptimeG
 	return group
 }
 
+// UptimeHeartbeat is one Kuma beat: a status code and the timestamp it was
+// recorded at. The console renders the recent ones as a history strip.
+type UptimeHeartbeat struct {
+	Status int    `json:"status"`
+	Time   string `json:"time"`
+}
+
 type Monitor struct {
-	Name   string  `json:"name"`
-	Uptime float64 `json:"uptime"`
-	Status int     `json:"status"`
-	Group  string  `json:"group,omitempty"`
+	Name       string            `json:"name"`
+	Uptime     float64           `json:"uptime"`
+	Status     int               `json:"status"`
+	Group      string            `json:"group,omitempty"`
+	Heartbeats []UptimeHeartbeat `json:"heartbeats,omitempty"`
 }
 
 type UptimeGroupResult struct {
@@ -149,7 +160,7 @@ func getAndDecode(ctx context.Context, client *http.Client, url string, dest any
 		return errors.New("non-200 status")
 	}
 
-	return json.NewDecoder(resp.Body).Decode(dest)
+	return common.DecodeJson(resp.Body, dest)
 }
 
 func fetchGroupData(ctx context.Context, client *http.Client, baseURL string, slug string, categoryName string) UptimeGroupResult {
@@ -175,11 +186,8 @@ func fetchGroupData(ctx context.Context, client *http.Client, baseURL string, sl
 	}
 
 	var heartbeatData struct {
-		HeartbeatList map[string][]struct {
-			Status int    `json:"status"`
-			Time   string `json:"time"`
-		} `json:"heartbeatList"`
-		UptimeList map[string]float64 `json:"uptimeList"`
+		HeartbeatList map[string][]UptimeHeartbeat `json:"heartbeatList"`
+		UptimeList    map[string]float64           `json:"uptimeList"`
 	}
 
 	g, gCtx := errgroup.WithContext(ctx)
@@ -211,11 +219,14 @@ func fetchGroupData(ctx context.Context, client *http.Client, baseURL string, sl
 				monitor.Uptime = uptime
 			}
 
-			// Kuma returns the recent beats oldest-first, so the current state is
-			// the newest timestamp rather than the first entry.
-			if beats := heartbeatData.HeartbeatList[monitorID]; len(beats) > 0 {
-				latest := beats[0]
-				for _, beat := range beats[1:] {
+			if heartbeats, exists := heartbeatData.HeartbeatList[monitorID]; exists && len(heartbeats) > 0 {
+				start := max(0, len(heartbeats)-heartbeatLimit)
+				monitor.Heartbeats = append([]UptimeHeartbeat(nil), heartbeats[start:]...)
+				// Kuma returns the beats oldest-first (verified against the live
+				// API: the last entry is the newest timestamp), so the current
+				// state is the newest beat rather than a positional guess.
+				latest := monitor.Heartbeats[0]
+				for _, beat := range monitor.Heartbeats[1:] {
 					if beat.Time > latest.Time {
 						latest = beat
 					}

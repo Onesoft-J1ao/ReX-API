@@ -56,10 +56,18 @@ const (
 	ChannelTypeReplicate      = 56
 	ChannelTypeCodex          = 57
 	ChannelTypeAdvancedCustom = 58
-	ChannelTypeSub2API        = 59
-	ChannelTypeNewAPI         = 60
-	ChannelTypeTaskPlugin     = 61
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	// Keep channel IDs stable for existing installations.
+	ChannelTypeMeshy2API    = 59
+	ChannelTypeUnrealSpeech = 60
+	ChannelTypeSub2API      = 61
+	ChannelTypeNewAPI       = 62
+	ChannelTypeAgnes        = 63
+	ChannelTypeTaskPlugin   = 64
+	// IDs 65 and 66 are intentionally appended so existing fork channels keep
+	// their persisted meaning across upstream synchronization.
+	ChannelTypeVLLM   = 65
+	ChannelTypeSGLang = 66
+	ChannelTypeDummy  // this one is only for count, do not add any channel after this
 
 )
 
@@ -126,11 +134,19 @@ var ChannelBaseURLs = []string{
 	"https://chatgpt.com",                       //57
 	"",                                          //58
 	"",                                          //59
-	"",                                          //60
+	"https://api.v8.unrealspeech.com",           //60
 	"",                                          //61
+	"",                                          //62
+	"https://apihub.agnes-ai.com",               //63
+	"",                                          //64
+	"",                                          //65
+	"",                                          //66
 }
 
 func GetChannelBaseURL(channelType int) string {
+	if channelType == ChannelTypeTaskPlugin {
+		return ""
+	}
 	if channelType < 0 || channelType >= len(ChannelBaseURLs) {
 		return ""
 	}
@@ -193,9 +209,14 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "ChatGPT Subscription (Codex)",
 	ChannelTypeAdvancedCustom: "Advanced Custom",
+	ChannelTypeMeshy2API:      "Meshy2API",
+	ChannelTypeUnrealSpeech:   "UnrealSpeech",
 	ChannelTypeSub2API:        "Sub2API",
 	ChannelTypeNewAPI:         "New API",
+	ChannelTypeAgnes:          "Agnes",
 	ChannelTypeTaskPlugin:     "Task Plugin",
+	ChannelTypeVLLM:           "vLLM",
+	ChannelTypeSGLang:         "SGLang",
 }
 
 func GetChannelTypeName(channelType int) string {
@@ -227,4 +248,14 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
 		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
 	},
+}
+
+// IsAdvancedCustomChannel includes named channels backed by route presets.
+func IsAdvancedCustomChannel(channelType int) bool {
+	switch channelType {
+	case ChannelTypeAdvancedCustom, ChannelTypeVLLM, ChannelTypeSGLang:
+		return true
+	default:
+		return false
+	}
 }

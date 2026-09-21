@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
+	"github.com/QuantumNous/new-api/relay/channel/task/meshy"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -39,6 +41,9 @@ func init() {
 			continue
 		}
 		adaptor := relay.GetAdaptor(i)
+		if adaptor == nil {
+			continue
+		}
 		channelName := adaptor.GetChannelName()
 		modelNames := adaptor.GetModelList()
 		for _, modelName := range modelNames {
@@ -82,6 +87,14 @@ func init() {
 			OwnedBy: minimax.ChannelName,
 		})
 	}
+	for _, modelName := range meshy.ModelList {
+		openAIModels = append(openAIModels, dto.OpenAIModels{
+			Id:      modelName,
+			Object:  "model",
+			Created: 1626777600,
+			OwnedBy: meshy.ChannelName,
+		})
+	}
 	for modelName, _ := range constant.MidjourneyModel2Action {
 		openAIModels = append(openAIModels, dto.OpenAIModels{
 			Id:      modelName,
@@ -107,6 +120,9 @@ func init() {
 			ChannelType: i,
 		}}
 		adaptor := relay.GetAdaptor(apiType)
+		if adaptor == nil {
+			continue
+		}
 		adaptor.Init(meta)
 		channelId2Models[i] = adaptor.GetModelList()
 		if len(channelId2Models[i]) == 0 {
@@ -260,6 +276,26 @@ func ListModels(c *gin.Context, modelType int) {
 			continue
 		}
 		userModelNames = append(userModelNames, modelName)
+	}
+	if groups.tokenGroup == "auto" {
+		if value, ok := common.GetContextKey(c, constant.ContextKeyTokenAutoRoutes); ok {
+			if routes, ok := value.(map[string][]string); ok {
+				virtualModels := make([]string, 0, len(routes))
+				for virtualModel := range routes {
+					virtualModels = append(virtualModels, virtualModel)
+				}
+				sort.Strings(virtualModels)
+				seen := make(map[string]struct{}, len(userModelNames)+len(virtualModels))
+				for _, modelName := range userModelNames {
+					seen[modelName] = struct{}{}
+				}
+				for _, virtualModel := range virtualModels {
+					if _, exists := seen[virtualModel]; !exists {
+						userModelNames = append(userModelNames, virtualModel)
+					}
+				}
+			}
+		}
 	}
 
 	ownerByModel := map[string]string{}

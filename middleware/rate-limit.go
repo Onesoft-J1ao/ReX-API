@@ -178,13 +178,47 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// LoginRateLimit protects password, passkey, and second-factor login attempts
+// without sharing a bucket with unrelated critical operations.
+func LoginRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.LoginRateLimitNum, common.LoginRateLimitDuration, "LG")
+	}
+	return defNext
+}
+
+// RegisterRateLimit keeps account creation attempts separate from login
+// traffic, while retaining the global critical-rate-limit switch.
+func RegisterRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.RegisterRateLimitNum, common.RegisterRateLimitDuration, "RG")
+	}
+	return defNext
+}
+
+// OAuthRateLimit protects OAuth state and callback endpoints with a dedicated,
+// more permissive bucket so unrelated critical requests cannot exhaust a login
+// flow's allowance.
+func OAuthRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.OAuthRateLimitNum, common.OAuthRateLimitDuration, "OA")
+	}
+	return defNext
+}
+
 func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext
 	}
+	maxRequestNum := common.CriticalRateLimitNum
+	duration := common.CriticalRateLimitDuration
+	if scope == "redemption" {
+		maxRequestNum = common.RedemptionRateLimitNum
+		duration = common.RedemptionRateLimitDuration
+	}
 	return userRateLimitFactory(
-		common.CriticalRateLimitNum,
-		common.CriticalRateLimitDuration,
+		maxRequestNum,
+		duration,
 		"UC:"+scope,
 	)
 }

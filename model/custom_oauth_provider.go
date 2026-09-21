@@ -54,9 +54,9 @@ type CustomOAuthProvider struct {
 	AuthorizationEndpoint string `json:"authorization_endpoint" gorm:"type:varchar(512)"`                // Authorization URL
 	TokenEndpoint         string `json:"token_endpoint" gorm:"type:varchar(512)"`                        // Token exchange URL
 	UserInfoEndpoint      string `json:"user_info_endpoint" gorm:"type:varchar(512)"`                    // User info URL
-	IdentitySource        string `json:"identity_source" gorm:"type:varchar(32)"`                         // userinfo or id_token
-	Issuer                string `json:"issuer" gorm:"type:varchar(512)"`                                 // Expected ID token issuer
-	JWKSURI               string `json:"jwks_uri" gorm:"type:varchar(512)"`                               // ID token signing key set
+	IdentitySource        string `json:"identity_source" gorm:"type:varchar(32)"`                        // userinfo or id_token
+	Issuer                string `json:"issuer" gorm:"type:varchar(512)"`                                // Expected ID token issuer
+	JWKSURI               string `json:"jwks_uri" gorm:"type:varchar(512)"`                              // ID token signing key set
 	Scopes                string `json:"scopes" gorm:"type:varchar(256);default:'openid profile email'"` // OAuth scopes
 
 	// Field mapping configuration (supports JSONPath via gjson)
@@ -190,10 +190,19 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	}
 	switch provider.IdentitySource {
 	case CustomOAuthIdentitySourceUserInfo:
-		if provider.UserInfoEndpoint == "" {
-			return errors.New("user info endpoint is required")
+		// The profile endpoint may come from a discovery document, so an
+		// explicit one is not required when well-known discovery is configured.
+		if provider.UserInfoEndpoint == "" && strings.TrimSpace(provider.WellKnown) == "" {
+			return errors.New("user info endpoint or discovery URL is required")
+		}
+		if provider.UserInfoEndpoint != "" && strings.TrimSpace(provider.WellKnown) == "" {
+			if err := validateCustomOAuthIDTokenURL("user info endpoint", provider.UserInfoEndpoint); err != nil {
+				return err
+			}
 		}
 	case CustomOAuthIdentitySourceIDToken:
+		// This mode reads the identity from the ID token, so it needs the
+		// signing key set and issuer rather than a profile endpoint.
 		if err := validateCustomOAuthIDTokenURL("issuer", provider.Issuer); err != nil {
 			return err
 		}
@@ -203,7 +212,6 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	default:
 		return errors.New("identity source must be userinfo or id_token")
 	}
-
 	// Set defaults for field mappings if empty
 	if provider.UserIdField == "" {
 		provider.UserIdField = "sub"

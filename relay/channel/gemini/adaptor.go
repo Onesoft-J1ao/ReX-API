@@ -1,20 +1,25 @@
 package gemini
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/reasoning"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -24,9 +29,6 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	if err := relayconvert.ApplyGeminiThinkingConfigChecked(request, info); err != nil {
-		return nil, err
-	}
 	if len(request.Contents) > 0 {
 		for i, content := range request.Contents {
 			if i == 0 {
@@ -47,7 +49,7 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	result, err := service.ConvertRequest(c, info, types.RelayFormatGemini, req)
+	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, req)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
-		return nil, errors.New("not supported model for image generation, only imagen models are supported")
+		return buildGeminiNativeImageRequest(c, request)
 	}
 
 	// convert size to aspect ratio but allow user to specify aspect ratio
@@ -129,11 +131,168 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return geminiRequest, nil
 }
 
+func buildGeminiNativeImageRequest(c *gin.Context, request dto.ImageRequest) (*dto.GeminiChatRequest, error) {
+	imageN := uint(1)
+	if request.N != nil {
+		imageN = *request.N
+	}
+	if imageN != 1 {
+		return nil, errors.New("Gemini native image generation supports n=1")
+	}
+
+	parts := []dto.GeminiPart{{Text: request.Prompt}}
+	if inlineData, err := resolveGeminiInputImage(c, request); err != nil {
+		return nil, err
+	} else if inlineData != nil {
+		parts = append(parts, dto.GeminiPart{InlineData: inlineData})
+	}
+
+	imageConfig := map[string]string{}
+	aspectRatio, imageSize := resolveGeminiImageConfig(request.Size, request.Quality)
+	if aspectRatio != "" {
+		imageConfig["aspectRatio"] = aspectRatio
+	}
+	if imageSize != "" {
+		imageConfig["imageSize"] = imageSize
+	}
+	imageConfigJSON, err := common.Marshal(imageConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{{Role: "user", Parts: parts}},
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			ResponseModalities: []string{"IMAGE"},
+			ImageConfig:        imageConfigJSON,
+		},
+	}, nil
+}
+
+func resolveGeminiInputImage(c *gin.Context, request dto.ImageRequest) (*dto.GeminiInlineData, error) {
+	if c.Request.MultipartForm != nil {
+		for _, fieldName := range []string{"image", "image[]"} {
+			files := c.Request.MultipartForm.File[fieldName]
+			if len(files) == 0 {
+				continue
+			}
+			file, err := files[0].Open()
+			if err != nil {
+				return nil, fmt.Errorf("open input image: %w", err)
+			}
+			defer file.Close()
+			data, err := io.ReadAll(file)
+			if err != nil {
+				return nil, fmt.Errorf("read input image: %w", err)
+			}
+			mimeType := files[0].Header.Get("Content-Type")
+			if mimeType == "" {
+				mimeType = http.DetectContentType(data)
+			}
+			return &dto.GeminiInlineData{MimeType: mimeType, Data: base64.StdEncoding.EncodeToString(data)}, nil
+		}
+	}
+
+	if len(request.Image) == 0 {
+		return nil, nil
+	}
+	var imageValue string
+	if err := common.Unmarshal(request.Image, &imageValue); err != nil || imageValue == "" {
+		return nil, nil
+	}
+	if !strings.HasPrefix(imageValue, "data:") {
+		return nil, errors.New("Gemini image editing requires a data URI or multipart upload")
+	}
+	header, encoded, found := strings.Cut(imageValue, ",")
+	if !found || !strings.Contains(header, ";base64") {
+		return nil, errors.New("invalid image data URI")
+	}
+	mimeType := strings.TrimPrefix(strings.SplitN(header, ";", 2)[0], "data:")
+	if _, err := base64.StdEncoding.DecodeString(encoded); err != nil {
+		return nil, errors.New("invalid image base64 data")
+	}
+	return &dto.GeminiInlineData{MimeType: mimeType, Data: encoded}, nil
+}
+
+func resolveGeminiImageConfig(size, quality string) (string, string) {
+	size = strings.TrimSpace(size)
+	quality = strings.ToUpper(strings.TrimSpace(quality))
+	imageSize := ""
+	if quality == "1K" || quality == "2K" || quality == "4K" {
+		imageSize = quality
+	}
+	if strings.Contains(size, ":") {
+		return size, imageSize
+	}
+	upperSize := strings.ToUpper(size)
+	if upperSize == "1K" || upperSize == "2K" || upperSize == "4K" {
+		return "", upperSize
+	}
+
+	parts := strings.Split(strings.ToLower(size), "x")
+	if len(parts) != 2 {
+		return "", imageSize
+	}
+	width, widthErr := strconv.Atoi(parts[0])
+	height, heightErr := strconv.Atoi(parts[1])
+	if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
+		return "", imageSize
+	}
+	if imageSize == "" {
+		maxDimension := max(width, height)
+		switch {
+		case maxDimension > 2048:
+			imageSize = "4K"
+		case maxDimension > 1024:
+			imageSize = "2K"
+		default:
+			imageSize = "1K"
+		}
+	}
+	return nearestImageAspectRatio(width, height), imageSize
+}
+
+func nearestImageAspectRatio(width, height int) string {
+	ratio := float64(width) / float64(height)
+	options := []struct {
+		label string
+		ratio float64
+	}{
+		{"1:1", 1}, {"2:3", 2.0 / 3}, {"3:2", 3.0 / 2},
+		{"3:4", 3.0 / 4}, {"4:3", 4.0 / 3}, {"9:16", 9.0 / 16}, {"16:9", 16.0 / 9},
+	}
+	best := options[0]
+	bestDistance := math.Abs(ratio - best.ratio)
+	for _, option := range options[1:] {
+		distance := math.Abs(ratio - option.ratio)
+		if distance < bestDistance {
+			best = option
+			bestDistance = distance
+		}
+	}
+	return best.label
+}
+
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+
+	if !info.EffortModelRouted && model_setting.GetGeminiSettings().ThinkingAdapterEnabled &&
+		!model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
+		// 新增逻辑：处理 -thinking-<budget> 格式
+		if strings.Contains(info.UpstreamModelName, "-thinking-") {
+			parts := strings.Split(info.UpstreamModelName, "-thinking-")
+			info.UpstreamModelName = parts[0]
+		} else if strings.HasSuffix(info.UpstreamModelName, "-thinking") { // 旧的适配
+			info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
+		} else if strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
+			info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-nothinking")
+		} else if baseModel, level, ok := reasoning.TrimEffortSuffix(info.UpstreamModelName); ok && level != "" {
+			info.UpstreamModelName = baseModel
+		}
+	}
 
 	version := model_setting.GetGeminiVersionSetting(info.UpstreamModelName)
 
@@ -171,9 +330,14 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	result, err := service.ConvertRequest(c, info, types.RelayFormatGemini, request)
+	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, request)
 	if err != nil {
 		return nil, err
+	}
+	if helper.ApplyEffortModelRoute(info) {
+		if converted, ok := result.Value.(*dto.GeminiChatRequest); ok {
+			converted.SetModelName(info.UpstreamModelName)
+		}
 	}
 	return result.Value, nil
 }
@@ -195,9 +359,9 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	// batch endpoint upstream to avoid payload/endpoint mismatches.
 	info.IsGeminiBatchEmbedding = true
 	// process all inputs
-	geminiRequests := make([]map[string]any, 0, len(inputs))
+	geminiRequests := make([]map[string]interface{}, 0, len(inputs))
 	for _, input := range inputs {
-		geminiRequest := map[string]any{
+		geminiRequest := map[string]interface{}{
 			"model": fmt.Sprintf("models/%s", info.UpstreamModelName),
 			"content": dto.GeminiChatContent{
 				Parts: []dto.GeminiPart{
@@ -221,19 +385,22 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 		geminiRequests = append(geminiRequests, geminiRequest)
 	}
 
-	return map[string]any{
+	return map[string]interface{}{
 		"requests": geminiRequests,
 	}, nil
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	result, err := service.ConvertRequest(c, info, types.RelayFormatGemini, &request)
+	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, &request)
 	if err != nil {
 		return nil, err
 	}
 	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
 	if !ok {
 		return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
+	}
+	if helper.ApplyEffortModelRoute(info) {
+		geminiRequest.SetModelName(info.UpstreamModelName)
 	}
 	return geminiRequest, nil
 }
@@ -264,6 +431,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return GeminiImageHandler(c, info, resp)
+	}
+	if info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits {
+		return GeminiNativeImageHandler(c, info, resp)
 	}
 
 	// check if the model is an embedding model

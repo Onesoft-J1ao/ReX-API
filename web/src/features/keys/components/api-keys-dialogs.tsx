@@ -16,10 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ApiKeyResetQuotaDialog } from './api-key-reset-quota-dialog'
 import { ApiKeysDeleteDialog } from './api-keys-delete-dialog'
 import { ApiKeysMutateDrawer } from './api-keys-mutate-drawer'
 import { useApiKeys } from './api-keys-provider'
+import { ApiKeyUsageDialog } from './dialogs/api-key-usage-dialog'
+import { AutoRouteStatusDrawer } from './dialogs/auto-route-status-drawer'
 import { CCSwitchDialog } from './dialogs/cc-switch-dialog'
+import { TokenGroupMigrationDialog } from './dialogs/token-group-migration-dialog'
 
 export function ApiKeysDialogs() {
   const { open, setOpen, currentRow, resolvedKey } = useApiKeys()
@@ -32,11 +36,29 @@ export function ApiKeysDialogs() {
         currentRow={open === 'update' ? currentRow || undefined : undefined}
       />
       <ApiKeysDeleteDialog />
+      <ApiKeyResetQuotaDialog />
+      <AutoRouteStatusDrawer
+        open={open === 'auto-route-status'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        token={currentRow}
+      />
+      <TokenGroupMigrationDialog
+        open={open === 'migrate-group'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+      />
       <CCSwitchDialog
         open={open === 'cc-switch'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
         tokenKey={resolvedKey}
       />
+      {open === 'use-key' ? (
+        <ApiKeyUsageDialog
+          open
+          onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+          tokenKey={resolvedKey}
+          group={currentRow?.group || 'default'}
+        />
+      ) : null}
     </>
   )
 }

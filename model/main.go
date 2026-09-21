@@ -349,6 +349,8 @@ func migrateDB() error {
 		&Log{},
 		&Midjourney{},
 		&TopUp{},
+		&MoneroPayment{},
+		&NowPaymentsPayment{},
 		&QuotaData{},
 		&Task{},
 		&TaskPlugin{},
@@ -366,9 +368,12 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&StatusCheckProbeState{},
 		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},
+		&SupportConversation{},
+		&SupportMessage{},
 		&CasbinRule{},
 		&AuthzRole{},
 	)
@@ -390,6 +395,99 @@ func migrateDB() error {
 			return err
 		}
 	}
+	if err := normalizeSubscriptionRedemptionQuotas(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func migrateDBFast() error {
+
+	var wg sync.WaitGroup
+
+	migrations := []struct {
+		model interface{}
+		name  string
+	}{
+		{&Channel{}, "Channel"},
+		{&Token{}, "Token"},
+		{&User{}, "User"},
+		{&UserSession{}, "UserSession"},
+		{&AuthFlow{}, "AuthFlow"},
+		{&ExternalIdentityClaim{}, "ExternalIdentityClaim"},
+		{&PasskeyCredential{}, "PasskeyCredential"},
+		{&Option{}, "Option"},
+		{&Redemption{}, "Redemption"},
+		{&Ability{}, "Ability"},
+		{&Log{}, "Log"},
+		{&Midjourney{}, "Midjourney"},
+		{&TopUp{}, "TopUp"},
+		{&MoneroPayment{}, "MoneroPayment"},
+		{&NowPaymentsPayment{}, "NowPaymentsPayment"},
+		{&QuotaData{}, "QuotaData"},
+		{&Task{}, "Task"},
+		{&Model{}, "Model"},
+		{&Vendor{}, "Vendor"},
+		{&PrefillGroup{}, "PrefillGroup"},
+		{&Setup{}, "Setup"},
+		{&TwoFA{}, "TwoFA"},
+		{&TwoFABackupCode{}, "TwoFABackupCode"},
+		{&Checkin{}, "Checkin"},
+		{&SubscriptionOrder{}, "SubscriptionOrder"},
+		{&UserSubscription{}, "UserSubscription"},
+		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
+		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
+		{&UserOAuthBinding{}, "UserOAuthBinding"},
+		{&PerfMetric{}, "PerfMetric"},
+		{&StatusCheckProbeState{}, "StatusCheckProbeState"},
+		{&SystemInstance{}, "SystemInstance"},
+		{&SystemTask{}, "SystemTask"},
+		{&SystemTaskLock{}, "SystemTaskLock"},
+		{&SupportConversation{}, "SupportConversation"},
+		{&SupportMessage{}, "SupportMessage"},
+	}
+	// 动态计算migration数量，确保errChan缓冲区足够大
+	errChan := make(chan error, len(migrations))
+
+	for _, m := range migrations {
+		wg.Add(1)
+		go func(model interface{}, name string) {
+			defer wg.Done()
+			if err := DB.AutoMigrate(model); err != nil {
+				errChan <- fmt.Errorf("failed to migrate %s: %v", name, err)
+			}
+		}(m.model, m.name)
+	}
+
+	// Wait for all migrations to complete
+	wg.Wait()
+	close(errChan)
+
+	// Check for any errors
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
+	}
+	if err := InitializeUserAuthVersions(); err != nil {
+		return err
+	}
+	if err := InitializeExternalIdentityClaims(); err != nil {
+		return err
+	}
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
+			return err
+		}
+	} else {
+		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
+			return err
+		}
+	}
+	if err := normalizeSubscriptionRedemptionQuotas(); err != nil {
+		return err
+	}
+	common.SysLog("database migrated")
 	return nil
 }
 
@@ -522,7 +620,14 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`max_purchase_per_user`" + ` integer DEFAULT 0,
 ` + "`upgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`downgrade_group`" + ` varchar(64) DEFAULT '',
+` + "`wallet_only_groups_enabled`" + ` numeric DEFAULT 0,
+` + "`wallet_only_groups_mode`" + ` varchar(16) DEFAULT 'blacklist',
+` + "`wallet_only_groups`" + ` text DEFAULT '',
+` + "`rate_limit_groups`" + ` text DEFAULT '[]',
 ` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`five_hour_limit`" + ` bigint NOT NULL DEFAULT 0,
+` + "`weekly_limit`" + ` bigint NOT NULL DEFAULT 0,
+` + "`monthly_limit`" + ` bigint NOT NULL DEFAULT 0,
 ` + "`quota_reset_period`" + ` varchar(16) DEFAULT 'never',
 ` + "`quota_reset_custom_seconds`" + ` bigint DEFAULT 0,
 ` + "`created_at`" + ` bigint,
@@ -559,7 +664,14 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "max_purchase_per_user", DDL: "`max_purchase_per_user` integer DEFAULT 0"},
 		{Name: "upgrade_group", DDL: "`upgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "downgrade_group", DDL: "`downgrade_group` varchar(64) DEFAULT ''"},
+		{Name: "wallet_only_groups_enabled", DDL: "`wallet_only_groups_enabled` numeric DEFAULT 0"},
+		{Name: "wallet_only_groups_mode", DDL: "`wallet_only_groups_mode` varchar(16) DEFAULT 'blacklist'"},
+		{Name: "wallet_only_groups", DDL: "`wallet_only_groups` text DEFAULT ''"},
+		{Name: "rate_limit_groups", DDL: "`rate_limit_groups` text DEFAULT '[]'"},
 		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "five_hour_limit", DDL: "`five_hour_limit` bigint NOT NULL DEFAULT 0"},
+		{Name: "weekly_limit", DDL: "`weekly_limit` bigint NOT NULL DEFAULT 0"},
+		{Name: "monthly_limit", DDL: "`monthly_limit` bigint NOT NULL DEFAULT 0"},
 		{Name: "quota_reset_period", DDL: "`quota_reset_period` varchar(16) DEFAULT 'never'"},
 		{Name: "quota_reset_custom_seconds", DDL: "`quota_reset_custom_seconds` bigint DEFAULT 0"},
 		{Name: "created_at", DDL: "`created_at` bigint"},

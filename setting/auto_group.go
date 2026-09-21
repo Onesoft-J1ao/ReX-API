@@ -16,6 +16,7 @@ var autoGroups = []string{
 }
 
 var DefaultUseAutoGroup = false
+var AutoGroupDescription = ""
 
 var maxTokenAutoGroups atomic.Int64
 

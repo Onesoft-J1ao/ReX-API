@@ -111,6 +111,12 @@ func ParseThinkingModifier(raw string) (Intent, bool) {
 	return Intent{}, false
 }
 
+// TrimEffortSuffix preserves the legacy helper used by host adapters while
+// keeping the suffix vocabulary centralized in the conversion kit.
+func TrimEffortSuffix(modelName string) (string, string, bool) {
+	return TrimEffortSuffixWithSuffixes(modelName, EffortSuffixes)
+}
+
 func TrimEffortSuffixWithSuffixes(modelName string, suffixes []string) (string, string, bool) {
 	suffix, found := lo.Find(suffixes, func(s string) bool {
 		return strings.HasSuffix(modelName, s)

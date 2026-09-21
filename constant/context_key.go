@@ -7,7 +7,11 @@ const (
 	ContextKeyPromptTokens    ContextKey = "prompt_tokens"
 	ContextKeyEstimatedTokens ContextKey = "estimated_tokens"
 
-	ContextKeyOriginalModel    ContextKey = "original_model"
+	ContextKeyOriginalModel ContextKey = "original_model"
+	// ContextKeySelectedModel is the concrete model selected by Auto routing
+	// for the current channel. OriginalModel remains the client-facing model
+	// used for billing, logs, and retry accounting.
+	ContextKeySelectedModel    ContextKey = "selected_model"
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
 
 	/* token related keys */
@@ -25,6 +29,7 @@ const (
 	ContextKeyPlaygroundFingerprint ContextKey = "playground_fingerprint"
 	ContextKeyPlaygroundIP          ContextKey = "playground_ip"
 	ContextKeyTokenAutoGroups        ContextKey = "token_auto_groups"
+	ContextKeyTokenAutoRoutes        ContextKey = "token_auto_routes"
 
 	/* channel related keys */
 	ContextKeyChannelId                ContextKey = "channel_id"
@@ -49,14 +54,15 @@ const (
 	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
 
 	/* user related keys */
-	ContextKeyUserId      ContextKey = "id"
-	ContextKeyUserSetting ContextKey = "user_setting"
-	ContextKeyUserQuota   ContextKey = "user_quota"
-	ContextKeyUserStatus  ContextKey = "user_status"
-	ContextKeyUserEmail   ContextKey = "user_email"
-	ContextKeyUserGroup   ContextKey = "user_group"
-	ContextKeyUsingGroup  ContextKey = "group"
-	ContextKeyUserName    ContextKey = "username"
+	ContextKeyUserId          ContextKey = "id"
+	ContextKeyUserSetting     ContextKey = "user_setting"
+	ContextKeyUserQuota       ContextKey = "user_quota"
+	ContextKeyUserStatus      ContextKey = "user_status"
+	ContextKeyUserEmail       ContextKey = "user_email"
+	ContextKeyUserGroup       ContextKey = "user_group"
+	ContextKeyUserGroupAccess ContextKey = "user_group_access"
+	ContextKeyUsingGroup      ContextKey = "group"
+	ContextKeyUserName        ContextKey = "username"
 
 	ContextKeyLocalCountTokens ContextKey = "local_count_tokens"
 
@@ -70,8 +76,9 @@ const (
 	ContextKeyAdminRejectReason ContextKey = "admin_reject_reason"
 
 	// ContextKeyLanguage stores the user's language preference for i18n
-	ContextKeyLanguage ContextKey = "language"
-	ContextKeyIsStream ContextKey = "is_stream"
+	ContextKeyLanguage             ContextKey = "language"
+	ContextKeyIsStream             ContextKey = "is_stream"
+	ContextKeyResponseStreamStatus ContextKey = "response_stream_status"
 
 	// ContextKeyAuditLogged marks that the current request has already recorded
 	// a manage/operation audit log inside the handler. When set, the admin-audit

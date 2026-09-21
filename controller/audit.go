@@ -23,6 +23,7 @@ var auditContentTemplates = map[string]string{
 	"user.delete":               "Deleted user ${username} (ID: ${id})",
 	"user.account_delete":       "Account deletion",
 	"user.manage":               "Performed ${action} on user ${username} (ID: ${id})",
+	"user.batch_manage":         "Batch ${action} applied to ${count} users",
 	"user.quota_add":            "Increased user quota by ${quota}",
 	"user.quota_subtract":       "Decreased user quota by ${quota}",
 	"user.quota_override":       "Overrode user quota from ${from} to ${to}",
@@ -35,6 +36,8 @@ var auditContentTemplates = map[string]string{
 	"user.2fa_enable":           "Enabled two-factor authentication",
 	"user.2fa_disable_self":     "Disabled two-factor authentication",
 	"user.2fa_backup_codes":     "Regenerated two-factor backup codes",
+	"user.login_2fa_enable":     "Enabled two-factor verification at login",
+	"user.login_2fa_disable":    "Disabled two-factor verification at login",
 	"user.security_verify":      "Completed security verification",
 	"user.password_change":      "Account password change",
 	"user.binding_start":        "Account binding request",
@@ -142,8 +145,8 @@ func recordManageAudit(c *gin.Context, action string, params map[string]any) {
 	recordManageAuditFor(c, c.GetInt("id"), action, params)
 }
 
-// recordManageAuditFor 记录一条管理审计日志，日志归属于操作者；targetUserId
-// 只表示被操作用户，用于在结构化参数中保留目标上下文。
+// recordManageAuditFor records a management audit under the operator. The
+// target user remains available in the structured parameters.
 func recordManageAuditFor(c *gin.Context, targetUserId int, action string, params map[string]any) {
 	if params == nil {
 		params = map[string]any{}
@@ -173,24 +176,4 @@ func recordUserSecurityAudit(c *gin.Context, userId int, action string, params m
 		}
 	}
 	model.RecordOperationAuditLog(userId, c.GetInt("role"), auditContentEN(action, params), c.ClientIP(), action, params, nil, auditInfo, c)
-}
-
-func tokenAuditParams(c *gin.Context) model.AuditFields {
-	params, ok := common.GetContextKeyType[model.AuditFields](c, constant.ContextKeyTokenAuditParams)
-	if !ok {
-		params = model.AuditFields{}
-		common.SetContextKey(c, constant.ContextKeyTokenAuditParams, params)
-	}
-	return params
-}
-
-func tokenBatchAuditParams(c *gin.Context, ids []int) model.AuditFields {
-	params := tokenAuditParams(c)
-	params["total"] = len(ids)
-	// Bound audit payloads without changing the batch operation's limits.
-	params["requested_ids"] = append([]int{}, ids[:min(len(ids), 100)]...)
-	if len(ids) > 100 {
-		params["requested_ids_truncated"] = true
-	}
-	return params
 }

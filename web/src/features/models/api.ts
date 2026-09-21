@@ -124,6 +124,14 @@ export async function deleteModel(
   return res.data
 }
 
+export async function deleteUnusedModels(): Promise<{
+  success: boolean
+  data?: { deleted: number }
+}> {
+  const res = await api.delete('/api/models/delete-unused')
+  return res.data
+}
+
 // ============================================================================
 // Vendor Management
 // ============================================================================

@@ -18,7 +18,21 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { PerformanceMetricsData, PerfSummaryAllData } from './types'
+import type {
+  PerformanceMetricsData,
+  PerfSummaryAllData,
+  StatusCheckData,
+} from './types'
+
+export async function getStatusCheck(): Promise<StatusCheckData> {
+  // The perf-status view (cache hit rate, TTFT history) has its own path: the
+  // console's /status-check is the channel-status page, which returns a
+  // different shape.
+  const res = await api.get<StatusCheckData>('/api/status-check/perf', {
+    disableDuplicate: true,
+  } as Record<string, unknown>)
+  return res.data
+}
 
 export async function getPerfMetricsSummary(
   hours = 24

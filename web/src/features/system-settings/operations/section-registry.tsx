@@ -25,6 +25,8 @@ import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { ErrorRewriteSection } from './error-rewrite-section'
+import { SupportSettingsSection } from './support-settings-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -36,6 +38,32 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+          HideUpstreamRequestID:
+            settings['console_setting.hide_upstream_request_id'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'error-rewrite',
+    titleKey: 'Global Error Rewrite',
+    build: (settings: OperationsSettings) => (
+      <ErrorRewriteSection
+        defaultValues={{
+          enabled: settings['error_rewrite.enabled'],
+          rules: settings['error_rewrite.rules'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'support',
+    titleKey: 'Support Settings',
+    build: (settings: OperationsSettings) => (
+      <SupportSettingsSection
+        defaultValues={{
+          SupportEnabled: settings.SupportEnabled,
+          SupportMessageLimit: settings.SupportMessageLimit,
         }}
       />
     ),
@@ -46,9 +74,13 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <MonitoringSettingsSection
         defaultValues={{
+          QuotaRemindEnabled: settings.QuotaRemindEnabled ?? true,
           QuotaRemindThreshold: settings.QuotaRemindThreshold,
           'perf_metrics_setting.enabled':
             settings['perf_metrics_setting.enabled'] ?? true,
+          'perf_metrics_setting.exclude_upstream_400_errors':
+            settings['perf_metrics_setting.exclude_upstream_400_errors'] ??
+            false,
           'perf_metrics_setting.flush_interval':
             settings['perf_metrics_setting.flush_interval'] ?? 5,
           'perf_metrics_setting.bucket_time':
@@ -91,6 +123,7 @@ const OPERATIONS_SECTIONS = [
           SMTPStartTLSEnabled: settings.SMTPStartTLSEnabled,
           SMTPInsecureSkipVerify: settings.SMTPInsecureSkipVerify,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
+          EmailVerificationTemplate: settings.EmailVerificationTemplate,
         }}
       />
     ),
@@ -105,6 +138,9 @@ const OPERATIONS_SECTIONS = [
           WorkerValidKey: settings.WorkerValidKey,
           WorkerAllowHttpImageRequestEnabled:
             settings.WorkerAllowHttpImageRequestEnabled,
+          WorkerMeshyImageProxyEnabled: settings.WorkerMeshyImageProxyEnabled,
+          WorkerMeshyImageProxyBaseURL: settings.WorkerMeshyImageProxyBaseURL,
+          WorkerMeshyImageProxyAPIKey: settings.WorkerMeshyImageProxyAPIKey,
         }}
       />
     ),

@@ -239,6 +239,7 @@ export function formatModelName(log: UsageLog): {
   name: string
   isMapped: boolean
   actualModel?: string
+  responseModel?: LogOtherData['response_model']
 } {
   const other = parseLogOther(log.other)
   const isMapped = !!(
@@ -251,6 +252,7 @@ export function formatModelName(log: UsageLog): {
     name: log.model_name,
     isMapped,
     actualModel: isMapped ? other.upstream_model_name : undefined,
+    responseModel: other?.response_model,
   }
 }
 
@@ -459,6 +461,8 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'user.2fa_enable': 'Enabled two-factor authentication',
   'user.2fa_disable_self': 'Disabled two-factor authentication',
   'user.2fa_backup_codes': 'Regenerated two-factor backup codes',
+  'user.login_2fa_enable': 'Enabled two-factor verification at login',
+  'user.login_2fa_disable': 'Disabled two-factor verification at login',
   'user.security_verify': 'Completed security verification',
   'user.password_change': 'Account password change',
   'user.binding_start': 'Account binding request',
@@ -473,6 +477,7 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'user.delete': 'Deleted user {{username}} (ID: {{id}})',
   'user.account_delete': 'Account deletion',
   'user.manage': 'Performed {{action}} on user {{username}} (ID: {{id}})',
+  'user.batch_manage': 'Batch {{action}} applied to {{count}} users',
   'user.quota_add': 'Increased user quota by {{quota}}',
   'user.quota_subtract': 'Decreased user quota by {{quota}}',
   'user.quota_override': 'Overrode user quota from {{from}} to {{to}}',

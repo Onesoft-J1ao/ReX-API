@@ -76,10 +76,16 @@ function redemption(id: number, quota = 500001): Redemption {
     key: `key-${id}`,
     status: 1,
     quota,
+    subscription_plan_id: 0,
     created_time: 1,
     redeemed_time: 0,
     expired_time: 0,
     used_user_id: 0,
+    creator_type: 'admin',
+    owner_id: 0,
+    purchase_trade_no: '',
+    purchase_amount: 0,
+    refunded_time: 0,
   }
 }
 

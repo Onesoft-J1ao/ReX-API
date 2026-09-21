@@ -113,7 +113,7 @@ export function ImageWorkbench() {
   }, [config.model, models, updateConfig])
 
   const handleReferenceFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(event.target.files ?? [])
+    const picked = [...event.target.files ?? []]
     if (picked.length > 0) {
       addReferenceImages(picked)
     }

@@ -25,52 +25,98 @@ import * as z from 'zod'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
-import { SettingsForm } from '../components/settings-form-layout'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const noticeSchema = z.object({
   Notice: z.string().optional(),
+  NoticePopupEnabled: z.boolean(),
+  NoticePopupMode: z.enum(['home', 'dashboard', 'both']),
+  NoticeHeaderButtonMode: z.enum(['popover', 'dialog']),
 })
 
 type NoticeFormValues = z.infer<typeof noticeSchema>
 
 type NoticeSectionProps = {
-  defaultValue: string
+  defaultValues: NoticeFormValues
 }
 
-export function NoticeSection({ defaultValue }: NoticeSectionProps) {
+export function NoticeSection({ defaultValues }: NoticeSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const defaultNotice = defaultValues.Notice ?? ''
+  const defaultPopupEnabled = defaultValues.NoticePopupEnabled
+  const defaultPopupMode = defaultValues.NoticePopupMode
+  const defaultHeaderButtonMode = defaultValues.NoticeHeaderButtonMode
   const form = useForm<NoticeFormValues>({
     resolver: zodResolver(noticeSchema),
     defaultValues: {
-      Notice: defaultValue ?? '',
+      Notice: defaultNotice,
+      NoticePopupEnabled: defaultPopupEnabled,
+      NoticePopupMode: defaultPopupMode,
+      NoticeHeaderButtonMode: defaultHeaderButtonMode,
     },
   })
 
   useEffect(() => {
-    form.reset({ Notice: defaultValue ?? '' })
-  }, [defaultValue, form])
+    form.reset({
+      Notice: defaultNotice,
+      NoticePopupEnabled: defaultPopupEnabled,
+      NoticePopupMode: defaultPopupMode,
+      NoticeHeaderButtonMode: defaultHeaderButtonMode,
+    })
+  }, [
+    defaultHeaderButtonMode,
+    defaultNotice,
+    defaultPopupEnabled,
+    defaultPopupMode,
+    form,
+  ])
 
   const onSubmit = async (values: NoticeFormValues) => {
-    const normalized = values.Notice ?? ''
-    if (normalized === (defaultValue ?? '')) {
-      return
+    const normalizedValues: NoticeFormValues = {
+      ...values,
+      Notice: values.Notice ?? '',
     }
-    await updateOption.mutateAsync({
-      key: 'Notice',
-      value: normalized,
-    })
+    const initialValues: NoticeFormValues = {
+      Notice: defaultNotice,
+      NoticePopupEnabled: defaultPopupEnabled,
+      NoticePopupMode: defaultPopupMode,
+      NoticeHeaderButtonMode: defaultHeaderButtonMode,
+    }
+    const updates = Object.entries(normalizedValues).filter(
+      ([key, value]) => value !== initialValues[key as keyof NoticeFormValues]
+    )
+
+    for (const [key, value] of updates) {
+      await updateOption.mutateAsync({ key, value })
+    }
   }
+
+  const popupEnabled = form.watch('NoticePopupEnabled')
 
   return (
     <SettingsSection title={t('System Notice')}>
@@ -96,6 +142,102 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
                     {...field}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='NoticePopupEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Show notice as a popup')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Show the system notice whenever users open the home page'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='NoticePopupMode'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Popup display mode')}</FormLabel>
+                <FormControl>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={!popupEnabled}
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='home'>
+                          {t('Home page only')}
+                        </SelectItem>
+                        <SelectItem value='dashboard'>
+                          {t('Overview dashboard only')}
+                        </SelectItem>
+                        <SelectItem value='both'>
+                          {t('Home page and overview dashboard')}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormDescription>
+                  {t('Choose where the notice popup appears')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='NoticeHeaderButtonMode'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {t('Header announcement button behavior')}
+                </FormLabel>
+                <FormControl>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className='w-full'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='popover'>
+                          {t('Show below the button')}
+                        </SelectItem>
+                        <SelectItem value='dialog'>
+                          {t('Open a dialog')}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Choose how the announcement center opens from the header'
+                  )}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

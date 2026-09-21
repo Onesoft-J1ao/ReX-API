@@ -54,7 +54,7 @@ import { TopNav } from './top-nav'
  *   rightContent={<CustomRight />}
  * />
  */
-type AppHeaderProps = {
+type AppHeaderProps = React.ComponentProps<typeof Header> & {
   /**
    * Custom navigation links, uses default global navigation or dynamically generated from backend if not provided
    */
@@ -103,6 +103,8 @@ export function AppHeader({
   showNotifications = true,
   showConfigDrawer = true,
   showProfileDropdown = true,
+  className,
+  ...headerProps
 }: AppHeaderProps) {
   // Prioritize dynamically generated links from backend
   const dynamicLinks = useTopNavLinks()
@@ -112,7 +114,7 @@ export function AppHeader({
   const notifications = useNotifications()
 
   return (
-    <Header>
+    <Header className={className} {...headerProps}>
       <div className='@container/system-brand flex min-w-0 flex-1 items-center gap-1'>
         <SystemBrand variant='inline' />
         <SystemUpdateAction presentation='version' />
@@ -142,6 +144,7 @@ export function AppHeader({
               notice={notifications.notice}
               announcements={notifications.announcements}
               loading={notifications.loading}
+              displayMode={notifications.noticeButtonMode}
             />
           )}
           <LanguageSwitcher />

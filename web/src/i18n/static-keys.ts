@@ -17,10 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 // Static translation keys that don't get picked up by the t('...') regex.
-// These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
+// These cover dynamic labels that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  'This operation is only supported for vLLM or SGLang channels',
+  'Invalid inference server address',
+  'Channel type does not match the status endpoint',
+  'SGLang channel base URL cannot be empty',
+  'No enabled channel key',
+  'Invalid channel header override',
+  'Invalid channel proxy',
   'For this channel, map the model name in client requests to the model name sent upstream.',
-  // Channel provider labels, descriptions and presentation badges.
   'Zhipu GLM',
   'Connect to the OpenAI API or compatible services',
   'Generate Midjourney images through MjProxy',
@@ -74,39 +80,26 @@ export const STATIC_I18N_KEYS = [
   'Flexible integration',
   'Connect to model services through a Sub2API gateway',
   'Connect to model services from another New API instance',
+  'SGLang',
+  'Connect to self-hosted models served by SGLang',
+  'SGLang server address, without /v1',
+  'SGLang API key, or EMPTY if authentication is disabled',
+  'vLLM',
+  'Connect to self-hosted models served by vLLM',
+  'vLLM server address, without /v1',
+  'vLLM API key, or EMPTY if authentication is disabled',
 
   'Price per image',
   'Per image',
   'Audio requests',
   'Text-only requests',
-  'Realtime pricing must be converted manually.',
-  'This OpenRouter Claude price derives cache-write usage from upstream cost and must be converted manually.',
-  'Gemini and OpenAI audio prices differ for this model. Use separate billing model names to convert them.',
-  'This model has different image request multipliers across channels. Use separate billing model names to convert them.',
-  // Image cache billing and legacy price conversion.
   'Image cache input price',
   'Image Cache',
-  'Per-token (deprecated)',
-  'Per-request (deprecated)',
-  'This model already uses an expression.',
-  'Task pricing must be converted manually using the task usage schema.',
-  'This model has provider-specific billing and must be converted manually.',
-  'The model routing configuration could not be verified.',
-  'Audio and Realtime pricing must be converted manually.',
-  'Video pricing must be converted manually.',
-  'Image prices with count, size or quality adjustments must be converted manually.',
-  'Configure an input price before converting this model.',
-  'Prices changed while preparing the conversion. Try again.',
-  // Billing expression simulation diagnostics and conditional labels.
   '{{start}}–{{end}}',
-
-  // Billing expression simulation diagnostics and conditional labels.
   'Outside these times: {{condition}}',
   '{{first}} and {{second}}',
   '{{first}} or {{second}}',
   '{{condition}} ({{timezone}})',
-
-  // Billing expression simulation diagnostics and conditional labels.
   'Current period price',
   'Add at least one condition to this group.',
   'Choose a valid IANA timezone.',
@@ -136,9 +129,7 @@ export const STATIC_I18N_KEYS = [
   'This expression cannot be edited visually without losing information.',
   'Matched',
   'Not matched',
-
   'Account deletion',
-  // Model management and metadata synchronization
   'No matching channels',
   'Metadata only',
   'Available channels: {{count}}',
@@ -147,7 +138,6 @@ export const STATIC_I18N_KEYS = [
   'No channel is currently available. This model will not appear in the model square.',
   'Listing also depends on metadata visibility and the user’s group access.',
   'Add metadata to all selected models first.',
-
   'Model management',
   'Select models',
   'Preview fields',
@@ -161,23 +151,17 @@ export const STATIC_I18N_KEYS = [
   'Upstream vendor missing',
   'Custom endpoints',
   'Catalog visibility',
-
-  // Header navigation
   'Home',
   'Console',
   'Model Square',
   'Rankings',
   'Docs',
   'About',
-
-  // Sidebar views (drill-in workspaces)
   'System Settings',
   'Back to Dashboard',
   'Auto-disable rules',
   'Channel health checks',
   'Request retry',
-
-  // System settings sidebar
   'System Administration',
   'General',
   'Authentication',
@@ -187,15 +171,12 @@ export const STATIC_I18N_KEYS = [
   'Models',
   'Routing Reliability',
   'Maintenance',
-
-  // System info
+  'Down',
   'online',
   'stale',
   'Master instances run scheduled background tasks.',
   'Worker instances do not run master-only background tasks.',
   'Drawing task polling',
-
-  // Pricing constants
   'Name',
   'Price: Low to High',
   'Price: High to Low',
@@ -219,14 +200,10 @@ export const STATIC_I18N_KEYS = [
   'All Tags',
   'More...',
   'Less',
-
-  // Roles
   'Super Admin',
   'Admin',
   'User',
   'Guest',
-
-  // API Keys
   'Enabled',
   'Disabled',
   'Expired',
@@ -244,15 +221,13 @@ export const STATIC_I18N_KEYS = [
   'Failed to delete API keys',
   'Failed to update API key status',
   'Expected a JSON array of group identifiers',
+  'Expected a JSON array of group identifiers or an object mapping identifiers to descriptions',
   'Successfully created {{count}} API Key(s)',
   'Successfully deleted {{count}} API key(s)',
   'Enter API key for this channel',
-
-  // Users
   'Root',
   'Deleted',
   'User created successfully',
-  'User updated successfully',
   'User updated successfully',
   'Failed to load users',
   'Failed to search users',
@@ -260,12 +235,8 @@ export const STATIC_I18N_KEYS = [
   'Failed to update user',
   'Failed to delete user',
   'No user selected',
-
-  // Redemption codes
   'Unused',
-  'Disabled',
   'Used',
-  'Expired',
   'Redemption code(s) created successfully',
   'Redemption code updated successfully',
   'Redemption code deleted successfully',
@@ -285,8 +256,6 @@ export const STATIC_I18N_KEYS = [
   'Expired time cannot be earlier than current time',
   'Quota must be a positive number',
   'Successfully created {{count}} redemption codes',
-
-  // Home page (constants-driven labels)
   'Cost Tracking',
   'Model Access',
   'Guardrails',
@@ -317,49 +286,33 @@ export const STATIC_I18N_KEYS = [
   'Multi-user management with flexible permission allocation',
   'Technical Support',
   'Professional team providing 24/7 technical support',
-
-  // User management (interpolated keys)
   'Remaining Quota ({{currency}})',
   'Enter quota in tokens',
   'Enter quota in {{currency}}',
-
-  // Setup wizard — steps
   'Database check',
   'Verify your database connection',
   'Create credentials for the root user',
   'Choose how the platform will operate',
   'Review & initialize',
   'Confirm settings and finish setup',
-
-  // Setup wizard — database step
   'SQLite stores all data in a single file. Make sure that file is persisted when running in containers.',
   'MySQL is a production-ready relational database. Keep your credentials secure.',
   'PostgreSQL offers advanced reliability and data integrity for production workloads.',
   'Custom database driver detected.',
   'The setup wizard will use this database during initialization.',
-
-  // Setup wizard — usage mode step
   'External operations',
   'Serve multiple users or teams with billing and quota control.',
   'Personal use',
   'Best for single-tenant deployments. Pricing and billing options stay hidden.',
   'Demo site',
   'Showcase core capabilities with demo credentials and limited access.',
-
-  // Setup wizard — complete step
   'External operations mode',
   'Personal use mode',
   'Demo site mode',
   'Existing account will be reused',
   'Not set yet',
-
-  // Models section-registry nav (dynamic titleKey)
   'Grok',
-
-  // Channel Affinity section
   'Channel Affinity',
-
-  // Models constants
   'Exact Match',
   'Prefix Match',
   'Contains Match',
@@ -372,8 +325,6 @@ export const STATIC_I18N_KEYS = [
   'Match models starting with this name',
   'Match models containing this name',
   'Match models ending with this name',
-
-  // Playground parameter controls
   'Temperature',
   'Top P',
   'Frequency Penalty',
@@ -399,8 +350,6 @@ export const STATIC_I18N_KEYS = [
   'Configuration File',
   'Sync from the public upstream metadata repository.',
   'Upload or reference a local configuration file.',
-
-  // Subscription constants (dynamic labelKey)
   'years',
   'months',
   'days',
@@ -412,8 +361,6 @@ export const STATIC_I18N_KEYS = [
   'Daily',
   'Weekly',
   'Monthly',
-
-  // CC Switch dialog
   'Import to CC Switch',
   'Open CC Switch',
   'Primary Model',
@@ -421,16 +368,12 @@ export const STATIC_I18N_KEYS = [
   'Sonnet Model',
   'Opus Model',
   'Enter model name',
-
-  // User binding dialog
   'Account Binding Management',
   'Built-in',
   'Confirm Unbind',
   'Unbind',
   'Unbind failed',
   'This user has no bindings',
-
-  // Subscription plans
   'Subscription Plans',
   'Subscribe Now',
   'Purchase Subscription',
@@ -451,13 +394,10 @@ export const STATIC_I18N_KEYS = [
   'Subscription First',
   'Subscription Only',
   'No Active',
-  'No Reset',
   'Remaining',
   'Received',
   'Payment initiated',
   'Payment page opened',
-
-  // Upstream model updates
   'Upstream Model Updates',
   'Sync Fields',
   'Add Models',
@@ -466,8 +406,6 @@ export const STATIC_I18N_KEYS = [
   'Partial Submission',
   'No models to add',
   'No models to remove',
-
-  // Header manipulation
   'Pass Headers',
   'Set Header',
   'Copy Header',
@@ -486,15 +424,11 @@ export const STATIC_I18N_KEYS = [
   'Return Error',
   'Param Override',
   'Override request parameters',
-
-  // Profile / 2FA
   'Backed up',
   'Not backed up',
   'No backup',
   'Generate New Codes',
   'Audio Preview',
-
-  // Status-code risk dialog
   'High-risk status code retry risk check 1',
   'High-risk status code retry risk check 2',
   'High-risk status code retry risk check 3',
@@ -507,8 +441,6 @@ export const STATIC_I18N_KEYS = [
   'High-risk status code retry input placeholder',
   'High-risk status code retry input mismatch',
   'I confirm enabling high-risk retry',
-
-  // Subscription management
   'Subscription Management',
   'Subscriptions',
   'Stripe/Creem requires creating products on the third-party platform and entering the ID',
@@ -567,8 +499,6 @@ export const STATIC_I18N_KEYS = [
   'Edit',
   'Disable',
   'Enable',
-
-  // User subscription management
   'User Subscription Management',
   'Select subscription plan',
   'Add subscription',
@@ -587,11 +517,8 @@ export const STATIC_I18N_KEYS = [
   'Please select a subscription plan',
   'Added successfully',
   'Has been invalidated',
-  'Deleted',
   'Validity',
   'Actions',
-
-  // Sidebar modules
   'Chat Area',
   'Playground and chat functions',
   'Playground',
@@ -640,8 +567,6 @@ export const STATIC_I18N_KEYS = [
   'Sidebar Personal Settings',
   'Customize sidebar display content',
   'Reset to Default',
-
-  // Available models
   'Available Models',
   'View all currently available models',
   'No available models',
@@ -650,21 +575,15 @@ export const STATIC_I18N_KEYS = [
   'Collapse',
   'No models available in this category',
   'Copied: {{model}}',
-
-  // Grok settings
   'Grok Settings',
   'Enable violation deduction',
   'When enabled, violation requests will incur additional charges.',
   'Official documentation',
   'Violation deduction amount',
   'Base amount. Actual deduction = base amount × system group rate.',
-
-  // Chat2Link
   'No available Web chat links',
   'No enabled tokens available',
   'Redirecting to chat page...',
-
-  // Channel upstream updates
   'No processable upstream model updates for this channel',
   'Upstream model updates applied: {{added}} added, {{removed}} removed, {{ignored}} ignored this time, {{totalIgnored}} total ignored models',
   'Batch processing failed',
@@ -673,16 +592,11 @@ export const STATIC_I18N_KEYS = [
   'Detection complete: {{add}} to add, {{remove}} to remove',
   'Batch detection failed',
   'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
-
-  // Advanced Custom model discovery
   'Only one OpenAI Models route is allowed',
   'OpenAI Models route does not support client model rules',
   'OpenAI Models route must use native forwarding',
   'OpenAI Models upstream path must not contain {model}',
   'OpenAI Models route is required to enable upstream model checks',
-
-  // Dashboard flow stages (labels/descriptions passed to t at runtime)
-  'User',
   'Node',
   'Token',
   'Group',
@@ -694,8 +608,6 @@ export const STATIC_I18N_KEYS = [
   'The user group applied to the requests',
   'The model that was requested',
   'The upstream channel that served the requests',
-
-  // API token audit events
   'Create API token',
   'Create API token “{{name}}”',
   'Update API token',
@@ -713,14 +625,10 @@ export const STATIC_I18N_KEYS = [
   'API token batch deletion',
   'API token key access',
   'API token batch key access',
-
-  // Channel status audit events
   "View other accounts' audit logs",
   'View audit records from user and admin roles. Root records are always excluded.',
   'Updated channel status (ID: {{id}})',
   'Batch updated channel status ({{count}}/{{total}} changed)',
-
-  // Misc
   'Cancel',
   'Status',
   'Upgrade Group',
@@ -758,7 +666,6 @@ export const STATIC_I18N_KEYS = [
   'Override quota for user “{{name}}”',
   'Adjust user quota',
   'Adjust quota for user “{{name}}”',
-  // Account binding and password-operation messages.
   'Account bindings have changed. Start this operation again.',
   'Add another login method before unlinking this account.',
   'Bind WeChat',
@@ -797,7 +704,6 @@ export const STATIC_I18N_KEYS = [
   'Account binding',
   'Account unlinking',
   'Email confirmation code resend',
-  // Model and vendor management labels.
   'Vendors',
   'Vendor management',
   'Vendor name and icon must not exceed 128 characters.',
@@ -813,6 +719,35 @@ export const STATIC_I18N_KEYS = [
   'Provider default',
   'Low',
   'High',
+  'Global Error Rewrite',
+  '3D generation',
+  'Image generation',
+  'Enable conversational chat in Playground.',
+  'Enable image generation and editing in Playground.',
+  'Enable text-to-speech generation in Playground.',
+  'Enable asynchronous 3D generation in Playground.',
+  'Edit image',
+  'Generate image',
+  'No voices found',
+  'Request price',
+  'Realistic',
+  'Cartoon',
+  'Sculpture',
+  'Pbr',
+  'OpenAI Responses to Anthropic Messages',
+  'UnrealSpeech',
+  'Async',
+  'Spanish',
+  'French',
+  'Hindi',
+  'Italian',
+  'Portuguese',
+  'Waiting for transaction...',
+  'Transaction detected, waiting for confirmations... (Confirmations: {{count}})',
+  'Monero payment credited successfully',
+  'Connect to Meshy2API 3D generation services',
+  'Connect to UnrealSpeech text-to-speech services',
+  'Connect to Agnes multimodal model services',
   // Gateway retry notices, rendered at runtime from GATEWAY_RETRY_MESSAGES.
   'Network fluctuation, retrying… ({{current}}/{{total}})',
   'Network is unstable. Please refresh the page and try again.',

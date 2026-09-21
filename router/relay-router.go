@@ -1,11 +1,14 @@
 package router
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +18,7 @@ func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.DecompressRequestMiddleware())
 	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	router.Use(middleware.StatsMiddleware())
+	router.GET("/v1/artifacts/:artifact_id", service.ImageURLProxy)
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))
@@ -63,19 +67,38 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundRouter.Use(middleware.RouteTag("relay"))
 	playgroundRouter.Use(middleware.PlaygroundGuard())
 	playgroundRouter.Use(middleware.SystemPerformanceCheck())
-	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
+	playgroundRouter.Use(middleware.UserAuth())
 	{
-		playgroundRouter.POST("/chat/completions", controller.Playground)
-		playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
-		playgroundRouter.POST("/images/edits", controller.PlaygroundImage)
-		playgroundRouter.POST("/audio/speech", controller.PlaygroundAudio)
-		playgroundRouter.POST("/audio/transcriptions", controller.PlaygroundAudio)
-		playgroundRouter.POST("/audio/translations", controller.PlaygroundAudio)
+		// The playground routes go through Distribute so a workbench request
+		// picks a channel the same way a real one does. steve's handler set is a
+		// superset of the earlier chat/image/audio trio: it adds 3D and video,
+		// and splits speech into an async task form with its own fetch/content/
+		// timestamps reads. Transcription and translation are served by the
+		// speech handlers rather than a separate audio entry point.
+		playgroundRelayRouter := playgroundRouter.Group("")
+		playgroundRelayRouter.Use(middleware.Distribute())
+		playgroundRelayRouter.POST("/chat/completions", controller.PlaygroundChat)
+		playgroundRelayRouter.POST("/images/generations", controller.PlaygroundImage)
+		playgroundRelayRouter.POST("/images/edits", controller.PlaygroundImage)
+		playgroundRelayRouter.POST("/audio/speech", controller.PlaygroundSpeech)
+		playgroundRelayRouter.POST("/audio/speech/tasks", controller.PlaygroundSpeechTask)
+		playgroundRelayRouter.POST("/3d", controller.PlaygroundThreeD)
+		playgroundRelayRouter.POST("/videos", controller.PlaygroundVideo)
+		playgroundRouter.GET("/audio/speech/tasks/:task_id", controller.PlaygroundSpeechTaskFetch)
+		playgroundRouter.GET("/audio/speech/tasks/:task_id/content", controller.PlaygroundSpeechContent)
+		playgroundRouter.GET("/audio/speech/tasks/:task_id/timestamps", controller.PlaygroundSpeechTimestamps)
+		playgroundRouter.GET("/3d/:task_id", controller.PlaygroundThreeDFetch)
+		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundVideoFetch)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
+	{
+		// Responses WebSocket route. Channel selection happens after the first
+		// response.create event; each event runs the ordinary request limiter.
+		relayV1Router.GET("/responses", controller.ResponsesWebSocket)
+	}
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
 	{
 		// WebSocket 路由（统一到 Relay）
@@ -83,6 +106,9 @@ func SetRelayRouter(router *gin.Engine) {
 		wsRouter.Use(middleware.Distribute())
 		wsRouter.GET("/realtime", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIRealtime)
+		})
+		wsRouter.GET("/audio/speech/websocket", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatUnrealSpeechWebSocket)
 		})
 	}
 	{
@@ -187,6 +213,15 @@ func SetRelayRouter(router *gin.Engine) {
 	//relayMjRouter.Use()
 
 	relayGeminiRouter := router.Group("/v1beta")
+	// :countTokens is not implemented. Answer it like an unregistered route
+	// before auth/channel selection instead of silently relaying it as
+	// generateContent (#7283).
+	relayGeminiRouter.Use(func(c *gin.Context) {
+		if strings.HasSuffix(c.Request.URL.Path, ":countTokens") {
+			controller.RelayNotFound(c)
+			c.Abort()
+		}
+	})
 	relayGeminiRouter.Use(middleware.RouteTag("relay"))
 	relayGeminiRouter.Use(middleware.SystemPerformanceCheck())
 	relayGeminiRouter.Use(middleware.TokenAuth())

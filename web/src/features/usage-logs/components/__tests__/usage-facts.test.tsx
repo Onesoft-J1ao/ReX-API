@@ -48,6 +48,8 @@ function makeLog(other: LogOtherData): UsageLog {
     username: 'user',
     token_name: 'token',
     model_name: 'wan2.5-i2v-preview',
+    model_icon: '',
+    provider_icon: '',
     quota: 5000,
     prompt_tokens: 0,
     completion_tokens: 0,
@@ -93,6 +95,21 @@ function renderDetails(other: LogOtherData, promptTokens = 0): QueryClient {
 function rowValue(label: string): string | null {
   return screen.getByText(label).nextElementSibling?.textContent ?? null
 }
+
+test('shows the recorded request and response models in log details', () => {
+  const queryClient = renderDetails({
+    response_model: {
+      requested_model: 'requested-model',
+      upstream_model: 'mapped-model',
+      returned_model: 'unexpected-model',
+    },
+  })
+  expect(screen.getByText('Response model: unexpected-model')).toBeVisible()
+  expect(rowValue('Request Model')).toBe('requested-model')
+  expect(rowValue('Upstream Model')).toBe('mapped-model')
+  expect(screen.getByText('unexpected-model')).toBeVisible()
+  queryClient.clear()
+})
 
 describe('usage facts billing details', () => {
   test('shows the settled image count and a per-image price', () => {

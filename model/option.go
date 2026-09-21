@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"maps"
 	"strconv"
 	"strings"
@@ -11,8 +12,11 @@ import (
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/console_setting"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
+	"github.com/QuantumNous/new-api/setting/playground_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
@@ -20,7 +24,7 @@ import (
 
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
-	Value string `json:"value"`
+	Value string `json:"value" gorm:"type:text"`
 }
 
 func AllOption() ([]*Option, error) {
@@ -48,9 +52,37 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
 	common.OptionMap["PhantomCheckEnabled"] = strconv.FormatBool(common.PhantomCheckEnabled)
+	common.OptionMap["HCaptchaEnabled"] = strconv.FormatBool(common.HCaptchaEnabled)
+	common.OptionMap["HCaptchaSiteKey"] = common.HCaptchaSiteKey
+	common.OptionMap["HCaptchaSecretKey"] = common.HCaptchaSecretKey
+	common.OptionMap["CapEnabled"] = strconv.FormatBool(common.CapEnabled)
+	common.OptionMap["CapServerURL"] = common.CapServerURL
+	common.OptionMap["CapAdminAPIKey"] = common.CapAdminAPIKey
+	common.OptionMap["CapSiteKey"] = common.CapSiteKey
+	common.OptionMap["CapSecretKey"] = common.CapSecretKey
+	common.OptionMap["CapCheckinSiteKey"] = common.CapCheckinSiteKey
+	common.OptionMap["CapCheckinSecretKey"] = common.CapCheckinSecretKey
+	common.OptionMap["ForceCheckinCaptcha"] = strconv.FormatBool(common.ForceCheckinCaptcha)
+	common.OptionMap["ForceRedemptionCaptcha"] = strconv.FormatBool(common.ForceRedemptionCaptcha)
+	common.OptionMap["CaptchaType"] = common.CaptchaType
+	common.OptionMap["LoginCaptchaDifficulty"] = strconv.Itoa(common.LoginCaptchaDifficulty)
+	common.OptionMap["CheckinCaptchaDifficulty"] = strconv.Itoa(common.CheckinCaptchaDifficulty)
+	common.OptionMap["PaymentAnnouncement"] = common.PaymentAnnouncement
+	common.OptionMap["CustomTabs"] = common.CustomTabs
+	common.OptionMap["StatusCheckGroups"] = common.StatusCheckGroups
+	common.OptionMap["StatusCheckCacheExcludedModels"] = common.StatusCheckCacheExcludedModels
+	common.OptionMap["StatusCheckAnnouncement"] = common.StatusCheckAnnouncement
+	common.OptionMap["StatusCheckFlexibleMode"] = common.StatusCheckFlexibleMode
+	common.OptionMap["PlaygroundSettings"] = playground_setting.ToJSONString()
+	common.OptionMap["NoticePopupEnabled"] = strconv.FormatBool(common.NoticePopupEnabled)
+	common.OptionMap["NoticePopupMode"] = common.NoticePopupMode
+	common.OptionMap["NoticePopupOnDashboardEnabled"] = strconv.FormatBool(common.NoticePopupOnDashboardEnabled)
+	common.OptionMap["NoticeHeaderButtonMode"] = common.NoticeHeaderButtonMode
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
+	common.OptionMap["ChannelAutoStatusEmailEnabled"] = strconv.FormatBool(common.ChannelAutoStatusEmailEnabled)
+	common.OptionMap["SupportEnabled"] = strconv.FormatBool(common.SupportEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
@@ -58,6 +90,8 @@ func InitOptionMap() {
 	common.OptionMap["TaskEnabled"] = strconv.FormatBool(common.TaskEnabled)
 	common.OptionMap["TaskPluginEnabled"] = strconv.FormatBool(constant.TaskPluginEnabled)
 	jsplugin.DefaultRegistry.SetEnabled(constant.TaskPluginEnabled)
+	common.OptionMap["TaskPluginOverrideEnabled"] = strconv.FormatBool(constant.TaskPluginOverrideEnabled)
+	jsplugin.DefaultRegistry.SetOverrideEnabled(constant.TaskPluginOverrideEnabled)
 	common.OptionMap[setting.TaskPluginMarketplaceSourcesKey] = setting.TaskPluginMarketplaceSources2JsonString()
 	common.OptionMap[setting.TaskPluginDisabledFactoryKeysKey] = "[]"
 	jsplugin.DefaultRegistry.SetDisabledFactoryKeys(nil)
@@ -75,6 +109,8 @@ func InitOptionMap() {
 	common.OptionMap["SMTPStartTLSEnabled"] = strconv.FormatBool(common.SMTPStartTLSEnabled)
 	common.OptionMap["SMTPInsecureSkipVerify"] = strconv.FormatBool(common.SMTPInsecureSkipVerify)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["EmailVerificationTemplate"] = common.EmailVerificationTemplate
+	common.OptionMap["UserBannedMessage"] = common.UserBannedMessage
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -87,10 +123,14 @@ func InitOptionMap() {
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
 	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(system_setting.WorkerAllowHttpImageRequestEnabled)
+	common.OptionMap["WorkerMeshyImageProxyEnabled"] = strconv.FormatBool(system_setting.WorkerMeshyImageProxyEnabled)
+	common.OptionMap["WorkerMeshyImageProxyBaseURL"] = system_setting.WorkerMeshyImageProxyBaseURL
+	common.OptionMap["WorkerMeshyImageProxyAPIKey"] = system_setting.WorkerMeshyImageProxyAPIKey
 	common.OptionMap["PayAddress"] = ""
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
 	common.OptionMap["EpayKey"] = ""
+	common.OptionMap["EpayGateways"] = operation_setting.EpayGateways2JsonString()
 	common.OptionMap["Price"] = strconv.FormatFloat(operation_setting.Price, 'f', -1, 64)
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
@@ -123,18 +163,38 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMerchantID"] = setting.WaffoPancakeMerchantID
 	common.OptionMap["WaffoPancakePrivateKey"] = setting.WaffoPancakePrivateKey
 	common.OptionMap["WaffoPancakeReturnURL"] = setting.WaffoPancakeReturnURL
+	common.OptionMap["WaffoPancakeUseConfiguredProductPrice"] = strconv.FormatBool(setting.WaffoPancakeUseConfiguredProductPrice)
+	common.OptionMap["WaffoPancakeUSDToCurrencyRate"] = strconv.FormatFloat(setting.WaffoPancakeUSDToCurrencyRate, 'f', -1, 64)
 	common.OptionMap["WaffoPancakeUnitPrice"] = strconv.FormatFloat(setting.WaffoPancakeUnitPrice, 'f', -1, 64)
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["MoneroEnabled"] = strconv.FormatBool(setting.MoneroEnabled)
+	common.OptionMap["MoneroWalletRPCURL"] = setting.MoneroWalletRPCURL
+	common.OptionMap["MoneroWalletRPCUsername"] = setting.MoneroWalletRPCUsername
+	common.OptionMap["MoneroWalletRPCPassword"] = setting.MoneroWalletRPCPassword
+	common.OptionMap["MoneroNetwork"] = setting.MoneroNetwork
+	common.OptionMap["MoneroConfirmations"] = strconv.Itoa(setting.MoneroConfirmations)
+	common.OptionMap["MoneroMaxSubaddresses"] = strconv.Itoa(setting.MoneroMaxSubaddresses)
+	common.OptionMap["MoneroUSDToCurrencyRate"] = strconv.FormatFloat(setting.MoneroUSDToCurrencyRate, 'f', -1, 64)
+	common.OptionMap["NowPaymentsEnabled"] = strconv.FormatBool(setting.NowPaymentsEnabled)
+	common.OptionMap["NowPaymentsAPIKey"] = setting.NowPaymentsAPIKey
+	common.OptionMap["NowPaymentsIPNSecret"] = setting.NowPaymentsIPNSecret
+	common.OptionMap["NowPaymentsAPIBaseURL"] = setting.NowPaymentsAPIBaseURL
+	common.OptionMap["NowPaymentsPayCurrencies"] = setting.NowPaymentsPayCurrencies
+	common.OptionMap["NowPaymentsMinTopUp"] = strconv.Itoa(setting.NowPaymentsMinTopUp)
+	common.OptionMap["NowPaymentsUSDToCurrencyRate"] = strconv.FormatFloat(setting.NowPaymentsUSDToCurrencyRate, 'f', -1, 64)
+	common.OptionMap["NowPaymentsPaymentExpirationMins"] = strconv.Itoa(setting.NowPaymentsPaymentExpirationMins)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
 	common.OptionMap["DefaultUseAutoGroup"] = strconv.FormatBool(setting.DefaultUseAutoGroup)
+	common.OptionMap["AutoGroupDescription"] = setting.AutoGroupDescription
 	common.OptionMap["MaxTokenAutoGroups"] = strconv.Itoa(setting.GetMaxTokenAutoGroups())
 	common.OptionMap["PayMethods"] = operation_setting.PayMethods2JsonString()
 	common.OptionMap["GitHubClientId"] = ""
 	common.OptionMap["GitHubClientSecret"] = ""
+	common.OptionMap["GitHubAPIToken"] = ""
 	common.OptionMap["TelegramBotToken"] = ""
 	common.OptionMap["TelegramBotName"] = ""
 	common.OptionMap["WeChatServerAddress"] = ""
@@ -146,8 +206,10 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	common.OptionMap["QuotaRemindEnabled"] = strconv.FormatBool(common.QuotaRemindEnabled)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
+	common.OptionMap["SupportMessageLimit"] = strconv.Itoa(common.SupportMessageLimit)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
 	common.OptionMap["ModelRequestRateLimitDurationMinutes"] = strconv.Itoa(setting.ModelRequestRateLimitDurationMinutes)
 	common.OptionMap["ModelRequestRateLimitSuccessCount"] = strconv.Itoa(setting.ModelRequestRateLimitSuccessCount)
@@ -158,6 +220,8 @@ func InitOptionMap() {
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
 	common.OptionMap["GroupGroupRatio"] = ratio_setting.GroupGroupRatio2JSONString()
+	common.OptionMap["GroupDefaultModel"] = ratio_setting.GroupDefaultModel2JSONString()
+	common.OptionMap["GroupRetryTimes"] = ratio_setting.GroupRetryTimes2JSONString()
 	common.OptionMap["UserUsableGroups"] = setting.UserUsableGroups2JSONString()
 	common.OptionMap["CompletionRatio"] = ratio_setting.CompletionRatio2JSONString()
 	common.OptionMap["ImageRatio"] = ratio_setting.ImageRatio2JSONString()
@@ -191,18 +255,39 @@ func InitOptionMap() {
 
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
-	maps.Copy(common.OptionMap, modelConfigs)
+	for k, v := range modelConfigs {
+		common.OptionMap[k] = v
+	}
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
 }
 
 func loadOptionsFromDatabase() {
+	requestPolicyOptionMutex.Lock()
+	defer requestPolicyOptionMutex.Unlock()
+	defer func() {
+		if err := refreshRequestPolicySnapshot(); err != nil {
+			common.SysError("invalid request policy: " + err.Error())
+		}
+	}()
 	passkeyOptionMutex.Lock()
 	defer passkeyOptionMutex.Unlock()
 	options, _ := AllOption()
+	hasPopupMode := false
+	hasEpayGateways := false
+	legacyDashboardPopupEnabled := false
 	passkeyOptions := make(map[string]string)
 	for _, option := range options {
+		if option.Key == "NoticePopupMode" {
+			hasPopupMode = true
+		}
+		if option.Key == "EpayGateways" {
+			hasEpayGateways = true
+		}
+		if option.Key == "NoticePopupOnDashboardEnabled" && option.Value == "true" {
+			legacyDashboardPopupEnabled = true
+		}
 		if IsPasskeyDomainOption(option.Key) {
 			passkeyOptions[option.Key] = option.Value
 			continue
@@ -212,7 +297,23 @@ func loadOptionsFromDatabase() {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
+	if !hasEpayGateways && operation_setting.MigrateLegacyEpayGateway() {
+		value := operation_setting.EpayGateways2JsonString()
+		common.OptionMap["EpayGateways"] = value
+		option := Option{Key: "EpayGateways"}
+		if err := DB.FirstOrCreate(&option, Option{Key: "EpayGateways"}).Error; err != nil {
+			common.SysLog("failed to create migrated Epay gateways option: " + err.Error())
+			return
+		}
+		option.Value = value
+		if err := DB.Save(&option).Error; err != nil {
+			common.SysLog("failed to persist migrated Epay gateways: " + err.Error())
+		}
+	}
 	applyPasskeyDomainOptions(passkeyOptions)
+	if !hasPopupMode && legacyDashboardPopupEnabled {
+		_ = updateOptionMap("NoticePopupMode", "both")
+	}
 }
 
 func SyncOptions(frequency int) {
@@ -224,8 +325,29 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if err := console_setting.ValidatePublicOption(key, value); err != nil {
+		return err
+	}
+	if key == "console_setting.model_square_visible_groups" {
+		_, err := console_setting.NormalizeModelSquareVisibleGroups(value)
+		return err
+	}
+	if key == "console_setting.group_access_rules" {
+		_, err := console_setting.NormalizeGroupAccessRules(value)
+		return err
+	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
+	}
+	if key == "EpayGateways" {
+		return operation_setting.ValidateEpayGatewaysJSON(value)
+	}
+	if key == "error_rewrite.enabled" {
+		_, err := strconv.ParseBool(value)
+		return err
+	}
+	if key == "error_rewrite.rules" {
+		return operation_setting.ValidateErrorRewriteRulesJSON(value)
 	}
 	if key == operation_setting.ChannelTestConcurrencyOptionKey {
 		return operation_setting.ValidateChannelTestConcurrency(value)
@@ -233,10 +355,36 @@ func validateOptionValue(key string, value string) error {
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}
+	if key == "global.effort_model_routes" {
+		return model_setting.ValidateEffortModelRoutes(value)
+	}
+	if key == "SupportMessageLimit" {
+		limit, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || limit < 1 || limit > 1000 {
+			return errors.New("SupportMessageLimit must be between 1 and 1000")
+		}
+	}
+	if key == "EmailVerificationTemplate" {
+		return common.ValidateEmailVerificationTemplate(value)
+	}
 	return nil
 }
 
+func normalizeOptionValue(key, value string) (string, error) {
+	switch key {
+	case "console_setting.model_square_visible_groups":
+		return console_setting.NormalizeModelSquareVisibleGroups(value)
+	case "console_setting.group_access_rules":
+		return console_setting.NormalizeGroupAccessRules(value)
+	default:
+		return value, nil
+	}
+}
+
 func UpdateOption(key string, value string) error {
+	if IsRequestPolicyOption(key) {
+		return UpdateRequestPolicyOptions(map[string]string{key: value})
+	}
 	if IsPasskeyDomainOption(key) {
 		_, err := UpdatePasskeyDomainOptions(map[string]string{key: value}, false, "")
 		return err
@@ -244,6 +392,11 @@ func UpdateOption(key string, value string) error {
 	if IsModelPricingOption(key) {
 		return UpdateModelPricingOptions(map[string]string{key: value})
 	}
+	normalizedValue, err := normalizeOptionValue(key, value)
+	if err != nil {
+		return err
+	}
+	value = normalizedValue
 	if err := validateOptionValue(key, value); err != nil {
 		return err
 	}
@@ -278,10 +431,36 @@ func UpdateOptionsBulk(values map[string]string) error {
 		}
 	}
 	for key, value := range values {
+		normalizedValue, err := normalizeOptionValue(key, value)
+		if err != nil {
+			return err
+		}
+		values[key] = normalizedValue
+		value = normalizedValue
 		if err := validateOptionValue(key, value); err != nil {
 			return err
 		}
 	}
+	var policySnapshot *RequestPolicySnapshot
+	for key := range values {
+		if IsRequestPolicyOption(key) {
+			requestPolicyOptionMutex.Lock()
+			defer requestPolicyOptionMutex.Unlock()
+			options := maps.Clone(CurrentRequestPolicy().Options)
+			for key, value := range values {
+				if IsRequestPolicyOption(key) {
+					options[key] = value
+				}
+			}
+			var err error
+			policySnapshot, err = BuildRequestPolicy(options)
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
 			option := Option{Key: k}
@@ -302,6 +481,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 		if err := updateOptionMap(k, v); err != nil {
 			return err
 		}
+	}
+	if policySnapshot != nil {
+		requestPolicySnapshot.Store(policySnapshot)
 	}
 	return nil
 }
@@ -336,7 +518,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" || key == "CapEnabled" || key == "ForceCheckinCaptcha" || key == "ForceRedemptionCaptcha" {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
@@ -357,6 +539,18 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TurnstileCheckEnabled = boolValue
 		case "PhantomCheckEnabled":
 			common.PhantomCheckEnabled = boolValue
+		case "HCaptchaEnabled":
+			common.HCaptchaEnabled = boolValue
+		case "CapEnabled":
+			common.CapEnabled = boolValue
+		case "ForceCheckinCaptcha":
+			common.ForceCheckinCaptcha = boolValue
+		case "ForceRedemptionCaptcha":
+			common.ForceRedemptionCaptcha = boolValue
+		case "NoticePopupEnabled":
+			common.NoticePopupEnabled = boolValue
+		case "NoticePopupOnDashboardEnabled":
+			common.NoticePopupOnDashboardEnabled = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
@@ -367,6 +561,10 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticDisableChannelEnabled = boolValue
 		case "AutomaticEnableChannelEnabled":
 			common.AutomaticEnableChannelEnabled = boolValue
+		case "ChannelAutoStatusEmailEnabled":
+			common.ChannelAutoStatusEmailEnabled = boolValue
+		case "SupportEnabled":
+			common.SupportEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
@@ -388,6 +586,9 @@ func updateOptionMap(key string, value string) (err error) {
 		case "TaskPluginEnabled":
 			constant.TaskPluginEnabled = boolValue
 			jsplugin.DefaultRegistry.SetEnabled(boolValue)
+		case "TaskPluginOverrideEnabled":
+			constant.TaskPluginOverrideEnabled = boolValue
+			jsplugin.DefaultRegistry.SetOverrideEnabled(boolValue)
 		case "DataExportEnabled":
 			common.DataExportEnabled = boolValue
 		case "DefaultCollapseSidebar":
@@ -424,6 +625,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.SMTPForceAuthLogin = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
 			system_setting.WorkerAllowHttpImageRequestEnabled = boolValue
+		case "WorkerMeshyImageProxyEnabled":
+			system_setting.WorkerMeshyImageProxyEnabled = boolValue
 		case "DefaultUseAutoGroup":
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
@@ -447,6 +650,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPFrom = value
 	case "SMTPToken":
 		common.SMTPToken = value
+	case "EmailVerificationTemplate":
+		common.EmailVerificationTemplate = value
+	case "UserBannedMessage":
+		common.UserBannedMessage = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "TaskPublicAddress":
@@ -455,20 +662,30 @@ func updateOptionMap(key string, value string) (err error) {
 		system_setting.WorkerUrl = value
 	case "WorkerValidKey":
 		system_setting.WorkerValidKey = value
+	case "WorkerMeshyImageProxyBaseURL":
+		system_setting.WorkerMeshyImageProxyBaseURL = value
+	case "WorkerMeshyImageProxyAPIKey":
+		system_setting.WorkerMeshyImageProxyAPIKey = value
 	case "PayAddress":
 		operation_setting.PayAddress = value
 	case "Chats":
 		err = setting.UpdateChatsByJsonString(value)
 	case "AutoGroups":
 		err = setting.UpdateAutoGroupsByJsonString(value)
+	case "AutoGroupDescription":
+		setting.AutoGroupDescription = value
 	case "MaxTokenAutoGroups":
 		err = setting.UpdateMaxTokenAutoGroups(value)
+	case "SupportMessageLimit":
+		common.SupportMessageLimit, _ = strconv.Atoi(value)
 	case "CustomCallbackAddress":
 		operation_setting.CustomCallbackAddress = value
 	case "EpayId":
 		operation_setting.EpayId = value
 	case "EpayKey":
 		operation_setting.EpayKey = value
+	case "EpayGateways":
+		err = operation_setting.UpdateEpayGatewaysByJsonString(value)
 	case "Price":
 		operation_setting.Price, _ = strconv.ParseFloat(value, 64)
 	case "USDExchangeRate":
@@ -531,6 +748,10 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakePrivateKey = value
 	case "WaffoPancakeReturnURL":
 		setting.WaffoPancakeReturnURL = value
+	case "WaffoPancakeUseConfiguredProductPrice":
+		setting.WaffoPancakeUseConfiguredProductPrice = value == "true"
+	case "WaffoPancakeUSDToCurrencyRate":
+		setting.WaffoPancakeUSDToCurrencyRate, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeStoreID":
 		setting.WaffoPancakeStoreID = value
 	case "WaffoPancakeProductID":
@@ -539,12 +760,46 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "MoneroEnabled":
+		setting.MoneroEnabled = value == "true"
+	case "MoneroWalletRPCURL":
+		setting.MoneroWalletRPCURL = value
+	case "MoneroWalletRPCUsername":
+		setting.MoneroWalletRPCUsername = value
+	case "MoneroWalletRPCPassword":
+		setting.MoneroWalletRPCPassword = value
+	case "MoneroNetwork":
+		setting.MoneroNetwork = value
+	case "MoneroConfirmations":
+		setting.MoneroConfirmations, _ = strconv.Atoi(value)
+	case "MoneroMaxSubaddresses":
+		setting.MoneroMaxSubaddresses, _ = strconv.Atoi(value)
+	case "MoneroUSDToCurrencyRate":
+		setting.MoneroUSDToCurrencyRate, _ = strconv.ParseFloat(value, 64)
+	case "NowPaymentsEnabled":
+		setting.NowPaymentsEnabled = value == "true"
+	case "NowPaymentsAPIKey":
+		setting.NowPaymentsAPIKey = value
+	case "NowPaymentsIPNSecret":
+		setting.NowPaymentsIPNSecret = value
+	case "NowPaymentsAPIBaseURL":
+		setting.NowPaymentsAPIBaseURL = value
+	case "NowPaymentsPayCurrencies":
+		setting.NowPaymentsPayCurrencies = value
+	case "NowPaymentsMinTopUp":
+		setting.NowPaymentsMinTopUp, _ = strconv.Atoi(value)
+	case "NowPaymentsUSDToCurrencyRate":
+		setting.NowPaymentsUSDToCurrencyRate, _ = strconv.ParseFloat(value, 64)
+	case "NowPaymentsPaymentExpirationMins":
+		setting.NowPaymentsPaymentExpirationMins, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":
 		common.GitHubClientId = value
 	case "GitHubClientSecret":
 		common.GitHubClientSecret = value
+	case "GitHubAPIToken":
+		common.GitHubAPIToken = value
 	case "LinuxDOClientId":
 		common.LinuxDOClientId = value
 	case "LinuxDOClientSecret":
@@ -573,12 +828,68 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSecretKey = value
 	case "PhantomServiceURL":
 		common.PhantomServiceURL = value
+	case "HCaptchaSiteKey":
+		common.HCaptchaSiteKey = value
+	case "HCaptchaSecretKey":
+		common.HCaptchaSecretKey = value
+	case "CapSiteKey":
+		common.CapSiteKey = value
+	case "CapSecretKey":
+		common.CapSecretKey = value
+	case "CapServerURL":
+		common.CapServerURL = strings.TrimRight(strings.TrimSpace(value), "/")
+	case "CapAdminAPIKey":
+		common.CapAdminAPIKey = value
+	case "CapCheckinSiteKey":
+		common.CapCheckinSiteKey = value
+	case "CapCheckinSecretKey":
+		common.CapCheckinSecretKey = value
+	case "CaptchaType":
+		common.CaptchaType = value
+	case "LoginCaptchaDifficulty":
+		if v, err := strconv.Atoi(value); err == nil {
+			common.LoginCaptchaDifficulty = v
+		}
+	case "CheckinCaptchaDifficulty":
+		if v, err := strconv.Atoi(value); err == nil {
+			common.CheckinCaptchaDifficulty = v
+		}
+	case "PaymentAnnouncement":
+		common.PaymentAnnouncement = value
+	case "NoticePopupMode":
+		switch value {
+		case "home", "dashboard", "both":
+			common.NoticePopupMode = value
+		default:
+			return errors.New("invalid NoticePopupMode")
+		}
+	case "NoticeHeaderButtonMode":
+		switch value {
+		case "popover", "dialog":
+			common.NoticeHeaderButtonMode = value
+		default:
+			return errors.New("invalid NoticeHeaderButtonMode")
+		}
+	case "CustomTabs":
+		common.CustomTabs = value
+	case "StatusCheckGroups":
+		common.StatusCheckGroups = value
+	case "StatusCheckCacheExcludedModels":
+		common.StatusCheckCacheExcludedModels = value
+	case "StatusCheckAnnouncement":
+		common.StatusCheckAnnouncement = value
+	case "StatusCheckFlexibleMode":
+		common.StatusCheckFlexibleMode = value
+	case "PlaygroundSettings":
+		err = playground_setting.UpdateByJSONString(value)
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	case "QuotaRemindEnabled":
+		common.QuotaRemindEnabled = value == "true"
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":
@@ -603,6 +914,10 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateGroupRatioByJSONString(value)
 	case "GroupGroupRatio":
 		err = ratio_setting.UpdateGroupGroupRatioByJSONString(value)
+	case "GroupDefaultModel":
+		err = ratio_setting.UpdateGroupDefaultModelByJSONString(value)
+	case "GroupRetryTimes":
+		err = ratio_setting.UpdateGroupRetryTimesByJSONString(value)
 	case "UserUsableGroups":
 		err = setting.UpdateUserUsableGroupsByJSONString(value)
 	case "CompletionRatio":

@@ -20,12 +20,18 @@ import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { clearAuthentication } from '@/lib/api'
+import { clearAuthentication, isAuthBundle } from '@/lib/api'
 import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { createServerError } from '@/lib/server-error-message'
 
-import { createOAuthAuthorization, createOAuthFlow, logout } from '../api'
+import {
+  createOAuthAuthorization,
+  createOAuthFlow,
+  logout,
+  telegramLogin,
+} from '../api'
+import { getBannedLoginResponse } from '../components/banned-login-response'
 import {
   buildGitHubOAuthUrl,
   buildDiscordOAuthUrl,
@@ -34,7 +40,9 @@ import {
   generatePkce,
 } from '../lib/oauth'
 import { rememberOAuthLoginRedirect } from '../lib/oauth-callback-mode'
+import { pickTelegramAuthorization } from '../lib/telegram-login'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
+import { useAuthRedirect } from './use-auth-redirect'
 
 /**
  * Hook for managing OAuth login
@@ -44,7 +52,11 @@ export function useOAuthLogin(
   redirectTo?: string
 ) {
   const { t } = useTranslation()
+  const { handleLoginSuccess } = useAuthRedirect()
   const [isLoading, setIsLoading] = useState(false)
+  const [isTelegramDialogOpen, setIsTelegramDialogOpen] = useState(false)
+  const [isTelegramPending, setIsTelegramPending] = useState(false)
+  const [bannedHtml, setBannedHtml] = useState<string | null>(null)
   const [githubButtonText, setGithubButtonText] = useState('')
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false)
   const githubTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -179,7 +191,28 @@ export function useOAuthLogin(
   }
 
   const handleTelegramLogin = async () => {
-    if (!status?.telegram_oauth_configured) {
+    if (status?.telegram_oauth_configured) {
+      setIsLoading(true)
+      try {
+        const authorization = await createOAuthAuthorization(
+          'telegram',
+          'login'
+        )
+        if (!authorization.authorizationUrl) {
+          throw new AuthOperationError('Failed to initialize OAuth')
+        }
+        await resetSession()
+        rememberOAuthLoginRedirect(authorization.state, redirectTo)
+        window.open(authorization.authorizationUrl, '_self')
+      } catch (error) {
+        handleServerError(AuthOperationError.from(error))
+      } finally {
+        setIsLoading(false)
+      }
+      return
+    }
+
+    if (!status?.telegram_bot_name?.trim()) {
       toast.error(
         t(
           'Telegram OAuth is not configured or enabled. Please contact your administrator.'
@@ -187,19 +220,54 @@ export function useOAuthLogin(
       )
       return
     }
+
     setIsLoading(true)
     try {
-      const authorization = await createOAuthAuthorization('telegram', 'login')
-      if (!authorization.authorizationUrl) {
-        throw new AuthOperationError('Failed to initialize OAuth')
-      }
       await resetSession()
-      rememberOAuthLoginRedirect(authorization.state, redirectTo)
-      window.open(authorization.authorizationUrl, '_self')
-    } catch (error) {
-      handleServerError(AuthOperationError.from(error))
+      setIsTelegramDialogOpen(true)
+    } catch {
+      toast.error(
+        t('Failed to start {{provider}} login', { provider: 'Telegram' })
+      )
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleTelegramAuthorization = async (value: unknown) => {
+    const authorization = pickTelegramAuthorization(value)
+    if (!authorization) {
+      toast.error(t('Login failed'))
+      return
+    }
+
+    setIsTelegramPending(true)
+    try {
+      const response = await telegramLogin(authorization)
+      if (!response.success || !isAuthBundle(response.data)) {
+        const banned = getBannedLoginResponse(response)
+        if (banned) {
+          setIsTelegramDialogOpen(false)
+          setBannedHtml(banned.html)
+          return
+        }
+        toast.error(t('Login failed'))
+        return
+      }
+
+      setIsTelegramDialogOpen(false)
+      await handleLoginSuccess(response.data, redirectTo)
+      toast.success(t('Welcome back!'))
+    } catch (error: unknown) {
+      const banned = getBannedLoginResponse(error)
+      if (banned) {
+        setIsTelegramDialogOpen(false)
+        setBannedHtml(banned.html)
+        return
+      }
+      toast.error(t('Login failed'))
+    } finally {
+      setIsTelegramPending(false)
     }
   }
 
@@ -256,11 +324,17 @@ export function useOAuthLogin(
     isLoading,
     githubButtonText,
     githubButtonDisabled,
+    isTelegramDialogOpen,
+    isTelegramPending,
+    bannedHtml,
     handleGitHubLogin,
     handleDiscordLogin,
     handleOIDCLogin,
     handleLinuxDOLogin,
     handleTelegramLogin,
+    handleTelegramAuthorization,
+    setIsTelegramDialogOpen,
+    setBannedHtml,
     handleCustomOAuthLogin,
   }
 }

@@ -93,8 +93,51 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.WAFFO_PANCAKE
 }
 
+export function isMoneroPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.MONERO
+}
+
+export function isNowPaymentsPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.NOWPAYMENTS
+}
+
+export function getPaymentMethodKey(method: PaymentMethod): string {
+  return JSON.stringify([method.gateway ?? 'builtin', method.type])
+}
+
+/**
+ * Adds the configured NOWPayments gateway to the same payment-method grid as
+ * the regular Epay methods. The gateway may also be present in legacy
+ * `pay_methods`, so avoid rendering a duplicate button.
+ */
+export function getTopupPaymentMethods(
+  topupInfo: TopupInfo | null,
+  enableNowPayments: boolean,
+  nowPaymentsCurrencies: string[] = []
+): PaymentMethod[] {
+  const methods = (
+    Array.isArray(topupInfo?.pay_methods) ? topupInfo.pay_methods : []
+  ).filter(
+    (method) =>
+      method.type !== PAYMENT_TYPES.NOWPAYMENTS ||
+      (enableNowPayments && nowPaymentsCurrencies.length > 0)
+  )
+  if (
+    enableNowPayments &&
+    nowPaymentsCurrencies.length > 0 &&
+    !methods.some((method) => method.type === PAYMENT_TYPES.NOWPAYMENTS)
+  ) {
+    methods.push({ name: 'NOWPayments', type: PAYMENT_TYPES.NOWPAYMENTS })
+  }
+  return methods
+}
+
 export interface PaymentProcessors {
-  regular: (topupAmount: number, paymentType: string) => Promise<boolean>
+  regular: (
+    topupAmount: number,
+    paymentType: string,
+    epayGateway?: string
+  ) => Promise<boolean>
   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>
   waffoPancake: (topupAmount: number) => Promise<boolean>
 }
@@ -116,7 +159,11 @@ export async function dispatchSelectedPayment(
     return processors.waffoPancake(topupAmount)
   }
 
-  return processors.regular(topupAmount, paymentMethod.type)
+  return processors.regular(
+    topupAmount,
+    paymentMethod.type,
+    paymentMethod.gateway
+  )
 }
 
 /**
@@ -142,6 +189,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
 
   if (topupInfo.enable_waffo_pancake_topup) {
     return PAYMENT_TYPES.WAFFO_PANCAKE
+  }
+
+  if (topupInfo.enable_nowpayments_topup) {
+    return PAYMENT_TYPES.NOWPAYMENTS
   }
 
   return DEFAULT_PAYMENT_TYPE
@@ -171,7 +222,59 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
     return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
   }
 
+  if (topupInfo.enable_monero_topup) {
+    return topupInfo.min_topup || DEFAULT_MIN_TOPUP
+  }
+
+  if (topupInfo.enable_nowpayments_topup) {
+    return (
+      topupInfo.nowpayments_min_topup ||
+      topupInfo.min_topup ||
+      DEFAULT_MIN_TOPUP
+    )
+  }
+
   return DEFAULT_MIN_TOPUP
+}
+
+/**
+ * Get the minimum purchase amount for one payment method. Redemption code
+ * purchases use the same method-level limits as wallet top-ups, but apply the
+ * limit to the whole order (denomination multiplied by quantity).
+ */
+export function getPaymentMethodMinTopup(
+  method: PaymentMethod,
+  topupInfo: TopupInfo | null
+): number {
+  let fallback = topupInfo?.min_topup || DEFAULT_MIN_TOPUP
+
+  switch (method.type) {
+    case PAYMENT_TYPES.STRIPE:
+      fallback = topupInfo?.stripe_min_topup || fallback
+      break
+    case PAYMENT_TYPES.WAFFO:
+      fallback = topupInfo?.waffo_min_topup || fallback
+      break
+    case PAYMENT_TYPES.WAFFO_PANCAKE:
+      fallback = topupInfo?.waffo_pancake_min_topup || fallback
+      break
+    case PAYMENT_TYPES.MONERO:
+      fallback = topupInfo?.min_topup || fallback
+      break
+    case PAYMENT_TYPES.NOWPAYMENTS:
+      fallback =
+        topupInfo?.nowpayments_min_topup || topupInfo?.min_topup || fallback
+      break
+    default:
+      break
+  }
+
+  const configured = Number(method.min_topup)
+  if (Number.isFinite(configured) && configured > fallback) {
+    fallback = configured
+  }
+
+  return Math.max(DEFAULT_MIN_TOPUP, fallback)
 }
 
 /**

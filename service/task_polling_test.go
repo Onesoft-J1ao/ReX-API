@@ -25,6 +25,8 @@ import (
 type taskPollingFetchAdaptor struct {
 	mu           sync.Mutex
 	taskIDs      []string
+	models       []string
+	keys         []string
 	fetched      chan string
 	blockTaskID  string
 	blockStarted chan struct{}
@@ -40,15 +42,12 @@ type batchPollingAdaptor struct {
 }
 
 func (a *batchPollingAdaptor) FetchMode() string { return "batch" }
-func (a *batchPollingAdaptor) FetchBatchTasks(_ string, _ string, tasks []*model.Task, _ string) (*http.Response, error) {
+func (a *batchPollingAdaptor) FetchBatchTasks(_ string, _ string, taskIDs []string, _ string) (*http.Response, error) {
 	a.batchCalls++
-	a.batchIDs = a.batchIDs[:0]
-	for _, task := range tasks {
-		a.batchIDs = append(a.batchIDs, task.GetUpstreamTaskID())
-	}
+	a.batchIDs = append([]string(nil), taskIDs...)
 	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))}, nil
 }
-func (a *batchPollingAdaptor) ParseBatchResult(_ []*model.Task, _ *http.Response, _ []byte) (map[string]*BatchTaskResult, error) {
+func (a *batchPollingAdaptor) ParseBatchResult([]byte) (map[string]*BatchTaskResult, error) {
 	if a.results != nil {
 		return a.results, nil
 	}
@@ -61,11 +60,9 @@ func (a *batchPollingAdaptor) ParseBatchResult(_ []*model.Task, _ *http.Response
 
 func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
-func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, task *model.Task, _ string) (*http.Response, error) {
-	taskID := ""
-	if task != nil {
-		taskID = task.GetUpstreamTaskID()
-	}
+func (a *taskPollingFetchAdaptor) FetchTask(_ string, key string, body map[string]any, _ string) (*http.Response, error) {
+	taskID, _ := body["task_id"].(string)
+	modelName, _ := body["model"].(string)
 	if taskID == a.blockTaskID && a.releaseBlock != nil {
 		a.blockOnce.Do(func() {
 			if a.blockStarted != nil {
@@ -77,6 +74,8 @@ func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, task *model.Task
 
 	a.mu.Lock()
 	a.taskIDs = append(a.taskIDs, taskID)
+	a.models = append(a.models, modelName)
+	a.keys = append(a.keys, key)
 	a.mu.Unlock()
 	if a.fetched != nil {
 		select {
@@ -103,7 +102,7 @@ func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, task *model.Task
 	}, nil
 }
 
-func (a *taskPollingFetchAdaptor) ParseTaskResult(*model.Task, *http.Response, []byte) (*relaycommon.TaskInfo, error) {
+func (a *taskPollingFetchAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
 	return &relaycommon.TaskInfo{Status: model.TaskStatusInProgress}, nil
 }
 
@@ -121,6 +120,18 @@ func (a *taskPollingFetchAdaptor) fetchedTaskIDs() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]string(nil), a.taskIDs...)
+}
+
+func (a *taskPollingFetchAdaptor) fetchedModels() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.models...)
+}
+
+func (a *taskPollingFetchAdaptor) fetchedKeys() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.keys...)
 }
 
 func TestRedactVideoResponseBodyPreservesPollingPayloadShape(t *testing.T) {
@@ -251,6 +262,91 @@ func TestDispatchPlatformUpdateUsesFetchMode(t *testing.T) {
 	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return nil }
 	assert.NotPanics(t, func() { DispatchPlatformUpdate(context.Background(), "missing-plugin", taskChannels, tasks) })
 	GetTaskAdaptorFunc = previousFactory
+}
+
+func TestDispatchPlatformUpdatePassesUpstreamModelToFetcher(t *testing.T) {
+	truncate(t)
+
+	const channelID = 110
+	seedTaskPollingChannel(t, channelID, true)
+	task := seedPollingTask(t, channelID, "task_public_model", "upstream_model")
+	task.Properties = model.Properties{
+		UpstreamModelName: "agnes-video-2.5-flash",
+		OriginModelName:   "agnes-video-2.5-flash",
+	}
+	require.NoError(t, task.Update())
+
+	adaptor := &taskPollingFetchAdaptor{}
+	previousFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+	t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+
+	DispatchPlatformUpdate(context.Background(), constant.TaskPlatform("agnes"), map[int][]string{
+		channelID: {task.GetUpstreamTaskID()},
+	}, map[string]*model.Task{task.GetUpstreamTaskID(): task})
+
+	require.Equal(t, []string{"agnes-video-2.5-flash"}, adaptor.fetchedModels())
+}
+
+func TestAgnesMultiKeyPollingUsesPersistedOrSingleFallbackKey(t *testing.T) {
+	testCases := []struct {
+		name         string
+		persistedKey string
+		loggedIndex  int
+		hasLogIndex  bool
+		wantKey      string
+	}{
+		{name: "persisted submit key", persistedKey: "agnes-selected", wantKey: "agnes-selected"},
+		{name: "legacy task log index", loggedIndex: 1, hasLogIndex: true, wantKey: "agnes-second"},
+		{name: "legacy task fallback", wantKey: "agnes-first"},
+	}
+
+	for index, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			truncate(t)
+			channelID := 120 + index
+			ch := &model.Channel{
+				Id:     channelID,
+				Type:   constant.ChannelTypeAgnes,
+				Name:   "agnes_multi_key",
+				Key:    "agnes-first\nagnes-second",
+				Status: common.ChannelStatusEnabled,
+				ChannelInfo: model.ChannelInfo{
+					IsMultiKey:   true,
+					MultiKeySize: 2,
+				},
+			}
+			require.NoError(t, model.DB.Create(ch).Error)
+			task := seedPollingTask(t, channelID, "task_public_agnes", "task_upstream_agnes")
+			task.Platform = constant.TaskPlatform("63")
+			task.PrivateData.Key = testCase.persistedKey
+			task.PrivateData.Execution = &model.TaskExecutionSnapshot{RequestID: "agnes-request"}
+			require.NoError(t, task.Update())
+			if testCase.hasLogIndex {
+				other, err := common.Marshal(map[string]any{
+					"admin_info": map[string]any{"multi_key_index": testCase.loggedIndex},
+				})
+				require.NoError(t, err)
+				require.NoError(t, model.LOG_DB.Create(&model.Log{
+					RequestId: "agnes-request",
+					ChannelId: channelID,
+					Type:      model.LogTypeConsume,
+					Other:     string(other),
+				}).Error)
+			}
+
+			adaptor := &taskPollingFetchAdaptor{}
+			previousFactory := GetTaskAdaptorFunc
+			GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+			t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+
+			DispatchPlatformUpdate(context.Background(), task.Platform, map[int][]string{
+				channelID: {task.GetUpstreamTaskID()},
+			}, map[string]*model.Task{task.GetUpstreamTaskID(): task})
+
+			require.Equal(t, []string{testCase.wantKey}, adaptor.fetchedKeys())
+		})
+	}
 }
 
 func TestUpdateBatchTasksSettlesTieredUsageForTerminalStates(t *testing.T) {

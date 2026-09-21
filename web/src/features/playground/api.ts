@@ -27,12 +27,20 @@ import {
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
+  ImageEditRequest,
+  ImageGenerationRequest,
   ImageGenerationResponse,
   ImageWorkbenchConfig,
   ModelOption,
   GroupOption,
+  SpeechGenerationRequest,
+  SpeechGenerationTaskResponse,
   SpeechWorkbenchConfig,
+  ThreeDGenerationRequest,
+  ThreeDGenerationResponse,
   TranscriptionResponse,
+  VideoGenerationRequest,
+  VideoGenerationResponse,
 } from './types'
 
 /**
@@ -182,10 +190,17 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
     return []
   }
 
-  return data.data.map((model: string) => ({
-    label: model,
-    value: model,
-  }))
+  return (data.data as string[])
+    .map((model: string) => ({
+      label: model,
+      value: model,
+    }))
+    .sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      })
+    )
 }
 
 /**
@@ -209,4 +224,167 @@ export async function getUserGroups(): Promise<GroupOption[]> {
     ratio: info.ratio,
     desc: info.desc,
   }))
+}
+
+export async function generateImage(
+  payload: ImageGenerationRequest,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.IMAGE_GENERATIONS, payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function editImage(
+  payload: ImageEditRequest,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.IMAGE_EDITS, payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function generateSpeech(
+  payload: SpeechGenerationRequest,
+  signal?: AbortSignal
+): Promise<Blob> {
+  const res = await api.post(API_ENDPOINTS.SPEECH, payload, {
+    signal,
+    responseType: 'blob',
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data as Blob
+}
+
+export async function generateSpeechTask(
+  payload: SpeechGenerationRequest,
+  signal?: AbortSignal
+): Promise<SpeechGenerationTaskResponse> {
+  const res = await api.post(API_ENDPOINTS.SPEECH_TASKS, payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getSpeechTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<SpeechGenerationTaskResponse> {
+  const res = await api.get(`${API_ENDPOINTS.SPEECH_TASKS}/${taskId}`, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getSpeechTaskContent(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<Blob> {
+  const res = await api.get(`${API_ENDPOINTS.SPEECH_TASKS}/${taskId}/content`, {
+    signal,
+    responseType: 'blob',
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data as Blob
+}
+
+export async function generateThreeD(
+  payload: ThreeDGenerationRequest
+): Promise<ThreeDGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.THREE_D, payload, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getThreeDTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<ThreeDGenerationResponse> {
+  const res = await api.get(`${API_ENDPOINTS.THREE_D}/${taskId}`, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function generateVideo(
+  payload: VideoGenerationRequest,
+  signal?: AbortSignal
+): Promise<VideoGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.VIDEOS, payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getVideoTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<VideoGenerationResponse> {
+  const res = await api.get(`${API_ENDPOINTS.VIDEOS}/${taskId}`, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return normalizeVideoTaskResponse(res.data)
+}
+
+type RecordValue = Record<string, unknown>
+
+function isRecord(value: unknown): value is RecordValue {
+  return typeof value === 'object' && value !== null
+}
+
+const videoTaskStatusMap: Record<string, VideoGenerationResponse['status']> = {
+  NOT_START: 'queued',
+  SUBMITTED: 'queued',
+  QUEUED: 'queued',
+  IN_PROGRESS: 'in_progress',
+  SUCCESS: 'completed',
+  FAILURE: 'failed',
+}
+
+export function normalizeVideoTaskResponse(
+  response: unknown
+): VideoGenerationResponse {
+  const envelope = isRecord(response) ? response : {}
+  const raw =
+    (envelope.success === true || envelope.code === 'success') &&
+    isRecord(envelope.data)
+      ? envelope.data
+      : envelope
+  const properties = isRecord(raw.properties) ? raw.properties : {}
+  const rawStatus = String(raw.status ?? '').toUpperCase()
+  const status = videoTaskStatusMap[rawStatus] ?? 'in_progress'
+  const progressValue = Number.parseInt(String(raw.progress ?? '0'), 10)
+  let resultURL: string | undefined
+  if (typeof raw.result_url === 'string') {
+    resultURL = raw.result_url
+  } else if (isRecord(raw.data) && typeof raw.data.url === 'string') {
+    resultURL = raw.data.url
+  }
+  const failReason = typeof raw.fail_reason === 'string' ? raw.fail_reason : ''
+
+  return {
+    id: String(raw.task_id ?? raw.id ?? ''),
+    object: 'video',
+    model: String(raw.model ?? properties.origin_model_name ?? ''),
+    status,
+    progress: Number.isFinite(progressValue) ? progressValue : 0,
+    created_at: Number(raw.created_at ?? 0),
+    ...(raw.finish_time
+      ? { completed_at: Number(raw.finish_time) }
+      : undefined),
+    ...(resultURL ? { data: { url: resultURL } } : undefined),
+    ...(failReason
+      ? { error: { message: failReason, code: 'task_failed' } }
+      : undefined),
+  }
 }

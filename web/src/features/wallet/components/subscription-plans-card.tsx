@@ -56,12 +56,14 @@ import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
-import type { PaymentMethod, TopupInfo } from '../types'
+import type { NowPaymentsInvoice, PaymentMethod, TopupInfo } from '../types'
+import { NowPaymentsPaymentDialog } from './dialogs/nowpayments-payment-dialog'
 
 interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
@@ -72,7 +74,11 @@ interface SubscriptionPlansCardProps {
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
   return payMethods.filter(
-    (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem'
+    (m) =>
+      m?.type &&
+      m.type !== 'stripe' &&
+      m.type !== 'creem' &&
+      m.type !== 'nowpayments'
   )
 }
 
@@ -116,10 +122,14 @@ export function SubscriptionPlansCard({
 
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<PlanRecord | null>(null)
+  const [nowPaymentsInvoice, setNowPaymentsInvoice] =
+    useState<NowPaymentsInvoice | null>(null)
+  const [nowPaymentsDialogOpen, setNowPaymentsDialogOpen] = useState(false)
 
   const enableStripe = !!topupInfo?.enable_stripe_topup
   const enableCreem = !!topupInfo?.enable_creem_topup
   const enableWaffoPancake = !!topupInfo?.enable_waffo_pancake_topup
+  const enableNowPayments = !!topupInfo?.enable_nowpayments_topup
   const enableOnlineTopUp = !!topupInfo?.enable_online_topup
   const epayMethods = useMemo(
     () => getEpayMethods(topupInfo?.pay_methods),
@@ -234,6 +244,11 @@ export function SubscriptionPlansCard({
     const used = Number(sub?.subscription?.amount_used || 0)
     if (total <= 0) return 0
     return Math.round((used / total) * 100)
+  }
+
+  const getLimitUsagePercent = (used: number, limit: number) => {
+    if (limit <= 0) return 0
+    return Math.min(100, Math.max(0, Math.round((used / limit) * 100)))
   }
 
   if (loading) {
@@ -415,6 +430,23 @@ export function SubscriptionPlansCard({
                   const isActive =
                     subscription?.status === 'active' && !isExpired
                   const nextResetTime = subscription?.next_reset_time ?? 0
+                  const usageLimits = [
+                    {
+                      key: 'five-hour',
+                      label: t('5-hour Quota Limit'),
+                      limit: Number(subscription?.five_hour_limit || 0),
+                      used: Number(subscription?.five_hour_used || 0),
+                      nextResetTime:
+                        subscription?.five_hour_next_reset_time ?? 0,
+                    },
+                    {
+                      key: 'weekly',
+                      label: t('Weekly Quota Limit'),
+                      limit: Number(subscription?.weekly_limit || 0),
+                      used: Number(subscription?.weekly_used || 0),
+                      nextResetTime: subscription?.weekly_next_reset_time ?? 0,
+                    },
+                  ].filter((limit) => limit.limit > 0)
                   let statusBadge = (
                     <StatusBadge
                       label={t('Expired')}
@@ -481,6 +513,37 @@ export function SubscriptionPlansCard({
                           {new Date(nextResetTime * 1000).toLocaleString()}
                         </div>
                       )}
+                      {usageLimits.map((limit) => {
+                        const remaining = Math.max(0, limit.limit - limit.used)
+                        const usage = getLimitUsagePercent(
+                          limit.used,
+                          limit.limit
+                        )
+                        return (
+                          <div
+                            key={limit.key}
+                            className='text-muted-foreground mt-1'
+                          >
+                            {limit.label}: {formatQuota(limit.used)}/
+                            {formatQuota(limit.limit)} · {t('Remaining')}{' '}
+                            {formatQuota(remaining)}
+                            <span className='ml-2'>
+                              {t('Used')} {usage}%
+                            </span>
+                            {isActive && limit.nextResetTime > 0 && (
+                              <span className='ml-2'>
+                                {t('Next reset')}:{' '}
+                                {new Date(
+                                  limit.nextResetTime * 1000
+                                ).toLocaleString()}
+                              </span>
+                            )}
+                            {isActive && (
+                              <Progress value={usage} className='mt-2 h-1.5' />
+                            )}
+                          </div>
+                        )
+                      })}
                       <div className='text-muted-foreground mt-1'>
                         {t('Total Quota')}:{' '}
                         {totalAmount > 0 ? (
@@ -530,11 +593,47 @@ export function SubscriptionPlansCard({
               const plan = p?.plan
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
-              const price = Number(plan.price_amount || 0).toFixed(2)
+              const price = formatBillingCurrencyFromUSD(
+                Number(plan.price_amount || 0),
+                { digitsLarge: 2, digitsSmall: 2, abbreviate: false }
+              )
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
+              const configuredGroups = (plan.wallet_only_groups || '')
+                .split(',')
+                .map((group) => group.trim())
+                .filter(Boolean)
+              let groupAvailability: string | null = null
+              if (plan.wallet_only_groups_enabled) {
+                const groupLabel =
+                  plan.wallet_only_groups_mode === 'whitelist'
+                    ? t('Available Groups')
+                    : t('Unavailable Groups')
+                const groupList =
+                  configuredGroups.length > 0
+                    ? configuredGroups.join(', ')
+                    : t('None')
+                groupAvailability = `${groupLabel}: ${groupList}`
+              }
+
+              const usageLimitBenefits = [
+                {
+                  label: t('5-hour Quota Limit'),
+                  limit: Number(plan.five_hour_limit || 0),
+                },
+                {
+                  label: t('Weekly Quota Limit'),
+                  limit: Number(plan.weekly_limit || 0),
+                },
+                {
+                  label: t('Monthly Quota Limit'),
+                  limit: Number(plan.monthly_limit || 0),
+                },
+              ]
+                .filter((item) => item.limit > 0)
+                .map((item) => `${item.label}: ${formatQuota(item.limit)}`)
 
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
@@ -544,6 +643,8 @@ export function SubscriptionPlansCard({
                 totalAmount > 0
                   ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
                   : `${t('Total Quota')}: ${t('Unlimited')}`,
+                ...usageLimitBenefits,
+                groupAvailability,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
@@ -582,7 +683,7 @@ export function SubscriptionPlansCard({
 
                     <div className='py-2'>
                       <span className='text-primary font-mono text-2xl font-bold tabular-nums'>
-                        ${price}
+                        {price}
                       </span>
                     </div>
 
@@ -647,10 +748,16 @@ export function SubscriptionPlansCard({
         enableStripe={enableStripe}
         enableCreem={enableCreem}
         enableWaffoPancake={enableWaffoPancake}
+        enableNowPayments={enableNowPayments}
+        nowPaymentsCurrencies={topupInfo?.nowpayments_pay_currencies}
         enableOnlineTopUp={enableOnlineTopUp}
         epayMethods={epayMethods}
         userQuota={userQuota}
         onPurchaseSuccess={onPurchaseSuccess}
+        onNowPaymentsInvoice={(invoice) => {
+          setNowPaymentsInvoice(invoice)
+          setNowPaymentsDialogOpen(true)
+        }}
         purchaseLimit={
           selectedPlan?.plan?.max_purchase_per_user
             ? Number(selectedPlan.plan.max_purchase_per_user)
@@ -661,6 +768,15 @@ export function SubscriptionPlansCard({
             ? planPurchaseCountMap.get(selectedPlan.plan.id)
             : undefined
         }
+      />
+      <NowPaymentsPaymentDialog
+        open={nowPaymentsDialogOpen}
+        onOpenChange={setNowPaymentsDialogOpen}
+        invoice={nowPaymentsInvoice}
+        onPaymentSuccess={() => {
+          void fetchSelfSubscription()
+          void onPurchaseSuccess?.()
+        }}
       />
     </>
   )

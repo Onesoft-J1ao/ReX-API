@@ -17,7 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
+import {
+  CalendarClock,
+  Check,
+  ChevronsUpDown,
+  CreditCard,
+  Plus,
+  RefreshCw,
+  Settings2,
+  Timer,
+  Trash2,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -32,7 +42,14 @@ import {
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import {
   Form,
   FormControl,
@@ -44,6 +61,11 @@ import {
 } from '@/components/ui/form'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -63,7 +85,7 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { handleServerError } from '@/lib/handle-server-error'
+import { cn } from '@/lib/utils'
 
 import {
   createPlan,
@@ -87,6 +109,76 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: PlanRecord
+}
+
+function GroupMultiSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+}: {
+  options: string[]
+  value: string[]
+  onChange: (value: string[]) => void
+  placeholder: string
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const selected = new Set(value)
+  const label = value.length > 0 ? value.join(', ') : placeholder
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type='button'
+            variant='outline'
+            role='combobox'
+            aria-expanded={open}
+            className='w-full justify-between font-normal'
+          />
+        }
+      >
+        <span className='truncate text-left'>{label}</span>
+        <ChevronsUpDown className='size-4 shrink-0 opacity-50' />
+      </PopoverTrigger>
+      <PopoverContent className='w-[var(--anchor-width)] p-0' align='start'>
+        <Command>
+          <CommandInput placeholder={t('Search groups...')} />
+          <CommandList>
+            <CommandEmpty>{t('No group found.')}</CommandEmpty>
+            <CommandGroup>
+              {options.map((group) => {
+                const checked = selected.has(group)
+                return (
+                  <CommandItem
+                    key={group}
+                    value={group}
+                    onSelect={() => {
+                      onChange(
+                        checked
+                          ? value.filter((item) => item !== group)
+                          : [...value, group]
+                      )
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        'size-4',
+                        checked ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    {group}
+                  </CommandItem>
+                )
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 export function SubscriptionsMutateDrawer({
@@ -122,11 +214,7 @@ export function SubscriptionsMutateDrawer({
       }
       getGroups()
         .then((res) => {
-          if (res.success) {
-            setGroupOptions(res.data || [])
-          } else {
-            handleServerError(res)
-          }
+          if (res.success) setGroupOptions(res.data || [])
         })
         .catch(() => {})
       // Best-effort — empty list still lets the operator use "+ Create".
@@ -151,6 +239,9 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  const walletOnlyGroupsEnabled = form.watch('wallet_only_groups_enabled')
+  const benefitsOnly = form.watch('benefits_only')
+  const rateLimitGroups = form.watch('rate_limit_groups')
   // Gate "+ Create on Pancake" on the same checks the mint handler runs.
   const watchedTitle = form.watch('title')
   const watchedPrice = form.watch('price_amount')
@@ -169,8 +260,6 @@ export function SubscriptionsMutateDrawer({
           toast.success(t('Update succeeded'))
           onOpenChange(false)
           triggerRefresh()
-        } else {
-          handleServerError(res)
         }
       } else {
         const res = await createPlan(payload)
@@ -178,12 +267,10 @@ export function SubscriptionsMutateDrawer({
           toast.success(t('Create succeeded'))
           onOpenChange(false)
           triggerRefresh()
-        } else {
-          handleServerError(res)
         }
       }
-    } catch (error) {
-      handleServerError(error, t('Request failed'))
+    } catch {
+      toast.error(t('Request failed'))
     } finally {
       setIsSubmitting(false)
     }
@@ -240,15 +327,14 @@ export function SubscriptionsMutateDrawer({
         )
       } else {
         const reason = typeof res.data === 'string' ? res.data : undefined
-        handleServerError(res.data, undefined, {
-          title: reason
+        toast.error(
+          reason
             ? `${t('Waffo Pancake product creation failed')}: ${reason}`
-            : t('Waffo Pancake product creation failed'),
-        })
+            : t('Waffo Pancake product creation failed')
+        )
       }
     } catch (err) {
-      handleServerError(
-        err,
+      toast.error(
         `${t('Waffo Pancake product creation failed')}: ${err instanceof Error ? err.message : String(err)}`
       )
     } finally {
@@ -364,13 +450,15 @@ export function SubscriptionsMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {t('Quota ({{currency}})', { currency: currencyLabel })}
+                        {t('Quota per Billing Period ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
                       </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           type='number'
-                          min={0}
+                          disabled={benefitsOnly}
                           step={tokensOnly ? 1 : 0.01}
                           placeholder={
                             tokensOnly
@@ -388,7 +476,7 @@ export function SubscriptionsMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Total quota included in the plan, usable per billing period. 0 means unlimited.'
+                          'Quota available during each billing period. 0 means unlimited; a negative value creates a benefits-only plan with no usable quota.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -404,23 +492,34 @@ export function SubscriptionsMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Upgrade Group')}</FormLabel>
-                      <FormControl>
-                        <Combobox
-                          options={[
-                            { value: '__none__', label: t('No Upgrade') },
-                            ...groupOptions.map((g) => ({
-                              value: g,
-                              label: g,
-                            })),
-                          ]}
-                          onValueChange={(v) =>
-                            field.onChange(v === '__none__' ? '' : v)
-                          }
-                          value={field.value || ''}
-                          className='w-full'
-                          placeholder={t('No Upgrade')}
-                        />
-                      </FormControl>
+                      <Select
+                        items={[
+                          { value: '__none__', label: t('No Upgrade') },
+                          ...groupOptions.map((g) => ({ value: g, label: g })),
+                        ]}
+                        onValueChange={(v) =>
+                          field.onChange(v === '__none__' ? '' : v)
+                        }
+                        value={field.value || ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('No Upgrade')} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            <SelectItem value='__none__'>
+                              {t('No Upgrade')}
+                            </SelectItem>
+                            {groupOptions.map((g) => (
+                              <SelectItem key={g} value={g}>
+                                {g}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -432,26 +531,39 @@ export function SubscriptionsMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Downgrade Group')}</FormLabel>
-                      <FormControl>
-                        <Combobox
-                          options={[
-                            {
-                              value: '__none__',
-                              label: t('Downgrade to pre-purchase group'),
-                            },
-                            ...groupOptions.map((g) => ({
-                              value: g,
-                              label: g,
-                            })),
-                          ]}
-                          onValueChange={(v) =>
-                            field.onChange(v === '__none__' ? '' : v)
-                          }
-                          value={field.value || ''}
-                          className='w-full'
-                          placeholder={t('Downgrade to pre-purchase group')}
-                        />
-                      </FormControl>
+                      <Select
+                        items={[
+                          {
+                            value: '__none__',
+                            label: t('Downgrade to pre-purchase group'),
+                          },
+                          ...groupOptions.map((g) => ({ value: g, label: g })),
+                        ]}
+                        onValueChange={(v) =>
+                          field.onChange(v === '__none__' ? '' : v)
+                        }
+                        value={field.value || ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={t('Downgrade to pre-purchase group')}
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            <SelectItem value='__none__'>
+                              {t('Downgrade to pre-purchase group')}
+                            </SelectItem>
+                            {groupOptions.map((g) => (
+                              <SelectItem key={g} value={g}>
+                                {g}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
                       <FormDescription>
                         {t(
                           'Downgrade to this group after the subscription expires'
@@ -487,6 +599,189 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='benefits_only'
+                render={({ field }) => (
+                  <FormItem className={sideDrawerSwitchItemClassName()}>
+                    <FormLabel className='!mt-0'>
+                      {t('Benefits-only plan')}
+                    </FormLabel>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked)
+                          if (checked) {
+                            form.setValue('total_amount', -1, {
+                              shouldDirty: true,
+                            })
+                            form.setValue('five_hour_limit', 0, {
+                              shouldDirty: true,
+                            })
+                            form.setValue('weekly_limit', 0, {
+                              shouldDirty: true,
+                            })
+                            form.setValue('monthly_limit', 0, {
+                              shouldDirty: true,
+                            })
+                          } else if (form.getValues('total_amount') < 0) {
+                            form.setValue('total_amount', 0, {
+                              shouldDirty: true,
+                            })
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Automatically stores the plan quota as -1 so the subscription grants benefits without usable quota.'
+                      )}
+                    </FormDescription>
+                  </FormItem>
+                )}
+              />
+
+              <div className='space-y-2'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div>
+                    <FormLabel>{t('RPM entitlement groups')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Each row grants the listed RPM to requests using that group while this subscription is active.'
+                      )}
+                    </FormDescription>
+                  </div>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='icon-sm'
+                    aria-label={t('Add RPM entitlement group')}
+                    onClick={() =>
+                      form.setValue(
+                        'rate_limit_groups',
+                        [...rateLimitGroups, { group: '', rpm: 1 }],
+                        { shouldDirty: true }
+                      )
+                    }
+                  >
+                    <Plus />
+                  </Button>
+                </div>
+                {rateLimitGroups.length > 0 && (
+                  <div className='overflow-x-auto rounded-md border'>
+                    <table className='w-full text-sm'>
+                      <thead className='bg-muted/40 text-muted-foreground'>
+                        <tr>
+                          <th className='px-3 py-2 text-left font-medium'>
+                            {t('Group')}
+                          </th>
+                          <th className='w-32 px-3 py-2 text-left font-medium'>
+                            {t('RPM')}
+                          </th>
+                          <th className='w-10 px-1 py-2' />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rateLimitGroups.map((entry, index) => (
+                          <tr
+                            key={`${entry.group}-${entry.rpm}`}
+                            className='border-t'
+                          >
+                            <td className='p-2'>
+                              <Select
+                                items={[
+                                  {
+                                    value: '__none__',
+                                    label: t('Select group'),
+                                  },
+                                  ...groupOptions.map((group) => ({
+                                    value: group,
+                                    label: group,
+                                  })),
+                                ]}
+                                value={entry.group || ''}
+                                onValueChange={(value) => {
+                                  const next = [...rateLimitGroups]
+                                  next[index] = {
+                                    ...entry,
+                                    group:
+                                      value === null || value === '__none__'
+                                        ? ''
+                                        : value,
+                                  }
+                                  form.setValue('rate_limit_groups', next, {
+                                    shouldDirty: true,
+                                  })
+                                }}
+                              >
+                                <SelectTrigger className='w-full'>
+                                  <SelectValue
+                                    placeholder={t('Select group')}
+                                  />
+                                </SelectTrigger>
+                                <SelectContent alignItemWithTrigger={false}>
+                                  <SelectGroup>
+                                    <SelectItem value='__none__'>
+                                      {t('Select group')}
+                                    </SelectItem>
+                                    {groupOptions.map((group) => (
+                                      <SelectItem key={group} value={group}>
+                                        {group}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className='p-2'>
+                              <Input
+                                type='number'
+                                min={1}
+                                max={2147483647}
+                                step={1}
+                                value={entry.rpm}
+                                onChange={(event) => {
+                                  const next = [...rateLimitGroups]
+                                  next[index] = {
+                                    ...entry,
+                                    rpm:
+                                      Number.parseInt(event.target.value, 10) ||
+                                      1,
+                                  }
+                                  form.setValue('rate_limit_groups', next, {
+                                    shouldDirty: true,
+                                  })
+                                }}
+                              />
+                            </td>
+                            <td className='p-1'>
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                size='icon-sm'
+                                aria-label={t('Remove RPM entitlement group')}
+                                onClick={() =>
+                                  form.setValue(
+                                    'rate_limit_groups',
+                                    rateLimitGroups.filter(
+                                      (_, i) => i !== index
+                                    ),
+                                    { shouldDirty: true }
+                                  )
+                                }
+                              >
+                                <Trash2 className='text-destructive' />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <FormField
@@ -565,6 +860,104 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name='wallet_only_groups_enabled'
+                  render={({ field }) => (
+                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                      <FormLabel className='!mt-0'>
+                        {t('Enable wallet-only groups')}
+                      </FormLabel>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {walletOnlyGroupsEnabled && (
+                  <div className='space-y-3 rounded-md border p-3'>
+                    <FormField
+                      control={form.control}
+                      name='wallet_only_groups_mode'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Wallet-only group mode')}</FormLabel>
+                          <Select
+                            items={[
+                              {
+                                value: 'blacklist',
+                                label: t(
+                                  'Blacklist: selected groups use wallet only'
+                                ),
+                              },
+                              {
+                                value: 'whitelist',
+                                label: t(
+                                  'Whitelist: only selected groups use subscriptions'
+                                ),
+                              },
+                            ]}
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger className='w-full'>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectItem value='blacklist'>
+                                {t(
+                                  'Blacklist: selected groups use wallet only'
+                                )}
+                              </SelectItem>
+                              <SelectItem value='whitelist'>
+                                {t(
+                                  'Whitelist: only selected groups use subscriptions'
+                                )}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {t(
+                              'Choose how the selected groups control subscription billing for this plan.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='wallet_only_groups'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Wallet-only groups')}</FormLabel>
+                          <FormControl>
+                            <GroupMultiSelect
+                              options={groupOptions}
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder={t('Select groups')}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Select multiple groups; these groups will be routed according to the selected mode.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
               </div>
             </SideDrawerSection>
 
@@ -732,6 +1125,131 @@ export function SubscriptionsMutateDrawer({
               </div>
             </SideDrawerSection>
 
+            {/* Independent Usage Limits */}
+            <SideDrawerSection>
+              <h3 className='flex items-center gap-2 text-sm font-medium'>
+                <IconBadge tone='warning' size='xs'>
+                  <Timer />
+                </IconBadge>
+                {t('Usage Limits')}
+              </h3>
+              <FormDescription>
+                {t(
+                  'Configure independent usage limits for each active subscription. Set a limit to 0 to disable it.'
+                )}
+              </FormDescription>
+
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+                <FormField
+                  control={form.control}
+                  name='five_hour_limit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('5-hour Quota Limit ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 0.01}
+                          disabled={benefitsOnly}
+                          placeholder={
+                            tokensOnly
+                              ? t('Enter quota in tokens')
+                              : t('Enter quota in {{currency}}', {
+                                  currency: currencyLabel,
+                                })
+                          }
+                          onChange={(event) =>
+                            field.onChange(
+                              Number.parseFloat(event.target.value) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='weekly_limit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Weekly Quota Limit ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 0.01}
+                          disabled={benefitsOnly}
+                          placeholder={
+                            tokensOnly
+                              ? t('Enter quota in tokens')
+                              : t('Enter quota in {{currency}}', {
+                                  currency: currencyLabel,
+                                })
+                          }
+                          onChange={(event) =>
+                            field.onChange(
+                              Number.parseFloat(event.target.value) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='monthly_limit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Monthly Quota Limit ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 0.01}
+                          disabled={benefitsOnly}
+                          placeholder={
+                            tokensOnly
+                              ? t('Enter quota in tokens')
+                              : t('Enter quota in {{currency}}', {
+                                  currency: currencyLabel,
+                                })
+                          }
+                          onChange={(event) =>
+                            field.onChange(
+                              Number.parseFloat(event.target.value) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </SideDrawerSection>
+
             {/* Payment Config */}
             <SideDrawerSection>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
@@ -788,14 +1306,23 @@ export function SubscriptionsMutateDrawer({
                     <FormItem>
                       <FormLabel>Waffo Pancake Product ID</FormLabel>
                       <div className='flex gap-2'>
-                        <Combobox
-                          options={items}
+                        <Select
+                          items={items}
                           value={field.value || ''}
                           onValueChange={(v) => field.onChange(v)}
                           disabled={items.length === 0}
-                          className='w-full flex-1'
-                          placeholder={t('Select a product')}
-                        />
+                        >
+                          <SelectTrigger className='w-full flex-1'>
+                            <SelectValue placeholder={t('Select a product')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {items.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <Button
                           type='button'
                           variant='outline'

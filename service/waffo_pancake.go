@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/shopspring/decimal"
 	pancake "github.com/waffo-com/waffo-pancake-sdk-go"
 )
 
@@ -16,11 +18,20 @@ type WaffoPancakePriceSnapshot struct {
 	TaxCategory string
 }
 
+// WaffoPancakeConfiguredProductPrice is one currency price configured on the
+// operator-selected Pancake top-up product.
+type WaffoPancakeConfiguredProductPrice struct {
+	Currency    string
+	Amount      string
+	TaxCategory string
+}
+
 // WaffoPancakeCreateSessionParams is the input to CreateWaffoPancakeCheckoutSession.
 // BuyerIdentity must be stable per user (see WaffoPancakeBuyerIdentityFromUserID).
 // OrderMerchantExternalID = our trade_no; Pancake echoes it back in webhooks.
 type WaffoPancakeCreateSessionParams struct {
 	ProductID               string
+	Currency                string
 	BuyerIdentity           string
 	PriceSnapshot           *WaffoPancakePriceSnapshot
 	BuyerEmail              string
@@ -111,10 +122,15 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 		return nil, fmt.Errorf("build Waffo Pancake client: %w", err)
 	}
 
+	currency := strings.ToUpper(strings.TrimSpace(params.Currency))
+	if currency == "" {
+		currency = "USD"
+	}
+
 	sdkParams := pancake.AuthenticatedCheckoutParams{
 		CreateCheckoutSessionParams: pancake.CreateCheckoutSessionParams{
 			ProductID:               params.ProductID,
-			Currency:                "USD",
+			Currency:                currency,
 			BuyerEmail:              optionalString(params.BuyerEmail),
 			ExpiresInSeconds:        params.ExpiresInSeconds,
 			OrderMerchantExternalID: optionalString(params.OrderMerchantExternalID),
@@ -142,6 +158,85 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 		Token:          session.Token,
 		TokenExpiresAt: session.TokenExpiresAt,
 	}, nil
+}
+
+// GetWaffoPancakeConfiguredProductPrice loads the bound wallet top-up
+// product's unit price from Pancake. The USD price is preferred when a product
+// has several currency entries; otherwise its first configured price is used.
+func GetWaffoPancakeConfiguredProductPrice(ctx context.Context, productID string) (*WaffoPancakeConfiguredProductPrice, error) {
+	productID = strings.TrimSpace(productID)
+	if productID == "" {
+		return nil, fmt.Errorf("Waffo Pancake product id is required")
+	}
+	client, err := newWaffoPancakeClient()
+	if err != nil {
+		return nil, fmt.Errorf("build Waffo Pancake client: %w", err)
+	}
+
+	type queryShape struct {
+		OnetimeProduct struct {
+			Prices []struct {
+				Currency  string `json:"currency"`
+				PriceInfo struct {
+					Amount      string `json:"amount"`
+					TaxCategory string `json:"taxCategory"`
+				} `json:"priceInfo"`
+			} `json:"prices"`
+		} `json:"onetimeProduct"`
+	}
+	response, err := pancake.GraphQLQuery[queryShape](ctx, client, pancake.GraphQLParams{
+		Query: `query ($id: ID!) {
+			onetimeProduct(id: $id) {
+				prices {
+					currency
+					priceInfo {
+						amount
+						taxCategory
+					}
+				}
+			}
+		}`,
+		Variables: map[string]any{"id": productID},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query Waffo Pancake product price: %w", err)
+	}
+	if len(response.Errors) > 0 {
+		return nil, fmt.Errorf("Waffo Pancake product price query returned %d errors: %s", len(response.Errors), response.Errors[0].Message)
+	}
+	prices := make([]WaffoPancakeConfiguredProductPrice, 0, len(response.Data.OnetimeProduct.Prices))
+	for _, price := range response.Data.OnetimeProduct.Prices {
+		prices = append(prices, WaffoPancakeConfiguredProductPrice{
+			Currency:    price.Currency,
+			Amount:      price.PriceInfo.Amount,
+			TaxCategory: price.PriceInfo.TaxCategory,
+		})
+	}
+	return selectWaffoPancakeConfiguredProductPrice(prices)
+}
+
+func selectWaffoPancakeConfiguredProductPrice(prices []WaffoPancakeConfiguredProductPrice) (*WaffoPancakeConfiguredProductPrice, error) {
+	var selected *WaffoPancakeConfiguredProductPrice
+	for i := range prices {
+		price := prices[i]
+		price.Currency = strings.ToUpper(strings.TrimSpace(price.Currency))
+		price.Amount = strings.TrimSpace(price.Amount)
+		price.TaxCategory = strings.TrimSpace(price.TaxCategory)
+		amount, err := decimal.NewFromString(price.Amount)
+		if err != nil || !amount.IsPositive() || price.Currency == "" || price.TaxCategory == "" {
+			continue
+		}
+		if selected == nil || price.Currency == "USD" {
+			selected = &price
+		}
+		if price.Currency == "USD" {
+			break
+		}
+	}
+	if selected == nil {
+		return nil, fmt.Errorf("Waffo Pancake product has no valid configured price")
+	}
+	return selected, nil
 }
 
 func optionalString(s string) *string {
@@ -222,7 +317,9 @@ func ResolveWaffoPancakeTradeNo(event *WaffoPancakeWebhookEvent) (string, error)
 }
 
 // ResolveWaffoPancakeSubscriptionTradeNo is the SubscriptionOrder counterpart
-// of ResolveWaffoPancakeTradeNo.
+// of ResolveWaffoPancakeTradeNo. Waffo may echo either the merchant-provided
+// stable identity or the checkout email, so both are verified against the
+// local order owner.
 func ResolveWaffoPancakeSubscriptionTradeNo(event *WaffoPancakeWebhookEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("missing webhook event")
@@ -238,12 +335,18 @@ func ResolveWaffoPancakeSubscriptionTradeNo(event *WaffoPancakeWebhookEvent) (st
 	expectedIdentity := WaffoPancakeBuyerIdentityFromUserID(order.UserId)
 	actualIdentity := strings.TrimSpace(event.Data.MerchantProvidedBuyerIdentity)
 	if actualIdentity != expectedIdentity {
-		return "", fmt.Errorf(
-			"waffo pancake buyer identity mismatch for subscription tradeNo=%s: expected=%q actual=%q",
-			tradeNo,
-			expectedIdentity,
-			actualIdentity,
-		)
+		userEmail, err := model.GetUserEmail(order.UserId)
+		if err != nil {
+			return "", fmt.Errorf("get Waffo Pancake subscription order user email: %w", err)
+		}
+		if actualIdentity == "" || model.NormalizeEmail(actualIdentity) != model.NormalizeEmail(userEmail) {
+			return "", fmt.Errorf(
+				"waffo pancake buyer identity mismatch for subscription tradeNo=%s: expected=%q actual=%q",
+				tradeNo,
+				expectedIdentity,
+				actualIdentity,
+			)
+		}
 	}
 	return tradeNo, nil
 }
@@ -401,7 +504,7 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 		"WaffoPancakeStoreID":    storeID,
 		"WaffoPancakeProductID":  productID,
 	}
-	if pk := strings.TrimSpace(privateKey); pk != "" {
+	if pk := strings.TrimSpace(privateKey); pk != "" && pk != common.SensitiveOptionPlaceholder {
 		values["WaffoPancakePrivateKey"] = pk
 	}
 	if err := model.UpdateOptionsBulk(values); err != nil {

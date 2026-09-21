@@ -17,9 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
-import { CreditCard, Landmark } from 'lucide-react'
+import { Coins, CreditCard, Landmark } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si'
+import { SiAlipay, SiMonero, SiWechat, SiStripe } from 'react-icons/si'
 
 import { ReactIconByName } from '@/components/react-icon-by-name'
 
@@ -153,6 +153,20 @@ export function getPaymentIcon(
             className='hidden h-full w-full object-contain dark:block'
           />
         </span>
+      )
+    case PAYMENT_TYPES.MONERO:
+      return (
+        <SiMonero
+          className={className}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.MONERO] }}
+        />
+      )
+    case PAYMENT_TYPES.NOWPAYMENTS:
+      return (
+        <Coins
+          className={`${className} text-slate-900 dark:text-white`}
+          aria-label={altName || 'NOWPayments'}
+        />
       )
     default:
       return <CreditCard className={className} />

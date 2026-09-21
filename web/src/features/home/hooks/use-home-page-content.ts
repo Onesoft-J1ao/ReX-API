@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import i18next from 'i18next'
 import { useEffect, useState } from 'react'
 
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { isHttpUrl } from '@/lib/content-format'
 import { handleServerError } from '@/lib/handle-server-error'
 
@@ -32,6 +33,7 @@ const STORAGE_KEY = 'home_page_content'
  * Supports both Markdown/HTML content and iframe URLs
  */
 export function useHomePageContent(): HomePageContentResult {
+  const { homepage, loading: configLoading } = useSystemConfig()
   // The cached copy is read during the first render rather than in an effect,
   // so a configured instance paints its own content immediately instead of
   // flashing a loading placeholder and then swapping it out.
@@ -85,7 +87,13 @@ export function useHomePageContent(): HomePageContentResult {
     }
   }, [])
 
-  const isUrl = isHttpUrl(content)
+  const configuredContent = homepage.style === 'custom' ? content : ''
+  const isUrl = isHttpUrl(configuredContent)
 
-  return { content, isLoaded, isUrl }
+  return {
+    content: configuredContent,
+    isLoaded: !configLoading && isLoaded,
+    isUrl,
+    style: homepage.style,
+  }
 }

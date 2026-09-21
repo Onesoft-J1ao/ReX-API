@@ -16,9 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus, MoreHorizontal, List, AlertCircle } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Plus, MoreHorizontal, RefreshCw, List, AlertCircle } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -28,14 +32,16 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useCanEditModelPricing } from '@/features/model-pricing/api'
 
+import { deleteUnusedModels } from '../api'
 import { useModels } from './models-provider'
 
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
-  const canPrice = useCanEditModelPricing()
+  const queryClient = useQueryClient()
+  const [deleteUnusedOpen, setDeleteUnusedOpen] = useState(false)
+  const [isDeletingUnused, setIsDeletingUnused] = useState(false)
 
   const handleCreateModel = () => {
     setCurrentRow(null)
@@ -54,20 +60,26 @@ export function ModelsPrimaryButtons() {
     setOpen('prefill-groups')
   }
 
+  const handleDeleteUnused = async () => {
+    setIsDeletingUnused(true)
+    try {
+      const result = await deleteUnusedModels()
+      toast.success(
+        t('Deleted {{count}} unused models', {
+          count: result.data?.deleted ?? 0,
+        })
+      )
+      await queryClient.invalidateQueries({ queryKey: ['models'] })
+      setDeleteUnusedOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Delete failed'))
+    } finally {
+      setIsDeletingUnused(false)
+    }
+  }
+
   return (
-    <div className='flex flex-wrap items-center gap-2'>
-      <Button onClick={handleSync} variant='outline' size='sm'>
-        {t('Sync metadata')}
-      </Button>
-      {canPrice && (
-        <Button
-          onClick={() => setOpen('price-sync')}
-          variant='outline'
-          size='sm'
-        >
-          {t('Sync pricing')}
-        </Button>
-      )}
+    <div className='flex items-center gap-2'>
       {/* Create Model */}
       <Button onClick={handleCreateModel} size='sm'>
         <Plus className='h-4 w-4' />
@@ -78,7 +90,11 @@ export function ModelsPrimaryButtons() {
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant='outline' size='sm' aria-label={t('Open menu')} />
+            <Button
+              variant='outline'
+              size='sm'
+              aria-label={t('More actions')}
+            />
           }
         >
           <MoreHorizontal className='h-4 w-4' />
@@ -88,6 +104,16 @@ export function ModelsPrimaryButtons() {
             {t('Missing Models')}
             <DropdownMenuShortcut>
               <AlertCircle className='h-4 w-4' />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setDeleteUnusedOpen(true)}>
+            {t('Delete unused models')}
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={handleSync}>
+            {t('Sync Upstream')}
+            <DropdownMenuShortcut>
+              <RefreshCw className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 
@@ -101,6 +127,16 @@ export function ModelsPrimaryButtons() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <ConfirmDialog
+        open={deleteUnusedOpen}
+        onOpenChange={setDeleteUnusedOpen}
+        title={t('Delete unused models')}
+        desc={t('Delete unused described models?')}
+        destructive
+        isLoading={isDeletingUnused}
+        handleConfirm={() => void handleDeleteUnused()}
+        confirmText={t('Delete')}
+      />
     </div>
   )
 }

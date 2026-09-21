@@ -25,6 +25,11 @@ import { expect, test, vi } from 'vitest'
 import zh from '@/i18n/locales/zh.json'
 
 import type { TaskPluginOption } from '../../api'
+import {
+  CHANNEL_TYPE_NEW_API,
+  CHANNEL_TYPE_SUB2API,
+  CHANNEL_TYPE_TASK_PLUGIN,
+} from '../../constants'
 import { ChannelProviderPicker } from '../drawers/channel-provider-picker'
 
 const plugins = [
@@ -280,7 +285,11 @@ test('extension associations follow declared types and exclude legacy task-only 
   render(
     <ChannelProviderPicker
       plugins={[
-        { ...extensionPlugin, name: 'OpenAI', channelTypes: [24, 55, 61, 999] },
+        {
+          ...extensionPlugin,
+          name: 'OpenAI',
+          channelTypes: [24, 55, CHANNEL_TYPE_TASK_PLUGIN, 999],
+        },
       ]}
       canBindPlugin
       loading={false}
@@ -514,28 +523,44 @@ test.each([true, false])(
     for (const category of ['All', 'Built-in', 'Gateways']) {
       await user.click(screen.getByRole('tab', { name: category }))
       expect(
-        screen.getByRole('option', { name: 'New API Built-in #60' })
+        screen.getByRole('option', {
+          name: `New API Built-in #${CHANNEL_TYPE_NEW_API}`,
+        })
       ).toBeVisible()
       expect(
-        screen.getByRole('option', { name: 'Sub2API Built-in #59' })
+        screen.getByRole('option', {
+          name: `Sub2API Built-in #${CHANNEL_TYPE_SUB2API}`,
+        })
       ).toBeVisible()
     }
     expect(screen.getAllByRole('option')).toHaveLength(2)
     await user.click(
-      screen.getByRole('option', { name: 'New API Built-in #60' })
+      screen.getByRole('option', {
+        name: `New API Built-in #${CHANNEL_TYPE_NEW_API}`,
+      })
     )
-    expect(select).toHaveBeenLastCalledWith({ kind: 'builtin', type: 60 })
+    expect(select).toHaveBeenLastCalledWith({
+      kind: 'builtin',
+      type: CHANNEL_TYPE_NEW_API,
+    })
     const search = screen.getByRole('combobox')
     await user.type(search, 'Sub2API')
     expect(screen.getAllByRole('option')).toHaveLength(1)
     await user.click(
-      screen.getByRole('option', { name: 'Sub2API Built-in #59' })
+      screen.getByRole('option', {
+        name: `Sub2API Built-in #${CHANNEL_TYPE_SUB2API}`,
+      })
     )
-    expect(select).toHaveBeenLastCalledWith({ kind: 'builtin', type: 59 })
+    expect(select).toHaveBeenLastCalledWith({
+      kind: 'builtin',
+      type: CHANNEL_TYPE_SUB2API,
+    })
     await user.click(screen.getByRole('tab', { name: 'Built-in' }))
     expect(search).toHaveValue('Sub2API')
     expect(
-      screen.getByRole('option', { name: 'Sub2API Built-in #59' })
+      screen.getByRole('option', {
+        name: `Sub2API Built-in #${CHANNEL_TYPE_SUB2API}`,
+      })
     ).toBeVisible()
     await user.click(screen.getByRole('tab', { name: 'Gateways' }))
     await user.clear(search)
@@ -844,7 +869,7 @@ test('searching a known type number selects that type and an unknown positive nu
   await user.keyboard('{ArrowDown}{Enter}')
   expect(select).toHaveBeenLastCalledWith({ kind: 'builtin', type: 999 })
   await user.clear(search)
-  await user.type(search, '61')
+  await user.type(search, String(CHANNEL_TYPE_TASK_PLUGIN))
   expect(screen.queryByRole('option')).not.toBeInTheDocument()
 })
 

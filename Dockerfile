@@ -12,8 +12,10 @@ ENV GO111MODULE=on CGO_ENABLED=0 GOWORK=off
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG GOPROXY=https://goproxy.cn,direct
 ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
 ENV GOEXPERIMENT=greenteagc
+ENV GOPROXY=${GOPROXY}
 
 WORKDIR /build
 
@@ -23,7 +25,9 @@ ADD go.mod go.sum ./
 ADD relaykit/go.mod ./relaykit/go.mod
 # This fork builds from inside China, where the default proxy is unreliable.
 ENV GOPROXY=https://goproxy.cn,direct
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/cache/go-build \
+    GOCACHE=/cache/go-build go mod download
 
 COPY . .
 COPY --from=builder /build/web/dist ./web/dist

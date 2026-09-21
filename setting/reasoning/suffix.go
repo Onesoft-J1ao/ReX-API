@@ -17,6 +17,7 @@ var (
 )
 
 var (
+	TrimEffortSuffix              = kitreasoning.TrimEffortSuffix
 	TrimEffortSuffixWithSuffixes  = kitreasoning.TrimEffortSuffixWithSuffixes
 	ParseDeepSeekV4ThinkingSuffix = kitreasoning.ParseDeepSeekV4ThinkingSuffix
 	TrimGeminiThinkingSuffix      = kitreasoning.TrimGeminiThinkingSuffix

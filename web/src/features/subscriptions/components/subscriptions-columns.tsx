@@ -24,6 +24,7 @@ import { BadgeCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 
 import { formatDuration, formatResetPeriod } from '../lib'
@@ -69,7 +70,10 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         header: t('Price'),
         cell: ({ row }) => (
           <span className='text-success font-mono font-semibold tabular-nums'>
-            ${Number(row.original.plan.price_amount || 0).toFixed(2)}
+            {formatBillingCurrencyFromUSD(
+              Number(row.original.plan.price_amount || 0),
+              { digitsLarge: 2, digitsSmall: 2, abbreviate: false }
+            )}
           </span>
         ),
         size: 100,
@@ -162,13 +166,19 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       },
       {
         id: 'total_amount',
-        header: t('Plan Quota'),
+        header: t('Quota per Billing Period'),
         meta: { mobileHidden: true },
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)
+          let label = t('Unlimited')
+          if (total > 0) {
+            label = formatQuota(total)
+          } else if (total < 0) {
+            label = t('Benefits only')
+          }
           return (
             <span className='text-muted-foreground font-mono tabular-nums'>
-              {total > 0 ? formatQuota(total) : t('Unlimited')}
+              {label}
             </span>
           )
         },

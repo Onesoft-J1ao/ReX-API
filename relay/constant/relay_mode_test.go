@@ -11,6 +11,15 @@ func TestPath2RelayMode(t *testing.T) {
 		path string
 		want int
 	}{
+		{path: "/v1/audio/speech", want: RelayModeAudioSpeech},
+		{path: "/v1/audio/speech/websocket", want: RelayModeAudioSpeechWebSocket},
+		{path: "/v1/audio/speech/tasks", want: RelayModeAudioSpeechTaskSubmit},
+		{path: "/v1/audio/speech/tasks/task_public", want: RelayModeAudioSpeechTaskFetchByID},
+		{path: "/v1/audio/speech/tasks/task_public/content", want: RelayModeAudioSpeechTaskFetchByID},
+		{path: "/v1/audio/speech/tasks/task_public/timestamps", want: RelayModeAudioSpeechTaskFetchByID},
+		{path: "/v1/videos", want: RelayModeVideoSubmit},
+		{path: "/v1/videos/task_public", want: RelayModeVideoFetchByID},
+		{path: "/pg/videos/task_public", want: RelayModeVideoFetchByID},
 		{path: "/v1/alpha/search", want: RelayModeAlphaSearch},
 		{path: "/v1/alpha/search?foo=1", want: RelayModeAlphaSearch},
 		// The playground workbench reaches the same handlers as /v1.

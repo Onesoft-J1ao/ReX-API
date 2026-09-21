@@ -255,6 +255,12 @@ func init() {
 	for _, spec := range builtinTextConverters {
 		registerBuiltinTextConverter(spec)
 	}
+
+	// Keep the pre-public converter ID working for saved configurations and
+	// callers that used it before the Anthropic-named ID was exposed.
+	registerRequestConverterAlias(requestConverterResponsesToClaude, ConverterOpenAIResponsesToClaudeMessages)
+	registerResponseConverterAlias(requestConverterResponsesToClaude, ConverterOpenAIResponsesToClaudeMessages)
+	registerTextConverterAlias(requestConverterResponsesToClaude, ConverterOpenAIResponsesToClaudeMessages)
 }
 
 func LookupTextConverter(converter string) (TextConverterSpec, bool) {

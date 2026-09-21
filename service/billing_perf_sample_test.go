@@ -14,9 +14,11 @@ import (
 )
 
 // The model square reads its health badges from the perf-metrics summary, which
-// is fed exclusively by RecordRelaySample. Settlement through BillingSession
-// bypasses the legacy PostConsumeQuota path that used to be the only recording
-// call site, so a request that settles through a session must still be sampled.
+// is fed exclusively by the perf-metrics sampler. A request that settles through
+// a BillingSession must still be sampled: that path bypasses the legacy
+// PostConsumeQuota call site, so the sample is taken at the request boundary
+// (controller/relay.go calls RecordRelayResult from a deferred hook) rather than
+// during settlement.
 func TestSettleBillingRecordsPerfSampleForSessionSettlement(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -47,9 +49,15 @@ func TestSettleBillingRecordsPerfSampleForSessionSettlement(t *testing.T) {
 
 	require.NoError(t, SettleBilling(ctx, relayInfo, 0, 42))
 
-	// RecordRelaySample runs inside gopool, so wait for the sample to land
-	// instead of assuming it is visible immediately.
+	// Settlement alone must not sample: the boundary owns that, and sampling
+	// here as well would double-count every request.
+	require.Zero(t, perfmetrics.RecordedSampleCount(modelName, "default"),
+		"settlement must not record a perf sample; the request boundary does")
+
+	// The boundary hook is what records it.
+	perfmetrics.RecordRelayResult(ctx, relayInfo, nil)
+
 	require.Eventually(t, func() bool {
 		return perfmetrics.RecordedSampleCount(modelName, "default") == 1
-	}, 2*time.Second, 10*time.Millisecond, "settling through a BillingSession must record one perf sample")
+	}, 2*time.Second, 10*time.Millisecond, "the request boundary must record one perf sample")
 }

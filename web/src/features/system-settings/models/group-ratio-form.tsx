@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Code2, Eye, HelpCircle } from 'lucide-react'
 import { memo, useCallback, useMemo, useState, type ReactNode } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
+import type { FieldErrors, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import {
   sideDrawerContentClassName,
@@ -52,6 +53,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 
 import {
   SettingsForm,
@@ -61,6 +63,7 @@ import {
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeJsonParse } from '../utils/json-parser'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { GroupCodingModelEditor } from './group-coding-model-editor'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
@@ -70,9 +73,13 @@ type GroupFormValues = {
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  AutoGroupDescription: string
   MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
+  GroupDefaultModel: string
+  GroupRetryTimes: string
+  ModelSquareVisibleGroups: string
 }
 
 type GroupRatioFormProps = {
@@ -104,30 +111,42 @@ export const GroupRatioForm = memo(function GroupRatioForm({
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
   }, [])
 
+  const handleInvalidSave = useCallback(
+    (errors: FieldErrors<GroupFormValues>) => {
+      const firstError = Object.values(errors).find(
+        (error) => typeof error?.message === 'string'
+      )
+      toast.error(
+        typeof firstError?.message === 'string'
+          ? firstError.message
+          : t('Invalid JSON')
+      )
+    },
+    [t]
+  )
+
+  const handleSave = useMemo(
+    () => form.handleSubmit(onSave, handleInvalidSave),
+    [form, handleInvalidSave, onSave]
+  )
+
   const watchedGroupRatio = form.watch('GroupRatio')
-  const watchedUserUsableGroups = form.watch('UserUsableGroups')
-  const watchedTopupGroupRatio = form.watch('TopupGroupRatio')
+  const watchedAutoGroups = form.watch('AutoGroups')
+  const hasAutoGroups = useMemo(
+    () =>
+      safeJsonParse<string[]>(watchedAutoGroups, {
+        fallback: [],
+        silent: true,
+      }).length > 0,
+    [watchedAutoGroups]
+  )
   const groupNames = useMemo(() => {
     const ratioMap = safeJsonParse<Record<string, number>>(watchedGroupRatio, {
       fallback: {},
       silent: true,
     })
-    const usableMap = safeJsonParse<Record<string, string>>(
-      watchedUserUsableGroups,
-      { fallback: {}, silent: true }
-    )
-    const topupMap = safeJsonParse<Record<string, number>>(
-      watchedTopupGroupRatio,
-      { fallback: {}, silent: true }
-    )
-    return [
-      ...new Set([
-        ...Object.keys(ratioMap),
-        ...Object.keys(usableMap),
-        ...Object.keys(topupMap),
-      ]),
-    ]
-  }, [watchedGroupRatio, watchedUserUsableGroups, watchedTopupGroupRatio])
+    return Object.keys(ratioMap).sort()
+  }, [watchedGroupRatio])
 
   return (
     <div className='space-y-6'>
@@ -158,7 +177,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           <Button
             type='button'
             size='sm'
-            onClick={form.handleSubmit(onSave)}
+            onClick={() => void handleSave()}
             disabled={isSaving}
           >
             {isSaving ? t('Saving...') : t('Save group ratios')}
@@ -170,6 +189,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               groupRatio={form.watch('GroupRatio')}
               topupGroupRatio={form.watch('TopupGroupRatio')}
               userUsableGroups={form.watch('UserUsableGroups')}
+              modelSquareVisibleGroups={form.watch('ModelSquareVisibleGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
               maxTokenAutoGroupsField={
@@ -201,6 +221,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 />
               }
               groupSpecialUsableGroup={form.watch('GroupSpecialUsableGroup')}
+              groupRetryTimes={form.watch('GroupRetryTimes')}
               onChange={(field, value) =>
                 handleFieldChange(field as keyof GroupFormValues, value)
               }
@@ -213,6 +234,38 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 handleFieldChange('GroupSpecialUsableGroup', value)
               }
             />
+
+            <GroupCodingModelEditor
+              groups={groupNames}
+              defaultModels={form.watch('GroupDefaultModel')}
+              onChange={handleFieldChange}
+            />
+
+            {hasAutoGroups ? (
+              <FormField
+                control={form.control}
+                name='AutoGroupDescription'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Auto group description')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder={t(
+                          'Optional description for the auto group'
+                        )}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Shown to users when automatic group selection is available.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
 
             <FormField
               control={form.control}
@@ -238,7 +291,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             />
           </div>
         ) : (
-          <SettingsForm onSubmit={form.handleSubmit(onSave)}>
+          <SettingsForm onSubmit={handleSave}>
             <FormField
               control={form.control}
               name='GroupRatio'
@@ -257,6 +310,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'JSON map of group → ratio applied when the user selects the group explicitly.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupRetryTimes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Group retry times')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={6} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Optional JSON map of group to retry count (0-10). Omitted groups inherit the global retry setting.'
                     )}
                   </FormDescription>
                   <FormMessage />
@@ -319,6 +391,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 
             <FormField
               control={form.control}
+              name='GroupDefaultModel'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Group default models')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={6} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON map of group to the default model used in coding tool setup instructions.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name='GroupGroupRatio'
               render={({ field }) => (
                 <FormItem>
@@ -369,6 +460,32 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 </FormItem>
               )}
             />
+
+            {hasAutoGroups ? (
+              <FormField
+                control={form.control}
+                name='AutoGroupDescription'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Auto group description')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder={t(
+                          'Optional description for the auto group'
+                        )}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Shown to users when automatic group selection is available.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
 
             <FormField
               control={form.control}

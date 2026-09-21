@@ -14,6 +14,9 @@ func SetTaskPluginProtocolRouter(router *gin.Engine) {
 	for _, protocol := range pluginruntime.HostProtocols() {
 		for _, operation := range protocol.Operations {
 			for _, method := range operation.Methods {
+				if routeExists(router, method, operation.Path) {
+					continue
+				}
 				handlers, err := taskPluginProtocolHandlers(protocol.Name, operation.Name)
 				if err != nil {
 					panic(err)
@@ -22,6 +25,15 @@ func SetTaskPluginProtocolRouter(router *gin.Engine) {
 			}
 		}
 	}
+}
+
+func routeExists(router *gin.Engine, method, path string) bool {
+	for _, route := range router.Routes() {
+		if route.Method == method && route.Path == path {
+			return true
+		}
+	}
+	return false
 }
 
 func taskPluginProtocolHandlers(protocol, operation string) ([]gin.HandlerFunc, error) {

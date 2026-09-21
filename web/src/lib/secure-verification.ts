@@ -76,7 +76,8 @@ export async function authResult<T>(
     if (!response.success || response.data === undefined) {
       throw new AuthOperationError(
         getServerErrorMessageKey(response) || response.message || fallback,
-        response.code
+        response.code,
+        { cause: response }
       )
     }
     return response.data

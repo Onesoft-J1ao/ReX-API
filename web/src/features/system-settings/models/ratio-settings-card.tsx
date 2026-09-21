@@ -41,6 +41,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { SettingsPageTitleStatusPortal } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeJsonParse } from '../utils/json-parser'
 import { positiveIntegerSchema } from '../utils/numeric-field'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
@@ -48,12 +49,28 @@ import { ToolPriceSettings } from './tool-price-settings'
 import { UpstreamRatioSync } from './upstream-ratio-sync'
 import {
   formatJsonForTextarea,
+  isModelSquareVisibleGroups,
   type JsonValidationError,
   normalizeJsonString,
   validateJsonString,
 } from './utils'
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
+
+function filterDefaultModelsByGroups(
+  defaultModels: string,
+  groupValues: string[]
+): string {
+  const modelMap = safeJsonParse<Record<string, string>>(defaultModels, {
+    fallback: {},
+    silent: true,
+  })
+  const validGroups = new Set(groupValues)
+  const filtered = Object.fromEntries(
+    Object.entries(modelMap).filter(([group]) => validGroups.has(group))
+  )
+  return JSON.stringify(filtered, null, 2)
+}
 
 function formatJsonValidationError(
   t: Translate,
@@ -142,9 +159,31 @@ const createGroupSchema = (t: Translate) =>
         parsed.every((item) => typeof item === 'string'),
       predicateMessage: 'Expected a JSON array of group identifiers',
     }),
+    AutoGroupDescription: z.string(),
     MaxTokenAutoGroups: positiveIntegerSchema(t('Enter a positive integer')),
     DefaultUseAutoGroup: z.boolean(),
     GroupSpecialUsableGroup: createJsonStringField(t),
+    GroupDefaultModel: createJsonStringField(t),
+    GroupRetryTimes: createJsonStringField(t, {
+      predicate: (parsed) =>
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed) &&
+        Object.entries(parsed).every(
+          ([group, value]) =>
+            group.trim() !== '' &&
+            typeof value === 'number' &&
+            Number.isInteger(value) &&
+            value >= 0 &&
+            value <= 10
+        ),
+      predicateMessage: 'Expected retry counts from 0 to 10 by group',
+    }),
+    ModelSquareVisibleGroups: createJsonStringField(t, {
+      predicate: isModelSquareVisibleGroups,
+      predicateMessage:
+        'Expected a JSON array of group identifiers or an object mapping identifiers to descriptions',
+    }),
   })
 
 type ModelFormValues = z.infer<ReturnType<typeof createModelSchema>>
@@ -247,10 +286,16 @@ export function RatioSettingsCard({
     UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
     GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
     AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
+    AutoGroupDescription: groupDefaults.AutoGroupDescription,
     MaxTokenAutoGroups: groupDefaults.MaxTokenAutoGroups,
     DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
     GroupSpecialUsableGroup: normalizeJsonString(
       groupDefaults.GroupSpecialUsableGroup
+    ),
+    GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
+    GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
+    ModelSquareVisibleGroups: normalizeJsonString(
+      groupDefaults.ModelSquareVisibleGroups
     ),
   })
   const modelSchema = useMemo(() => createModelSchema(t), [t])
@@ -287,8 +332,15 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
+      AutoGroupDescription: groupDefaults.AutoGroupDescription,
+      MaxTokenAutoGroups: groupDefaults.MaxTokenAutoGroups,
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
+      ),
+      GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
+      GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
+      ModelSquareVisibleGroups: formatJsonForTextarea(
+        groupDefaults.ModelSquareVisibleGroups
       ),
     },
   })
@@ -337,10 +389,16 @@ export function RatioSettingsCard({
       UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
       GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
       AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
+      AutoGroupDescription: groupDefaults.AutoGroupDescription,
       MaxTokenAutoGroups: groupDefaults.MaxTokenAutoGroups,
       DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
       GroupSpecialUsableGroup: normalizeJsonString(
         groupDefaults.GroupSpecialUsableGroup
+      ),
+      GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
+      GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
+      ModelSquareVisibleGroups: normalizeJsonString(
+        groupDefaults.ModelSquareVisibleGroups
       ),
     }
 
@@ -351,8 +409,15 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
+      AutoGroupDescription: groupDefaults.AutoGroupDescription,
+      MaxTokenAutoGroups: groupDefaults.MaxTokenAutoGroups,
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
+      ),
+      GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
+      GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
+      ModelSquareVisibleGroups: formatJsonForTextarea(
+        groupDefaults.ModelSquareVisibleGroups
       ),
     })
   }, [groupDefaults, groupForm])
@@ -415,10 +480,24 @@ export function RatioSettingsCard({
         UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
         GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
         AutoGroups: normalizeJsonString(values.AutoGroups),
+        AutoGroupDescription: values.AutoGroupDescription.trim(),
         MaxTokenAutoGroups: values.MaxTokenAutoGroups,
         DefaultUseAutoGroup: values.DefaultUseAutoGroup,
         GroupSpecialUsableGroup: normalizeJsonString(
           values.GroupSpecialUsableGroup
+        ),
+        GroupDefaultModel: filterDefaultModelsByGroups(
+          values.GroupDefaultModel,
+          Object.keys(
+            safeJsonParse<Record<string, number>>(values.GroupRatio, {
+              fallback: {},
+              silent: true,
+            })
+          )
+        ),
+        GroupRetryTimes: normalizeJsonString(values.GroupRetryTimes),
+        ModelSquareVisibleGroups: normalizeJsonString(
+          values.ModelSquareVisibleGroups
         ),
       }
 
@@ -426,6 +505,7 @@ export function RatioSettingsCard({
       const apiKeyMap: Record<string, string> = {
         GroupSpecialUsableGroup:
           'group_ratio_setting.group_special_usable_group',
+        ModelSquareVisibleGroups: 'console_setting.model_square_visible_groups',
       }
 
       const updates = (
@@ -434,14 +514,18 @@ export function RatioSettingsCard({
         (key) => normalized[key] !== groupNormalizedDefaults.current[key]
       )
 
+      if (updates.length === 0) {
+        toast.info(t('No changes to save'))
+        return
+      }
+
       for (const key of updates) {
         const apiKey = apiKeyMap[key] || key
         await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
       }
-
       groupNormalizedDefaults.current = normalized
     },
-    [updateOption]
+    [t, updateOption]
   )
 
   const handleResetRatios = useCallback(() => {

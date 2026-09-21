@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -22,6 +24,61 @@ type WaffoPancakePayRequest struct {
 	Amount int64 `json:"amount"`
 }
 
+type waffoPancakeCheckoutPrice struct {
+	Money         float64
+	Currency      string
+	PriceSnapshot *service.WaffoPancakePriceSnapshot
+}
+
+func getWaffoPancakeMinTopUp() int64 {
+	minimum := int64(setting.WaffoPancakeMinTopUp)
+	configured := operation_setting.GetGlobalPayMethod(model.PaymentMethodWaffoPancake)
+	if configured == nil {
+		return minimum
+	}
+	value, err := decimal.NewFromString(strings.TrimSpace(configured["min_topup"]))
+	if err != nil || !value.IsPositive() {
+		return minimum
+	}
+	value = value.Ceil()
+	if value.GreaterThan(decimal.NewFromInt(math.MaxInt64)) {
+		return minimum
+	}
+	return value.IntPart()
+}
+
+func finalizeWaffoPancakeCheckoutPrice(price *waffoPancakeCheckoutPrice) (*waffoPancakeCheckoutPrice, error) {
+	if price == nil || price.PriceSnapshot == nil {
+		return nil, fmt.Errorf("Waffo Pancake checkout price is incomplete")
+	}
+	if price.Money <= 0 || math.IsNaN(price.Money) || math.IsInf(price.Money, 0) {
+		return nil, fmt.Errorf("Waffo Pancake checkout price must be positive and finite")
+	}
+	amount := decimal.NewFromFloat(price.Money)
+	configured := operation_setting.GetGlobalPayMethod(model.PaymentMethodWaffoPancake)
+	if configured != nil {
+		fixedFee, fixedErr := decimal.NewFromString(strings.TrimSpace(configured["fee"]))
+		feeRate, rateErr := decimal.NewFromString(strings.TrimSpace(configured["fee_rate"]))
+		if rateErr == nil && !feeRate.IsNegative() {
+			amount = amount.Mul(decimal.NewFromInt(100).Add(feeRate)).Div(decimal.NewFromInt(100))
+		}
+		if fixedErr == nil && !fixedFee.IsNegative() {
+			amount = amount.Add(fixedFee)
+		}
+	}
+	amount = amount.Round(2)
+	if !amount.IsPositive() {
+		return nil, fmt.Errorf("Waffo Pancake checkout price must be positive")
+	}
+	chargedMoney := amount.InexactFloat64()
+	if math.IsNaN(chargedMoney) || math.IsInf(chargedMoney, 0) {
+		return nil, fmt.Errorf("Waffo Pancake checkout price is outside the supported range")
+	}
+	price.Money = chargedMoney
+	price.PriceSnapshot.Amount = amount.StringFixed(2)
+	return price, nil
+}
+
 func RequestWaffoPancakeAmount(c *gin.Context) {
 	var req WaffoPancakePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -29,8 +86,9 @@ func RequestWaffoPancakeAmount(c *gin.Context) {
 		return
 	}
 
-	if req.Amount < int64(setting.WaffoPancakeMinTopUp) {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", setting.WaffoPancakeMinTopUp)})
+	minimum := getWaffoPancakeMinTopUp()
+	if req.Amount < minimum {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", minimum)})
 		return
 	}
 	id := c.GetInt("id")
@@ -44,19 +102,35 @@ func RequestWaffoPancakeAmount(c *gin.Context) {
 		return
 	}
 
-	payMoney := getWaffoPancakePayMoney(req.Amount, group)
-	if payMoney <= 0.01 {
+	price, err := getWaffoPancakeCheckoutPrice(c.Request.Context(), req.Amount, group)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 获取商品价格失败 amount=%d error=%q", req.Amount, err.Error()))
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取 Waffo Pancake 商品价格失败"})
+		return
+	}
+	if price.Money <= 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "success", "data": fmt.Sprintf("%.2f", payMoney)})
+	c.JSON(http.StatusOK, gin.H{"message": "success", "data": fmt.Sprintf("%.2f", price.Money)})
 }
 
 func getWaffoPancakePayMoney(amount int64, group string) float64 {
 	dAmount := decimal.NewFromInt(amount)
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		dAmount = dAmount.Div(decimal.NewFromFloat(common.QuotaPerUnit))
+		dAmount = dAmount.
+			Div(decimal.NewFromFloat(common.QuotaPerUnit)).
+			Mul(decimal.NewFromFloat(setting.WaffoPancakeUnitPrice))
+	} else {
+		currencyRate := setting.WaffoPancakeUSDToCurrencyRate
+		if currencyRate > 0 && !math.IsNaN(currencyRate) && !math.IsInf(currencyRate, 0) {
+			dAmount = dAmount.Div(decimal.NewFromFloat(currencyRate))
+		} else {
+			// Keep the previous unit-price behavior until an operator explicitly
+			// configures the USD-to-system-currency rate.
+			dAmount = dAmount.Mul(decimal.NewFromFloat(setting.WaffoPancakeUnitPrice))
+		}
 	}
 
 	topupGroupRatio := common.GetTopupGroupRatio(group)
@@ -70,11 +144,58 @@ func getWaffoPancakePayMoney(amount int64, group string) float64 {
 	}
 
 	payMoney := dAmount.
-		Mul(decimal.NewFromFloat(setting.WaffoPancakeUnitPrice)).
 		Mul(decimal.NewFromFloat(topupGroupRatio)).
 		Mul(decimal.NewFromFloat(discount))
 
 	return payMoney.InexactFloat64()
+}
+
+func getWaffoPancakeCheckoutPrice(ctx context.Context, amount int64, group string) (*waffoPancakeCheckoutPrice, error) {
+	if !setting.WaffoPancakeUseConfiguredProductPrice {
+		payMoney := getWaffoPancakePayMoney(amount, group)
+		return finalizeWaffoPancakeCheckoutPrice(&waffoPancakeCheckoutPrice{
+			Money:    payMoney,
+			Currency: "USD",
+			PriceSnapshot: &service.WaffoPancakePriceSnapshot{
+				Amount:      formatWaffoPancakeAmount(payMoney),
+				TaxCategory: "saas",
+			},
+		})
+	}
+
+	configuredPrice, err := service.GetWaffoPancakeConfiguredProductPrice(ctx, setting.WaffoPancakeProductID)
+	if err != nil {
+		return nil, err
+	}
+	price, err := getConfiguredWaffoPancakeProductCheckoutPrice(configuredPrice, normalizeWaffoPancakeTopUpAmount(amount))
+	if err != nil {
+		return nil, err
+	}
+	return finalizeWaffoPancakeCheckoutPrice(price)
+}
+
+func getConfiguredWaffoPancakeProductCheckoutPrice(configuredPrice *service.WaffoPancakeConfiguredProductPrice, quantity int64) (*waffoPancakeCheckoutPrice, error) {
+	if configuredPrice == nil || quantity < 1 {
+		return nil, fmt.Errorf("configured Waffo Pancake product price and positive quantity are required")
+	}
+	unitPrice, err := decimal.NewFromString(configuredPrice.Amount)
+	if err != nil || !unitPrice.IsPositive() {
+		return nil, fmt.Errorf("configured Waffo Pancake product price must be positive")
+	}
+	currency := strings.ToUpper(strings.TrimSpace(configuredPrice.Currency))
+	taxCategory := strings.TrimSpace(configuredPrice.TaxCategory)
+	if currency == "" || taxCategory == "" {
+		return nil, fmt.Errorf("configured Waffo Pancake product currency and tax category are required")
+	}
+	total := unitPrice.Mul(decimal.NewFromInt(quantity))
+	return &waffoPancakeCheckoutPrice{
+		Money:    total.InexactFloat64(),
+		Currency: currency,
+		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
+			Amount:      total.StringFixed(2),
+			TaxCategory: taxCategory,
+		},
+	}, nil
 }
 
 func normalizeWaffoPancakeTopUpAmount(amount int64) int64 {
@@ -350,8 +471,9 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
 		return
 	}
-	if req.Amount < int64(setting.WaffoPancakeMinTopUp) {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", setting.WaffoPancakeMinTopUp)})
+	minimum := getWaffoPancakeMinTopUp()
+	if req.Amount < minimum {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", minimum)})
 		return
 	}
 	id := c.GetInt("id")
@@ -371,8 +493,13 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		return
 	}
 
-	payMoney := getWaffoPancakePayMoney(req.Amount, group)
-	if payMoney < 0.01 {
+	price, err := getWaffoPancakeCheckoutPrice(c.Request.Context(), req.Amount, group)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 获取商品价格失败 user_id=%d amount=%d error=%q", id, req.Amount, err.Error()))
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取 Waffo Pancake 商品价格失败"})
+		return
+	}
+	if price.Money < 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
 	}
@@ -381,7 +508,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 	topUp := &model.TopUp{
 		UserId:          id,
 		Amount:          normalizeWaffoPancakeTopUpAmount(req.Amount),
-		Money:           payMoney,
+		Money:           price.Money,
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodWaffoPancake,
 		PaymentProvider: model.PaymentProviderWaffoPancake,
@@ -396,12 +523,10 @@ func RequestWaffoPancakePay(c *gin.Context) {
 
 	expiresInSeconds := 45 * 60
 	session, err := service.CreateWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
-		ProductID:     setting.WaffoPancakeProductID,
-		BuyerIdentity: getWaffoPancakeBuyerIdentity(user),
-		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
-			Amount:      formatWaffoPancakeAmount(payMoney),
-			TaxCategory: "saas",
-		},
+		ProductID:               setting.WaffoPancakeProductID,
+		Currency:                price.Currency,
+		BuyerIdentity:           getWaffoPancakeBuyerIdentity(user),
+		PriceSnapshot:           price.PriceSnapshot,
 		BuyerEmail:              getWaffoPancakeBuyerEmail(user),
 		ExpiresInSeconds:        &expiresInSeconds,
 		OrderMerchantExternalID: tradeNo,
@@ -413,7 +538,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 充值订单创建成功 user_id=%d trade_no=%s session_id=%s amount=%d money=%.2f", id, tradeNo, session.SessionID, req.Amount, payMoney))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 充值订单创建成功 user_id=%d trade_no=%s session_id=%s amount=%d money=%.2f", id, tradeNo, session.SessionID, req.Amount, price.Money))
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
@@ -492,12 +617,24 @@ func WaffoPancakeWebhook(c *gin.Context) {
 				"Waffo Pancake webhook 订阅订单解析失败 event_id=%s order_id=%s buyer_identity=%q client_ip=%s error=%q",
 				event.ID, event.Data.OrderID, event.Data.MerchantProvidedBuyerIdentity, c.ClientIP(), err.Error(),
 			))
-			c.String(http.StatusOK, "OK")
+			c.String(http.StatusInternalServerError, "retry")
 			return
 		}
 		LockOrder(tradeNo)
 		defer UnlockOrder(tradeNo)
-		if err := model.CompleteSubscriptionOrder(tradeNo, string(bodyBytes), model.PaymentProviderWaffoPancake, ""); err != nil {
+		paymentAmount, err := decimal.NewFromString(strings.TrimSpace(event.Data.Amount))
+		if err != nil || !paymentAmount.IsPositive() {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅回调金额无效 trade_no=%s event_id=%s order_id=%s amount=%q", tradeNo, event.ID, event.Data.OrderID, event.Data.Amount))
+			c.String(http.StatusInternalServerError, "retry")
+			return
+		}
+		settledMoney := paymentAmount.InexactFloat64()
+		if math.IsNaN(settledMoney) || math.IsInf(settledMoney, 0) {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅回调金额超出范围 trade_no=%s event_id=%s order_id=%s amount=%q", tradeNo, event.ID, event.Data.OrderID, event.Data.Amount))
+			c.String(http.StatusInternalServerError, "retry")
+			return
+		}
+		if err := model.CompleteSubscriptionOrderWithPaymentAmount(tradeNo, string(bodyBytes), model.PaymentProviderWaffoPancake, "", settledMoney); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅完成失败 trade_no=%s event_id=%s order_id=%s client_ip=%s error=%q", tradeNo, event.ID, event.Data.OrderID, c.ClientIP(), err.Error()))
 			c.String(http.StatusInternalServerError, "retry")
 			return

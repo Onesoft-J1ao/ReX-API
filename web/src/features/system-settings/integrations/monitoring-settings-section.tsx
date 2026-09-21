@@ -60,10 +60,18 @@ const numericString = z.string().refine((value) => {
   return !Number.isNaN(Number(trimmed)) && Number(trimmed) >= 0
 }, 'Enter a non-negative number or leave empty')
 
+const perfMetricsBucketLabel = {
+  minute: '1 minute',
+  '5min': '5 minutes',
+  hour: '1 hour',
+} as const
+
 const monitoringSchema = z.object({
+  QuotaRemindEnabled: z.boolean(),
   QuotaRemindThreshold: numericString,
   perf_metrics_setting: z.object({
     enabled: z.boolean(),
+    exclude_upstream_400_errors: z.boolean(),
     flush_interval: z.coerce.number().min(1),
     bucket_time: z.enum(['minute', '5min', 'hour']),
     retention_days: z.coerce.number().min(0),
@@ -94,8 +102,10 @@ type MonitoringFormInput = z.input<typeof monitoringSchema>
 type MonitoringFormValues = z.output<typeof monitoringSchema>
 
 type FlatMonitoringDefaults = {
+  QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string
   'perf_metrics_setting.enabled': boolean
+  'perf_metrics_setting.exclude_upstream_400_errors': boolean
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'minute' | '5min' | 'hour'
   'perf_metrics_setting.retention_days': number
@@ -116,9 +126,12 @@ type MonitoringSettingsSectionProps = {
 const buildFormDefaults = (
   defaults: MonitoringSettingsSectionProps['defaultValues']
 ): MonitoringFormInput => ({
+  QuotaRemindEnabled: defaults.QuotaRemindEnabled,
   QuotaRemindThreshold: defaults.QuotaRemindThreshold ?? '',
   perf_metrics_setting: {
     enabled: defaults['perf_metrics_setting.enabled'],
+    exclude_upstream_400_errors:
+      defaults['perf_metrics_setting.exclude_upstream_400_errors'],
     flush_interval: defaults['perf_metrics_setting.flush_interval'],
     bucket_time: defaults['perf_metrics_setting.bucket_time'],
     retention_days: defaults['perf_metrics_setting.retention_days'],
@@ -143,8 +156,11 @@ const buildFormDefaults = (
 const normalizeDefaults = (
   defaults: MonitoringSettingsSectionProps['defaultValues']
 ): FlatMonitoringDefaults => ({
+  QuotaRemindEnabled: defaults.QuotaRemindEnabled,
   QuotaRemindThreshold: (defaults.QuotaRemindThreshold ?? '').trim(),
   'perf_metrics_setting.enabled': defaults['perf_metrics_setting.enabled'],
+  'perf_metrics_setting.exclude_upstream_400_errors':
+    defaults['perf_metrics_setting.exclude_upstream_400_errors'],
   'perf_metrics_setting.flush_interval':
     defaults['perf_metrics_setting.flush_interval'],
   'perf_metrics_setting.bucket_time':
@@ -173,8 +189,11 @@ const normalizeDefaults = (
 const normalizeFormValues = (
   values: MonitoringFormValues
 ): FlatMonitoringDefaults => ({
+  QuotaRemindEnabled: values.QuotaRemindEnabled,
   QuotaRemindThreshold: values.QuotaRemindThreshold.trim(),
   'perf_metrics_setting.enabled': values.perf_metrics_setting.enabled,
+  'perf_metrics_setting.exclude_upstream_400_errors':
+    values.perf_metrics_setting.exclude_upstream_400_errors,
   'perf_metrics_setting.flush_interval':
     values.perf_metrics_setting.flush_interval,
   'perf_metrics_setting.bucket_time': values.perf_metrics_setting.bucket_time,
@@ -264,6 +283,26 @@ export function MonitoringSettingsSection({
           />
           <FormField
             control={form.control}
+            name='QuotaRemindEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable balance warnings')}</FormLabel>
+                  <p className='text-muted-foreground mt-1 text-xs'>
+                    {t('Send balance and subscription quota warning emails')}
+                  </p>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+          <FormField
+            control={form.control}
             name='QuotaRemindThreshold'
             render={({ field }) => (
               <FormItem>
@@ -294,26 +333,49 @@ export function MonitoringSettingsSection({
             </p>
           </div>
 
-          <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
-            <FormField
-              control={form.control}
-              name='perf_metrics_setting.enabled'
-              render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>
-                      {t('Enable model performance metrics')}
-                    </FormLabel>
-                  </SettingsSwitchContent>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </SettingsSwitchItem>
-              )}
-            />
+          <FormField
+            control={form.control}
+            name='perf_metrics_setting.enabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable model performance metrics')}</FormLabel>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='perf_metrics_setting.exclude_upstream_400_errors'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Exclude upstream HTTP 400 errors')}</FormLabel>
+                  <p className='text-muted-foreground mt-1 text-xs'>
+                    {t(
+                      'Do not include upstream HTTP 400 responses in request success-rate metrics.'
+                    )}
+                  </p>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={!perfMetricsEnabled}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
             <FormField
               control={form.control}
               name='perf_metrics_setting.flush_interval'
@@ -351,7 +413,9 @@ export function MonitoringSettingsSection({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue>
+                          {t(perfMetricsBucketLabel[field.value])}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent alignItemWithTrigger={false}>

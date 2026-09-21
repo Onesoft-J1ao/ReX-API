@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Check, Copy, Loader2 } from 'lucide-react'
+import { Check, Copy, Loader2, Terminal } from 'lucide-react'
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,6 +36,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { formatQuota } from '@/lib/format'
 
 import type { ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
@@ -48,6 +49,9 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
     loadingKeys,
     copiedKeyId,
     markKeyCopied,
+    setResolvedKey,
+    setCurrentRow,
+    setOpen,
   } = useApiKeys()
   const [popoverOpen, setPopoverOpen] = useState(false)
 
@@ -73,6 +77,21 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
     const ok = await copyToClipboard(realKey)
     if (ok) markKeyCopied(apiKey.id)
   }, [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied])
+
+  const handleUseKey = useCallback(async () => {
+    const realKey = resolvedFullKey || (await resolveRealKey(apiKey.id))
+    if (!realKey) return
+    setResolvedKey(realKey)
+    setCurrentRow(apiKey)
+    setOpen('use-key')
+  }, [
+    apiKey,
+    resolvedFullKey,
+    resolveRealKey,
+    setCurrentRow,
+    setOpen,
+    setResolvedKey,
+  ])
 
   let copyIcon = <Copy className='size-3.5' />
   let copyTooltip = t('Copy API key')
@@ -132,7 +151,62 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
         </TooltipTrigger>
         <TooltipContent>{copyTooltip}</TooltipContent>
       </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon'
+              className='size-7 shrink-0'
+              onClick={handleUseKey}
+              disabled={isLoading}
+              aria-label={t('Use API Key')}
+            />
+          }
+        >
+          {isLoading ? (
+            <Loader2 className='size-3.5 animate-spin' />
+          ) : (
+            <Terminal className='size-3.5' />
+          )}
+        </TooltipTrigger>
+        <TooltipContent>{t('Use API Key')}</TooltipContent>
+      </Tooltip>
     </div>
+  )
+}
+
+type UnlimitedQuotaBadgeProps = {
+  used: number
+}
+
+export function UnlimitedQuotaBadge(props: UnlimitedQuotaBadgeProps) {
+  const { t } = useTranslation()
+  const formattedUsed = formatQuota(props.used)
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button
+            type='button'
+            className='focus-visible:ring-ring/50 -ml-1.5 cursor-help rounded-4xl focus-visible:ring-[3px] focus-visible:outline-none'
+            aria-label={`${t('Unlimited')}; ${t('Used:')} ${formattedUsed}`}
+          />
+        }
+      >
+        <StatusBadge
+          label={t('Unlimited')}
+          variant='neutral'
+          copyable={false}
+        />
+      </PopoverTrigger>
+      <PopoverContent className='w-auto p-2' side='top'>
+        <span className='text-xs'>
+          {t('Used:')} {formattedUsed}
+        </span>
+      </PopoverContent>
+    </Popover>
   )
 }
 

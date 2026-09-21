@@ -24,7 +24,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
+import { Cap } from '@/components/cap'
 import { Dialog } from '@/components/dialog'
+import { HCaptcha } from '@/components/hcaptcha'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
@@ -43,16 +45,15 @@ import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
+import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
   getAffiliateCode,
   saveAffiliateCode,
 } from '@/features/auth/lib/storage'
 import { useStatus } from '@/hooks/use-status'
-import { handleServerError } from '@/lib/handle-server-error'
-import { AuthOperationError } from '@/lib/secure-verification'
-import { createServerError } from '@/lib/server-error-message'
+import { isAuthBundle } from '@/lib/api'
+import { getServerErrorMessageKey } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 export function SignUpForm({
@@ -66,26 +67,33 @@ export function SignUpForm({
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
   const {
+    isCaptchaEnabled,
     isTurnstileEnabled,
+    isHCaptchaEnabled,
+    isCapEnabled,
     turnstileSiteKey,
-    turnstileToken,
-    setTurnstileToken,
-    validateTurnstile,
-  } = useTurnstile()
-  const { redirectToLogin, handleLoginResult } = useAuthRedirect()
+    hCaptchaSiteKey,
+    capApiEndpoint,
+    captchaToken,
+    setCaptchaToken,
+    validateCaptcha,
+    tokenQueryParam,
+  } = useCaptcha()
+  const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,
     secondsLeft,
     isActive,
     sendCode,
   } = useEmailVerification({
-    turnstileToken,
-    validateTurnstile,
+    captchaToken,
+    captchaParamName: tokenQueryParam,
+    validateCaptcha,
   })
 
   const form = useForm<z.infer<typeof registerFormSchema>>({
@@ -108,7 +116,10 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
-  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
+  const captchaReadyForEmailVerification =
+    !isCaptchaEnabled || Boolean(captchaToken)
+  const captchaReadyForRegistration =
+    emailVerificationRequired || captchaReadyForEmailVerification
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -157,29 +168,40 @@ export function SignUpForm({
       }
     }
 
-    if (!validateTurnstile()) return
+    if (!emailVerificationRequired && !validateCaptcha()) return
 
     setIsLoading(true)
     try {
+      let captchaPayload: {
+        turnstile?: string
+        hcaptcha?: string
+        cap_token?: string
+      } = {}
+      if (!emailVerificationRequired) {
+        captchaPayload = { turnstile: captchaToken }
+        if (isCapEnabled) {
+          captchaPayload = { cap_token: captchaToken }
+        } else if (isHCaptchaEnabled) {
+          captchaPayload = { hcaptcha: captchaToken }
+        }
+      }
       const res = await register({
         username: data.username,
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
-        turnstile: turnstileToken,
+        ...captchaPayload,
       })
 
       if (res?.success) {
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {
-        handleServerError(createServerError(res, t('Failed to create account')))
+        toast.error(res?.message || t('Failed to create account'))
       }
-    } catch (error) {
-      handleServerError(
-        AuthOperationError.from(error, t('Failed to create account'))
-      )
+    } catch {
+      // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)
     }
@@ -187,8 +209,8 @@ export function SignUpForm({
 
   async function handleSendVerificationCode() {
     if (await sendCode(emailValue || '')) {
-      setTurnstileToken('')
-      setTurnstileWidgetKey((current) => current + 1)
+      setCaptchaToken('')
+      setCaptchaWidgetKey((current) => current + 1)
     }
   }
 
@@ -218,18 +240,17 @@ export function SignUpForm({
     setIsWeChatSubmitting(true)
     try {
       const res = await wechatLoginByCode(wechatCode)
-      if (res?.success) {
+      if (res?.success && isAuthBundle(res.data)) {
+        await handleLoginSuccess(res.data)
+        toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
-        if (await handleLoginResult(res.data)) {
-          toast.success(t('Signed in via WeChat'))
-        }
       } else {
-        handleServerError(createServerError(res, t('Login failed')))
+        if (getServerErrorMessageKey(res)) return
+        toast.error(res?.message || t('Login failed'))
       }
     } catch (error: unknown) {
-      handleServerError(
-        new AuthOperationError(t('Login failed'), undefined, { cause: error })
-      )
+      if (getServerErrorMessageKey(error)) return
+      toast.error(t('Login failed'))
     } finally {
       setIsWeChatSubmitting(false)
     }
@@ -251,6 +272,15 @@ export function SignUpForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
+        {oauthRegisterEnabled && (
+          <OAuthProviders
+            status={status}
+            disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+            onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
+            isWeChatLoading={isWeChatSubmitting}
+          />
+        )}
+
         {/* Username Field */}
         <FormField
           control={form.control}
@@ -275,7 +305,7 @@ export function SignUpForm({
               <FormLabel>{t('Password')}</FormLabel>
               <FormControl>
                 <PasswordInput
-                  placeholder={t('Enter password (8–128 characters)')}
+                  placeholder={t('Enter password (8-20 characters)')}
                   {...field}
                 />
               </FormControl>
@@ -340,7 +370,7 @@ export function SignUpForm({
                   isSendingCode ||
                   isActive ||
                   !emailValue ||
-                  !turnstileReady
+                  !captchaReadyForEmailVerification
                 }
                 onClick={handleSendVerificationCode}
               >
@@ -350,13 +380,34 @@ export function SignUpForm({
           </>
         )}
 
-        {/* Turnstile */}
+        {/* Captcha */}
         {isTurnstileEnabled && (
           <div className='mt-2'>
             <Turnstile
-              key={turnstileWidgetKey}
+              key={captchaWidgetKey}
               siteKey={turnstileSiteKey}
-              onVerify={setTurnstileToken}
+              onVerify={setCaptchaToken}
+            />
+          </div>
+        )}
+        {isHCaptchaEnabled && (
+          <div className='mt-2'>
+            <HCaptcha
+              key={captchaWidgetKey}
+              siteKey={hCaptchaSiteKey}
+              onVerify={setCaptchaToken}
+              onExpire={() => setCaptchaToken('')}
+              onError={() => setCaptchaToken('')}
+            />
+          </div>
+        )}
+        {isCapEnabled && (
+          <div className='mt-2'>
+            <Cap
+              key={captchaWidgetKey}
+              apiEndpoint={capApiEndpoint}
+              onVerify={setCaptchaToken}
+              onReset={() => setCaptchaToken('')}
             />
           </div>
         )}
@@ -375,22 +426,12 @@ export function SignUpForm({
           disabled={
             isLoading ||
             (requiresLegalConsent && !agreedToLegal) ||
-            !turnstileReady
+            !captchaReadyForRegistration
           }
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           {t('Create account')}
         </Button>
-
-        {oauthRegisterEnabled && (
-          <OAuthProviders
-            status={status}
-            disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
-            onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
-            isWeChatLoading={isWeChatSubmitting}
-            className='pt-2'
-          />
-        )}
       </form>
 
       {hasWeChatLogin && (

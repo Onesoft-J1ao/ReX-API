@@ -43,8 +43,21 @@ export function getPlanFormSchema(t: TFunction) {
     sort_order: z.coerce.number(),
     allow_balance_pay: z.boolean(),
     allow_wallet_overflow: z.boolean(),
+    wallet_only_groups_enabled: z.boolean(),
+    wallet_only_groups_mode: z.enum(['blacklist', 'whitelist']),
+    wallet_only_groups: z.array(z.string()),
+    rate_limit_groups: z.array(
+      z.object({
+        group: z.string(),
+        rpm: z.coerce.number().int().min(1).max(2147483647),
+      })
+    ),
+    benefits_only: z.boolean(),
     max_purchase_per_user: z.coerce.number().min(0),
-    total_amount: z.coerce.number().min(0),
+    total_amount: z.coerce.number(),
+    five_hour_limit: z.coerce.number().min(0),
+    weekly_limit: z.coerce.number().min(0),
+    monthly_limit: z.coerce.number().min(0),
     upgrade_group: z.string().optional(),
     downgrade_group: z.string().optional(),
     stripe_price_id: z.string().optional(),
@@ -68,8 +81,16 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   sort_order: 0,
   allow_balance_pay: true,
   allow_wallet_overflow: true,
+  wallet_only_groups_enabled: false,
+  wallet_only_groups_mode: 'blacklist',
+  wallet_only_groups: [],
+  rate_limit_groups: [],
+  benefits_only: false,
   max_purchase_per_user: 0,
   total_amount: 0,
+  five_hour_limit: 0,
+  weekly_limit: 0,
+  monthly_limit: 0,
   upgrade_group: '',
   downgrade_group: '',
   stripe_price_id: '',
@@ -91,8 +112,37 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     sort_order: Number(plan.sort_order || 0),
     allow_balance_pay: plan.allow_balance_pay !== false,
     allow_wallet_overflow: plan.allow_wallet_overflow !== false,
+    wallet_only_groups_enabled: plan.wallet_only_groups_enabled === true,
+    wallet_only_groups_mode: plan.wallet_only_groups_mode || 'blacklist',
+    wallet_only_groups: (plan.wallet_only_groups || '')
+      .split(',')
+      .map((group) => group.trim())
+      .filter(Boolean),
+    rate_limit_groups: (() => {
+      try {
+        const parsed = JSON.parse(plan.rate_limit_groups || '[]') as unknown
+        return Array.isArray(parsed)
+          ? parsed.filter(
+              (value): value is { group: string; rpm: number } =>
+                typeof value === 'object' &&
+                value !== null &&
+                typeof (value as { group?: unknown }).group === 'string' &&
+                typeof (value as { rpm?: unknown }).rpm === 'number'
+            )
+          : []
+      } catch {
+        return []
+      }
+    })(),
+    benefits_only: Number(plan.total_amount || 0) < 0,
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
-    total_amount: quotaUnitsToDollars(Number(plan.total_amount || 0)),
+    total_amount:
+      Number(plan.total_amount || 0) < 0
+        ? -1
+        : quotaUnitsToDollars(Number(plan.total_amount || 0)),
+    five_hour_limit: quotaUnitsToDollars(Number(plan.five_hour_limit || 0)),
+    weekly_limit: quotaUnitsToDollars(Number(plan.weekly_limit || 0)),
+    monthly_limit: quotaUnitsToDollars(Number(plan.monthly_limit || 0)),
     upgrade_group: plan.upgrade_group || '',
     downgrade_group: plan.downgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',
@@ -107,6 +157,10 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       ...values,
       price_amount: Number(values.price_amount || 0),
       currency: 'USD',
+      wallet_only_groups_enabled: values.wallet_only_groups_enabled,
+      wallet_only_groups_mode: values.wallet_only_groups_mode,
+      wallet_only_groups: values.wallet_only_groups.join(','),
+      rate_limit_groups: JSON.stringify(values.rate_limit_groups),
       duration_value: Number(values.duration_value || 0),
       custom_seconds: Number(values.custom_seconds || 0),
       quota_reset_period: values.quota_reset_period || 'never',
@@ -116,7 +170,19 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
           : 0,
       sort_order: Number(values.sort_order || 0),
       max_purchase_per_user: Number(values.max_purchase_per_user || 0),
-      total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
+      total_amount:
+        values.benefits_only || values.total_amount < 0
+          ? -1
+          : parseQuotaFromDollars(Number(values.total_amount || 0)),
+      five_hour_limit: values.benefits_only
+        ? 0
+        : parseQuotaFromDollars(Number(values.five_hour_limit || 0)),
+      weekly_limit: values.benefits_only
+        ? 0
+        : parseQuotaFromDollars(Number(values.weekly_limit || 0)),
+      monthly_limit: values.benefits_only
+        ? 0
+        : parseQuotaFromDollars(Number(values.monthly_limit || 0)),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
     },

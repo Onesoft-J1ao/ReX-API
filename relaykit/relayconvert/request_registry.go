@@ -62,6 +62,7 @@ type requestConverterRoute struct {
 var (
 	requestConverterMu           sync.RWMutex
 	requestConverters            = make(map[string]RequestConverterSpec)
+	requestConverterAliases      = make(map[string]string)
 	requestConverterRoutes       = make(map[requestConverterRoute]string)
 	requestConverterDirectRoutes = make(map[requestConverterRoute]string)
 )
@@ -80,7 +81,7 @@ const (
 	ConverterOpenAIChatToClaudeMessages      = "openai_chat_completions_to_anthropic_messages"
 	ConverterOpenAIChatToOpenAIResponses     = "openai_chat_completions_to_openai_responses"
 	ConverterOpenAIResponsesToOpenAIChat     = "openai_responses_to_openai_chat_completions"
-	ConverterOpenAIResponsesToClaudeMessages = "openai_responses_to_claude_messages"
+	ConverterOpenAIResponsesToClaudeMessages = "openai_responses_to_anthropic_messages"
 	ConverterOpenAIResponsesToGemini         = "openai_responses_to_gemini_generate_content"
 	ConverterGeminiContentToOpenAIChat       = "gemini_generate_content_to_openai_chat_completions"
 	ConverterOpenAIChatToGeminiContent       = "openai_chat_completions_to_gemini_generate_content"
@@ -141,11 +142,32 @@ func registerBuiltinRequestConverter(spec RequestConverterSpec) {
 	}
 }
 
+// registerRequestConverterAlias keeps converter IDs persisted by older host
+// versions resolvable after the canonical protocol names were normalized.
+func registerRequestConverterAlias(alias, converter string) {
+	alias = strings.TrimSpace(alias)
+	converter = strings.TrimSpace(converter)
+	if alias == "" || converter == "" || alias == converter {
+		return
+	}
+	if _, exists := requestConverters[converter]; !exists {
+		panic(fmt.Sprintf("request converter alias %q references unknown converter %q", alias, converter))
+	}
+	if existing, exists := requestConverterAliases[alias]; exists && existing != converter {
+		panic(fmt.Sprintf("request converter alias %q is already registered for %q", alias, existing))
+	}
+	requestConverterAliases[alias] = converter
+}
+
 func LookupRequestConverter(converter string) (RequestConverterSpec, bool) {
 	requestConverterMu.RLock()
 	defer requestConverterMu.RUnlock()
 
-	spec, ok := requestConverters[strings.TrimSpace(converter)]
+	converter = strings.TrimSpace(converter)
+	if canonical, exists := requestConverterAliases[converter]; exists {
+		converter = canonical
+	}
+	spec, ok := requestConverters[converter]
 	if !ok {
 		return RequestConverterSpec{}, false
 	}
@@ -430,7 +452,7 @@ func isNilRequest(request any) bool {
 	}
 }
 
-func convertChatRequestToResponses(_ context.Context, _ convmeta.Meta, request any) (any, error) {
+func convertChatRequestToResponses(c context.Context, _ convmeta.Meta, request any) (any, error) {
 	chatRequest, ok := request.(*dto.GeneralOpenAIRequest)
 	if !ok {
 		if value, ok := request.(dto.GeneralOpenAIRequest); ok {
@@ -440,10 +462,10 @@ func convertChatRequestToResponses(_ context.Context, _ convmeta.Meta, request a
 	if chatRequest == nil {
 		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", request)
 	}
-	return oaichat.ChatCompletionsRequestToResponsesRequest(chatRequest)
+	return oaichat.ChatCompletionsRequestToResponsesRequest(c, chatRequest)
 }
 
-func convertClaudeRequestToOpenAI(_ context.Context, info convmeta.Meta, request any) (any, error) {
+func convertClaudeRequestToOpenAI(c context.Context, info convmeta.Meta, request any) (any, error) {
 	claudeRequest, ok := request.(*dto.ClaudeRequest)
 	if !ok {
 		if value, ok := request.(dto.ClaudeRequest); ok {
@@ -453,10 +475,10 @@ func convertClaudeRequestToOpenAI(_ context.Context, info convmeta.Meta, request
 	if claudeRequest == nil {
 		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", request)
 	}
-	return claudemessages.ClaudeMessagesRequestToOpenAIChat(*claudeRequest, info)
+	return claudemessages.ClaudeMessagesRequestToOpenAIChat(c, *claudeRequest, info)
 }
 
-func convertClaudeRequestToOpenAIResponses(_ context.Context, info convmeta.Meta, request any) (any, error) {
+func convertClaudeRequestToOpenAIResponses(c context.Context, info convmeta.Meta, request any) (any, error) {
 	claudeRequest, ok := request.(*dto.ClaudeRequest)
 	if !ok {
 		if value, ok := request.(dto.ClaudeRequest); ok {
@@ -466,7 +488,7 @@ func convertClaudeRequestToOpenAIResponses(_ context.Context, info convmeta.Meta
 	if claudeRequest == nil {
 		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", request)
 	}
-	return claudemessages.ClaudeMessagesRequestToOpenAIResponses(*claudeRequest, info)
+	return claudemessages.ClaudeMessagesRequestToOpenAIResponses(c, *claudeRequest, info)
 }
 
 func convertOpenAIRequestToClaude(c context.Context, info convmeta.Meta, request any) (any, error) {
@@ -482,7 +504,7 @@ func convertOpenAIRequestToClaude(c context.Context, info convmeta.Meta, request
 	return oaichat.OpenAIChatRequestToClaudeMessages(c, info, *openAIRequest)
 }
 
-func convertGeminiRequestToOpenAI(_ context.Context, info convmeta.Meta, request any) (any, error) {
+func convertGeminiRequestToOpenAI(c context.Context, info convmeta.Meta, request any) (any, error) {
 	geminiRequest, ok := request.(*dto.GeminiChatRequest)
 	if !ok {
 		if value, ok := request.(dto.GeminiChatRequest); ok {
@@ -492,7 +514,7 @@ func convertGeminiRequestToOpenAI(_ context.Context, info convmeta.Meta, request
 	if geminiRequest == nil {
 		return nil, fmt.Errorf("expected Gemini generateContent request, got %T", request)
 	}
-	return geminichat.GeminiGenerateContentRequestToOpenAIChat(geminiRequest, info)
+	return geminichat.GeminiGenerateContentRequestToOpenAIChat(c, geminiRequest, info)
 }
 
 func convertOpenAIRequestToGemini(c context.Context, info convmeta.Meta, request any) (any, error) {
@@ -529,7 +551,7 @@ func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info convmeta.
 	return oairesponses.OpenAIResponsesRequestToGeminiChat(c, &prepared, info)
 }
 
-func convertResponsesRequestToChat(_ context.Context, _ convmeta.Meta, request any) (any, error) {
+func convertResponsesRequestToChat(c context.Context, _ convmeta.Meta, request any) (any, error) {
 	responsesRequest, ok := request.(*dto.OpenAIResponsesRequest)
 	if !ok {
 		if value, ok := request.(dto.OpenAIResponsesRequest); ok {
@@ -539,5 +561,5 @@ func convertResponsesRequestToChat(_ context.Context, _ convmeta.Meta, request a
 	if responsesRequest == nil {
 		return nil, fmt.Errorf("expected OpenAI responses request, got %T", request)
 	}
-	return oairesponses.ResponsesRequestToChatCompletionsRequest(responsesRequest)
+	return oairesponses.ResponsesRequestToChatCompletionsRequest(c, responsesRequest)
 }

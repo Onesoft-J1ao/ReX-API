@@ -3,11 +3,12 @@ package oauth
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -31,10 +32,18 @@ type gitHubOAuthResponse struct {
 }
 
 type gitHubUser struct {
-	Id    int64  `json:"id"`    // GitHub numeric ID (permanent, never changes)
-	Login string `json:"login"` // GitHub username (can be changed by user)
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Id        int64     `json:"id"`    // GitHub numeric ID (permanent, never changes)
+	Login     string    `json:"login"` // GitHub username (can be changed by user)
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"` // GitHub account creation time
+}
+
+var githubAPIBaseURL = "https://api.github.com"
+
+type gitHubEmail struct {
+	Email    string `json:"email"`
+	Verified bool   `json:"verified"`
 }
 
 func (p *GitHubProvider) GetName() string {
@@ -55,7 +64,7 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 		"client_secret": common.GitHubClientSecret,
 		"code":          code,
 	}
-	jsonData, err := json.Marshal(values)
+	jsonData, err := common.Marshal(values)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +89,7 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	logger.LogDebug(ctx, "[OAuth-GitHub] ExchangeToken response status: %d", res.StatusCode)
 
 	var oAuthResponse gitHubOAuthResponse
-	err = json.NewDecoder(res.Body).Decode(&oAuthResponse)
+	err = common.DecodeJson(res.Body, &oAuthResponse)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] ExchangeToken decode error: %s", err.Error()))
 		return nil, err
@@ -103,7 +112,7 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAuthUser, error) {
 	logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo: fetching user info")
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", strings.TrimRight(githubAPIBaseURL, "/")+"/user", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +142,7 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	}
 
 	var githubUser gitHubUser
-	err = json.NewDecoder(res.Body).Decode(&githubUser)
+	err = common.DecodeJson(res.Body, &githubUser)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo decode error: %s", err.Error()))
 		return nil, err
@@ -152,10 +161,116 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 		Username:       githubUser.Login,
 		DisplayName:    githubUser.Name,
 		Email:          githubUser.Email,
+		RegisteredAt:   githubUser.CreatedAt.Unix(),
 		Extra: map[string]any{
 			"legacy_id": githubUser.Login, // Store login for migration from old accounts
 		},
 	}, nil
+}
+
+// GetUserCreatedAt fetches a GitHub account's creation timestamp for a bound
+// user. Numeric GitHub IDs use the account-id endpoint, while legacy bindings
+// that still contain a username use the public users endpoint.
+func (p *GitHubProvider) GetUserCreatedAt(ctx context.Context, providerUserID string) (int64, error) {
+	providerUserID = strings.TrimSpace(providerUserID)
+	if providerUserID == "" {
+		return 0, fmt.Errorf("GitHub id is empty")
+	}
+
+	endpoint := "/users/" + url.PathEscape(providerUserID)
+	if _, err := strconv.ParseInt(providerUserID, 10, 64); err == nil {
+		endpoint = "/user/" + url.PathEscape(providerUserID)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(githubAPIBaseURL, "/")+endpoint, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("User-Agent", "new-api")
+	if token := strings.TrimSpace(common.GitHubAPIToken); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	client := http.Client{Timeout: 20 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+		return 0, fmt.Errorf("GitHub API returned status %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var githubUser gitHubUser
+	if err := common.DecodeJson(res.Body, &githubUser); err != nil {
+		return 0, err
+	}
+	if githubUser.CreatedAt.IsZero() {
+		return 0, fmt.Errorf("GitHub API returned an empty created_at")
+	}
+	return githubUser.CreatedAt.Unix(), nil
+}
+
+// RefreshGitHubCreatedAt fills the cached GitHub registration time for legacy
+// users. A failed refresh is returned to the caller so login flows can log it
+// without blocking an otherwise valid login.
+func RefreshGitHubCreatedAt(ctx context.Context, user *model.User) error {
+	if user == nil || user.Id <= 0 || strings.TrimSpace(user.GitHubId) == "" || user.GitHubCreatedAt > 0 {
+		return nil
+	}
+
+	createdAt, err := (&GitHubProvider{}).GetUserCreatedAt(ctx, user.GitHubId)
+	if err != nil {
+		return err
+	}
+	if err := model.UpdateUserGitHubBinding(user.Id, user.GitHubId, createdAt); err != nil {
+		return err
+	}
+	user.GitHubCreatedAt = createdAt
+	return nil
+}
+
+// GetVerifiedEmails lists the addresses GitHub has confirmed for the signed-in
+// account. The email field of the user endpoint carries no confirmation status
+// and is not used for this.
+func (p *GitHubProvider) GetVerifiedEmails(ctx context.Context, token *OAuthToken) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(githubAPIBaseURL, "/")+"/user/emails", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	client := http.Client{
+		Timeout: 20 * time.Second,
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetVerifiedEmails error: %s", err.Error()))
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": "GitHub"}, err.Error())
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetVerifiedEmails failed: status=%d", res.StatusCode))
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthGetUserErr, map[string]any{"Provider": "GitHub"}, fmt.Sprintf("status %d", res.StatusCode))
+	}
+
+	var emails []gitHubEmail
+	if err := common.DecodeJson(res.Body, &emails); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetVerifiedEmails decode error: %s", err.Error()))
+		return nil, err
+	}
+	verified := make([]string, 0, len(emails))
+	for _, email := range emails {
+		if email.Verified && email.Email != "" {
+			verified = append(verified, email.Email)
+		}
+	}
+	logger.LogDebug(ctx, "[OAuth-GitHub] GetVerifiedEmails success: verified=%d", len(verified))
+	return verified, nil
 }
 
 func (p *GitHubProvider) IsUserIDTaken(providerUserID string) bool {

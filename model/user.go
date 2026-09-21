@@ -17,7 +17,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const UserNameMaxLength = 20
+const (
+	UserNameMaxLength         = 20
+	affCodeLength             = 8
+	affCodeAllocationAttempts = 16
+)
 
 var userSortColumns = map[string]string{
 	"id":            "id",
@@ -86,7 +90,9 @@ type User struct {
 	Role                 int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status               int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email                string                     `json:"email" gorm:"index" validate:"max=50"`
+	RegisterIp           string                     `json:"register_ip" gorm:"type:varchar(64);column:register_ip;index"`
 	GitHubId             string                     `json:"github_id" gorm:"column:github_id;index"`
+	GitHubCreatedAt      int64                      `json:"-" gorm:"column:github_created_at;index"`
 	DiscordId            string                     `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId               string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
 	WeChatId             string                     `json:"wechat_id" gorm:"column:wechat_id;index"`
@@ -95,6 +101,7 @@ type User struct {
 	AccessToken          *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	AccessTokenCreatedAt *int64                     `json:"-" gorm:"type:bigint;column:access_token_created_at"`
 	Quota                int                        `json:"quota" gorm:"type:int;default:0"`
+	CheckinQuota         int                        `json:"checkin_quota" gorm:"type:int;default:0"`
 	UsedQuota            int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
 	Group                string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
@@ -147,8 +154,9 @@ func UpdateUserAccessToken(id int, token string) error {
 	if id == 0 {
 		return errors.New("id 为空！")
 	}
+	now := common.GetTimestamp()
 	result := DB.Model(&User{}).Where("id = ?", id).Updates(map[string]any{
-		"access_token": token, "access_token_created_at": common.GetTimestamp(),
+		"access_token": token, "access_token_created_at": now,
 	})
 	if result.Error != nil {
 		return result.Error
@@ -171,7 +179,9 @@ func RevokeUserAccessToken(id int) (string, error) {
 		if tokenRef == "" {
 			return nil
 		}
-		return tx.Model(&User{}).Where("id = ?", id).Updates(map[string]any{"access_token": nil, "access_token_created_at": nil}).Error
+		return tx.Model(&User{}).Where("id = ?", id).Updates(map[string]any{
+			"access_token": nil, "access_token_created_at": nil,
+		}).Error
 	})
 	return tokenRef, err
 }
@@ -200,15 +210,66 @@ func UpdateUserSetting(userId int, setting dto.UserSetting) error {
 	if userId == 0 {
 		return errors.New("id 为空！")
 	}
-	settingBytes, err := common.Marshal(setting)
-	if err != nil {
-		return err
-	}
-	settingValue := string(settingBytes)
-	if err = DB.Model(&User{}).Where("id = ?", userId).Update("setting", settingValue).Error; err != nil {
+	var settingValue string
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Select("id", "setting").First(&user, userId).Error; err != nil {
+			return err
+		}
+		// Login 2FA policy is writable only through the session-bound security
+		// mutation below; preserve it across every ordinary settings update.
+		setting.LoginTwoFactorEnabled = user.GetSetting().LoginTwoFactorEnabled
+		settingBytes, err := common.Marshal(setting)
+		if err != nil {
+			return err
+		}
+		settingValue = string(settingBytes)
+		return tx.Model(&User{}).Where("id = ?", userId).Update("setting", settingValue).Error
+	}); err != nil {
 		return err
 	}
 	return updateUserSettingCache(userId, settingValue)
+}
+
+// UpdateLoginTwoFactorSettingForSession changes the login policy while
+// rechecking the authenticated session under the user lock. Disabling the
+// policy also advances AuthVersion so every other session is invalidated.
+func UpdateLoginTwoFactorSettingForSession(identity AuthSessionIdentity, enabled bool) error {
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := ValidateAuthSessionWithTx(tx, identity); err != nil {
+			return err
+		}
+		var user User
+		if err := lockForUpdate(tx).Select("id", "setting").First(&user, identity.UserID).Error; err != nil {
+			return err
+		}
+		if !enabled {
+			var twoFA TwoFA
+			if err := lockForUpdate(tx).Where("user_id = ? AND is_enabled = ?", identity.UserID, true).First(&twoFA).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ErrTwoFANotEnabled
+				}
+				return err
+			}
+			if _, err := IncrementUserAuthVersionWithTx(tx, identity.UserID); err != nil {
+				return err
+			}
+		}
+		setting := user.GetSetting()
+		if enabled {
+			setting.LoginTwoFactorEnabled = nil
+		} else {
+			setting.LoginTwoFactorEnabled = new(bool)
+		}
+		settingBytes, err := common.Marshal(setting)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&User{}).Where("id = ?", identity.UserID).Update("setting", string(settingBytes)).Error
+	}); err != nil {
+		return err
+	}
+	return PublishUserAuthCache(identity.UserID)
 }
 
 // userBindColumns 允许通过 UpdateUserBindColumn 更新的第三方账号绑定列白名单。
@@ -235,21 +296,38 @@ func UpdateUserBindColumn(userId int, column string, value string) error {
 	return DB.Model(&User{}).Where("id = ?", userId).Update(column, value).Error
 }
 
+// UpdateUserGitHubBinding updates the GitHub identity and the provider's
+// account creation timestamp without writing back the rest of a user snapshot.
+func UpdateUserGitHubBinding(userId int, providerUserID string, createdAt int64) error {
+	if userId <= 0 {
+		return errors.New("id 为空！")
+	}
+	if strings.TrimSpace(providerUserID) == "" {
+		return errors.New("GitHub id 为空！")
+	}
+	updates := map[string]interface{}{"github_id": providerUserID}
+	if createdAt > 0 {
+		updates["github_created_at"] = createdAt
+	}
+	return DB.Model(&User{}).Where("id = ?", userId).Updates(updates).Error
+}
+
 // 根据用户角色生成默认的边栏配置
 func generateDefaultSidebarConfigForRole(userRole int) string {
-	defaultConfig := map[string]any{}
+	defaultConfig := map[string]interface{}{}
 
 	// 聊天区域 - 所有用户都可以访问
-	defaultConfig["chat"] = map[string]any{
+	defaultConfig["chat"] = map[string]interface{}{
 		"enabled":    true,
 		"playground": true,
 		"chat":       true,
 	}
 
 	// 控制台区域 - 所有用户都可以访问
-	defaultConfig["console"] = map[string]any{
+	defaultConfig["console"] = map[string]interface{}{
 		"enabled":    true,
 		"detail":     true,
+		"status":     true,
 		"token":      true,
 		"log":        true,
 		"midjourney": true,
@@ -257,7 +335,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	}
 
 	// 个人中心区域 - 所有用户都可以访问
-	defaultConfig["personal"] = map[string]any{
+	defaultConfig["personal"] = map[string]interface{}{
 		"enabled":  true,
 		"topup":    true,
 		"personal": true,
@@ -266,7 +344,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	// 管理员区域 - 根据角色决定
 	if userRole == common.RoleAdminUser {
 		// 管理员可以访问管理员区域，但不能访问系统设置
-		defaultConfig["admin"] = map[string]any{
+		defaultConfig["admin"] = map[string]interface{}{
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
@@ -276,7 +354,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 		}
 	} else if userRole == common.RoleRootUser {
 		// 超级管理员可以访问所有功能
-		defaultConfig["admin"] = map[string]any{
+		defaultConfig["admin"] = map[string]interface{}{
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
@@ -469,15 +547,23 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	query := tx.Unscoped().Model(&User{})
 
 	// 构建搜索条件
-	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
-	likeArgs := []any{"%" + keyword + "%", "%" + keyword + "%", "%" + keyword + "%"}
+	keyword = strings.TrimSpace(keyword)
+	likePattern := "%" + keyword + "%"
+	// Searching an inviter's affiliate code should return both the owner and
+	// every user registered through that code. The subquery is supported by
+	// SQLite, MySQL, and PostgreSQL through GORM's regular WHERE builder.
+	inviterIDs := tx.Unscoped().Model(&User{}).
+		Select("id").
+		Where("aff_code LIKE ?", likePattern)
+	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ? OR register_ip LIKE ? OR aff_code LIKE ? OR inviter_id IN (?)"
+	likeArgs := []interface{}{likePattern, likePattern, likePattern, likePattern, likePattern, inviterIDs}
 
 	// 尝试将关键字转换为整数ID
 	keywordInt, err := strconv.Atoi(keyword)
 	if err == nil {
 		// 如果是数字，同时搜索ID和其他字段
 		likeCondition = "id = ? OR " + likeCondition
-		likeArgs = append([]any{keywordInt}, likeArgs...)
+		likeArgs = append([]interface{}{keywordInt}, likeArgs...)
 	}
 
 	query = query.Where("("+likeCondition+")", likeArgs...)
@@ -532,8 +618,8 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	return &user, err
 }
 
-// GetSelfUserById reads dashboard profile data and password existence in one
-// query. The password hash and management access token are never selected.
+// GetSelfUserById reads dashboard profile data and password existence without
+// selecting the password hash or management access token.
 func GetSelfUserById(id int) (*User, error) {
 	if id == 0 {
 		return nil, errors.New("id 为空！")
@@ -544,7 +630,7 @@ func GetSelfUserById(id int) (*User, error) {
 	}
 	err := DB.Model(&User{}).Select([]string{
 		"id", "username", "display_name", "role", "status", "email",
-		"github_id", "discord_id", "oidc_id", "wechat_id", "telegram_id",
+		"github_id", "github_created_at", "discord_id", "oidc_id", "wechat_id", "telegram_id",
 		"group", "quota", "used_quota", "request_count", "aff_code", "aff_count",
 		"aff_quota", "aff_history", "inviter_id", "linux_do_id", "setting",
 		"stripe_customer", "auth_version",
@@ -579,8 +665,52 @@ func HardDeleteUserById(id int) error {
 	return user.HardDelete()
 }
 
+// BatchUpdateUserStatus changes several users in one transaction. Auth
+// versions are bumped together so disabled users cannot keep using stale
+// session or token cache entries after the request completes.
+func BatchUpdateUserStatus(ids []int, status int) error {
+	if len(ids) == 0 {
+		return errors.New("用户列表不能为空")
+	}
+	if status != common.UserStatusEnabled && status != common.UserStatusDisabled {
+		return errors.New("无效的用户状态")
+	}
+	changed := make([]int, 0, len(ids))
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		for _, id := range ids {
+			var user User
+			if err := tx.Unscoped().Where("id = ?", id).First(&user).Error; err != nil {
+				return err
+			}
+			if _, err := IncrementUserAuthVersionWithTx(tx, id); err != nil {
+				return err
+			}
+			if err := tx.Model(&User{}).Where("id = ?", id).Update("status", status).Error; err != nil {
+				return err
+			}
+			changed = append(changed, id)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for _, id := range changed {
+		if err := PublishUserAuthCache(id); err != nil {
+			return err
+		}
+		if _, err := RevokeAllUserSessions(id, "admin_status_batch"); err != nil {
+			return err
+		}
+		if err := InvalidateUserTokensCache(id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func inviteUser(inviterId int) error {
-	result := DB.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]any{
+	result := DB.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
 		"aff_count":   gorm.Expr("aff_count + ?", 1),
 		"aff_quota":   gorm.Expr("aff_quota + ?", common.QuotaForInviter),
 		"aff_history": gorm.Expr("aff_history + ?", common.QuotaForInviter),
@@ -682,6 +812,108 @@ func ensureEmailAvailableWithTx(tx *gorm.DB, email string, excludeUserID int) er
 	return nil
 }
 
+func newAffiliateCode() string {
+	return common.GetRandomString(affCodeLength)
+}
+
+func isAffCodeUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	if !strings.Contains(message, "aff_code") {
+		return false
+	}
+	return strings.Contains(message, "duplicate") ||
+		strings.Contains(message, "unique") ||
+		strings.Contains(message, "constraint")
+}
+
+// allocateUniqueAffCode assigns an unused affiliate code and persists it in
+// the supplied transaction. The pre-check avoids common collisions, while the
+// savepoint lets PostgreSQL, MySQL, and SQLite recover from a concurrent
+// unique-index conflict without aborting the surrounding transaction.
+func allocateUniqueAffCode(tx *gorm.DB, user *User, nextCode func() string, persist func(*gorm.DB) error) error {
+	for attempt := 0; attempt < affCodeAllocationAttempts; attempt++ {
+		affCode := nextCode()
+		if affCode == "" {
+			return errors.New("generated affiliate code is empty")
+		}
+
+		var count int64
+		if err := tx.Unscoped().Model(&User{}).Where("aff_code = ?", affCode).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+
+		savepoint := fmt.Sprintf("aff_code_%d", attempt)
+		if err := tx.SavePoint(savepoint).Error; err != nil {
+			return err
+		}
+
+		user.AffCode = affCode
+		err := persist(tx)
+		if err == nil {
+			return nil
+		}
+		if rollbackErr := tx.RollbackTo(savepoint).Error; rollbackErr != nil {
+			return rollbackErr
+		}
+		if !isAffCodeUniqueConstraintError(err) {
+			return err
+		}
+	}
+	return fmt.Errorf("failed to allocate a unique affiliate code after %d attempts", affCodeAllocationAttempts)
+}
+
+func (user *User) insertWithUniqueAffCode(tx *gorm.DB) error {
+	return allocateUniqueAffCode(tx, user, newAffiliateCode, func(tx *gorm.DB) error {
+		return tx.Create(user).Error
+	})
+}
+
+// EnsureUserAffCode assigns an affiliate code to legacy users that do not
+// have one yet. Existing affiliate codes are returned unchanged.
+func EnsureUserAffCode(userId int) (string, error) {
+	var affCode string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		user := User{}
+		if err := lockForUpdate(tx).Select("id", "aff_code").First(&user, userId).Error; err != nil {
+			return err
+		}
+		if user.AffCode != "" {
+			affCode = user.AffCode
+			return nil
+		}
+
+		return allocateUniqueAffCode(tx, &user, newAffiliateCode, func(tx *gorm.DB) error {
+			result := tx.Model(&User{}).
+				Where("id = ? AND aff_code = ?", user.Id, "").
+				Update("aff_code", user.AffCode)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected > 0 {
+				affCode = user.AffCode
+				return nil
+			}
+
+			var current User
+			if err := tx.Select("aff_code").First(&current, user.Id).Error; err != nil {
+				return err
+			}
+			if current.AffCode == "" {
+				return errors.New("affiliate code was not assigned")
+			}
+			affCode = current.AffCode
+			return nil
+		})
+	})
+	return affCode, err
+}
+
 func (user *User) Insert(inviterId int) error {
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
@@ -689,7 +921,6 @@ func (user *User) Insert(inviterId int) error {
 				return err
 			}
 			user.Quota = common.QuotaForNewUser
-			user.AffCode = common.GetRandomString(4)
 
 			// 初始化用户设置，包括默认的边栏配置
 			if user.Setting == "" {
@@ -698,7 +929,7 @@ func (user *User) Insert(inviterId int) error {
 				user.SetSetting(defaultSetting)
 			}
 
-			return tx.Create(user).Error
+			return user.insertWithUniqueAffCode(tx)
 		})
 	}); err != nil {
 		return err
@@ -753,7 +984,6 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 		user.Quota = common.QuotaForNewUser
-		user.AffCode = common.GetRandomString(4)
 
 		// 初始化用户设置
 		if user.Setting == "" {
@@ -761,7 +991,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			user.SetSetting(defaultSetting)
 		}
 
-		return tx.Create(user).Error
+		return user.insertWithUniqueAffCode(tx)
 	})
 }
 
@@ -887,7 +1117,7 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 	}
 
 	newUser := *user
-	updates := map[string]any{
+	updates := map[string]interface{}{
 		"username":     newUser.Username,
 		"display_name": newUser.DisplayName,
 		"group":        newUser.Group,
@@ -919,6 +1149,27 @@ func (user *User) ClearBinding(bindingType string) error {
 		return errors.New("user id is empty")
 	}
 
+	bindingTypeAliases := map[string]string{
+		"email":       "email",
+		"github":      "github",
+		"github_id":   "github",
+		"discord":     "discord",
+		"discord_id":  "discord",
+		"oidc":        "oidc",
+		"oidc_id":     "oidc",
+		"wechat":      "wechat",
+		"wechat_id":   "wechat",
+		"telegram":    "telegram",
+		"telegram_id": "telegram",
+		"linuxdo":     "linuxdo",
+		"linux_do_id": "linuxdo",
+	}
+	bindingType = strings.ToLower(strings.TrimSpace(bindingType))
+	bindingType, ok := bindingTypeAliases[bindingType]
+	if !ok {
+		return errors.New("invalid binding type")
+	}
+
 	bindingColumnMap := map[string]string{
 		"email":    "email",
 		"github":   "github_id",
@@ -929,10 +1180,7 @@ func (user *User) ClearBinding(bindingType string) error {
 		"linuxdo":  "linux_do_id",
 	}
 
-	column, ok := bindingColumnMap[bindingType]
-	if !ok {
-		return errors.New("invalid binding type")
-	}
+	column := bindingColumnMap[bindingType]
 
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&User{}).Where("id = ?", user.Id).Update(column, "").Error; err != nil {
@@ -1076,8 +1324,11 @@ func (user *User) ValidateAndFill() (err error) {
 		return ErrInvalidCredentials
 	}
 	okay := common.ValidatePasswordAndHash(password, user.Password)
-	if !okay || user.Status != common.UserStatusEnabled {
+	if !okay {
 		return ErrInvalidCredentials
+	}
+	if user.Status != common.UserStatusEnabled {
+		return ErrUserDisabled
 	}
 	return nil
 }
@@ -1104,14 +1355,6 @@ func (user *User) FillUserByGitHubId() error {
 	}
 	DB.Where(User{GitHubId: user.GitHubId}).First(user)
 	return nil
-}
-
-// UpdateGitHubId updates the user's GitHub ID (used for migration from login to numeric ID)
-func (user *User) UpdateGitHubId(newGitHubId string) error {
-	if user.Id == 0 {
-		return errors.New("user id is empty")
-	}
-	return DB.Model(user).Update("github_id", newGitHubId).Error
 }
 
 func (user *User) FillUserByDiscordId() error {
@@ -1402,6 +1645,34 @@ func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	return decreaseUserQuota(id, quota)
 }
 
+// TryReserveUserCheckinQuota atomically reserves deductible check-in credit.
+func TryReserveUserCheckinQuota(id int, quota int) (bool, error) {
+	if quota < 0 {
+		return false, errors.New("checkin quota 不能为负数")
+	}
+	if quota == 0 {
+		return true, nil
+	}
+	result := DB.Model(&User{}).Where("id = ? AND checkin_quota >= ?", id, quota).
+		Update("checkin_quota", gorm.Expr("checkin_quota - ?", quota))
+	return result.RowsAffected == 1, result.Error
+}
+
+func IncreaseUserCheckinQuota(id int, quota int) error {
+	if quota < 0 {
+		return errors.New("checkin quota 不能为负数")
+	}
+	if quota == 0 {
+		return nil
+	}
+	return DB.Model(&User{}).Where("id = ?", id).Update("checkin_quota", gorm.Expr("checkin_quota + ?", quota)).Error
+}
+
+func GetUserCheckinQuota(id int) (quota int, err error) {
+	err = DB.Model(&User{}).Where("id = ?", id).Select("checkin_quota").Scan(&quota).Error
+	return quota, err
+}
+
 func decreaseUserQuota(id int, quota int) (err error) {
 	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", quota)).Error
 	if err != nil {
@@ -1461,7 +1732,7 @@ func UpdateUserUsedQuota(id int, quota int) {
 
 func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
-		map[string]any{
+		map[string]interface{}{
 			"used_quota":    gorm.Expr("used_quota + ?", quota),
 			"request_count": gorm.Expr("request_count + ?", count),
 		},
@@ -1483,7 +1754,7 @@ func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, r
 	}
 
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
-		map[string]any{
+		map[string]interface{}{
 			"quota":         gorm.Expr("quota + ?", quota),
 			"used_quota":    gorm.Expr("used_quota + ?", usedQuota),
 			"request_count": gorm.Expr("request_count + ?", requestCount),

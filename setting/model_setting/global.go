@@ -19,6 +19,31 @@ type ChatCompletionsToResponsesPolicy struct {
 	ModelPatterns []string `json:"model_patterns,omitempty"`
 }
 
+type ResponsesToChatCompletionsPolicy struct {
+	Enabled       bool     `json:"enabled"`
+	AllChannels   bool     `json:"all_channels"`
+	ChannelIDs    []int    `json:"channel_ids,omitempty"`
+	ChannelTypes  []int    `json:"channel_types,omitempty"`
+	ModelPatterns []string `json:"model_patterns,omitempty"`
+}
+
+func (p ResponsesToChatCompletionsPolicy) IsChannelEnabled(channelID int, channelType int) bool {
+	if !p.Enabled {
+		return false
+	}
+	if p.AllChannels {
+		return true
+	}
+
+	if channelID > 0 && len(p.ChannelIDs) > 0 && slices.Contains(p.ChannelIDs, channelID) {
+		return true
+	}
+	if channelType > 0 && len(p.ChannelTypes) > 0 && slices.Contains(p.ChannelTypes, channelType) {
+		return true
+	}
+	return false
+}
+
 func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channelType int) bool {
 	if !p.Enabled {
 		return false
@@ -37,12 +62,12 @@ func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channe
 }
 
 type GlobalSettings struct {
-	PassThroughRequestEnabled bool     `json:"pass_through_request_enabled"`
-	ThinkingModelBlacklist    []string `json:"thinking_model_blacklist"`
-	// EffortTailModelIDs lists real model IDs that sit inside the GPT/o-series
-	// family whitelist but whose names already end in an effort word.
+	PassThroughRequestEnabled        bool                             `json:"pass_through_request_enabled"`
+	ThinkingModelBlacklist           []string                         `json:"thinking_model_blacklist"`
 	EffortTailModelIDs               []string                         `json:"effort_tail_model_ids"`
 	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy `json:"chat_completions_to_responses_policy"`
+	ResponsesToChatCompletionsPolicy ResponsesToChatCompletionsPolicy `json:"responses_to_chat_completions_policy"`
+	EffortModelRoutes                map[string]map[string]string     `json:"effort_model_routes"`
 }
 
 // 默认配置
@@ -63,6 +88,43 @@ var defaultOpenaiSettings = GlobalSettings{
 		Enabled:     false,
 		AllChannels: true,
 	},
+	ResponsesToChatCompletionsPolicy: ResponsesToChatCompletionsPolicy{
+		Enabled:     false,
+		AllChannels: true,
+	},
+	EffortModelRoutes: map[string]map[string]string{},
+}
+
+func (s *GlobalSettings) RouteModelByEffort(modelName, effort string) (string, bool) {
+	modelName = strings.TrimSpace(modelName)
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	if modelName == "" || effort == "" {
+		return modelName, false
+	}
+	efforts := s.EffortModelRoutes[modelName]
+	routed, ok := efforts[effort]
+	if !ok || strings.TrimSpace(routed) == "" {
+		return modelName, false
+	}
+	return strings.TrimSpace(routed), true
+}
+
+func ValidateEffortModelRoutes(value string) error {
+	var routes map[string]map[string]string
+	if err := common.UnmarshalJsonStr(value, &routes); err != nil {
+		return fmt.Errorf("effort model routes must be a JSON object: %w", err)
+	}
+	for modelName, efforts := range routes {
+		if strings.TrimSpace(modelName) == "" {
+			return fmt.Errorf("effort route model name cannot be empty")
+		}
+		for effort, target := range efforts {
+			if strings.TrimSpace(effort) == "" || strings.TrimSpace(target) == "" {
+				return fmt.Errorf("effort route entries require non-empty effort and target")
+			}
+		}
+	}
+	return nil
 }
 
 // 全局实例
@@ -140,9 +202,8 @@ func compiledThinkingBlacklist() ([]string, []*regexp.Regexp) {
 }
 
 // ShouldPreserveThinkingSuffix reports whether the full model name is exempt
-// from host thinking-suffix and @-modifier parsing. Exact blacklist entries
-// match the complete name; entries prefixed with re: are Go regular expressions
-// matched with MatchString against the same full name.
+// from thinking-suffix and @-modifier parsing. Exact entries and re: patterns
+// are matched against the complete model name.
 func ShouldPreserveThinkingSuffix(modelName string) bool {
 	target := strings.TrimSpace(modelName)
 	if target == "" {
@@ -161,9 +222,8 @@ func ShouldPreserveThinkingSuffix(modelName string) bool {
 	return false
 }
 
-// ShouldPreserveEffortTail reports whether modelName is a real model ID whose
-// name already ends in an effort word. Entries match the complete name and the
-// de-namespaced bare name.
+// ShouldPreserveEffortTail reports whether modelName is an explicitly listed
+// model whose name already ends in an effort word.
 func ShouldPreserveEffortTail(modelName string) bool {
 	target := strings.TrimSpace(modelName)
 	if target == "" {
@@ -173,13 +233,9 @@ func ShouldPreserveEffortTail(modelName string) bool {
 	if slash := strings.LastIndex(target, "/"); slash >= 0 {
 		bare = target[slash+1:]
 	}
-
 	for _, entry := range globalSettings.EffortTailModelIDs {
 		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		if entry == target || entry == bare {
+		if entry != "" && (entry == target || entry == bare) {
 			return true
 		}
 	}

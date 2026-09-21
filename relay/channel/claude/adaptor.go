@@ -9,6 +9,8 @@ import (
 
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -43,9 +45,6 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 		defaultMaxTokens := uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(request.Model))
 		request.MaxTokens = &defaultMaxTokens
 	}
-	// ApplyClaudeThinkingModel no longer rewrites request.Model. Do not write
-	// a still-suffixed name back over the entry-normalized UpstreamModelName
-	// (AWS/Vertex look up getAwsModelID / claudeModelMap from that field).
 	if info.UpstreamModelName == "" {
 		info.UpstreamModelName = request.Model
 	}
@@ -123,6 +122,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	if helper.ApplyEffortModelRoute(info) {
+		if converted, ok := result.Value.(*dto.ClaudeRequest); ok {
+			converted.SetModelName(info.UpstreamModelName)
+		}
+	}
 	return result.Value, nil
 }
 
@@ -144,6 +148,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if !ok {
 		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", result.Value)
 	}
+	if helper.ApplyEffortModelRoute(info) {
+		claudeRequest.SetModelName(info.UpstreamModelName)
+	}
 	return claudeRequest, nil
 }
 
@@ -153,7 +160,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	info.FinalRequestRelayFormat = types.RelayFormatClaude
-	if info.RelayFormat == types.RelayFormatOpenAIResponses && info.IsStream {
+	if info.RelayMode == relayconstant.RelayModeResponses && info.IsStream {
 		return ClaudeResponsesStreamHandler(c, resp, info)
 	}
 	if info.IsStream {

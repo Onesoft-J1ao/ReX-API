@@ -77,6 +77,7 @@ export const ENDPOINT_TYPES = {
   IMAGE_GENERATION: 'image-generation',
   EMBEDDINGS: 'embeddings',
   OPENAI_VIDEO: 'openai-video',
+  THREE_D: '3d',
 } as const
 
 export type EndpointTypeOption =
@@ -96,6 +97,7 @@ export function getEndpointTypeLabels(
     [ENDPOINT_TYPES.IMAGE_GENERATION]: t('Image'),
     [ENDPOINT_TYPES.EMBEDDINGS]: t('Embeddings'),
     [ENDPOINT_TYPES.OPENAI_VIDEO]: t('Video'),
+    [ENDPOINT_TYPES.THREE_D]: t('3D'),
   }
 }
 
@@ -143,5 +145,9 @@ export const VIEW_MODES = {
 
 export type ViewMode = (typeof VIEW_MODES)[keyof typeof VIEW_MODES]
 
-/** Default page size for pricing table */
+/** Card size is divisible by both the two- and three-column breakpoints. */
+export const DEFAULT_PRICING_CARD_PAGE_SIZE = 18
+export const DEFAULT_PRICING_TABLE_PAGE_SIZE = 20
+
+/** Standalone grid fallback when no appearance setting is supplied. */
 export const DEFAULT_PRICING_PAGE_SIZE = 20

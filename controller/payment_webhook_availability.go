@@ -3,6 +3,7 @@ package controller
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
@@ -96,15 +97,40 @@ func isEpayTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false
 	}
-	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
+	if !isEpayWebhookConfigured() {
+		return false
+	}
+	for _, gateway := range operation_setting.GetEpayGateways() {
+		if len(gateway.PayMethods) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func isEpayWebhookConfigured() bool {
-	return strings.TrimSpace(operation_setting.PayAddress) != "" &&
-		strings.TrimSpace(operation_setting.EpayId) != "" &&
-		strings.TrimSpace(operation_setting.EpayKey) != ""
+	gateways := operation_setting.EpayGateways
+	if len(gateways) == 0 {
+		gateways = operation_setting.GetEpayGateways()
+	}
+	for _, gateway := range gateways {
+		if strings.TrimSpace(gateway.Address) != "" &&
+			strings.TrimSpace(gateway.MerchantID) != "" &&
+			strings.TrimSpace(gateway.Key) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func isEpayWebhookEnabled() bool {
-	return isEpayTopUpEnabled()
+	return isPaymentComplianceConfirmed() && isEpayWebhookConfigured()
+}
+
+func isNowPaymentsTopUpEnabled() bool {
+	return service.IsNowPaymentsTopUpEnabled()
+}
+
+func isNowPaymentsWebhookEnabled() bool {
+	return service.IsNowPaymentsTopUpEnabled()
 }

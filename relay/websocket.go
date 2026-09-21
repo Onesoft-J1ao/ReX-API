@@ -2,8 +2,12 @@ package relay
 
 import (
 	"fmt"
+	"sync"
+	"time"
 
+	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -14,6 +18,9 @@ import (
 
 func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
@@ -33,6 +40,18 @@ func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.
 	if resp != nil {
 		info.TargetWs = resp.(*websocket.Conn)
 		defer info.TargetWs.Close()
+		var closeOnce sync.Once
+		unregister := wsmanager.Register(info.ChannelId, wsmanager.KindRealtime, func(reason string) {
+			closeOnce.Do(func() {
+				deadline := time.Now().Add(time.Second)
+				closeMessage := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, reason)
+				_ = info.ClientWs.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+				_ = info.TargetWs.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+				_ = info.ClientWs.Close()
+				_ = info.TargetWs.Close()
+			})
+		})
+		defer unregister()
 	}
 
 	usage, newAPIError := adaptor.DoResponse(c, nil, info)

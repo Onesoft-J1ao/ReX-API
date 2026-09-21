@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { PlaygroundPublicSettings } from '@/features/playground/types'
 import type { AuthBundle } from '@/stores/auth-store'
 
 import type { LoginResult } from './secure-verification/types'
@@ -28,6 +29,8 @@ export interface LoginPayload {
   username: string
   password: string
   turnstile?: string
+  hcaptcha?: string
+  cap_token?: string
   passwordEncryptionEnabled?: boolean
 }
 
@@ -44,6 +47,8 @@ export interface RegisterPayload {
   aff_code?: string
   turnstile?: string
   register_ticket?: string
+  hcaptcha?: string
+  cap_token?: string
 }
 
 export interface PasswordResetPayload {
@@ -120,6 +125,20 @@ export interface SystemStatus {
     turnstile_site_key?: string
     phantom_check?: boolean
     phantom_service_url?: string
+    hcaptcha_check?: boolean
+    hcaptcha_site_key?: string
+    captcha_type?: string
+    cap_enabled?: boolean
+    cap_api_endpoint?: string
+    cap_checkin_api_endpoint?: string
+    force_checkin_captcha?: boolean
+    force_redemption_captcha?: boolean
+    login_captcha_difficulty?: number
+    checkin_captcha_difficulty?: number
+    checkin_min_user_quota?: number
+    checkin_min_used_quota?: number
+    checkin_daily_user_limit?: number
+    checkin_daily_quota_limit?: number
     email_verification?: boolean
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
@@ -138,6 +157,12 @@ export interface SystemStatus {
     password_login_encryption_enabled?: boolean
     password_register_enabled?: boolean
     custom_oauth_providers?: CustomOAuthProviderInfo[]
+    notice_popup_enabled?: boolean
+    notice_popup_mode?: 'home' | 'dashboard' | 'both'
+    notice_popup_on_dashboard?: boolean
+    notice_header_button_mode?: 'popover' | 'dialog'
+    status_check_announcement?: string
+    playground?: PlaygroundPublicSettings
     [key: string]: unknown
   }
   // Allow direct access to common properties
@@ -167,6 +192,20 @@ export interface SystemStatus {
   WeChatAccountQRCodeImageURL?: string
   turnstile_check?: boolean
   turnstile_site_key?: string
+  hcaptcha_check?: boolean
+  hcaptcha_site_key?: string
+  captcha_type?: string
+  cap_enabled?: boolean
+  cap_api_endpoint?: string
+  cap_checkin_api_endpoint?: string
+  force_checkin_captcha?: boolean
+  force_redemption_captcha?: boolean
+  login_captcha_difficulty?: number
+  checkin_captcha_difficulty?: number
+  checkin_min_user_quota?: number
+  checkin_min_used_quota?: number
+  checkin_daily_user_limit?: number
+  checkin_daily_quota_limit?: number
   email_verification?: boolean
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean
@@ -185,6 +224,14 @@ export interface SystemStatus {
   password_login_encryption_enabled?: boolean
   password_register_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
+  notice_popup_enabled?: boolean
+  notice_popup_mode?: 'home' | 'dashboard' | 'both'
+  notice_popup_on_dashboard?: boolean
+  notice_header_button_mode?: 'popover' | 'dialog'
+  support_enabled?: boolean
+  status_check_announcement?: string
+  playground?: PlaygroundPublicSettings
+  custom_tabs?: string
   [key: string]: unknown
 }
 

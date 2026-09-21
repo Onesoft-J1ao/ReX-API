@@ -39,6 +39,20 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type ClearSupportDataResponse = {
+  success: boolean
+  message: string
+  data?: {
+    conversations: number
+    messages: number
+  }
+}
+
+export type SMTPTestEmailResponse = {
+  success: boolean
+  message: string
+}
+
 export interface PasskeyDomainChange {
   rp_id: string
   legacy_rp_ids: string
@@ -130,10 +144,22 @@ export type SystemTaskListResponse = {
   success: boolean
   message: string
   data?: SystemTask[]
+  total: number
+}
+
+export type SystemTaskFilters = {
+  type?: string
+  status?: SystemTaskStatus | ''
+  scope?: 'active' | 'history'
+  offset?: number
 }
 
 export type SiteSettings = {
   Notice: string
+  NoticePopupEnabled: boolean
+  NoticePopupMode: 'home' | 'dashboard' | 'both'
+  NoticePopupOnDashboardEnabled: boolean
+  NoticeHeaderButtonMode: 'popover' | 'dialog'
   SystemName: string
   Logo: string
   Footer: string
@@ -145,10 +171,50 @@ export type SiteSettings = {
   'legal.privacy_policy': string
   HeaderNavModules: string
   SidebarModulesAdmin: string
+  'console_setting.background_image': string
+  'console_setting.background_blur_opacity': number
+  'console_setting.legal_background_enabled': boolean
+  'console_setting.default_theme': 'system' | 'light' | 'dark'
+  'console_setting.default_theme_override': 'none' | 'light' | 'dark'
+  'console_setting.default_theme_preset':
+    | 'default'
+    | 'anthropic'
+    | 'simple-large'
+    | 'underground'
+    | 'rose-garden'
+    | 'lake-view'
+    | 'sunset-glow'
+    | 'forest-whisper'
+    | 'ocean-breeze'
+    | 'lavender-dream'
+  'console_setting.default_theme_font': 'default' | 'sans' | 'serif'
+  'console_setting.default_theme_radius':
+    | 'default'
+    | 'none'
+    | 'sm'
+    | 'md'
+    | 'lg'
+    | 'xl'
+  'console_setting.default_theme_scale': 'default' | 'sm' | 'lg' | 'xl'
+  'console_setting.default_sidebar_variant': 'inset' | 'floating' | 'sidebar'
+  'console_setting.default_sidebar_layout': 'expanded' | 'icon' | 'offcanvas'
+  'console_setting.default_content_layout': 'full' | 'centered'
+  'console_setting.default_direction': 'ltr' | 'rtl'
+  'console_setting.model_square_default_view': 'card' | 'table'
+  'console_setting.model_square_card_page_size': number
+  'console_setting.model_square_table_page_size': number
+  'console_setting.spa_meta_description': string
+  'console_setting.spa_meta_og_type': string
+  'console_setting.spa_meta_og_description': string
+  'console_setting.homepage_style': 'default' | 'custom' | 'preset-1'
+  'console_setting.homepage_preset_title_mode': 'i18n' | 'english'
+  'console_setting.homepage_preset_sla_enabled': boolean
+  'console_setting.homepage_preset_sla_text': string
 }
 
 export type AuthSettings = {
   PasswordLoginEnabled: boolean
+  UserBannedMessage: string
   PasswordRegisterEnabled: boolean
   EmailVerificationEnabled: boolean
   RegisterEnabled: boolean
@@ -159,6 +225,7 @@ export type AuthSettings = {
   GitHubOAuthEnabled: boolean
   GitHubClientId: string
   GitHubClientSecret: string
+  GitHubAPIToken: string
   'discord.enabled': boolean
   'discord.client_id': string
   'discord.client_secret': string
@@ -186,6 +253,21 @@ export type AuthSettings = {
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string
+  CaptchaType: 'turnstile' | 'hcaptcha' | 'cap'
+  HCaptchaEnabled: boolean
+  HCaptchaSiteKey: string
+  HCaptchaSecretKey: string
+  CapEnabled: boolean
+  CapServerURL: string
+  CapAdminAPIKey: string
+  CapSiteKey: string
+  CapSecretKey: string
+  CapCheckinSiteKey: string
+  CapCheckinSecretKey: string
+  LoginCaptchaDifficulty: number
+  CheckinCaptchaDifficulty: number
+  ForceCheckinCaptcha: boolean
+  ForceRedemptionCaptcha: boolean
   PhantomCheckEnabled: boolean
   PhantomServiceURL: string
   'passkey.enabled': boolean
@@ -199,6 +281,13 @@ export type AuthSettings = {
 }
 
 export type ContentSettings = {
+  PlaygroundSettings: string
+  StatusCheckGroups: string
+  StatusCheckCacheExcludedModels: string
+  StatusCheckAnnouncement: string
+  StatusCheckFlexibleMode: string
+  GroupRatio: string
+  ModelRatio: string
   'console_setting.api_info': string
   'console_setting.announcements': string
   'console_setting.faq': string
@@ -222,12 +311,15 @@ export type ContentSettings = {
   MjForwardUrlEnabled: boolean
   MjModeClearEnabled: boolean
   MjActionCheckSuccessEnabled: boolean
+  CustomTabs: string
 }
 
 export type ModelSettings = {
   'global.pass_through_request_enabled': boolean
   'global.thinking_model_blacklist': string
   'global.chat_completions_to_responses_policy': string
+  'global.responses_to_chat_completions_policy': string
+  'global.effort_model_routes': string
   'general_setting.ping_interval_enabled': boolean
   'general_setting.ping_interval_seconds': number
   'gemini.safety_settings': string
@@ -261,29 +353,10 @@ export type ModelSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  AutoGroupDescription: string
   MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
-  RetryTimes: number
-  ChannelDisableThreshold: string
-  AutomaticDisableChannelEnabled: boolean
-  AutomaticEnableChannelEnabled: boolean
-  AutomaticDisableKeywords: string
-  AutomaticDisableStatusCodes: string
-  AutomaticRetryStatusCodes: string
-  'monitor_setting.auto_test_channel_enabled': boolean
-  'monitor_setting.auto_test_channel_minutes': number
-  'monitor_setting.channel_test_concurrency': number
-  'monitor_setting.channel_test_mode':
-    | 'scheduled_all'
-    | 'auto_ban_only'
-    | 'passive_recovery'
-  'channel_affinity_setting.enabled': boolean
-  'channel_affinity_setting.switch_on_success': boolean
-  'channel_affinity_setting.keep_on_channel_disabled': boolean
-  'channel_affinity_setting.max_entries': number
-  'channel_affinity_setting.default_ttl_seconds': number
-  'channel_affinity_setting.rules': string
   'model_deployment.ionet.api_key': string
   'model_deployment.ionet.enabled': boolean
 }
@@ -321,18 +394,25 @@ export type BillingSettings = {
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  AutoGroupDescription: string
   MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
+  GroupDefaultModel: string
+  GroupRetryTimes: string
+  'console_setting.model_square_visible_groups': string
+  'console_setting.group_access_rules': string
   PayAddress: string
   EpayId: string
   EpayKey: string
+  EpayGateways: string
   Price: number
   MinTopUp: number
   CustomCallbackAddress: string
   PayMethods: string
   'payment_setting.amount_options': string
   'payment_setting.amount_discount': string
+  'payment_setting.redemption_purchase_enabled': boolean
   'payment_setting.compliance_confirmed': boolean
   'payment_setting.compliance_terms_version': string
   'payment_setting.compliance_confirmed_at': number
@@ -366,20 +446,50 @@ export type BillingSettings = {
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
   WaffoPancakeReturnURL: string
+  WaffoPancakeUseConfiguredProductPrice: boolean
+  WaffoPancakeUSDToCurrencyRate: number
   // Bound by the operator through the catalog flow in the admin Pancake
   // section (saved via /api/option/waffo-pancake/save).
   WaffoPancakeStoreID: string
   WaffoPancakeProductID: string
+  MoneroEnabled: boolean
+  MoneroWalletRPCURL: string
+  MoneroWalletRPCUsername: string
+  MoneroWalletRPCPassword: string
+  MoneroNetwork: 'mainnet' | 'testnet' | 'stagenet'
+  MoneroConfirmations: number
+  MoneroMaxSubaddresses: number
+  MoneroUSDToCurrencyRate: number
+  NowPaymentsEnabled: boolean
+  NowPaymentsAPIKey: string
+  NowPaymentsIPNSecret: string
+  NowPaymentsAPIBaseURL: string
+  NowPaymentsPayCurrencies: string
+  NowPaymentsMinTopUp: number
+  NowPaymentsUSDToCurrencyRate: number
+  NowPaymentsPaymentExpirationMins: number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'checkin_setting.min_user_quota': number
+  'checkin_setting.min_used_quota': number
+  'checkin_setting.daily_user_limit': number
+  'checkin_setting.daily_quota_limit': number
+  'checkin_setting.deductible_groups': string
+  PaymentAnnouncement: string
 }
 
 export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  'console_setting.hide_upstream_request_id': boolean
+  'error_rewrite.enabled': boolean
+  'error_rewrite.rules': string
+  QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string
+  SupportEnabled: boolean
+  SupportMessageLimit: number
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string
@@ -389,9 +499,13 @@ export type OperationsSettings = {
   SMTPStartTLSEnabled: boolean
   SMTPInsecureSkipVerify: boolean
   SMTPForceAuthLogin: boolean
+  EmailVerificationTemplate: string
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean
+  WorkerMeshyImageProxyEnabled: boolean
+  WorkerMeshyImageProxyBaseURL: string
+  WorkerMeshyImageProxyAPIKey: string
   LogConsumeEnabled: boolean
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
@@ -402,6 +516,7 @@ export type OperationsSettings = {
   'performance_setting.monitor_memory_threshold': number
   'performance_setting.monitor_disk_threshold': number
   'perf_metrics_setting.enabled': boolean
+  'perf_metrics_setting.exclude_upstream_400_errors': boolean
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number

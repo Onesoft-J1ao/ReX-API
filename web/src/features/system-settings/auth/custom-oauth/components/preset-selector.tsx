@@ -51,9 +51,15 @@ export function PresetSelector(props: PresetSelectorProps) {
     props.form.setValue('pkce_required', preset.pkce_required ?? false, {
       shouldDirty: true,
     })
-    props.form.setValue('identity_source', preset.identity_source, {
-      shouldDirty: true,
-    })
+    // A preset that does not name an identity source means userinfo, which is
+    // the form's own default.
+    props.form.setValue(
+      'identity_source',
+      preset.identity_source ?? 'userinfo',
+      {
+        shouldDirty: true,
+      }
+    )
     props.form.setValue('issuer', preset.issuer ?? '', { shouldDirty: true })
     props.form.setValue('jwks_uri', preset.jwks_uri ?? '', {
       shouldDirty: true,
@@ -69,6 +75,9 @@ export function PresetSelector(props: PresetSelectorProps) {
       shouldDirty: true,
     })
     props.form.setValue('email_field', preset.email_field, {
+      shouldDirty: true,
+    })
+    props.form.setValue('well_known', preset.well_known || '', {
       shouldDirty: true,
     })
 

@@ -21,6 +21,7 @@ import { getRouteApi } from '@tanstack/react-router'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import {
   DISABLED_ROW_DESKTOP,
@@ -30,7 +31,6 @@ import {
 } from '@/components/data-table'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
-import { createServerError } from '@/lib/server-error-message'
 
 import { getUsers, searchUsers } from '../api'
 import {
@@ -57,6 +57,11 @@ const USER_SORTABLE_COLUMNS = new Set<UserSortBy>([
 
 function isDisabledUserRow(user: User) {
   return isUserDeleted(user) || user.status === USER_STATUS.DISABLED
+}
+
+function getUserRowClassName(user: User, isMobile: boolean) {
+  if (!isDisabledUserRow(user)) return undefined
+  return isMobile ? DISABLED_ROW_MOBILE : DISABLED_ROW_DESKTOP
 }
 
 export function UsersTable() {
@@ -154,10 +159,10 @@ export function UsersTable() {
           : await getUsers(params)
 
       if (!result.success) {
-        throw createServerError(
-          result,
-          t(hasFilter ? 'Failed to search users' : 'Failed to load users')
+        toast.error(
+          result.message || `Failed to ${hasFilter ? 'search' : 'load'} users`
         )
+        return { items: [], total: 0 }
       }
 
       return {
@@ -184,6 +189,8 @@ export function UsersTable() {
         row.getValue('username'),
         row.original.display_name,
         row.original.email,
+        row.original.register_ip,
+        row.original.aff_code,
       ]
       return fields.some((field) =>
         String(field || '')
@@ -215,7 +222,9 @@ export function UsersTable() {
       skeletonKeyPrefix='users-skeleton'
       applyHeaderSize
       toolbarProps={{
-        searchPlaceholder: t('Filter by username, name or email...'),
+        searchPlaceholder: t(
+          'Filter by username, name, email, registration IP or invite code...'
+        ),
         searchDebounceMs: 500,
         filters: [
           {
@@ -232,10 +241,9 @@ export function UsersTable() {
           },
         ],
       }}
-      getRowClassName={(row, { isMobile }) => {
-        if (!isDisabledUserRow(row.original)) return undefined
-        return isMobile ? DISABLED_ROW_MOBILE : DISABLED_ROW_DESKTOP
-      }}
+      getRowClassName={(row, { isMobile }) =>
+        getUserRowClassName(row.original, isMobile)
+      }
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )

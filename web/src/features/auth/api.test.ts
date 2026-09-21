@@ -86,6 +86,30 @@ test.each([true, false])(
   }
 )
 
+test('keeps the legacy Telegram widget available when unified OAuth is not configured', async () => {
+  const post = vi.spyOn(api, 'post').mockImplementation(async (url) => {
+    if (url === '/api/user/auth/logout') return { data: { success: true } }
+    throw new Error(`Unexpected POST ${url}`)
+  })
+  const open = vi.spyOn(window, 'open').mockReturnValue(null)
+  const { result } = renderHook(() =>
+    useOAuthLogin(
+      {
+        telegram_oauth: true,
+        telegram_oauth_configured: false,
+        telegram_bot_name: 'legacy_bot',
+      },
+      '/console/personal'
+    )
+  )
+
+  await act(() => result.current.handleTelegramLogin())
+
+  expect(post.mock.calls.map(([url]) => url)).toEqual(['/api/user/auth/logout'])
+  expect(open).not.toHaveBeenCalled()
+  expect(result.current.isTelegramDialogOpen).toBe(true)
+})
+
 const bundle: AuthBundle = {
   access_token: 'access-token',
   token_type: 'Bearer',

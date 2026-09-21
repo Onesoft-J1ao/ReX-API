@@ -19,6 +19,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func shouldUseResponsesAPI(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.ChannelType == constant.ChannelTypeOpenAI && info.ChannelSetting.UseResponsesAPI {
+		return true
+	}
+	if info.ChannelType == constant.ChannelTypeCodex {
+		return true
+	}
+	return service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName)
+}
+
 func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
 	if info == nil || request == nil {
 		return
@@ -29,8 +42,8 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 
 	systemRole := request.GetSystemRoleName()
 
-	// A Kimi K3 dynamic tool loading message ({"role":"system","tools":[...]})
-	// declares tools rather than a system prompt and must never receive content.
+	// A dynamic tool-loading system message declares tools rather than a
+	// prompt, so it must not suppress or receive the configured system text.
 	containSystemPrompt := false
 	for _, message := range request.Messages {
 		if message.Role == systemRole && len(message.Tools) == 0 {
@@ -112,6 +125,10 @@ func textRequestViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adapto
 }
 
 func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, responsesReq *dto.OpenAIResponsesRequest, paramOverrideApplied bool) (*dto.Usage, *types.NewAPIError) {
+	clientStream := info.IsStream
+	if info.ChannelType == constant.ChannelTypeOpenAI && info.ChannelSetting.FakeNonStream && !clientStream {
+		responsesReq.Stream = common.GetPointer(true)
+	}
 	savedRelayMode := info.RelayMode
 	savedRequestURLPath := info.RequestURLPath
 	defer func() {
@@ -143,6 +160,10 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 			return nil, newAPIErrorFromParamOverride(err)
 		}
 	}
+	jsonData, err = applyClaudeCacheControl(info, jsonData)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
 
 	body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 	if err != nil {
@@ -164,7 +185,6 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
 	httpResp = resp.(*http.Response)
-	clientStream := info.IsStream
 	upstreamStream := isResponsesEventStreamContentType(httpResp.Header.Get("Content-Type"))
 	info.IsStream = clientStream || upstreamStream
 	if httpResp.StatusCode != http.StatusOK {

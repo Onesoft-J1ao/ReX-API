@@ -39,6 +39,14 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  MoneroPaymentResponse,
+  MoneroPaymentStatusResponse,
+  NowPaymentsPaymentResponse,
+  NowPaymentsPaymentStatusResponse,
+  RedemptionPurchaseAmountResponse,
+  RedemptionPurchaseRequest,
+  RedemptionPurchaseResponse,
+  UserRedemptionsResponse,
 } from './types'
 
 // ============================================================================
@@ -64,9 +72,14 @@ export async function getTopupInfo(): Promise<TopupInfoResponse> {
  * Redeem a topup code
  */
 export async function redeemTopupCode(
-  request: RedemptionRequest
+  request: RedemptionRequest,
+  captchaToken?: string,
+  captchaParamName: string = 'turnstile'
 ): Promise<RedemptionResponse> {
-  const res = await api.post('/api/user/topup', request)
+  const url = captchaToken
+    ? `/api/user/topup?${captchaParamName}=${encodeURIComponent(captchaToken)}`
+    : '/api/user/topup'
+  const res = await api.post(url, request)
   return res.data
 }
 
@@ -178,6 +191,84 @@ export async function requestWaffoPancakePayment(
   const res = await api.post('/api/user/waffo-pancake/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
+  return res.data
+}
+
+export async function requestMoneroPayment(
+  amount: number
+): Promise<MoneroPaymentResponse> {
+  const res = await api.post('/api/user/monero/pay', { amount }, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getMoneroPaymentStatus(
+  address: string
+): Promise<MoneroPaymentStatusResponse> {
+  const res = await api.get(
+    `/api/user/monero/payment?address=${encodeURIComponent(address)}`,
+    {
+      skipBusinessError: true,
+    } as Record<string, unknown>
+  )
+  return res.data
+}
+
+export async function requestNowPaymentsPayment(
+  amount: number,
+  payCurrency: string
+): Promise<NowPaymentsPaymentResponse> {
+  const res = await api.post(
+    '/api/user/nowpayments/pay',
+    { amount, pay_currency: payCurrency },
+    { skipBusinessError: true } as Record<string, unknown>
+  )
+  return res.data
+}
+
+export async function getNowPaymentsPaymentStatus(
+  paymentId: string
+): Promise<NowPaymentsPaymentStatusResponse> {
+  const res = await api.get(
+    `/api/user/nowpayments/payment?id=${encodeURIComponent(paymentId)}`,
+    { skipBusinessError: true } as Record<string, unknown>
+  )
+  return res.data
+}
+
+export async function calculateRedemptionPurchaseAmount(
+  request: RedemptionPurchaseRequest
+): Promise<RedemptionPurchaseAmountResponse> {
+  const res = await api.post('/api/user/redemption/purchase/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function requestRedemptionPurchase(
+  request: RedemptionPurchaseRequest
+): Promise<RedemptionPurchaseResponse> {
+  const res = await api.post('/api/user/redemption/purchase', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getUserRedemptions(
+  page = 1,
+  pageSize = 20
+): Promise<UserRedemptionsResponse> {
+  const res = await api.get(
+    `/api/user/redemption/self?p=${page}&page_size=${pageSize}`
+  )
+  return res.data
+}
+
+export async function refundUserRedemption(
+  id: number
+): Promise<ApiResponse<{ quota: number }>> {
+  const res = await api.post(`/api/user/redemption/${id}/refund`)
   return res.data
 }
 

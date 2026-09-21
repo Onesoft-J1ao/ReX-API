@@ -22,6 +22,11 @@ func GetCheckinStatus(c *gin.Context) {
 	userId := c.GetInt("id")
 	// 获取月份参数，默认为当前月份
 	month := c.DefaultQuery("month", time.Now().Format("2006-01"))
+	eligibility, err := model.GetCheckinEligibility(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	stats, err := model.GetUserCheckinStats(userId, month)
 	if err != nil {
@@ -35,10 +40,22 @@ func GetCheckinStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"enabled":   setting.Enabled,
-			"min_quota": setting.MinQuota,
-			"max_quota": setting.MaxQuota,
-			"stats":     stats,
+			"enabled":               setting.Enabled,
+			"min_quota":             setting.MinQuota,
+			"max_quota":             setting.MaxQuota,
+			"min_user_quota":        setting.MinUserQuota,
+			"min_used_quota":        setting.MinUsedQuota,
+			"daily_user_limit":      setting.DailyUserLimit,
+			"daily_quota_limit":     setting.DailyQuotaLimit,
+			"deductible_groups":     setting.DeductibleGroups,
+			"eligibility":           eligibility,
+			"eligible":              eligibility.Eligible,
+			"current_quota":         eligibility.CurrentQuota,
+			"current_used_quota":    eligibility.CurrentUsedQuota,
+			"today_user_count":      eligibility.TodayUserCount,
+			"today_quota_awarded":   eligibility.TodayQuotaAwarded,
+			"daily_quota_remaining": eligibility.DailyQuotaRemaining,
+			"stats":                 stats,
 		},
 	})
 }
@@ -52,7 +69,6 @@ func DoCheckin(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
-
 	checkin, err := model.UserCheckin(userId)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{

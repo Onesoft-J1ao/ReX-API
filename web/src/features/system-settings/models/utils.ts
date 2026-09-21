@@ -43,6 +43,18 @@ export function normalizeJsonString(value: string) {
   }
 }
 
+export function isModelSquareVisibleGroups(value: unknown) {
+  return (
+    (Array.isArray(value) && value.every((item) => typeof item === 'string')) ||
+    (typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      Object.values(value).every(
+        (description) => typeof description === 'string'
+      ))
+  )
+}
+
 type JsonValidationOptions = {
   allowEmpty?: boolean
   predicate?: (value: unknown) => boolean
@@ -69,10 +81,10 @@ function extractErrorPosition(
   const positionMatch = message.match(/at position (\d+)/i)
   if (positionMatch) {
     const position = Number.parseInt(positionMatch[1], 10)
-    const lines = jsonString.substring(0, position).split('\n')
+    const lines = jsonString.slice(0, position).split('\n')
     return {
       line: lines.length,
-      column: lines[lines.length - 1]!.length + 1,
+      column: (lines.at(-1)?.length ?? 0) + 1,
       position,
     }
   }

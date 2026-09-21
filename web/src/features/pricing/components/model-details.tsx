@@ -78,7 +78,11 @@ import {
   type DynamicPriceEntry,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getAvailableGroups,
+  getConfiguredGroupRatio,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
 import { withPluginPricing } from '../lib/plugin-pricing'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import {
@@ -273,31 +277,10 @@ function OverviewSummaryGrid(props: { model: PricingModel }) {
     staleTime: 60 * 1000,
   })
 
-  const groups = metricsQuery.data?.data.groups ?? []
-  const successRates = groups
-    .map((group) => group.success_rate)
-    .filter((rate) => Number.isFinite(rate))
-  const successRate =
-    successRates.length > 0
-      ? successRates.reduce((sum, rate) => sum + rate, 0) / successRates.length
-      : Number.NaN
-  const tpsValues = groups
-    .map((group) => group.avg_tps)
-    .filter((value) => value > 0)
-  const avgTps =
-    tpsValues.length > 0
-      ? tpsValues.reduce((sum, value) => sum + value, 0) / tpsValues.length
-      : 0
-  const latencyValues = groups
-    .map((group) => group.avg_latency_ms)
-    .filter((value) => value > 0)
-  const avgLatency =
-    latencyValues.length > 0
-      ? Math.round(
-          latencyValues.reduce((sum, value) => sum + value, 0) /
-            latencyValues.length
-        )
-      : 0
+  const summary = metricsQuery.data?.data.summary
+  const successRate = summary?.success_rate ?? Number.NaN
+  const avgTps = summary?.avg_tps ?? 0
+  const avgLatency = summary?.avg_latency_ms ?? 0
 
   return (
     <div className='bg-muted/20 grid overflow-hidden rounded-xl border sm:grid-cols-3 sm:divide-x'>
@@ -1005,6 +988,7 @@ type GroupPricingSectionProps = {
   model: PricingModel
   groupRatio: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
+  modelSquareGroups: readonly string[]
   autoGroups: string[]
   priceRate: number
   usdExchangeRate: number
@@ -1073,8 +1057,13 @@ function ProviderGroupPricingSection(
   const showRechargePrice = props.showRechargePrice ?? false
 
   const availableGroups = useMemo(
-    () => getAvailableGroups(props.model, props.usableGroup || {}),
-    [props.model, props.usableGroup]
+    () =>
+      getAvailableGroups(
+        props.model,
+        props.usableGroup || {},
+        props.modelSquareGroups
+      ),
+    [props.model, props.modelSquareGroups, props.usableGroup]
   )
 
   const isTokenBased = isTokenBasedModel(props.model)
@@ -1179,7 +1168,7 @@ function ProviderGroupPricingSection(
     })
     const formattedPricesByGroup = new Map(
       availableGroups.map((group) => {
-        const ratio = props.groupRatio[group] || 1
+        const ratio = getConfiguredGroupRatio(props.groupRatio, group)
         return [
           group,
           getDynamicFormattedPricesByTier(dynamicTiers, {
@@ -1194,6 +1183,135 @@ function ProviderGroupPricingSection(
       })
     )
 
+    if (hasSimpleTaskPricing(props.model)) {
+      const tier = dynamicTiers[0]
+
+      return (
+        <section>
+          {!props.hideTitle && (
+            <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+          )}
+          <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+          <StaticDataTable
+            className='-mx-4 rounded-none border-0 sm:mx-0'
+            tableClassName='text-sm'
+            headerRowClassName='hover:bg-transparent'
+            data={availableGroups}
+            getRowKey={(group) => group}
+            columns={[
+              {
+                id: 'group',
+                header: t('Group'),
+                className: thClass,
+                cellClassName: 'py-2.5',
+                cell: (group) => <GroupBadge group={group} size='sm' />,
+              },
+              {
+                id: 'ratio',
+                header: t('Ratio'),
+                className: thClass,
+                cellClassName: 'text-muted-foreground py-2.5 font-mono',
+                cell: (group) =>
+                  `${getConfiguredGroupRatio(props.groupRatio, group)}x`,
+              },
+              ...priceFields.map((fieldEntry) => {
+                const unitLabelKey = getDynamicPriceUnitLabelKey(fieldEntry)
+                let unitLabel = taskUsageUnitLabel(
+                  fieldEntry,
+                  i18n.language,
+                  unitLabelKey ? t(unitLabelKey) : ''
+                )
+                if (!unitLabel && hasRequestPrice) {
+                  unitLabel = t('{{unit}} tokens', {
+                    unit: tokenUnitLabel,
+                  })
+                }
+                const fieldLabel =
+                  fieldEntry.labelKind === 'schema' ? (
+                    <DynamicPriceEntryLabel entry={fieldEntry} />
+                  ) : (
+                    t(fieldEntry.shortLabel)
+                  )
+                return {
+                  id: fieldEntry.field,
+                  header: unitLabel ? (
+                    <>
+                      {fieldLabel}
+                      {` / ${unitLabel}`}
+                    </>
+                  ) : (
+                    fieldLabel
+                  ),
+                  className: `${thClass} text-right`,
+                  cellClassName: 'py-2.5 text-right font-mono',
+                  cell: (group: string) =>
+                    formattedPricesByGroup
+                      .get(group)
+                      ?.get(tier)
+                      ?.get(fieldEntry.field) ?? '-',
+                }
+              }),
+            ]}
+          />
+          {usageExampleRows.length > 0 ? (
+            <div className='mt-3 overflow-hidden rounded-lg border'>
+              <div className='text-muted-foreground px-3 pt-2 text-[10px] font-medium tracking-wider uppercase'>
+                {t('Price examples')}
+              </div>
+              <StaticDataTable
+                className='rounded-none border-0'
+                tableClassName='text-sm'
+                headerRowClassName='hover:bg-transparent'
+                data={availableGroups.flatMap((group) =>
+                  usageExampleRows.map((row) => ({ group, row }))
+                )}
+                getRowKey={({ group, row }) => `${group}-${row.label}`}
+                columns={[
+                  {
+                    id: 'group',
+                    header: t('Group'),
+                    className: thClass,
+                    cellClassName: 'py-2.5',
+                    cell: ({ group }) => <GroupBadge group={group} size='sm' />,
+                  },
+                  {
+                    id: 'spec',
+                    header: t('Spec'),
+                    className: thClass,
+                    cellClassName: 'text-muted-foreground py-2.5',
+                    cell: ({ row }) => row.label,
+                  },
+                  {
+                    id: 'price',
+                    header: t('Example price'),
+                    className: `${thClass} text-right`,
+                    cellClassName: 'py-2.5 text-right font-mono',
+                    cell: ({ group, row }) =>
+                      `≈ ${formatTaskUsageUnitPrice(row.total, {
+                        tokenUnit: props.tokenUnit,
+                        showRechargePrice,
+                        priceRate: props.priceRate,
+                        usdExchangeRate: props.usdExchangeRate,
+                        groupRatioMultiplier: getConfiguredGroupRatio(
+                          props.groupRatio,
+                          group
+                        ),
+                      })}`,
+                  },
+                ]}
+              />
+              <p className='text-muted-foreground/40 px-3 pb-2 text-[10px]'>
+                {t('Approximate prices for common specs.')}
+              </p>
+            </div>
+          ) : null}
+          <p className='text-muted-foreground/40 mt-1.5 text-[10px]'>
+            {t('Prices shown per usage unit')}
+          </p>
+        </section>
+      )
+    }
+
     return (
       <section>
         {!props.hideTitle && (
@@ -1202,7 +1320,7 @@ function ProviderGroupPricingSection(
         <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
         <div className='space-y-3'>
           {availableGroups.map((group) => {
-            const ratio = props.groupRatio[group] || 1
+            const ratio = getConfiguredGroupRatio(props.groupRatio, group)
             const formattedPricesByTier =
               formattedPricesByGroup.get(group) ??
               new Map<DynamicPricingTier, Map<string, string>>()
@@ -1407,8 +1525,9 @@ function ProviderGroupPricingSection(
             id: 'ratio',
             header: t('Ratio'),
             className: thClass,
-            cellClassName: 'text-muted-foreground py-3 font-mono',
-            cell: (group) => `${props.groupRatio[group] || 1}x`,
+            cellClassName: 'text-muted-foreground py-2.5 font-mono',
+            cell: (group) =>
+              `${getConfiguredGroupRatio(props.groupRatio, group)}x`,
           },
           ...(isTokenBased
             ? [
@@ -1472,6 +1591,7 @@ export interface ModelDetailsContentProps {
   model: PricingModel
   groupRatio: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
+  modelSquareGroups: readonly string[]
   endpointMap: Record<string, { path?: string; method?: string }>
   autoGroups: string[]
   priceRate: number
@@ -1551,6 +1671,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               model={props.model}
               groupRatio={props.groupRatio}
               usableGroup={props.usableGroup}
+              modelSquareGroups={props.modelSquareGroups}
               autoGroups={props.autoGroups}
               priceRate={props.priceRate}
               usdExchangeRate={props.usdExchangeRate}
@@ -1626,6 +1747,7 @@ export function ModelDetails() {
     models,
     groupRatio,
     usableGroup,
+    modelSquareGroups,
     endpointMap,
     autoGroups,
     isLoading,
@@ -1703,6 +1825,7 @@ export function ModelDetails() {
           model={model}
           groupRatio={groupRatio || {}}
           usableGroup={usableGroup || {}}
+          modelSquareGroups={modelSquareGroups || []}
           autoGroups={autoGroups || []}
           priceRate={priceRate ?? 1}
           usdExchangeRate={usdExchangeRate ?? 1}

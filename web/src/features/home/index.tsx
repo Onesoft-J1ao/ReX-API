@@ -39,6 +39,7 @@ import {
   Support,
 } from './components'
 import { LandingToneSwitch } from './components/landing-tone-switch'
+import { PresetOne } from './components/preset-one'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -48,7 +49,7 @@ export function Home() {
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
   const { tone } = useLandingTone()
-  const { content, isLoaded, isUrl } = useHomePageContent()
+  const { content, isLoaded, isUrl, style } = useHomePageContent()
 
   const syncIframePreferences = useCallback(() => {
     try {
@@ -90,6 +91,10 @@ export function Home() {
         </div>
       </PublicLayout>
     )
+  }
+
+  if (style === 'preset-1') {
+    return <PresetOne />
   }
 
   if (content) {

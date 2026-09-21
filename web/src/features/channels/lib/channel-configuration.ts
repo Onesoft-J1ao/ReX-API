@@ -19,11 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 import type { FieldErrors, FieldPath } from 'react-hook-form'
 
 import {
+  CHANNEL_TYPE_OLLAMA,
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
+  CHANNEL_TYPE_AGNES,
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../constants'
+import { CHANNEL_TYPE_ADVANCED_CUSTOM } from './advanced-custom'
 import { channelFormSchema, type ChannelFormValues } from './channel-form'
+import { supportsResponsesWebSocket } from './responses-websocket'
 
 export type ChannelProviderTarget =
   | { kind: 'builtin'; type: number }
@@ -55,8 +59,15 @@ const CONFIGURATION_BLOCKS = {
     section: 'request',
     fields: [
       'force_format',
+      'use_responses_api',
+      'responses_to_chat_completions',
+      'fake_non_stream',
       'thinking_to_content',
+      'simulate_remote_compact_v2',
       'pass_through_body_enabled',
+      'proxy_image_urls',
+      'responses_websocket_enabled',
+      'ollama_openai_chat',
       'system_prompt',
       'system_prompt_override',
     ],
@@ -71,6 +82,7 @@ const CONFIGURATION_BLOCKS = {
       'allow_inference_geo',
       'allow_speed',
       'claude_beta_query',
+      'claude_cache_control',
     ],
   },
   extraSettings: {
@@ -79,7 +91,9 @@ const CONFIGURATION_BLOCKS = {
       'proxy',
       'http_protocol',
       'http2_connection_shards',
+      'stream_first_response_timeout',
       'disable_task_polling_sleep',
+      'agnes_auto_image_url',
     ],
   },
   upstreamModelDetection: {
@@ -146,8 +160,18 @@ export function getChannelConfigurationState(
       hasConfiguredJson(values.header_override),
     requestProcessing: Boolean(
       (values.type === 1 && values.force_format) ||
+      (values.type === 1 &&
+        (values.use_responses_api ||
+          values.responses_to_chat_completions ||
+          values.fake_non_stream)) ||
       values.thinking_to_content ||
-      values.pass_through_body_enabled ||
+      values.simulate_remote_compact_v2 ||
+      (values.type !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
+        values.pass_through_body_enabled) ||
+      ((values.type === 1 || values.type === 24) && values.proxy_image_urls) ||
+      (supportsResponsesWebSocket(values.type) &&
+         values.responses_websocket_enabled) ||
+      (values.type === CHANNEL_TYPE_OLLAMA && values.ollama_openai_chat) ||
       values.system_prompt?.trim() ||
       values.system_prompt_override
     ),
@@ -160,13 +184,16 @@ export function getChannelConfigurationState(
           values.allow_include_obfuscation)) ||
       (claudePassthrough &&
         (values.allow_speed ||
-          (values.type === 14 && values.claude_beta_query)))
+          (values.type === 14 &&
+            (values.claude_beta_query || values.claude_cache_control))))
     ),
     extraSettings: Boolean(
       values.proxy?.trim() ||
       (values.http_protocol && values.http_protocol !== 'auto') ||
       (values.http2_connection_shards ?? 1) > 1 ||
-      values.disable_task_polling_sleep
+      (values.stream_first_response_timeout ?? 0) > 0 ||
+      values.disable_task_polling_sleep ||
+      (values.type === CHANNEL_TYPE_AGNES && values.agnes_auto_image_url)
     ),
     upstreamModelDetection:
       MODEL_FETCHABLE_TYPES.has(values.type) &&

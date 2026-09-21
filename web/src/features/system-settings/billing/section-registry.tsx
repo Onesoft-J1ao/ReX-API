@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { parseCurrencyDisplayType } from '@/lib/currency'
 
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
+import { GroupAccessRulesSection } from '../general/group-access-rules-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
@@ -47,10 +48,15 @@ const getGroupDefaults = (settings: BillingSettings) => ({
   UserUsableGroups: settings.UserUsableGroups,
   GroupGroupRatio: settings.GroupGroupRatio,
   AutoGroups: settings.AutoGroups,
+  AutoGroupDescription: settings.AutoGroupDescription,
   MaxTokenAutoGroups: settings.MaxTokenAutoGroups,
   DefaultUseAutoGroup: settings.DefaultUseAutoGroup,
   GroupSpecialUsableGroup:
     settings['group_ratio_setting.group_special_usable_group'],
+  GroupDefaultModel: settings.GroupDefaultModel,
+  GroupRetryTimes: settings.GroupRetryTimes,
+  ModelSquareVisibleGroups:
+    settings['console_setting.model_square_visible_groups'],
 })
 
 const BILLING_SECTIONS = [
@@ -130,6 +136,15 @@ const BILLING_SECTIONS = [
     ),
   },
   {
+    id: 'group-access',
+    titleKey: 'Group Access Thresholds',
+    build: (settings: BillingSettings) => (
+      <GroupAccessRulesSection
+        defaultValue={settings['console_setting.group_access_rules']}
+      />
+    ),
+  },
+  {
     id: 'payment',
     titleKey: 'Payment Gateway',
     build: (settings: BillingSettings) => (
@@ -138,12 +153,15 @@ const BILLING_SECTIONS = [
           PayAddress: settings.PayAddress,
           EpayId: settings.EpayId,
           EpayKey: settings.EpayKey,
+          EpayGateways: settings.EpayGateways ?? '[]',
           Price: settings.Price,
           MinTopUp: settings.MinTopUp,
           CustomCallbackAddress: settings.CustomCallbackAddress,
           PayMethods: settings.PayMethods,
           AmountOptions: settings['payment_setting.amount_options'],
           AmountDiscount: settings['payment_setting.amount_discount'],
+          RedemptionPurchaseEnabled:
+            settings['payment_setting.redemption_purchase_enabled'] ?? false,
           StripeApiSecret: settings.StripeApiSecret,
           StripeWebhookSecret: settings.StripeWebhookSecret,
           StripePriceId: settings.StripePriceId,
@@ -154,6 +172,36 @@ const BILLING_SECTIONS = [
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,
           CreemProducts: settings.CreemProducts,
+          MoneroEnabled: settings.MoneroEnabled ?? false,
+          MoneroWalletRPCURL: settings.MoneroWalletRPCURL ?? '',
+          MoneroWalletRPCUsername: settings.MoneroWalletRPCUsername ?? '',
+          MoneroWalletRPCPassword:
+            settings.MoneroWalletRPCPassword === '***'
+              ? ''
+              : (settings.MoneroWalletRPCPassword ?? ''),
+          MoneroNetwork: settings.MoneroNetwork ?? 'mainnet',
+          MoneroConfirmations: settings.MoneroConfirmations ?? 1,
+          MoneroMaxSubaddresses: settings.MoneroMaxSubaddresses ?? 10000,
+          MoneroUSDToCurrencyRate: settings.MoneroUSDToCurrencyRate ?? 0,
+          NowPaymentsEnabled: settings.NowPaymentsEnabled ?? false,
+          NowPaymentsAPIKey:
+            settings.NowPaymentsAPIKey === '***'
+              ? ''
+              : (settings.NowPaymentsAPIKey ?? ''),
+          NowPaymentsIPNSecret:
+            settings.NowPaymentsIPNSecret === '***'
+              ? ''
+              : (settings.NowPaymentsIPNSecret ?? ''),
+          NowPaymentsAPIBaseURL:
+            settings.NowPaymentsAPIBaseURL ?? 'https://api.nowpayments.io',
+          NowPaymentsPayCurrencies:
+            settings.NowPaymentsPayCurrencies ?? 'btc,usdtbsc',
+          NowPaymentsMinTopUp: settings.NowPaymentsMinTopUp ?? 1,
+          NowPaymentsUSDToCurrencyRate:
+            settings.NowPaymentsUSDToCurrencyRate ?? 0,
+          NowPaymentsPaymentExpirationMins:
+            settings.NowPaymentsPaymentExpirationMins ?? 60,
+          PaymentAnnouncement: settings.PaymentAnnouncement ?? '',
         }}
         waffoDefaultValues={{
           WaffoEnabled: settings.WaffoEnabled ?? false,
@@ -174,8 +222,15 @@ const BILLING_SECTIONS = [
         }}
         waffoPancakeDefaultValues={{
           WaffoPancakeMerchantID: settings.WaffoPancakeMerchantID ?? '',
-          WaffoPancakePrivateKey: settings.WaffoPancakePrivateKey ?? '',
+          WaffoPancakePrivateKey:
+            settings.WaffoPancakePrivateKey === '***'
+              ? ''
+              : (settings.WaffoPancakePrivateKey ?? ''),
           WaffoPancakeReturnURL: settings.WaffoPancakeReturnURL ?? '',
+          WaffoPancakeUseConfiguredProductPrice:
+            settings.WaffoPancakeUseConfiguredProductPrice ?? false,
+          WaffoPancakeUSDToCurrencyRate:
+            settings.WaffoPancakeUSDToCurrencyRate ?? 0,
         }}
         waffoPancakeProvisionedStoreID={settings.WaffoPancakeStoreID ?? ''}
         waffoPancakeProvisionedProductID={settings.WaffoPancakeProductID ?? ''}
@@ -198,6 +253,11 @@ const BILLING_SECTIONS = [
           enabled: settings['checkin_setting.enabled'],
           minQuota: settings['checkin_setting.min_quota'],
           maxQuota: settings['checkin_setting.max_quota'],
+          minUserQuota: settings['checkin_setting.min_user_quota'],
+          minUsedQuota: settings['checkin_setting.min_used_quota'],
+          dailyUserLimit: settings['checkin_setting.daily_user_limit'],
+          dailyQuotaLimit: settings['checkin_setting.daily_quota_limit'],
+          deductibleGroups: settings['checkin_setting.deductible_groups'],
         }}
       />
     ),

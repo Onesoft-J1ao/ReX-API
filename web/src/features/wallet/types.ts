@@ -33,7 +33,13 @@ export interface ApiResponse<T = unknown> {
  * Standard API response types
  */
 export type TopupInfoResponse = ApiResponse<TopupInfo>
-export type RedemptionResponse = ApiResponse<number>
+export type RedemptionResponse = ApiResponse<
+  | number
+  | {
+      subscription_plan_id: number
+      subscription_plan_title: string
+    }
+>
 export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
@@ -59,6 +65,94 @@ export type WaffoPancakePaymentResponse = ApiResponse<
     }
   | string
 >
+export type MoneroPaymentResponse = ApiResponse<MoneroInvoice>
+export type MoneroPaymentStatusResponse = ApiResponse<MoneroPaymentStatus>
+export type NowPaymentsPaymentResponse = ApiResponse<NowPaymentsInvoice>
+export type NowPaymentsPaymentStatusResponse =
+  ApiResponse<NowPaymentsPaymentStatus>
+
+export type RedemptionPurchaseAmountResponse = ApiResponse<string>
+export type RedemptionPurchaseResponse = ApiResponse<unknown> & {
+  url?: string
+}
+
+export interface RedemptionPurchaseRequest {
+  unit_amount: number
+  quantity: number
+  payment_method: string
+  pay_method_index?: number
+  pay_currency?: string
+  epay_gateway?: string
+}
+
+export interface UserRedemption {
+  id: number
+  user_id: number
+  owner_id: number
+  name: string
+  key: string
+  status: number
+  quota: number
+  purchase_amount: number
+  purchase_trade_no: string
+  created_time: number
+  redeemed_time: number
+  expired_time: number
+  refunded_time: number
+  used_user_id: number
+}
+
+export interface UserRedemptionPage {
+  items: UserRedemption[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export type UserRedemptionsResponse = ApiResponse<UserRedemptionPage>
+
+export interface MoneroInvoice {
+  address: string
+  quota_amount: number
+  amount_xmr: string
+  amount_atomic: string
+  quote_usd: string
+  usd_per_xmr: string
+  network: 'mainnet' | 'testnet' | 'stagenet'
+  confirmations: number
+  expires_at: number
+}
+
+export interface MoneroPaymentStatus {
+  status: 'pending' | 'success' | 'expired'
+  transaction_detected: boolean
+  confirmations: number
+  required_confirmations: number
+}
+
+export interface NowPaymentsInvoice {
+  payment_id: string
+  order_id: string
+  pay_address: string
+  payin_extra_id?: string
+  pay_amount: string
+  pay_currency: string
+  price_amount: string
+  price_currency: string
+  status: string
+  expires_at: number
+}
+
+export interface NowPaymentsPaymentStatus {
+  payment_id: string
+  order_id: string
+  status: 'pending' | 'success' | 'expired' | 'failed'
+  pay_currency: string
+  pay_amount: string
+  pay_address: string
+  payin_extra_id?: string
+  expires_at: number
+}
 
 /**
  * Creem product configuration
@@ -100,6 +194,12 @@ export interface PaymentMethod {
   min_topup?: number
   /** Optional react-icons component name or safe icon URL */
   icon?: string
+  /** Epay gateway identifier for this method */
+  gateway?: string
+  /** Fixed fee charged to the payer in the configured payment currency */
+  fee?: number
+  /** Percentage fee charged to the payer */
+  fee_rate?: number
 }
 
 /**
@@ -148,14 +248,28 @@ export interface TopupInfo {
   waffo_min_topup?: number
   /** Whether Waffo Pancake topup is enabled */
   enable_waffo_pancake_topup?: boolean
+  /** Whether Monero wallet-RPC topups are available */
+  enable_monero_topup?: boolean
+  /** Whether NOWPayments cryptocurrency topups are available */
+  enable_nowpayments_topup?: boolean
+  /** Administrator-enabled NOWPayments currency codes */
+  nowpayments_pay_currencies?: string[]
+  /** Minimum top-up amount for NOWPayments */
+  nowpayments_min_topup?: number
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
+  /** Whether users may purchase redemption codes */
+  enable_redemption_purchase?: boolean
+  /** Payment method types allowed for redemption purchases */
+  redemption_purchase_methods?: string[]
   /** Whether compliance confirmation has been completed */
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** Optional markdown announcement shown on the topup page */
+  payment_announcement?: string
 }
 
 /**
@@ -184,6 +298,8 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+  /** Epay gateway identifier for methods shared by multiple providers */
+  epay_gateway?: string
 }
 
 /**
@@ -210,6 +326,9 @@ export interface WaffoPancakePaymentRequest {
 export interface AmountRequest {
   /** Topup amount to calculate */
   amount: number
+  /** Epay method used to include its configured fee */
+  payment_method?: string
+  epay_gateway?: string
 }
 
 /**

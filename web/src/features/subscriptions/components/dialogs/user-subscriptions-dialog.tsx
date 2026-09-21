@@ -34,12 +34,19 @@ import {
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -48,8 +55,8 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
-import { handleServerError } from '@/lib/handle-server-error'
 
 import {
   getAdminPlans,
@@ -113,6 +120,9 @@ export function UserSubscriptionsDialog(props: Props) {
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
   const [resetting, setResetting] = useState(false)
   const [advanceResetTime, setAdvanceResetTime] = useState(true)
+  const [resetTotal, setResetTotal] = useState(true)
+  const [resetFiveHour, setResetFiveHour] = useState(true)
+  const [resetWeekly, setResetWeekly] = useState(true)
   const [resetAction, setResetAction] = useState<{
     planId: number
     planTitle: string
@@ -138,18 +148,10 @@ export function UserSubscriptionsDialog(props: Props) {
         getAdminPlans(),
         getUserSubscriptions(props.user.id),
       ])
-      if (plansRes.success) {
-        setPlans(plansRes.data || [])
-      } else {
-        handleServerError(plansRes)
-      }
-      if (subsRes.success) {
-        setSubs(subsRes.data || [])
-      } else {
-        handleServerError(subsRes)
-      }
-    } catch (error) {
-      handleServerError(error, t('Loading failed'))
+      if (plansRes.success) setPlans(plansRes.data || [])
+      if (subsRes.success) setSubs(subsRes.data || [])
+    } catch {
+      toast.error(t('Loading failed'))
     } finally {
       setLoading(false)
     }
@@ -177,11 +179,9 @@ export function UserSubscriptionsDialog(props: Props) {
         setSelectedPlanId('')
         await loadData()
         props.onSuccess?.()
-      } else {
-        handleServerError(res)
       }
-    } catch (error) {
-      handleServerError(error, t('Request failed'))
+    } catch {
+      toast.error(t('Request failed'))
     } finally {
       setCreating(false)
     }
@@ -196,8 +196,6 @@ export function UserSubscriptionsDialog(props: Props) {
           toast.success(res.data?.message || t('Has been invalidated'))
           await loadData()
           props.onSuccess?.()
-        } else {
-          handleServerError(res)
         }
       } else {
         const res = await deleteUserSubscription(confirmAction.subId)
@@ -205,12 +203,10 @@ export function UserSubscriptionsDialog(props: Props) {
           toast.success(t('Deleted'))
           await loadData()
           props.onSuccess?.()
-        } else {
-          handleServerError(res)
         }
       }
-    } catch (error) {
-      handleServerError(error, t('Operation failed'))
+    } catch {
+      toast.error(t('Operation failed'))
     } finally {
       setConfirmAction(null)
     }
@@ -223,6 +219,9 @@ export function UserSubscriptionsDialog(props: Props) {
       const res = await resetUserSubscriptionsByPlan(props.user.id, {
         plan_id: resetAction.planId,
         advance_reset_time: advanceResetTime,
+        reset_total: resetTotal,
+        reset_five_hour: resetFiveHour,
+        reset_weekly: resetWeekly,
       })
       if (res.success) {
         toast.success(
@@ -232,11 +231,9 @@ export function UserSubscriptionsDialog(props: Props) {
         )
         await loadData()
         props.onSuccess?.()
-      } else {
-        handleServerError(res)
       }
-    } catch (error) {
-      handleServerError(error, t('Operation failed'))
+    } catch {
+      toast.error(t('Operation failed'))
     } finally {
       setResetting(false)
       setResetAction(null)
@@ -256,16 +253,41 @@ export function UserSubscriptionsDialog(props: Props) {
 
           <div className={sideDrawerFormClassName()}>
             <div className='flex gap-2'>
-              <Combobox
-                options={plans.map((p) => ({
+              <Select
+                items={plans.map((p) => ({
                   value: String(p.plan.id),
-                  label: `${p.plan.title} ($${Number(p.plan.price_amount || 0).toFixed(2)})`,
+                  label: (
+                    <>
+                      {p.plan.title} (
+                      {formatBillingCurrencyFromUSD(
+                        Number(p.plan.price_amount || 0),
+                        { digitsLarge: 2, digitsSmall: 2, abbreviate: false }
+                      )}
+                      )
+                    </>
+                  ),
                 }))}
                 value={selectedPlanId}
                 onValueChange={(v) => v !== null && setSelectedPlanId(v)}
-                className='flex-1'
-                placeholder={t('Select subscription plan')}
-              />
+              >
+                <SelectTrigger className='flex-1'>
+                  <SelectValue placeholder={t('Select subscription plan')} />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {plans.map((p) => (
+                      <SelectItem key={p.plan.id} value={String(p.plan.id)}>
+                        {p.plan.title} (
+                        {formatBillingCurrencyFromUSD(
+                          Number(p.plan.price_amount || 0),
+                          { digitsLarge: 2, digitsSmall: 2, abbreviate: false }
+                        )}
+                        )
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
               <Button
                 onClick={handleCreate}
                 disabled={creating || !selectedPlanId}
@@ -333,7 +355,7 @@ export function UserSubscriptionsDialog(props: Props) {
                 },
                 {
                   id: 'quota',
-                  header: t('Total Quota'),
+                  header: t('Quota per Billing Period'),
                   cell: (record) => {
                     const sub = record.subscription
                     const total = Number(sub.amount_total || 0)
@@ -361,6 +383,9 @@ export function UserSubscriptionsDialog(props: Props) {
                           disabled={!isActive}
                           onClick={() => {
                             setAdvanceResetTime(true)
+                            setResetTotal(true)
+                            setResetFiveHour(true)
+                            setResetWeekly(true)
                             setResetAction({
                               planId: sub.plan_id,
                               planTitle:
@@ -456,6 +481,32 @@ export function UserSubscriptionsDialog(props: Props) {
               aria-label={t('Advance next reset time')}
             />
           </label>
+          <div className='grid gap-2 rounded-md border p-3'>
+            <label className='flex items-center justify-between gap-3 text-sm'>
+              <span>{t('Reset total quota')}</span>
+              <Switch
+                checked={resetTotal}
+                onCheckedChange={(checked) => setResetTotal(!!checked)}
+                aria-label={t('Reset total quota')}
+              />
+            </label>
+            <label className='flex items-center justify-between gap-3 text-sm'>
+              <span>{t('Reset 5-hour quota')}</span>
+              <Switch
+                checked={resetFiveHour}
+                onCheckedChange={(checked) => setResetFiveHour(!!checked)}
+                aria-label={t('Reset 5-hour quota')}
+              />
+            </label>
+            <label className='flex items-center justify-between gap-3 text-sm'>
+              <span>{t('Reset weekly quota')}</span>
+              <Switch
+                checked={resetWeekly}
+                onCheckedChange={(checked) => setResetWeekly(!!checked)}
+                aria-label={t('Reset weekly quota')}
+              />
+            </label>
+          </div>
         </ConfirmDialog>
       )}
     </>

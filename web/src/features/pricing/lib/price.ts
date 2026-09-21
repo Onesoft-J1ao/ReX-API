@@ -16,11 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
+
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
 import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
+
+export const FREE_REQUEST_PRICE_THRESHOLD_USD = 0.000002
 
 // ----------------------------------------------------------------------------
 // Price Calculation Utilities
@@ -108,7 +112,7 @@ function hasRatio(value: number | null | undefined): boolean {
  * priceRate represents how much users need to recharge (in the display currency)
  * to get 1 USD credit. usdExchangeRate is the real exchange rate.
  *
- * The returned value will be formatted by formatBillingCurrencyFromUSD, which will
+ * The returned value will be formatted by formatCurrencyFromUSD, which will
  * multiply by the display currency's exchange rate.
  *
  * Examples:
@@ -118,14 +122,14 @@ function hasRatio(value: number | null | undefined): boolean {
  *    - priceRate = 0.5 (recharge $0.5 to get $1 credit)
  *    - usdExchangeRate = 1
  *    - Return: 1 × 0.5 / 1 = 0.5
- *    - formatBillingCurrencyFromUSD(0.5) → $0.5 ✓
+ *    - formatCurrencyFromUSD(0.5) → $0.5 ✓
  *
  * 2. Display currency = CNY:
  *    - Model: 1 USD
  *    - priceRate = 4 (recharge ¥4 to get $1 credit)
  *    - usdExchangeRate = 7 (real rate: 1 USD = ¥7)
  *    - Return: 1 × 4 / 7 = 0.571
- *    - formatBillingCurrencyFromUSD(0.571) → 0.571 × 7 = ¥4 ✓
+ *    - formatCurrencyFromUSD(0.571) → 0.571 × 7 = ¥4 ✓
  *    - Normal price: ¥7, Recharge price: ¥4 (cheaper!)
  */
 function applyRechargeRate(
@@ -158,6 +162,13 @@ export function formatPrice(
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
   let priceInUSD = calculateTokenPrice(model, type, displayGroupRatio)
+  // A token model is free when either its input or output price for the
+  // displayed million-token unit is below the public free threshold. Keep the
+  // label consistent across both columns/cards when one side is effectively
+  // free.
+  if (isTokenPriceFree(model, displayGroupRatio)) {
+    return t('Free')
+  }
   priceInUSD = applyRechargeRate(
     priceInUSD,
     showWithRecharge,
@@ -193,7 +204,9 @@ export function formatGroupPrice(
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
   let priceInUSD = calculateTokenPrice(model, type, ratio)
-
+  if (isTokenPriceFree(model, ratio)) {
+    return t('Free')
+  }
   priceInUSD = applyRechargeRate(
     priceInUSD,
     showWithRecharge,
@@ -207,6 +220,17 @@ export function formatGroupPrice(
     digitsSmall: 6,
     abbreviate: false,
   })
+}
+
+/** Whether a token model should be presented as free for the selected group. */
+export function isTokenPriceFree(model: PricingModel, ratio: number): boolean {
+  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) return false
+  const input = calculateTokenPrice(model, 'input', ratio)
+  const output = calculateTokenPrice(model, 'output', ratio)
+  return [input, output].some(
+    (price) =>
+      Number.isFinite(price) && price < FREE_REQUEST_PRICE_THRESHOLD_USD
+  )
 }
 
 /**
@@ -226,6 +250,7 @@ export function formatFixedPrice(
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
   let priceInUSD = (model.model_price || 0) * ratio
+  if (priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) return t('Free')
 
   priceInUSD = applyRechargeRate(
     priceInUSD,
@@ -236,7 +261,7 @@ export function formatFixedPrice(
 
   return formatBillingCurrencyFromUSD(priceInUSD, {
     digitsLarge: 4,
-    digitsSmall: 4,
+    digitsSmall: 6,
     abbreviate: false,
   })
 }
@@ -259,6 +284,9 @@ export function formatRequestPrice(
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
   let priceInUSD = (model.model_price || 0) * displayGroupRatio
+  if (priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) {
+    return t('Free')
+  }
 
   priceInUSD = applyRechargeRate(
     priceInUSD,
@@ -270,7 +298,7 @@ export function formatRequestPrice(
   return formatBillingCurrencyFromUSD(priceInUSD, {
     showSymbol: showCurrencySymbol,
     digitsLarge: 4,
-    digitsSmall: 4,
+    digitsSmall: 6,
     abbreviate: false,
   })
 }

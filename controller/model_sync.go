@@ -21,7 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 上游地址
+// Upstream metadata endpoints.
 const (
 	upstreamModelsURL  = "https://basellm.github.io/llm-metadata/api/newapi/models.json"
 	upstreamVendorsURL = "https://basellm.github.io/llm-metadata/api/newapi/vendors.json"
@@ -135,7 +135,6 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 		if err != nil {
 			return err
 		}
-		// ETag conditional request
 		cacheMutex.RLock()
 		if et := etagCache[url]; et != "" {
 			req.Header.Set("If-None-Match", et)
@@ -145,7 +144,6 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 		resp, err := getHTTPClient().Do(req)
 		if err != nil {
 			lastErr = err
-			// backoff with jitter
 			sleep := baseDelay * time.Duration(1<<attempt)
 			jitter := time.Duration(rand.Intn(150)) * time.Millisecond
 			time.Sleep(sleep + jitter)
@@ -155,7 +153,6 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 			defer resp.Body.Close()
 			switch resp.StatusCode {
 			case http.StatusOK:
-				// read body into buffer for caching and flexible decode
 				limited := io.LimitReader(resp.Body, maxBytes+1)
 				buf, err := io.ReadAll(limited)
 				if err != nil {
@@ -166,7 +163,6 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 					lastErr = errors.New("upstream metadata exceeds size limit")
 					return
 				}
-				// cache body and ETag
 				cacheMutex.Lock()
 				if et := resp.Header.Get("ETag"); et != "" {
 					etagCache[url] = et
@@ -174,9 +170,7 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 				bodyCache[url] = buf
 				cacheMutex.Unlock()
 
-				// Try decode as envelope first
 				if err := common.Unmarshal(buf, out); err != nil {
-					// Try decode as pure array
 					var arr []T
 					if err2 := common.Unmarshal(buf, &arr); err2 != nil {
 						lastErr = err
@@ -185,14 +179,11 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 					out.Success = true
 					out.Data = arr
 					out.Message = ""
-				} else {
-					if !out.Success && len(out.Data) == 0 && out.Message == "" {
-						out.Success = true
-					}
+				} else if !out.Success && len(out.Data) == 0 && out.Message == "" {
+					out.Success = true
 				}
 				lastErr = nil
 			case http.StatusNotModified:
-				// use cache
 				cacheMutex.RLock()
 				buf := bodyCache[url]
 				cacheMutex.RUnlock()
@@ -209,10 +200,8 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 					out.Success = true
 					out.Data = arr
 					out.Message = ""
-				} else {
-					if !out.Success && len(out.Data) == 0 && out.Message == "" {
-						out.Success = true
-					}
+				} else if !out.Success && len(out.Data) == 0 && out.Message == "" {
+					out.Success = true
 				}
 				lastErr = nil
 			default:
@@ -265,9 +254,8 @@ func fetchMetadataCatalog(c *gin.Context, locale string) (metadataSyncSource, ma
 	var vendorsEnv upstreamEnvelope[upstreamVendor]
 	var modelsErr, vendorsErr error
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() { defer wg.Done(); modelsErr = fetchJSON(ctx, modelsURL, &modelsEnv) }()
-	go func() { defer wg.Done(); vendorsErr = fetchJSON(ctx, vendorsURL, &vendorsEnv) }()
+	wg.Go(func() { modelsErr = fetchJSON(ctx, modelsURL, &modelsEnv) })
+	wg.Go(func() { vendorsErr = fetchJSON(ctx, vendorsURL, &vendorsEnv) })
 	wg.Wait()
 	if modelsErr != nil {
 		return source, nil, nil, fmt.Errorf("fetch models (%s, %s): %w", resolved, modelsURL, modelsErr)

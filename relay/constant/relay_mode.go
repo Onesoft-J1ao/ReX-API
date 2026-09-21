@@ -34,9 +34,14 @@ const (
 	RelayModeAudioSpeech        // tts
 	RelayModeAudioTranscription // whisper
 	RelayModeAudioTranslation   // whisper
+	RelayModeAudioSpeechTaskSubmit
+	RelayModeAudioSpeechTaskFetchByID
+	RelayModeAudioSpeechWebSocket
 
 	RelayModeVideoFetchByID
 	RelayModeVideoSubmit
+	RelayModeThreeDFetchByID
+	RelayModeThreeDSubmit
 
 	RelayModeRerank
 
@@ -52,8 +57,11 @@ const (
 )
 
 func Path2RelayMode(path string) int {
+	if strings.HasPrefix(path, "/pg/") {
+		path = "/v1/" + strings.TrimPrefix(path, "/pg/")
+	}
 	relayMode := RelayModeUnknown
-	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") {
+	if strings.HasPrefix(path, "/v1/chat/completions") {
 		relayMode = RelayModeChatCompletions
 	} else if strings.HasPrefix(path, "/v1/completions") {
 		relayMode = RelayModeCompletions
@@ -73,6 +81,12 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeResponsesCompact
 	} else if strings.HasPrefix(path, "/v1/responses") {
 		relayMode = RelayModeResponses
+	} else if strings.HasPrefix(path, "/v1/audio/speech/websocket") {
+		relayMode = RelayModeAudioSpeechWebSocket
+	} else if path == "/v1/audio/speech/tasks" {
+		relayMode = RelayModeAudioSpeechTaskSubmit
+	} else if strings.HasPrefix(path, "/v1/audio/speech/tasks/") {
+		relayMode = RelayModeAudioSpeechTaskFetchByID
 	} else if strings.HasPrefix(path, "/v1/alpha/search") {
 		relayMode = RelayModeAlphaSearch
 	} else if strings.HasPrefix(path, "/v1/audio/speech") || strings.HasPrefix(path, "/pg/audio/speech") {
@@ -85,6 +99,14 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRerank
 	} else if strings.HasPrefix(path, "/v1/realtime") {
 		relayMode = RelayModeRealtime
+	} else if path == "/v1/videos" {
+		relayMode = RelayModeVideoSubmit
+	} else if strings.HasPrefix(path, "/v1/videos/") {
+		relayMode = RelayModeVideoFetchByID
+	} else if strings.HasPrefix(path, "/v1/3d/") {
+		relayMode = RelayModeThreeDFetchByID
+	} else if path == "/v1/3d" {
+		relayMode = RelayModeThreeDSubmit
 	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		relayMode = RelayModeGemini
 	} else if strings.HasPrefix(path, "/mj") {

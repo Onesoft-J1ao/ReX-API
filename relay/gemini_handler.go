@@ -40,6 +40,9 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if err := helper.ApplyReasoningModelSuffix(c, info, request); err != nil {
 		return newConvertRequestFailedError(c, info, err)
 	}
+	if helper.ApplyEffortModelRoute(info) {
+		request.SetModelName(info.UpstreamModelName)
+	}
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {

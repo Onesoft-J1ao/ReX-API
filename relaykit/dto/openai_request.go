@@ -109,6 +109,25 @@ type GeneralOpenAIRequest struct {
 	ReasoningSplit json.RawMessage `json:"reasoning_split,omitempty"`
 	// vLLM
 	ThinkingTokenBudget json.RawMessage `json:"thinking_token_budget,omitempty"`
+	IncludeReasoning    json.RawMessage `json:"include_reasoning,omitempty"`
+	MinP                json.RawMessage `json:"min_p,omitempty"`
+	RepetitionPenalty   json.RawMessage `json:"repetition_penalty,omitempty"`
+	StructuredOutputs   json.RawMessage `json:"structured_outputs,omitempty"`
+	ReturnTokenIds      json.RawMessage `json:"return_token_ids,omitempty"`
+	// SGLang OpenAI-compatible sampling and reasoning controls (v0.5.19).
+	// Native /generate sampling_params and server routing controls are not chat fields.
+	MinTokens            *uint           `json:"min_tokens,omitempty"`
+	SeparateReasoning    json.RawMessage `json:"separate_reasoning,omitempty"`
+	StreamReasoning      json.RawMessage `json:"stream_reasoning,omitempty"`
+	Regex                json.RawMessage `json:"regex,omitempty"`
+	EBNF                 json.RawMessage `json:"ebnf,omitempty"`
+	StopTokenIDs         json.RawMessage `json:"stop_token_ids,omitempty"`
+	StopRegex            json.RawMessage `json:"stop_regex,omitempty"`
+	NoStopTrim           json.RawMessage `json:"no_stop_trim,omitempty"`
+	IgnoreEOS            json.RawMessage `json:"ignore_eos,omitempty"`
+	SkipSpecialTokens    json.RawMessage `json:"skip_special_tokens,omitempty"`
+	ContinueFinalMessage json.RawMessage `json:"continue_final_message,omitempty"`
+	CacheSalt            json.RawMessage `json:"cache_salt,omitempty"`
 
 	// Internal conversion state; never serialized to an upstream protocol.
 	ReasoningConversion *ReasoningConversionState `json:"-"`
@@ -377,8 +396,8 @@ type FunctionRequest struct {
 	Description string `json:"description,omitempty"`
 	Name        string `json:"name"`
 	Parameters  any    `json:"parameters,omitempty"`
-	Arguments   string `json:"arguments,omitempty"`
 	Strict      *bool  `json:"strict,omitempty"`
+	Arguments   string `json:"arguments,omitempty"`
 }
 
 type StreamOptions struct {
@@ -386,6 +405,9 @@ type StreamOptions struct {
 	// IncludeObfuscation is only for /v1/responses stream payload.
 	// This field is filtered by default and can be enabled via channel setting allow_include_obfuscation.
 	IncludeObfuscation bool `json:"include_obfuscation,omitempty"`
+	// ContinuousUsageStats is a vLLM stream_options extension that emits
+	// usage on intermediate chunks. Optional so an explicit false is kept.
+	// ContinuousUsageStats *bool `json:"continuous_usage_stats,omitempty"`
 }
 
 func (r *GeneralOpenAIRequest) GetMaxTokens() uint {
@@ -1029,6 +1051,14 @@ type OpenAIResponsesRequest struct {
 	// qwen
 	EnableThinking json.RawMessage `json:"enable_thinking,omitempty"`
 	ThinkingBudget json.RawMessage `json:"thinking_budget,omitempty"`
+	// vLLM
+	ChatTemplateKwargs json.RawMessage `json:"chat_template_kwargs,omitempty"`
+	// SGLang Responses sampling extensions.
+	TopK              json.RawMessage `json:"top_k,omitempty"`
+	MinP              json.RawMessage `json:"min_p,omitempty"`
+	RepetitionPenalty json.RawMessage `json:"repetition_penalty,omitempty"`
+	Stop              json.RawMessage `json:"stop,omitempty"`
+	CacheSalt         json.RawMessage `json:"cache_salt,omitempty"`
 	// perplexity
 	Preset json.RawMessage `json:"preset,omitempty"`
 
@@ -1113,6 +1143,31 @@ func (r *OpenAIResponsesRequest) SetModelName(modelName string) {
 	}
 }
 
+// NormalizeInputAsList converts the Responses API's scalar input form into a
+// user message item for upstream implementations that only accept input lists.
+func (r *OpenAIResponsesRequest) NormalizeInputAsList() error {
+	if r == nil || kitutil.GetJsonType(r.Input) != "string" {
+		return nil
+	}
+
+	var input string
+	if err := kitutil.Unmarshal(r.Input, &input); err != nil {
+		return fmt.Errorf("invalid responses input string: %w", err)
+	}
+
+	normalized, err := kitutil.Marshal([]map[string]any{
+		{
+			"role":    "user",
+			"content": input,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to normalize responses input: %w", err)
+	}
+	r.Input = normalized
+	return nil
+}
+
 func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
 	var toolsMap []map[string]any
 	if len(r.Tools) > 0 {
@@ -1129,9 +1184,10 @@ type Reasoning struct {
 }
 
 type Input struct {
-	Type    string          `json:"type,omitempty"`
-	Role    string          `json:"role,omitempty"`
-	Content json.RawMessage `json:"content,omitempty"`
+	Type             string          `json:"type,omitempty"`
+	Role             string          `json:"role,omitempty"`
+	Content          json.RawMessage `json:"content,omitempty"`
+	EncryptedContent string          `json:"encrypted_content,omitempty"`
 }
 
 type MediaInput struct {
@@ -1171,6 +1227,13 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 		var inputs []Input
 		_ = kitutil.Unmarshal(r.Input, &inputs)
 		for _, input := range inputs {
+			if input.Type == "compaction" {
+				if summary, simulated, err := DecodeSimulatedRemoteCompactV2(input.EncryptedContent); err == nil && simulated {
+					mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: summary})
+				}
+				continue
+			}
+
 			if kitutil.GetJsonType(input.Content) == "string" {
 				var str string
 				_ = kitutil.Unmarshal(input.Content, &str)
