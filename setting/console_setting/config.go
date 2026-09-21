@@ -21,6 +21,14 @@ type ConsoleSetting struct {
 	// UpstreamStatusEnabled gates the fetch. The provider is a third party, so
 	// this is on by default but can be turned off without losing the URL.
 	UpstreamStatusEnabled bool `json:"upstream_status_enabled"`
+
+	// SupportQqUrl is the QQ group join link shown on the user dashboard. The
+	// value is the link the group's "join" widget points at, so it carries the
+	// group key and auth key and must not be reconstructed from a group number.
+	SupportQqUrl string `json:"support_qq_url"`
+	// SupportQqEnabled gates the card. On by default so a fresh install that
+	// pastes a link immediately shows it.
+	SupportQqEnabled bool `json:"support_qq_enabled"`
 }
 
 // 默认配置
@@ -37,6 +45,9 @@ var defaultConsoleSetting = ConsoleSetting{
 	UpstreamStatusUrl:     "https://status.s3.fan/status/s3ai-api",
 	UpstreamStatusName:    "上游状态",
 	UpstreamStatusEnabled: true,
+
+	SupportQqUrl:     "https://qm.qq.com/cgi-bin/qm/qr?k=AVppaqUacwRihy7NYrc9ir8u7XH0eAVk&jump_from=webapi&authKey=7+bvl3k1aDPsSLDH9Owx57JOP97QO6/zm7+tvArSwI+re5/GEI1n2skM9JjbuARA",
+	SupportQqEnabled: true,
 }
 
 // 全局实例

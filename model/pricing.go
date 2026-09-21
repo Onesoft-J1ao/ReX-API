@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/pkg/model_catalog"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -49,6 +50,19 @@ type Pricing struct {
 	BillingUsageSchema     map[string]jsplugin.UsageFieldSchema `json:"billing_usage_schema,omitempty"`
 	BillingUsageExamples   []jsplugin.UsageExample              `json:"billing_usage_examples,omitempty"`
 	PricingVersion         string                               `json:"pricing_version,omitempty"`
+
+	// Display-only catalog metadata. The gateway stores billing data and has no
+	// column for any of this, so it is merged from an external catalog at
+	// response time (see pkg/model_catalog). Absent for models the catalog does
+	// not cover, which the detail view renders as "not reported" rather than a
+	// zero.
+	ContextLength    int      `json:"context_length,omitempty"`
+	MaxOutputTokens  int      `json:"max_output_tokens,omitempty"`
+	KnowledgeCutoff  string   `json:"knowledge_cutoff,omitempty"`
+	ReleaseDate      string   `json:"release_date,omitempty"`
+	InputModalities  []string `json:"input_modalities,omitempty"`
+	OutputModalities []string `json:"output_modalities,omitempty"`
+	Capabilities     []string `json:"capabilities,omitempty"`
 }
 
 type PricingVendor struct {
@@ -427,6 +441,23 @@ func updatePricing() {
 			}
 		}
 		pricingMap = append(pricingMap, pricing)
+	}
+
+	// Layer the display-only catalog on top. It is keyed by model name and
+	// covers only the models its source knows about, so a model it misses keeps
+	// the empty values the detail view already handles.
+	for i := range pricingMap {
+		entry, ok := modelcatalog.Lookup(pricingMap[i].ModelName)
+		if !ok {
+			continue
+		}
+		pricingMap[i].ContextLength = entry.ContextLength
+		pricingMap[i].MaxOutputTokens = entry.MaxOutputTokens
+		pricingMap[i].KnowledgeCutoff = entry.KnowledgeCutoff
+		pricingMap[i].ReleaseDate = entry.ReleaseDate
+		pricingMap[i].InputModalities = entry.InputModalities
+		pricingMap[i].OutputModalities = entry.OutputModalities
+		pricingMap[i].Capabilities = entry.Capabilities
 	}
 
 	// 防止大更新后数据不通用
