@@ -30,9 +30,12 @@ import {
   CONTENT_LAYOUT_VALUES,
   type ContentLayout,
   DEFAULT_THEME_CUSTOMIZATION,
+  resolveLiquidMode,
   resolveThemeFont,
   THEME_COOKIE_KEYS,
   THEME_FONT_VALUES,
+  THEME_LIQUID_ATTRIBUTE,
+  THEME_LIQUID_VALUE,
   THEME_PRESET_VALUES,
   THEME_RADIUS_VALUES,
   THEME_SCALE_VALUES,
@@ -74,6 +77,8 @@ type ThemeCustomizationContextType = {
   customization: ThemeCustomization
   /** The caller's paid wallpaper, empty when none is set. */
   wallpaperUrl: string
+  /** Whether the liquid (glass) surface layer is active. */
+  liquid: boolean
   setWallpaper: (wallpaperUrl: string) => void
   setPreset: (preset: ThemePreset) => void
   setFont: (font: ThemeFont) => void
@@ -96,6 +101,7 @@ const FALLBACK_CONTEXT: ThemeCustomizationContextType = {
   defaults: DEFAULT_THEME_CUSTOMIZATION,
   customization: DEFAULT_THEME_CUSTOMIZATION,
   wallpaperUrl: '',
+  liquid: false,
   setWallpaper: () => {},
   setPreset: () => {},
   setFont: () => {},
@@ -239,6 +245,16 @@ export function ThemeCustomizationProvider(props: {
     body.setAttribute(THEME_WALLPAPER_ATTRIBUTE, THEME_WALLPAPER_VALUE)
   }, [wallpaperUrl])
 
+  // Liquid is derived rather than stored: a wallpaper turns it on, and picking
+  // the Liquid Glass preset turns it on without one. Because nothing is written
+  // to a cookie, removing the wallpaper drops straight back to the preset the
+  // user had chosen.
+  const liquid = resolveLiquidMode(preset, wallpaperUrl !== '')
+
+  useEffect(() => {
+    applyAttribute(THEME_LIQUID_ATTRIBUTE, liquid ? THEME_LIQUID_VALUE : null)
+  }, [liquid])
+
   const setPreset = useCallback((value: ThemePreset) => {
     _setPreset(value)
     setCookie(THEME_COOKIE_KEYS.preset, value, COOKIE_MAX_AGE)
@@ -301,6 +317,7 @@ export function ThemeCustomizationProvider(props: {
       defaults,
       customization: { preset, font, radius, scale, contentLayout },
       wallpaperUrl,
+      liquid,
       setWallpaper,
       setPreset,
       setFont,
@@ -321,6 +338,7 @@ export function ThemeCustomizationProvider(props: {
       scale,
       contentLayout,
       wallpaperUrl,
+      liquid,
       setPreset,
       setFont,
       setRadius,

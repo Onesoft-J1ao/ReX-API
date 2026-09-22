@@ -759,3 +759,136 @@ body[data-theme-wallpaper='custom'] [data-slot='sidebar-inset'] {
   backdrop-filter: blur(14px);
 }
 
+
+/* ── Liquid Glass ─────────────────────────────────────────────────────── */
+/*
+ * A cool, high-chroma palette whose surfaces are meant to be read through.
+ * Picking this preset turns the liquid surface layer on by itself, and so does
+ * owning a wallpaper (see `resolveLiquidMode`), so the preset and the wallpaper
+ * arrive at the same look.
+ */
+[data-theme-preset='liquid'] {
+  --primary: oklch(0.62 0.19 258);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.78 0.14 196);
+  --secondary-foreground: oklch(0.16 0.02 258);
+  --ring: oklch(0.62 0.19 258);
+  --chart-1: oklch(0.62 0.19 258);
+  --chart-2: oklch(0.78 0.14 196);
+  --chart-3: oklch(0.68 0.16 310);
+  --chart-4: oklch(0.82 0.12 160);
+  --chart-5: oklch(0.88 0.08 230);
+  --sidebar-primary: oklch(0.62 0.19 258);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.62 0.19 258);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.62 0.19 258);
+  --radius: 1.25rem;
+}
+.dark [data-theme-preset='liquid'] {
+  --primary: oklch(0.68 0.17 258);
+  --primary-foreground: oklch(0.12 0.02 258);
+  --secondary: oklch(0.78 0.14 196);
+  --secondary-foreground: oklch(0.12 0.02 258);
+  --ring: oklch(0.68 0.17 258);
+  --chart-1: oklch(0.68 0.17 258);
+  --chart-2: oklch(0.78 0.14 196);
+  --chart-3: oklch(0.74 0.15 310);
+  --chart-4: oklch(0.82 0.12 160);
+  --chart-5: oklch(0.88 0.08 230);
+  --sidebar-primary: oklch(0.68 0.17 258);
+  --sidebar-primary-foreground: oklch(0.12 0.02 258);
+  --sidebar-accent: oklch(0.68 0.17 258);
+  --sidebar-accent-foreground: oklch(0.12 0.02 258);
+  --sidebar-ring: oklch(0.68 0.17 258);
+}
+
+/*
+ * The liquid surface layer.
+ *
+ * Active when the user owns a wallpaper or picked the Liquid Glass preset. The
+ * treatment is applied to the surfaces that carry content — cards, the
+ * workspace panel, the sidebar and every overlay — so the console reads as one
+ * continuous pane of glass rather than a flat page with one translucent patch.
+ *
+ * Readability drives the numbers: the surface stays opaque enough that body
+ * text keeps its contrast over an arbitrary photograph, and the blur is paired
+ * with a saturation lift so the wallpaper's color survives the blur instead of
+ * turning to gray. The top-edge highlight is what makes the pane read as glass
+ * rather than as a plain translucent rectangle.
+ *
+ * `backdrop-filter` is unsupported on a few older engines; the surface alpha
+ * alone still keeps text legible there, so the treatment degrades to a plain
+ * translucent panel instead of a broken one.
+ */
+body[data-theme-liquid='on'] {
+  --liquid-surface-alpha: 76%;
+  --liquid-overlay-alpha: 84%;
+  --liquid-blur: 20px;
+  --liquid-saturate: 1.5;
+  --liquid-edge: oklch(1 0 0 / 0.45);
+  --liquid-border: color-mix(in oklab, var(--border) 65%, transparent);
+
+  --card: color-mix(in oklab, var(--card) var(--liquid-surface-alpha), transparent);
+  --popover: color-mix(in oklab, var(--popover) var(--liquid-overlay-alpha), transparent);
+  --sidebar: color-mix(in oklab, var(--sidebar) var(--liquid-surface-alpha), transparent);
+}
+
+.dark body[data-theme-liquid='on'] {
+  /* Dark glass reads correctly at a lower alpha: the backdrop is already
+   * dark, so less of it needs hiding to keep text legible. */
+  --liquid-surface-alpha: 62%;
+  --liquid-overlay-alpha: 76%;
+  --liquid-edge: oklch(1 0 0 / 0.16);
+}
+
+body[data-theme-liquid='on'] [data-slot='card'],
+body[data-theme-liquid='on'] [data-slot='sidebar-inset'],
+body[data-theme-liquid='on'] [data-slot='sidebar-container'],
+body[data-theme-liquid='on'] [data-slot='sidebar-inner'],
+body[data-theme-liquid='on'] [data-slot='table-container'] {
+  backdrop-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate));
+  -webkit-backdrop-filter: blur(var(--liquid-blur))
+    saturate(var(--liquid-saturate));
+  border-color: var(--liquid-border);
+  box-shadow:
+    inset 0 1px 0 0 var(--liquid-edge),
+    0 1px 2px 0 oklch(0 0 0 / 0.04);
+}
+
+/* Overlays sit above the page, so they take a stronger blur and an opaque
+ * enough fill that content underneath never competes with the dialog's own. */
+body[data-theme-liquid='on'] [data-slot='dialog-content'],
+body[data-theme-liquid='on'] [data-slot='alert-dialog-content'],
+body[data-theme-liquid='on'] [data-slot='popover-content'],
+body[data-theme-liquid='on'] [data-slot='dropdown-menu-content'],
+body[data-theme-liquid='on'] [data-slot='dropdown-menu-sub-content'],
+body[data-theme-liquid='on'] [data-slot='select-content'],
+body[data-theme-liquid='on'] [data-slot='sheet-content'],
+body[data-theme-liquid='on'] [data-slot='drawer-content'],
+body[data-theme-liquid='on'] [data-slot='command'] {
+  backdrop-filter: blur(calc(var(--liquid-blur) * 1.4))
+    saturate(var(--liquid-saturate));
+  -webkit-backdrop-filter: blur(calc(var(--liquid-blur) * 1.4))
+    saturate(var(--liquid-saturate));
+  border-color: var(--liquid-border);
+  box-shadow:
+    inset 0 1px 0 0 var(--liquid-edge),
+    0 12px 32px -8px oklch(0 0 0 / 0.24);
+}
+
+/* The header floats over the workspace instead of sitting on the page, which is
+ * what keeps the wallpaper continuous from the top of the viewport down. */
+body[data-theme-liquid='on'] [data-slot='sidebar-inset'] {
+  border-radius: 1.25rem;
+  border: 1px solid var(--liquid-border);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  body[data-theme-liquid='on'] {
+    --liquid-surface-alpha: 96%;
+    --liquid-overlay-alpha: 98%;
+    --liquid-blur: 0px;
+    --liquid-saturate: 1;
+  }
+}

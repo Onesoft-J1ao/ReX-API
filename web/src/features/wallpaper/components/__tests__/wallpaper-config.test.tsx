@@ -93,6 +93,8 @@ beforeEach(() => {
 afterEach(() => {
   useAuthStore.setState({ auth: originalAuth })
   document.body.removeAttribute('data-theme-wallpaper')
+  document.body.removeAttribute('data-theme-liquid')
+  document.body.removeAttribute('data-theme-preset')
   document.body.style.removeProperty('--wallpaper-image')
 })
 
@@ -107,6 +109,30 @@ describe('wallpaper settings', () => {
     expect(document.body.style.getPropertyValue('--wallpaper-image')).toBe(
       `url("${STORED_WALLPAPER}")`
     )
+  })
+
+  // The wallpaper is the one background worth showing through the console, so
+  // owning one turns the liquid glass layer on without the user asking.
+  it('turns the liquid layer on while a wallpaper is set', async () => {
+    mockStoredWallpaper(wallpaperStatus())
+    renderWallpaperSettings()
+
+    await waitFor(() => {
+      expect(document.body.getAttribute('data-theme-liquid')).toBe('on')
+    })
+  })
+
+  // Liquid is derived, never stored: with no wallpaper it falls away and the
+  // user's own preset is still the one in effect.
+  it('leaves the liquid layer off when no wallpaper is set', async () => {
+    mockStoredWallpaper(wallpaperStatus({ wallpaper_url: '' }))
+    renderWallpaperSettings()
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalled()
+    })
+    expect(document.body.getAttribute('data-theme-liquid')).toBeNull()
+    expect(document.body.getAttribute('data-theme-wallpaper')).toBeNull()
   })
 
   it('quotes the price and the remaining changes without charging anything', async () => {

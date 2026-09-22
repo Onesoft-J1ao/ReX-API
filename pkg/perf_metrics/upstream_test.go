@@ -17,6 +17,7 @@ func withUpstreamSetting(t *testing.T, url string) {
 		saved[key] = value
 		return nil
 	}))
+	resetUpstreamCache()
 	t.Cleanup(func() {
 		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
 		resetUpstreamCache()
@@ -29,8 +30,15 @@ func withUpstreamSetting(t *testing.T, url string) {
 
 func resetUpstreamCache() {
 	upstreamSummaryCache.Lock()
-	upstreamSummaryCache.entry = upstreamCacheEntry{}
+	upstreamSummaryCache.entries = nil
 	upstreamSummaryCache.Unlock()
+}
+
+// primeUpstreamMirror runs the same refresh the background loop runs, so the
+// assertions below read the cache a request would read.
+func primeUpstreamMirror(t *testing.T, hours int) {
+	t.Helper()
+	refreshUpstreamSummary(hours)
 }
 
 func upstreamServer(t *testing.T, body string) *httptest.Server {
@@ -50,6 +58,7 @@ func TestMergeUpstreamModelsUpstreamWinsForSharedModels(t *testing.T) {
 		{"model_name":"shared","avg_latency_ms":1234,"success_rate":99.5,"avg_tps":42.5}
 	]}}`)
 	withUpstreamSetting(t, server.URL)
+	primeUpstreamMirror(t, 24)
 
 	local := []ModelSummary{
 		{ModelName: "shared", AvgLatencyMs: 9999, SuccessRate: 10, AvgTps: 1, RequestCount: 50},
@@ -76,6 +85,7 @@ func TestMergeUpstreamModelsSortsLocallyServedFirst(t *testing.T) {
 		{"model_name":"mirrored-b","avg_latency_ms":20,"success_rate":90,"avg_tps":1}
 	]}}`)
 	withUpstreamSetting(t, server.URL)
+	primeUpstreamMirror(t, 24)
 
 	merged := mergeUpstreamModels([]ModelSummary{
 		{ModelName: "ours", RequestCount: 7},
@@ -92,6 +102,7 @@ func TestMergeUpstreamModelsFallsBackWhenUpstreamFails(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	withUpstreamSetting(t, server.URL)
+	primeUpstreamMirror(t, 24)
 
 	local := []ModelSummary{{ModelName: "ours", AvgLatencyMs: 321, RequestCount: 3}}
 	merged := mergeUpstreamModels(local, 24)
@@ -107,10 +118,73 @@ func TestMergeUpstreamModelsRespectsDisabledSetting(t *testing.T) {
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
 		"perf_metrics_setting.upstream_enabled": "false",
 	}))
+	primeUpstreamMirror(t, 24)
 
 	local := []ModelSummary{{ModelName: "ours", RequestCount: 1}}
 	merged := mergeUpstreamModels(local, 24)
 
 	require.Len(t, merged, 1)
 	assert.Equal(t, "ours", merged[0].ModelName)
+}
+
+// The upstream answers in 7-19s, far longer than a page load can wait, so a
+// request must never perform the fetch: it reads whatever the refresh stored.
+func TestFetchUpstreamSummaryNeverCallsTheUpstream(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"models":[
+			{"model_name":"mirrored","avg_latency_ms":10,"success_rate":90,"avg_tps":1}
+		]}}`))
+	}))
+	t.Cleanup(server.Close)
+	withUpstreamSetting(t, server.URL)
+
+	// No refresh has run yet, so there is nothing to serve.
+	_, ok := fetchUpstreamSummary(24)
+	require.False(t, ok, "a cold mirror reports no data instead of fetching")
+	require.Zero(t, calls, "reading the mirror must not touch the network")
+
+	primeUpstreamMirror(t, 24)
+	result, ok := fetchUpstreamSummary(24)
+	require.True(t, ok)
+	require.Len(t, result.Models, 1)
+	require.Equal(t, 1, calls, "only the refresh fetched")
+}
+
+// Each window keeps its own mirror, so asking for hours=1 never returns the
+// 24-hour numbers under a different label.
+func TestFetchUpstreamSummaryIsKeyedByWindow(t *testing.T) {
+	server := upstreamServer(t, `{"success":true,"data":{"models":[
+		{"model_name":"mirrored","avg_latency_ms":10,"success_rate":90,"avg_tps":1}
+	]}}`)
+	withUpstreamSetting(t, server.URL)
+	primeUpstreamMirror(t, 24)
+
+	_, ok := fetchUpstreamSummary(1)
+	assert.False(t, ok, "a window nobody refreshed has no mirror")
+
+	result, ok := fetchUpstreamSummary(24)
+	require.True(t, ok)
+	require.Len(t, result.Models, 1)
+}
+
+// The detail view falls back to the mirror for a model this instance mirrors but
+// has not carried traffic for, so its headline numbers are not blank.
+func TestUpstreamModelSummaryBacksTheDetailView(t *testing.T) {
+	server := upstreamServer(t, `{"success":true,"data":{"models":[
+		{"model_name":"mirrored","avg_latency_ms":1234,"success_rate":99.5,"avg_tps":42.5}
+	]}}`)
+	withUpstreamSetting(t, server.URL)
+	primeUpstreamMirror(t, 24)
+
+	mirrored, ok := upstreamModelSummary("mirrored", 24)
+	require.True(t, ok)
+	assert.EqualValues(t, 1234, mirrored.AvgLatencyMs)
+	assert.EqualValues(t, 99.5, mirrored.SuccessRate)
+	assert.EqualValues(t, 42.5, mirrored.AvgTps)
+
+	_, ok = upstreamModelSummary("never-seen", 24)
+	assert.False(t, ok)
 }
