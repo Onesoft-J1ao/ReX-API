@@ -198,6 +198,14 @@ func GetAuditLogs(filter AuditLogFilter, start, limit, viewerRole int) ([]*Audit
 			entry.Other.AdminInfo = nil
 			entry.Other.AuditInfo = nil
 		}
+		// A self view is a user reading their own sign-in history, which does
+		// not require knowing the address each event came from. The audit trail
+		// records the operator's address too, and the console republishes the
+		// viewer's rows to any account that asks, so the source address is
+		// withheld here and stays available to administrators only.
+		if filter.SelfView {
+			entry.Ip = ""
+		}
 	}
 	return logs, total, nil
 }

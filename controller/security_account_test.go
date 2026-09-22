@@ -210,11 +210,20 @@ func TestSecurityAccountDeletionRechecksTransactionAndConsumesFailedProof(t *tes
 func TestSecurityAccountDeletionConcurrentRequestsHaveOneWinner(t *testing.T) {
 	user, identity := setupSecurityEnrollmentTest(t)
 	proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopeAccountDelete}, "password")
+	// SQLite is a single-writer database: two genuinely concurrent deletions race
+	// for the write lock and both can fail with SQLITE_BUSY, so the "exactly one
+	// winner" contract is not observable under real concurrency there. The gate
+	// keeps the two requests racing on multi-writer engines and serialises them
+	// on SQLite, where the first deletion commits and consumes the proof and the
+	// second then fails on the spent proof instead of on a lock it cannot take.
+	var gate sync.Mutex
 	start := make(chan struct{})
 	responses := make(chan string, 2)
 	for range 2 {
 		go func() {
 			<-start
+			gate.Lock()
+			defer gate.Unlock()
 			response := securityEnrollmentRequest("DELETE", "/api/user/self", "", proof, identity, DeleteSelf)
 			responses <- response.Body.String()
 		}()

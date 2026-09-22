@@ -24,6 +24,11 @@ type StatusCheckSetting struct {
 	FlexibleProbingEnabled       bool `json:"flexible_probing_enabled"`
 	FlexibleIdleMinutes          int  `json:"flexible_idle_minutes"`           // probe a group only after this much quiet
 	FlexibleMaxConsecutiveProbes int  `json:"flexible_max_consecutive_probes"` // cap on probes while nothing needs the group
+
+	// ProbeFreeModelsOnly skips probing any group whose ratio is not zero. A
+	// probe is a real upstream request, so probing a pay-per-request model
+	// bills us every cycle for a signal the mirrored upstream already reports.
+	ProbeFreeModelsOnly bool `json:"probe_free_models_only"`
 }
 
 // Bounds for the flexible pacing options. They exist to cap accidental spend
@@ -46,6 +51,7 @@ var statusCheckSetting = StatusCheckSetting{
 	FlexibleProbingEnabled:       false,
 	FlexibleIdleMinutes:          DefaultFlexibleIdleMinutes,
 	FlexibleMaxConsecutiveProbes: DefaultFlexibleMaxConsecutiveProbes,
+	ProbeFreeModelsOnly:          true,
 }
 
 func init() {
@@ -131,4 +137,10 @@ func GetFlexibleMaxConsecutiveProbes() int {
 		return DefaultFlexibleMaxConsecutiveProbes
 	}
 	return probes
+}
+
+// ShouldProbeOnlyFreeModels reports whether paid groups are skipped during a
+// probe cycle.
+func ShouldProbeOnlyFreeModels() bool {
+	return statusCheckSetting.ProbeFreeModelsOnly
 }

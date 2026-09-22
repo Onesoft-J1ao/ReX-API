@@ -85,9 +85,14 @@ func setupSecurityEnrollmentTest(t *testing.T) (*model.User, service.AuthIdentit
 		common.RedisEnabled, common.SessionSecret = previousRedis, previousSecret
 		common.PasswordLoginEncryptionEnabled = previousEncryption
 		*system_setting.GetPasskeySettings() = previousSettings
-		connection, err := db.DB()
-		if err == nil {
-			_ = connection.Close()
+		// Both handles must be released before t.TempDir cleanup deletes the
+		// files: on Windows an open SQLite handle keeps the delete from
+		// succeeding and turns a passing test into a cleanup failure.
+		for _, handle := range []*gorm.DB{db, logDB} {
+			connection, err := handle.DB()
+			if err == nil {
+				_ = connection.Close()
+			}
 		}
 	})
 	password, err := common.Password2Hash("enrollment-password")

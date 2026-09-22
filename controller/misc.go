@@ -108,6 +108,11 @@ func GetStatus(c *gin.Context) {
 		"uptime_kuma_enabled":   cs.UptimeKumaEnabled,
 		"announcements_enabled": cs.AnnouncementsEnabled,
 		"faq_enabled":           cs.FAQEnabled,
+		// 上游状态面板只暴露开关；状态页地址本身没有必要下发给访客。
+		"upstream_status_enabled": cs.UpstreamStatusEnabled,
+		// QQ 群卡片要把链接本身发给访客，否则前端无处可跳。
+		"support_qq_enabled": cs.SupportQqEnabled && cs.SupportQqUrl != "",
+		"support_qq_url":     cs.SupportQqUrl,
 
 		// 模块管理配置
 		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],

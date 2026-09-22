@@ -74,20 +74,19 @@ export function Home() {
   if (!isLoaded) {
     return (
       <PublicLayout showMainContainer={false}>
-        <div className='mx-auto max-w-7xl px-6 pt-20 pb-20 sm:px-10 sm:pt-24 sm:pb-24 lg:px-14 lg:pt-24 lg:pb-28'>
-          <div className='grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12'>
-            <div className='space-y-6'>
-              <Skeleton className='h-16 w-11/12 sm:h-24 sm:w-10/12' />
-              <Skeleton className='h-16 w-7/12 sm:h-24 sm:w-8/12' />
-              <Skeleton className='mt-8 h-5 w-10/12' />
-              <Skeleton className='h-5 w-7/12' />
-              <div className='mt-10 flex gap-3'>
-                <Skeleton className='h-12 w-32 rounded-full' />
-                <Skeleton className='h-12 w-28 rounded-full' />
-              </div>
-            </div>
-            <Skeleton className='aspect-square w-full max-w-[24rem] rounded-[2rem] sm:max-w-[28rem] lg:mx-0 lg:max-w-[30rem]' />
-          </div>
+        {/*
+          The custom home page is served from localStorage first, so a
+          configured instance usually renders its own content on the very first
+          paint. Only a cold visit waits on the request. Showing the built-in
+          landing skeleton here would flash hero blocks that the configured
+          page does not have, so the fallback is deliberately neutral: it holds
+          the page height without inventing a layout.
+        */}
+        <div
+          aria-busy='true'
+          className='mx-auto flex min-h-svh max-w-7xl items-center justify-center px-6'
+        >
+          <Skeleton className='h-4 w-40 rounded-full' />
         </div>
       </PublicLayout>
     )
