@@ -15,13 +15,14 @@ import (
 	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
 )
 
-// upstreamSummaryTTL stops a third-party instance from being scraped once per
-// page load. The payload is ~100KB and the upstream is somebody else's server,
-// so the same numbers are reused for a minute.
-const upstreamSummaryTTL = 60 * time.Second
+// upstreamRefreshInterval is how often the mirror is refreshed. The upstream
+// answers in 7-19s (measured against the live instance), far longer than a page
+// load can wait, so the fetch never runs on a request path: this loop owns the
+// network call and a request serves whatever the loop last stored.
+const upstreamRefreshInterval = 5 * time.Minute
 
 // upstreamMaxBytes caps what a single fetch may buffer. The observed payload is
-// ~100KB; anything far past that is not the response we expect.
+// ~50KB; anything far past that is not the response we expect.
 const upstreamMaxBytes = 8 << 20
 
 // upstreamEnvelope matches the new-api summary response shape, whose data is an
@@ -34,14 +35,16 @@ type upstreamEnvelope struct {
 }
 
 type upstreamCacheEntry struct {
-	key    string
 	at     time.Time
 	result SummaryAllResult
 }
 
+// upstreamSummaryCache holds the last successful mirror per requested window.
+// A window nobody has asked for has no entry, and the request that asks for it
+// reports no mirror rather than a different window's numbers.
 var upstreamSummaryCache struct {
 	sync.Mutex
-	entry upstreamCacheEntry
+	entries map[int]upstreamCacheEntry
 }
 
 var (
@@ -69,51 +72,89 @@ func getUpstreamClient(timeout time.Duration) *http.Client {
 	return upstreamClient
 }
 
-// fetchUpstreamSummary returns the mirrored summary, or ok=false when the
-// upstream is disabled, unreachable, or answers with something unusable. A
-// failed fetch falls back to the last successful response rather than dropping
-// the health data the page is showing.
+// fetchUpstreamSummary returns the mirrored summary for one window. It never
+// performs a fetch: the background loop owns the network call, so a page load
+// cannot be stalled behind an upstream that takes longer to answer than the
+// request is willing to wait.
 func fetchUpstreamSummary(hours int) (SummaryAllResult, bool) {
-	setting := perf_metrics_setting.GetSetting()
-	if !setting.UpstreamEnabled {
+	if !upstreamConfigured() {
 		return SummaryAllResult{}, false
 	}
-	base := strings.TrimSpace(setting.UpstreamSummaryUrl)
-	if base == "" {
-		return SummaryAllResult{}, false
-	}
-	url := fmt.Sprintf("%s?hours=%d", strings.TrimRight(base, "/"), hours)
-	key := url
 
 	upstreamSummaryCache.Lock()
-	if upstreamSummaryCache.entry.key == key && time.Since(upstreamSummaryCache.entry.at) < upstreamSummaryTTL {
-		cached := upstreamSummaryCache.entry.result
-		upstreamSummaryCache.Unlock()
-		return cached, len(cached.Models) > 0
+	defer upstreamSummaryCache.Unlock()
+	entry, ok := upstreamSummaryCache.entries[hours]
+	if !ok || len(entry.result.Models) == 0 {
+		return SummaryAllResult{}, false
 	}
-	upstreamSummaryCache.Unlock()
+	return entry.result, true
+}
 
+// upstreamModelSummary looks one model up in the mirrored summary. It backs the
+// per-model detail view for models this instance mirrors from upstream but has
+// not carried enough traffic for on its own.
+func upstreamModelSummary(modelName string, hours int) (ModelSummary, bool) {
+	mirrored, ok := fetchUpstreamSummary(hours)
+	if !ok {
+		return ModelSummary{}, false
+	}
+	for _, model := range mirrored.Models {
+		if model.ModelName == modelName {
+			return model, true
+		}
+	}
+	return ModelSummary{}, false
+}
+
+func upstreamConfigured() bool {
+	setting := perf_metrics_setting.GetSetting()
+	if !setting.UpstreamEnabled {
+		return false
+	}
+	return strings.TrimSpace(setting.UpstreamSummaryUrl) != ""
+}
+
+func upstreamSummaryUrl(hours int) string {
+	base := strings.TrimSpace(perf_metrics_setting.GetSetting().UpstreamSummaryUrl)
+	return fmt.Sprintf("%s?hours=%d", strings.TrimRight(base, "/"), hours)
+}
+
+// upstreamRefreshLoop keeps the mirrored summary warm. It refreshes immediately
+// on start so a restart does not leave the console blank for a whole interval.
+func upstreamRefreshLoop(hours []int) {
+	for _, window := range hours {
+		refreshUpstreamSummary(window)
+	}
+	ticker := time.NewTicker(upstreamRefreshInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		for _, window := range hours {
+			refreshUpstreamSummary(window)
+		}
+	}
+}
+
+func refreshUpstreamSummary(hours int) {
+	if !upstreamConfigured() {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), perf_metrics_setting.GetUpstreamTimeout())
 	defer cancel()
 
-	result, err := requestUpstreamSummary(ctx, url)
+	result, err := requestUpstreamSummary(ctx, upstreamSummaryUrl(hours))
 	if err != nil || len(result.Models) == 0 {
 		if err != nil {
 			common.SysLog(fmt.Sprintf("perf metrics upstream fetch failed, keeping the previous mirror: %s", err.Error()))
 		}
-		upstreamSummaryCache.Lock()
-		stale := upstreamSummaryCache.entry
-		upstreamSummaryCache.Unlock()
-		if stale.key == key && len(stale.result.Models) > 0 {
-			return stale.result, true
-		}
-		return SummaryAllResult{}, false
+		return
 	}
 
 	upstreamSummaryCache.Lock()
-	upstreamSummaryCache.entry = upstreamCacheEntry{key: key, at: time.Now(), result: result}
+	if upstreamSummaryCache.entries == nil {
+		upstreamSummaryCache.entries = map[int]upstreamCacheEntry{}
+	}
+	upstreamSummaryCache.entries[hours] = upstreamCacheEntry{at: time.Now(), result: result}
 	upstreamSummaryCache.Unlock()
-	return result, true
 }
 
 func requestUpstreamSummary(ctx context.Context, url string) (SummaryAllResult, error) {

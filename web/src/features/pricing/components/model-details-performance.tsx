@@ -161,7 +161,21 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     return map
   }, [groups])
 
-  if (metricsQuery.isLoading || performances.length === 0) {
+  const hasSummary = summary != null
+  const hasGroups = performances.length > 0
+
+  if (metricsQuery.isLoading) {
+    return (
+      <div className='text-muted-foreground rounded-xl border px-4 py-10 text-center text-sm'>
+        {t('Loading performance data...')}
+      </div>
+    )
+  }
+
+  // A mirrored model answers the headline numbers without a per-group breakdown
+  // or an hourly series, so the cards render from the summary alone. Only a
+  // model with neither is genuinely without data.
+  if (!hasSummary && !hasGroups) {
     return (
       <div className='text-muted-foreground rounded-xl border px-4 py-10 text-center text-sm'>
         {t('Performance data is not yet available for this model.')}
@@ -203,93 +217,107 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
         />
       </div>
 
-      <section>
-        <SectionHeader
-          icon={HeartPulse}
-          title={t('Per-group performance')}
-          description={t('Average latency, TTFT, TPS, and success rate')}
-        />
-        <StaticDataTable
-          className='rounded-xl'
-          tableClassName='text-sm'
-          headerRowClassName={tableStyles.compactHeaderRow}
-          data={performances}
-          getRowKey={(perf) => perf.group}
-          columns={[
-            {
-              id: 'group',
-              header: t('Group'),
-              className: tableStyles.compactHeaderCell,
-              cellClassName: tableStyles.compactCell,
-              cell: (perf) => <GroupBadge group={perf.group} size='sm' />,
-            },
-            {
-              id: 'tps',
-              header: 'TPS',
-              className: tableStyles.compactHeaderCellRight,
-              cellClassName: tableStyles.compactNumericCell,
-              cell: (perf) => formatThroughput(perf.avg_tps),
-            },
-            {
-              id: 'ttft',
-              header: t('Average TTFT'),
-              className: tableStyles.compactHeaderCellRight,
-              cellClassName: tableStyles.compactNumericCell,
-              cell: (perf) => formatLatency(perf.avg_ttft_ms),
-            },
-            {
-              id: 'latency',
-              header: t('Average latency'),
-              className: tableStyles.compactHeaderCellRight,
-              cellClassName: tableStyles.compactMutedNumericCell,
-              cell: (perf) => formatLatency(perf.avg_latency_ms),
-            },
-            {
-              id: 'success',
-              header: t('Success rate'),
-              className: cn(tableStyles.compactHeaderCell, 'min-w-[180px]'),
-              cellClassName: tableStyles.compactCell,
-              cell: (perf) => (
-                <UptimeSparkline
-                  size='sm'
-                  series={uptimeByGroup[perf.group] ?? []}
-                  overallSuccessRate={perf.success_rate}
-                />
-              ),
-            },
-          ]}
-        />
-      </section>
-
-      <section>
-        <SectionHeader
-          icon={Timer}
-          title={t('Latency trend (last 24h)')}
-          description={t('Average TTFT')}
-        />
-        <LatencyTrendChart series={latencySeries} bucket={bucket} />
-      </section>
-
-      <section>
-        <SectionHeader
-          icon={HeartPulse}
-          title={t('Availability (last 24h)')}
-          description={t(
-            'Success rate excludes business rejections and includes the current partial hour.'
+      {!hasGroups && (
+        <p className='text-muted-foreground rounded-xl border px-4 py-3 text-xs'>
+          {t(
+            'Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.'
           )}
-          accent={
-            incidentCount > 0 ? (
-              <span className='text-warning inline-flex items-center gap-1'>
-                <AlertTriangle className='size-3.5' />
-                {t('{{count}} incidents', {
-                  count: incidentCount,
-                })}
-              </span>
-            ) : null
-          }
-        />
-        <UptimeTrendChart series={uptimeSeries} bucket={bucket} />
-      </section>
+        </p>
+      )}
+
+      {hasGroups && (
+        <section>
+          <SectionHeader
+            icon={HeartPulse}
+            title={t('Per-group performance')}
+            description={t('Average latency, TTFT, TPS, and success rate')}
+          />
+          <StaticDataTable
+            className='rounded-xl'
+            tableClassName='text-sm'
+            headerRowClassName={tableStyles.compactHeaderRow}
+            data={performances}
+            getRowKey={(perf) => perf.group}
+            columns={[
+              {
+                id: 'group',
+                header: t('Group'),
+                className: tableStyles.compactHeaderCell,
+                cellClassName: tableStyles.compactCell,
+                cell: (perf) => <GroupBadge group={perf.group} size='sm' />,
+              },
+              {
+                id: 'tps',
+                header: 'TPS',
+                className: tableStyles.compactHeaderCellRight,
+                cellClassName: tableStyles.compactNumericCell,
+                cell: (perf) => formatThroughput(perf.avg_tps),
+              },
+              {
+                id: 'ttft',
+                header: t('Average TTFT'),
+                className: tableStyles.compactHeaderCellRight,
+                cellClassName: tableStyles.compactNumericCell,
+                cell: (perf) => formatLatency(perf.avg_ttft_ms),
+              },
+              {
+                id: 'latency',
+                header: t('Average latency'),
+                className: tableStyles.compactHeaderCellRight,
+                cellClassName: tableStyles.compactMutedNumericCell,
+                cell: (perf) => formatLatency(perf.avg_latency_ms),
+              },
+              {
+                id: 'success',
+                header: t('Success rate'),
+                className: cn(tableStyles.compactHeaderCell, 'min-w-[180px]'),
+                cellClassName: tableStyles.compactCell,
+                cell: (perf) => (
+                  <UptimeSparkline
+                    size='sm'
+                    series={uptimeByGroup[perf.group] ?? []}
+                    overallSuccessRate={perf.success_rate}
+                  />
+                ),
+              },
+            ]}
+          />
+        </section>
+      )}
+
+      {latencySeries.length > 0 && (
+        <section>
+          <SectionHeader
+            icon={Timer}
+            title={t('Latency trend (last 24h)')}
+            description={t('Average TTFT')}
+          />
+          <LatencyTrendChart series={latencySeries} bucket={bucket} />
+        </section>
+      )}
+
+      {uptimeSeries.length > 0 && (
+        <section>
+          <SectionHeader
+            icon={HeartPulse}
+            title={t('Availability (last 24h)')}
+            description={t(
+              'Success rate excludes business rejections and includes the current partial hour.'
+            )}
+            accent={
+              incidentCount > 0 ? (
+                <span className='text-warning inline-flex items-center gap-1'>
+                  <AlertTriangle className='size-3.5' />
+                  {t('{{count}} incidents', {
+                    count: incidentCount,
+                  })}
+                </span>
+              ) : null
+            }
+          />
+          <UptimeTrendChart series={uptimeSeries} bucket={bucket} />
+        </section>
+      )}
     </div>
   )
 }

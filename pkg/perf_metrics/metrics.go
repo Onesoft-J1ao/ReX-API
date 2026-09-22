@@ -24,8 +24,14 @@ var hotBuckets sync.Map
 // hiding fields or making response-only privacy hardening changes.
 const seriesSchema = "dbcd0a3c01b55203"
 
+// upstreamMirrorWindows are the summary windows kept warm in the background.
+// The console asks for the 24-hour view, and refreshing only what is asked for
+// keeps the loop from polling the third-party upstream for windows nobody reads.
+var upstreamMirrorWindows = []int{24}
+
 func Init() {
 	go flushLoop()
+	go upstreamRefreshLoop(upstreamMirrorWindows)
 }
 
 // RecordRelayResult samples one finished relay exactly once, at the request
@@ -212,6 +218,20 @@ func Query(params QueryParams) (QueryResult, error) {
 
 	result := buildQueryResult(params.Model, merged)
 	result.WindowStart, result.WindowEnd = startTs, endTs
+	// Models this instance mirrors from upstream but has not carried enough
+	// traffic for on its own have no local series. The aggregate the mirror
+	// reports still answers the detail view's headline numbers, so it is used
+	// as a summary-only fallback: no per-group rows and no hourly series, which
+	// we genuinely do not have.
+	if result.Summary == nil {
+		if mirrored, ok := upstreamModelSummary(params.Model, params.Hours); ok {
+			result.Summary = &Summary{
+				AvgLatencyMs: mirrored.AvgLatencyMs,
+				SuccessRate:  mirrored.SuccessRate,
+				AvgTps:       mirrored.AvgTps,
+			}
+		}
+	}
 	return result, nil
 }
 

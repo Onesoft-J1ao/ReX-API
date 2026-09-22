@@ -77,6 +77,15 @@ export const THEME_PRESETS = [
     name: 'Lavender Dream',
     swatches: ['oklch(0.5709 0.1808 306.89)', 'oklch(0.811 0.0589 201.14)'],
   },
+  {
+    // Liquid glass: a cool, high-chroma base whose surfaces are meant to be
+    // read through rather than on. Picking it turns the glass layer on by
+    // itself (see `resolveLiquidMode`), so the preset and the wallpaper both
+    // reach the same look.
+    value: 'liquid',
+    name: 'Liquid Glass',
+    swatches: ['oklch(0.62 0.19 258)', 'oklch(0.78 0.14 196)'],
+  },
 ] as const
 
 export type ThemePreset = (typeof THEME_PRESETS)[number]['value']
@@ -172,6 +181,32 @@ export const THEME_COOKIE_KEYS = {
 export const THEME_WALLPAPER_ATTRIBUTE = 'data-theme-wallpaper'
 export const THEME_WALLPAPER_VALUE = 'custom'
 export const THEME_WALLPAPER_VARIABLE = '--wallpaper-image'
+
+/**
+ * The liquid (glass) surface layer.
+ *
+ * Liquid is a surface treatment, not a palette: it makes cards, popovers, the
+ * sidebar and dialogs translucent with a blurred backdrop and a light top
+ * edge, so whatever is behind them reads through. That is why it is a separate
+ * attribute rather than another color preset — it composes with the user's
+ * chosen colors instead of replacing them.
+ *
+ * `resolveLiquidMode` turns it on in two cases: the user picked the Liquid
+ * Glass preset, or the user has a wallpaper. The second is the point of the
+ * mode — a wallpaper is the one background worth showing through the console —
+ * and it is derived at render time rather than written to a cookie, so removing
+ * the wallpaper restores the user's own preset untouched.
+ */
+export const THEME_LIQUID_ATTRIBUTE = 'data-theme-liquid'
+export const THEME_LIQUID_VALUE = 'on'
+export const THEME_LIQUID_PRESET: ThemePreset = 'liquid'
+
+export function resolveLiquidMode(
+  preset: ThemePreset,
+  hasWallpaper: boolean
+): boolean {
+  return hasWallpaper || preset === THEME_LIQUID_PRESET
+}
 
 /**
  * Preset → default font mapping. Used by the provider to resolve the user's

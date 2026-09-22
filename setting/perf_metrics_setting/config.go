@@ -21,8 +21,10 @@ type PerfMetricsSetting struct {
 	// UpstreamEnabled gates the fetch. The upstream is a third party, so this is
 	// on by default but can be turned off without losing the URL.
 	UpstreamEnabled bool `json:"upstream_enabled"`
-	// UpstreamTimeoutSeconds bounds one fetch. The payload is ~100KB, so this is
-	// generous enough for a slow link without stalling a page load behind it.
+	// UpstreamTimeoutSeconds bounds one fetch. The upstream answers in 7-19s
+	// (measured against the live instance), and the refresh runs in the
+	// background, so this is set to comfortably outlast a slow answer rather
+	// than to keep a page load responsive.
 	UpstreamTimeoutSeconds int `json:"upstream_timeout_seconds"`
 }
 
@@ -35,7 +37,7 @@ var perfMetricsSetting = PerfMetricsSetting{
 
 	UpstreamSummaryUrl:     "https://ai.furry.vg/api/perf-metrics/summary",
 	UpstreamEnabled:        true,
-	UpstreamTimeoutSeconds: 5,
+	UpstreamTimeoutSeconds: 30,
 }
 
 func init() {
@@ -69,7 +71,7 @@ func GetFlushIntervalMinutes() int {
 func GetUpstreamTimeout() time.Duration {
 	seconds := perfMetricsSetting.UpstreamTimeoutSeconds
 	if seconds < 1 {
-		seconds = 5
+		seconds = 30
 	}
 	return time.Duration(seconds) * time.Second
 }
