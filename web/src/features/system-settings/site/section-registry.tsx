@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { parseSidebarAdminLinks } from '@/lib/nav-modules'
+
 import { SystemInfoSection } from '../general/system-info-section'
 import {
   parseHeaderNavModules,
@@ -25,6 +27,7 @@ import {
 } from '../maintenance/config'
 import { HeaderNavigationSection } from '../maintenance/header-navigation-section'
 import { NoticeSection } from '../maintenance/notice-section'
+import { SidebarAdminLinksSection } from '../maintenance/sidebar-admin-links-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
@@ -84,6 +87,19 @@ const SITE_SECTIONS = [
         <SidebarModulesSection
           config={sidebarConfig}
           initialSerialized={sidebarSerialized}
+        />
+      )
+    },
+  },
+  {
+    id: 'sidebar-admin-links',
+    titleKey: 'Sidebar admin links',
+    build: (settings: SiteSettings) => {
+      const links = parseSidebarAdminLinks(settings.SidebarAdminLinks)
+      return (
+        <SidebarAdminLinksSection
+          links={links}
+          initialSerialized={JSON.stringify(links)}
         />
       )
     },
