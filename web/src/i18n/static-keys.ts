@@ -813,15 +813,20 @@ export const STATIC_I18N_KEYS = [
   'Provider default',
   'Low',
   'High',
-
-  // Video and 3D workbench status labels and 3D art styles, selected at runtime
-  // from the panels' label maps and option lists.
-  'Queued',
-  'Processing',
-  'Completed',
-  'Failed',
-  'Realistic',
-  'Cartoon',
-  'Sculpture',
-  'PBR',
+// Video and 3D workbench status labels and 3D art styles, selected at runtime
+// from the panels' label maps and option lists.
+'Queued',
+'Processing',
+'Completed',
+'Failed',
+'Realistic',
+'Cartoon',
+'Sculpture',
+'PBR',
+// Wallpaper failures, looked up by the stable code the API returns.
+'Custom wallpaper is not available on this site.',
+'You have used all your wallpaper changes for this month.',
+'Your balance is too low for this wallpaper change.',
+'That is already your wallpaper, so nothing was charged.',
+'Enter an absolute http(s) image address without spaces or quotes.',
 ] as const
