@@ -26,6 +26,7 @@ import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ErrorRewriteSection } from './error-rewrite-section'
+import { PriceSentinelSection } from './price-sentinel-section'
 import { SupportSettingsSection } from './support-settings-section'
 
 const OPERATIONS_SECTIONS = [
@@ -179,6 +180,11 @@ const OPERATIONS_SECTIONS = [
         }}
       />
     ),
+  },
+  {
+    id: 'price-sentinel',
+    titleKey: 'Upstream Price Sentinel',
+    build: () => <PriceSentinelSection />,
   },
   {
     id: 'update-checker',

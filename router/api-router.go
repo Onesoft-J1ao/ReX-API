@@ -462,8 +462,12 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		priceSentinelEditRoute := apiRouter.Group("/price-sentinel/edit")
 		{
+			// Checking the link needs only the mailed token, so the page can show
+			// the report before the operator authenticates.
 			priceSentinelEditRoute.POST("/validate", middleware.CriticalRateLimit(), controller.ValidatePriceSentinelToken)
-			priceSentinelEditRoute.POST("/apply", middleware.CriticalRateLimit(), controller.ApplyPriceSentinelEdit)
+			// Writing a price needs the mailed token *and* a root session, so a
+			// leaked or forwarded link is not on its own enough to change billing.
+			priceSentinelEditRoute.POST("/apply", middleware.RootAuth(), middleware.CriticalRateLimit(), controller.ApplyPriceSentinelEdit)
 		}
 		systemInfoRoute := apiRouter.Group("/system-info")
 		systemInfoRoute.Use(middleware.RootAuth())
