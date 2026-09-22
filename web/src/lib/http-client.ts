@@ -23,9 +23,21 @@ import { toast } from 'sonner'
 import {
   applyAuthRotation,
   clearAuthentication,
+  getFreshAuthHeaders,
   refreshAuthentication,
 } from '@/lib/auth-session'
-import { getServerErrorMessageKey } from '@/lib/server-error-message'
+import {
+  GATEWAY_RETRY_MESSAGES,
+  MAX_GATEWAY_RETRY_ATTEMPTS,
+  getGatewayRetryDelayMs,
+  markGatewayRetryExhausted,
+  resolveGatewayRetry,
+} from '@/lib/gateway-retry'
+import { handleServerError } from '@/lib/handle-server-error'
+import {
+  getServerErrorMessage,
+  safeServerErrorMessage,
+} from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
 declare module 'axios' {
@@ -36,6 +48,15 @@ declare module 'axios' {
     skipAuthRefresh?: boolean
     authRetry?: boolean
     acceptAuthRotation?: boolean
+    singleUseAuthorization?: boolean
+    /** Retries already spent on this request; set by the retry interceptor. */
+    gatewayRetryAttempt?: number
+    /** Per-request retry budget override. Pass 0 to disable retries. */
+    gatewayRetryAttempts?: number
+    /** Opt a POST/PATCH into retrying when the replay is known to be safe. */
+    gatewayRetryUnsafeMethods?: boolean
+    /** Disable automatic gateway retries for this request entirely. */
+    disableGatewayRetry?: boolean
   }
 }
 
@@ -45,7 +66,8 @@ export const api = axios.create({
   baseURL: '',
   withCredentials: true,
   headers: {
-    'Cache-Control': 'no-store',
+    // no-store forbids storage; no-cache also revalidates any older cached response.
+    'Cache-Control': 'no-cache, no-store',
   },
 })
 
@@ -83,18 +105,6 @@ api.interceptors.response.use(
       applyAuthRotation(response.data.data)
     }
 
-    if (
-      !response.config.skipBusinessError &&
-      typeof response.data?.success === 'boolean' &&
-      !response.data.success
-    ) {
-      const messageKey = getServerErrorMessageKey(response.data)
-      toast.error(
-        messageKey
-          ? t(messageKey)
-          : response.data.message || t('Request failed')
-      )
-    }
     return response
   },
   async (error) => {
@@ -118,30 +128,137 @@ api.interceptors.response.use(
         }
 
         if (outcome.kind === 'anonymous' || outcome.kind === 'out_of_sync') {
-          if (!skipErrorHandler) toast.error(t('Session expired!'))
+          if (!skipErrorHandler) {
+            handleServerError({
+              message: t('Session expired!'),
+              [safeServerErrorMessage]: true,
+              cause: error,
+            })
+          }
           redirectToSignIn()
         }
       } else if (config?.authRetry) {
         clearAuthentication(false)
-        if (!skipErrorHandler) toast.error(t('Session expired!'))
+        if (!skipErrorHandler) {
+          handleServerError({
+            message: t('Session expired!'),
+            [safeServerErrorMessage]: true,
+            cause: error,
+          })
+        }
         redirectToSignIn()
       } else if (!skipErrorHandler) {
-        toast.error(t('Session expired!'))
+        handleServerError({
+          message: t('Session expired!'),
+          [safeServerErrorMessage]: true,
+          cause: error,
+        })
       }
-    } else if (!skipErrorHandler) {
-      const messageKey = getServerErrorMessageKey(error)
-      const message = messageKey
-        ? t(messageKey)
-        : error?.response?.data?.message ||
-          error?.message ||
-          t('Request failed')
-      toast.error(message)
+    }
+    if (axios.isAxiosError(error)) error.message = getServerErrorMessage(error)
+    throw error
+  }
+)
+
+// Cloudflare answers 524 when the origin is still busy past its own timeout, and
+// 502/503/504 come from a restarting or saturated edge; a transport failure with
+// no response at all is the same class of transient problem. Replaying those
+// keeps a transient blip from turning into a bare error page, while 4xx and
+// unsafe methods still surface immediately.
+const GATEWAY_RETRY_TOAST_ID = 'gateway-retry'
+const GATEWAY_RETRY_EXHAUSTED_TOAST_ID = 'gateway-retry-exhausted'
+
+function notifyGatewayRetry(retryNumber: number): void {
+  toast.loading(
+    t(GATEWAY_RETRY_MESSAGES.RETRYING, {
+      current: retryNumber,
+      total: MAX_GATEWAY_RETRY_ATTEMPTS,
+    }),
+    { id: GATEWAY_RETRY_TOAST_ID, duration: Infinity }
+  )
+}
+
+function notifyGatewayRetryExhausted(): void {
+  toast.dismiss(GATEWAY_RETRY_TOAST_ID)
+  // Sticky on purpose: the retries are gone, so the only way forward is a fresh
+  // document, and a toast that fades would leave the user staring at nothing.
+  toast.error(t(GATEWAY_RETRY_MESSAGES.EXHAUSTED), {
+    id: GATEWAY_RETRY_EXHAUSTED_TOAST_ID,
+    duration: Infinity,
+    action: {
+      label: t(GATEWAY_RETRY_MESSAGES.REFRESH),
+      onClick: () => window.location.reload(),
+    },
+  })
+}
+
+function clearGatewayRetryNotice(): void {
+  toast.dismiss(GATEWAY_RETRY_TOAST_ID)
+}
+
+function waitForGatewayRetry(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+api.interceptors.response.use(
+  (response) => {
+    if (response.config.gatewayRetryAttempt) clearGatewayRetryNotice()
+    return response
+  },
+  async (error) => {
+    const config = error?.config as ApiRequestConfig | undefined
+    if (
+      !config ||
+      config.disableGatewayRetry ||
+      error?.code === 'ERR_CANCELED'
+    ) {
+      throw error
+    }
+
+    const attemptsMade = config.gatewayRetryAttempt ?? 0
+    const decision = resolveGatewayRetry({
+      status: error?.response?.status,
+      networkFailure: error?.response == null,
+      method: config.method,
+      attemptsMade,
+      maxAttempts: config.gatewayRetryAttempts,
+      allowNonIdempotentMethod: config.gatewayRetryUnsafeMethods,
+    })
+
+    if (decision === 'retry') {
+      const retryNumber = attemptsMade + 1
+      config.gatewayRetryAttempt = retryNumber
+      notifyGatewayRetry(retryNumber)
+      await waitForGatewayRetry(getGatewayRetryDelayMs(retryNumber))
+      return api.request(config)
+    }
+
+    if (decision === 'exhausted') {
+      notifyGatewayRetryExhausted()
+      // The retries are spent, so the query layer must not start its own round
+      // over the same failure; the user has already been offered a refresh.
+      markGatewayRetryExhausted(error)
     }
     throw error
   }
 )
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
+  if (config.singleUseAuthorization || config.headers.has('X-Security-Proof')) {
+    // Refresh before spending a proof/flow, never by replaying its request.
+    config.skipAuthRefresh = true
+    try {
+      const headers = await getFreshAuthHeaders()
+      for (const [name, value] of Object.entries(headers)) {
+        config.headers.set(name, value)
+      }
+    } catch (error) {
+      throw axios.AxiosError.from(error, undefined, config)
+    }
+    return config
+  }
   const accessToken = useAuthStore.getState().auth.accessToken
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`

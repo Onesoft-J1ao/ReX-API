@@ -5,8 +5,10 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/logger"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,6 +36,11 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
+	// Decide the playground free tier here so both settlement paths agree on it.
+	if relayInfo != nil && ShouldServeFromPlaygroundFreeTier(c, relayInfo) {
+		relayInfo.PlaygroundFreeTier = true
+	}
+
 	session, apiErr := NewBillingSession(c, relayInfo, preConsumedQuota)
 	if apiErr != nil {
 		return apiErr
@@ -48,7 +55,8 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 
 // SettleBilling 执行计费结算。如果 RelayInfo 上有 BillingSession 则通过 session 结算，
 // 否则回退到旧的 PostConsumeQuota 路径（兼容按次计费等场景）。
-func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
+// outputTokens 是本次请求的补全 token 数，用于性能采样；调用方传 0 表示无法统计。
+func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int, outputTokens int) error {
 	if relayInfo.Billing != nil {
 		preConsumed := relayInfo.Billing.GetPreConsumedQuota()
 		delta := actualQuota - preConsumed
@@ -75,6 +83,10 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 			return err
 		}
 
+		// BillingSession 绕过了 postConsumeQuotaWithResult，而性能采样只埋在旧路径里，
+		// 不在这里补上，走新计费会话的请求就永远不会被记录。
+		recordRelayPerfSample(relayInfo, outputTokens)
+
 		// 发送额度通知（订阅计费使用订阅剩余额度）
 		if actualQuota != 0 {
 			if relayInfo.BillingSource == BillingSourceSubscription {
@@ -91,5 +103,18 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 	if quotaDelta != 0 {
 		return PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)
 	}
+	// 按次计费下预扣与实际相等，旧路径不会走到 PostConsumeQuota，
+	// 采样需要单独补一次，否则这类请求在性能面板上完全不可见。
+	recordRelayPerfSample(relayInfo, outputTokens)
 	return nil
+}
+
+// recordRelayPerfSample 提交一次成功的 relay 性能采样。
+func recordRelayPerfSample(relayInfo *relaycommon.RelayInfo, outputTokens int) {
+	if relayInfo == nil {
+		return
+	}
+	gopool.Go(func() {
+		perfmetrics.RecordRelaySample(relayInfo, true, int64(outputTokens))
+	})
 }

@@ -51,6 +51,7 @@ import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import {
   SettingsForm,
@@ -215,9 +216,13 @@ export function PerformanceSection(props: Props) {
   const fetchStats = useCallback(async () => {
     try {
       const res = await api.get('/api/performance/stats')
-      if (res.data.success) setStats(res.data.data)
-    } catch {
-      /* ignore */
+      if (res.data.success) {
+        setStats(res.data.data)
+      } else {
+        handleServerError(res.data)
+      }
+    } catch (error) {
+      handleServerError(error)
     }
   }, [])
 
@@ -255,9 +260,11 @@ export function PerformanceSection(props: Props) {
       if (res.data.success) {
         toast.success(t('Disk cache cleared'))
         fetchStats()
+      } else {
+        handleServerError(res.data)
       }
-    } catch {
-      toast.error(t('Cleanup failed'))
+    } catch (error) {
+      handleServerError(error, t('Cleanup failed'))
     }
   }
 
@@ -267,9 +274,11 @@ export function PerformanceSection(props: Props) {
       if (res.data.success) {
         toast.success(t('Statistics reset'))
         fetchStats()
+      } else {
+        handleServerError(res.data)
       }
-    } catch {
-      toast.error(t('Reset failed'))
+    } catch (error) {
+      handleServerError(error, t('Reset failed'))
     }
   }
 
@@ -279,9 +288,11 @@ export function PerformanceSection(props: Props) {
       if (res.data.success) {
         toast.success(t('GC executed'))
         fetchStats()
+      } else {
+        handleServerError(res.data)
       }
-    } catch {
-      toast.error(t('GC execution failed'))
+    } catch (error) {
+      handleServerError(error, t('GC execution failed'))
     }
   }
 
@@ -575,7 +586,7 @@ export function PerformanceSection(props: Props) {
         {stats && (
           <>
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-              <div className='space-y-2 rounded-lg border p-4'>
+              <div className='space-y-2 rounded-xl border p-4'>
                 <p className='text-sm font-medium'>
                   {t('Request Body Disk Cache')}
                 </p>
@@ -597,7 +608,7 @@ export function PerformanceSection(props: Props) {
                   {t('Disk Hits')}: {stats.cache_stats?.disk_cache_hits ?? 0}
                 </StatusBadge>
               </div>
-              <div className='space-y-2 rounded-lg border p-4'>
+              <div className='space-y-2 rounded-xl border p-4'>
                 <p className='text-sm font-medium'>
                   {t('Request Body Memory Cache')}
                 </p>
@@ -621,7 +632,7 @@ export function PerformanceSection(props: Props) {
             </div>
 
             {stats.disk_space_info && stats.disk_space_info.total > 0 && (
-              <div className='rounded-lg border p-4'>
+              <div className='rounded-xl border p-4'>
                 <p className='mb-2 text-sm font-medium'>
                   {t('Cache Directory Disk Space')}
                 </p>
@@ -643,7 +654,7 @@ export function PerformanceSection(props: Props) {
             )}
 
             {stats.memory_stats && (
-              <div className='rounded-lg border p-4'>
+              <div className='rounded-xl border p-4'>
                 <p className='mb-2 text-sm font-medium'>
                   {t('System Memory Stats')}
                 </p>
@@ -681,7 +692,7 @@ export function PerformanceSection(props: Props) {
             )}
 
             {stats.disk_cache_info && (
-              <div className='rounded-lg border p-4'>
+              <div className='rounded-xl border p-4'>
                 <p className='mb-2 text-sm font-medium'>
                   {t('Cache Directory Info')}
                 </p>

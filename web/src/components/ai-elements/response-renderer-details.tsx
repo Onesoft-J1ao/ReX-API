@@ -35,7 +35,7 @@ export function renderDetails(
 
   return (
     <details
-      className='border-border/70 my-4 rounded-lg border px-4 py-3'
+      className='border-border/70 my-4 rounded-xl border px-4 py-3'
       key={key}
     >
       <summary className='text-foreground cursor-pointer text-sm font-semibold'>

@@ -68,7 +68,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         id: 'price',
         header: t('Price'),
         cell: ({ row }) => (
-          <span className='font-semibold text-emerald-600'>
+          <span className='text-success font-mono font-semibold tabular-nums'>
             ${Number(row.original.plan.price_amount || 0).toFixed(2)}
           </span>
         ),
@@ -167,7 +167,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)
           return (
-            <span className='text-muted-foreground'>
+            <span className='text-muted-foreground font-mono tabular-nums'>
               {total > 0 ? formatQuota(total) : t('Unlimited')}
             </span>
           )

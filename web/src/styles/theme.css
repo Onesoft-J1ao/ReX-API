@@ -72,6 +72,9 @@ For commercial licensing, please contact support@quantumnous.com
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-category-1: var(--category-1);
+  --color-category-2: var(--category-2);
+  --color-category-3: var(--category-3);
   --color-overview-accent-1: var(--overview-accent-1);
   --color-overview-accent-2: var(--overview-accent-2);
   --color-overview-accent-3: var(--overview-accent-3);
@@ -135,6 +138,16 @@ For commercial licensing, please contact support@quantumnous.com
   --chart-3: oklch(0.7 0.12 280);
   --chart-4: oklch(0.68 0.19 325);
   --chart-5: oklch(0.68 0.16 155);
+  /* Categorical tag hues for operation-category chips (header / replace /
+   * copy). Kept separate from the status tokens because these encode a
+   * category, not a health state; error/prune and sync stay on the status
+   * tokens, where the colour does carry meaning.
+   * Both themes must define them: aliasing --chart-* from :root would not
+   * follow the dark palette, since a custom property's var() resolves where
+   * it is declared, not where it is used. */
+  --category-1: oklch(0.55 0.13 200);
+  --category-2: oklch(0.52 0.18 285);
+  --category-3: oklch(0.55 0.17 250);
   --overview-accent-1: oklch(0.72 0.18 250);
   --overview-accent-2: oklch(0.65 0.15 200);
   --overview-accent-3: oklch(0.7 0.12 280);
@@ -212,6 +225,9 @@ For commercial licensing, please contact support@quantumnous.com
   --chart-3: oklch(0.76 0.13 285);
   --chart-4: oklch(0.75 0.16 325);
   --chart-5: oklch(0.76 0.14 155);
+  --category-1: oklch(0.76 0.13 200);
+  --category-2: oklch(0.76 0.13 285);
+  --category-3: oklch(0.76 0.14 250);
   --sidebar: oklch(0.225 0 0);
   --sidebar-foreground: oklch(0.95 0 0);
   --sidebar-primary: oklch(0.588 0.123 246.488);

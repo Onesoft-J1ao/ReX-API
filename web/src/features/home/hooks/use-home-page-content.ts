@@ -18,9 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
 import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
 
 import { isHttpUrl } from '@/lib/content-format'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { getHomePageContent } from '../api'
 import type { HomePageContentResult } from '../types'
@@ -32,19 +32,28 @@ const STORAGE_KEY = 'home_page_content'
  * Supports both Markdown/HTML content and iframe URLs
  */
 export function useHomePageContent(): HomePageContentResult {
-  const [content, setContent] = useState<string>('')
-  const [isLoaded, setIsLoaded] = useState(false)
+  // The cached copy is read during the first render rather than in an effect,
+  // so a configured instance paints its own content immediately instead of
+  // flashing a loading placeholder and then swapping it out.
+  const [content, setContent] = useState<string>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY) ?? ''
+    } catch {
+      return ''
+    }
+  })
+  const [isLoaded, setIsLoaded] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY) !== null
+    } catch {
+      return false
+    }
+  })
 
   useEffect(() => {
     let mounted = true
 
     const loadContent = async () => {
-      // Load from localStorage first for immediate display
-      const cached = localStorage.getItem(STORAGE_KEY)
-      if (cached && mounted) {
-        setContent(cached)
-      }
-
       try {
         const response = await getHomePageContent()
         const { success, data } = response
@@ -61,9 +70,7 @@ export function useHomePageContent(): HomePageContentResult {
         }
       } catch (error) {
         if (!mounted) return
-        // eslint-disable-next-line no-console
-        console.error('Failed to load home page content:', error)
-        toast.error(i18next.t('Failed to load home page content'))
+        handleServerError(error, i18next.t('Failed to load home page content'))
       } finally {
         if (mounted) {
           setIsLoaded(true)

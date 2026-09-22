@@ -29,6 +29,10 @@ import {
   parseStreamErrorDetails,
   parseStreamMessageUpdates,
 } from '../lib'
+import {
+  getPlaygroundFingerprint,
+  PLAYGROUND_FINGERPRINT_HEADER,
+} from '../lib/fingerprint'
 import type { ChatCompletionRequest } from '../types'
 
 interface StreamEventSource {
@@ -190,7 +194,10 @@ export function useStreamRequest() {
   > | null>(null)
   if (!controllerRef.current) {
     controllerRef.current = createStreamRequestController({
-      getHeaders: getFreshAuthHeaders,
+      getHeaders: async () => ({
+        ...(await getFreshAuthHeaders()),
+        [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint(),
+      }),
       createSource: (payload, headers) =>
         new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
           headers,

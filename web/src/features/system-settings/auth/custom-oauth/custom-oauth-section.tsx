@@ -65,7 +65,7 @@ export function CustomOAuthSection(props: CustomOAuthSectionProps) {
   if (isLoading) {
     return (
       <SettingsSection title={t('Custom OAuth Providers')}>
-        <div className='text-muted-foreground py-8 text-center text-sm'>
+        <div className='text-muted-foreground py-10 text-center text-sm'>
           {t('Loading...')}
         </div>
       </SettingsSection>
@@ -87,7 +87,7 @@ export function CustomOAuthSection(props: CustomOAuthSectionProps) {
               {t('OAuth callback URL')}
             </span>
             <span className='flex min-w-0 items-center gap-2'>
-              <code className='bg-muted text-foreground min-w-0 rounded px-1.5 py-0.5 text-xs break-all'>
+              <code className='bg-muted text-foreground min-w-0 rounded-md px-1.5 py-0.5 text-xs break-all'>
                 {callbackFormat}
               </code>
               <CopyButton

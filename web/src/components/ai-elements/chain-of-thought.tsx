@@ -152,7 +152,7 @@ export const ChainOfThoughtStep = memo(
     const statusStyles = {
       complete: 'text-muted-foreground',
       active: 'text-foreground',
-      pending: 'text-muted-foreground/50',
+      pending: 'text-muted-foreground',
     }
 
     return (
@@ -235,7 +235,7 @@ export type ChainOfThoughtImageProps = ComponentProps<'div'> & {
 export const ChainOfThoughtImage = memo(
   ({ className, children, caption, ...props }: ChainOfThoughtImageProps) => (
     <div className={cn('mt-2 space-y-2', className)} {...props}>
-      <div className='bg-muted relative flex max-h-[22rem] items-center justify-center overflow-hidden rounded-lg p-3'>
+      <div className='bg-muted relative flex max-h-[22rem] items-center justify-center overflow-hidden rounded-xl p-3'>
         {children}
       </div>
       {caption && <p className='text-muted-foreground text-xs'>{caption}</p>}

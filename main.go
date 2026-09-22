@@ -23,8 +23,10 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -44,8 +46,19 @@ var buildFS embed.FS
 //go:embed web/dist/index.html
 var indexPage []byte
 
+// logQueueDrainTimeout bounds how long shutdown waits for queued log rows to
+// reach the database before reporting the remainder as lost.
+const logQueueDrainTimeout = 15 * time.Second
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "plugin" {
+		os.Exit(jsplugin.RunCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	startTime := time.Now()
+	kitutil.SetLogging(common.SysLog, func(message string) {
+		logger.LogError(nil, message)
+	})
+	kitutil.SetSystemErrorLogging(common.SysError)
 
 	err := InitResources()
 	if err != nil {
@@ -60,6 +73,8 @@ func main() {
 	if common.DebugEnabled {
 		common.SysLog("running in debug mode")
 	}
+
+	kitutil.Debug.Store(common.DebugEnabled)
 
 	defer func() {
 		err := model.CloseDB()
@@ -100,6 +115,7 @@ func main() {
 
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
+	go controller.SyncTaskPlugins()
 
 	// 周期性重载授权策略，保证多节点/多 master 部署下权限变更能传播到每个实例
 	go authz.StartPolicySync(common.SyncFrequency)
@@ -165,7 +181,7 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
-	if err := configureTrustedProxies(server); err != nil {
+	if err := middleware.ConfigureTrustedProxies(server); err != nil {
 		common.FatalLog("failed to configure trusted proxies: " + err.Error())
 		return
 	}
@@ -224,6 +240,15 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(fmt.Sprintf("server forced to shutdown: %v", err))
 	}
+	// srv.Shutdown has already waited for the in-flight handlers, so no new log
+	// is produced after this point; drain what the writer still holds. This gets
+	// its own deadline because ctx may already be expired when the server had to
+	// be forced down, and an expired ctx would skip the drain entirely.
+	drainCtx, cancelDrain := context.WithTimeout(context.Background(), logQueueDrainTimeout)
+	if err := model.StopLogQueue(drainCtx); err != nil {
+		common.SysError(fmt.Sprintf("failed to drain the async log queue: %v", err))
+	}
+	cancelDrain()
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()
@@ -306,6 +331,12 @@ func InitResources() error {
 		common.FatalLog("failed to initialize authorization: " + err.Error())
 		return err
 	}
+	if common.PasswordLoginEncryptionEnabled {
+		if err = model.InitPasswordEncryption(); err != nil {
+			common.FatalLog("failed to initialize password encryption: " + err.Error())
+			return err
+		}
+	}
 
 	model.CheckSetup()
 
@@ -325,6 +356,10 @@ func InitResources() error {
 	if err != nil {
 		return err
 	}
+	// Move log persistence off the request goroutine: a consume/task log insert
+	// used to be a synchronous database round-trip (and, on SQLite, a wait for
+	// the single write lock) inside every relay request's response budget.
+	model.StartLogQueue()
 
 	// Initialize Redis
 	err = common.InitRedisClient()

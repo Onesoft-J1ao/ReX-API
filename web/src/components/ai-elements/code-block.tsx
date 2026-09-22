@@ -19,10 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 /* eslint-disable react-refresh/only-export-components */
 'use client'
 
+import { javascript } from '@codemirror/lang-javascript'
 import { markdown } from '@codemirror/lang-markdown'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorState, type Extension } from '@codemirror/state'
-import { EditorView, lineNumbers } from '@codemirror/view'
+import {
+  EditorView,
+  lineNumbers,
+  placeholder as placeholderExtension,
+} from '@codemirror/view'
 import { tags as highlightTags } from '@lezer/highlight'
 import {
   CheckIcon,
@@ -52,6 +57,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+// Aliased: this module already has a local `copyToClipboard` click handler.
+import { copyToClipboard as copyTextToClipboard } from '@/lib/copy-to-clipboard'
 import { cn } from '@/lib/utils'
 
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
@@ -75,9 +82,11 @@ type CodeBlockEditorProps = Omit<
 > & {
   actions?: ReactNode
   ariaLabel: string
+  autoFocus?: boolean
   language: BundledLanguage | string
   onChange: (value: string) => void
   onKeyDown?: (event: globalThis.KeyboardEvent) => void
+  placeholder?: string
   rows?: number
   title?: ReactNode
   value: string
@@ -89,6 +98,7 @@ type CodeMirrorCodeViewProps = {
   language: BundledLanguage | string
   onChange?: (value: string) => void
   onKeyDown?: (event: globalThis.KeyboardEvent) => void
+  placeholder?: string
   readOnly?: boolean
   rows?: number
   showLineNumbers?: boolean
@@ -223,6 +233,14 @@ function getCodeMirrorLanguageExtension(language: BundledLanguage | string) {
     return markdown()
   }
 
+  if (requestedLanguage === 'javascript' || requestedLanguage === 'jsx') {
+    return javascript({ jsx: requestedLanguage === 'jsx' })
+  }
+
+  if (requestedLanguage === 'typescript' || requestedLanguage === 'tsx') {
+    return javascript({ jsx: requestedLanguage === 'tsx', typescript: true })
+  }
+
   return []
 }
 
@@ -265,7 +283,8 @@ function getCodeBlockMaxHeight(
 
 function getCodeMirrorExtensions(options: {
   language: BundledLanguage | string
-  onKeyDown?: (event: globalThis.KeyboardEvent) => void
+  onKeyDown: (event: globalThis.KeyboardEvent) => void
+  placeholder?: string
   readOnly: boolean
   showLineNumbers: boolean
 }): Extension[] {
@@ -276,21 +295,20 @@ function getCodeMirrorExtensions(options: {
     EditorState.tabSize.of(2),
     EditorState.readOnly.of(options.readOnly),
     EditorView.editable.of(!options.readOnly),
+    EditorView.domEventHandlers({
+      keydown(event) {
+        options.onKeyDown(event)
+        return event.defaultPrevented
+      },
+    }),
   ]
+
+  if (options.placeholder) {
+    extensions.push(placeholderExtension(options.placeholder))
+  }
 
   if (options.showLineNumbers) {
     extensions.unshift(lineNumbers())
-  }
-
-  if (options.onKeyDown) {
-    extensions.push(
-      EditorView.domEventHandlers({
-        keydown(event) {
-          options.onKeyDown?.(event)
-          return event.defaultPrevented
-        },
-      })
-    )
   }
 
   return extensions
@@ -302,6 +320,7 @@ function CodeMirrorCodeView({
   language,
   onChange,
   onKeyDown,
+  placeholder,
   readOnly = false,
   rows = 8,
   showLineNumbers = true,
@@ -311,21 +330,28 @@ function CodeMirrorCodeView({
   const editorViewRef = useRef<EditorView | null>(null)
   const initialValueRef = useRef(value)
   const onChangeRef = useRef(onChange)
+  const onKeyDownRef = useRef(onKeyDown)
   const editorMinHeight = `${Math.max(4, rows) * 1.5 + 2}rem`
+  // onKeyDown is delivered through a ref so a new handler identity from the
+  // parent (recreated on every keystroke-driven render) does not invalidate
+  // the extensions and tear down the EditorView, which would reset the cursor
+  // to the document start and make typing appear right-to-left.
   const editorExtensions = useMemo(
     () =>
       getCodeMirrorExtensions({
         language,
-        onKeyDown,
+        onKeyDown: (event) => onKeyDownRef.current?.(event),
+        placeholder,
         readOnly,
         showLineNumbers,
       }),
-    [language, onKeyDown, readOnly, showLineNumbers]
+    [language, placeholder, readOnly, showLineNumbers]
   )
 
   useEffect(() => {
     onChangeRef.current = onChange
-  }, [onChange])
+    onKeyDownRef.current = onKeyDown
+  }, [onChange, onKeyDown])
 
   useEffect(() => {
     const editorHost = editorHostRef.current
@@ -357,6 +383,10 @@ function CodeMirrorCodeView({
   }, [autoFocus, editorExtensions])
 
   useEffect(() => {
+    // Track the latest value so a future editor rebuild (e.g. language change)
+    // starts from the current document instead of the mount-time snapshot.
+    initialValueRef.current = value
+
     const editorView = editorViewRef.current
     if (!editorView) {
       return
@@ -405,7 +435,7 @@ export const CodeBlockFrame = ({
 }: CodeBlockFrameProps) => (
   <div
     className={cn(
-      'group/code-block bg-muted/20 text-foreground my-3 w-full max-w-full overflow-hidden rounded-lg border shadow-xs',
+      'group/code-block bg-muted/20 text-foreground my-3 w-full max-w-full overflow-hidden rounded-xl border shadow-xs',
       className
     )}
     {...props}
@@ -413,7 +443,7 @@ export const CodeBlockFrame = ({
     {showToolbar && (
       <div className='bg-muted/35 border-border/70 flex min-h-10 items-center gap-2 border-b px-2 py-1.5'>
         <div className='min-w-0 flex-1'>
-          <div className='text-muted-foreground truncate font-mono text-[11px] font-medium tracking-wide uppercase'>
+          <div className='text-muted-foreground truncate font-mono text-xs font-medium tracking-wide uppercase'>
             {title}
           </div>
         </div>
@@ -570,10 +600,12 @@ export const CodeBlock = ({
 export const CodeBlockEditor = ({
   actions,
   ariaLabel,
+  autoFocus = true,
   className,
   language,
   onChange,
   onKeyDown,
+  placeholder,
   rows = 8,
   title,
   value,
@@ -590,10 +622,11 @@ export const CodeBlockEditor = ({
     >
       <CodeMirrorCodeView
         ariaLabel={ariaLabel}
-        autoFocus
+        autoFocus={autoFocus}
         language={language}
         onChange={onChange}
         onKeyDown={onKeyDown}
+        placeholder={placeholder}
         rows={rows}
         showLineNumbers
         value={value}
@@ -621,18 +654,19 @@ export const CodeBlockCopyButton = ({
   const { code } = useContext(CodeBlockContext)
 
   const copyToClipboard = async () => {
-    if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
+    if (typeof window === 'undefined') {
       onError?.(new Error('Clipboard API not available'))
       return
     }
 
-    try {
-      await navigator.clipboard.writeText(code)
+    // Through the shared helper: an embedded browser without the async
+    // clipboard API still copies through the legacy path.
+    if (await copyTextToClipboard(code)) {
       setIsCopied(true)
       onCopy?.()
       setTimeout(() => setIsCopied(false), timeout)
-    } catch (error) {
-      onError?.(error as Error)
+    } else {
+      onError?.(new Error('Clipboard API not available'))
     }
   }
 

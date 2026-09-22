@@ -40,7 +40,7 @@ export function ResponseImage(props: ResponseImageProps) {
   return (
     <img
       alt={props.node.alt}
-      className='border-border/70 my-4 block h-auto max-h-96 max-w-full rounded-lg border object-contain'
+      className='border-border/70 my-4 block h-auto max-h-96 max-w-full rounded-xl border object-contain'
       loading='lazy'
       onError={() => setHasError(true)}
       src={src}

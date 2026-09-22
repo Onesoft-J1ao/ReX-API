@@ -27,6 +27,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -212,10 +213,9 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
   }, [])
 
   const handleCopyJson = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(jsonText)
+    if (await copyToClipboard(jsonText)) {
       toast.success(t('Copied to clipboard'))
-    } catch {
+    } else {
       toast.error(t('Failed to copy'))
     }
   }, [jsonText, t])
@@ -250,11 +250,11 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
           </div>
           <div>
             <span className='font-medium'>{t('Format')}:</span>{' '}
-            <code className='bg-muted rounded px-1 py-0.5 text-xs'>
+            <code className='bg-muted rounded-md px-1 py-0.5 text-xs'>
               web_search_preview
             </code>{' '}
             {t('is the default price; ')}
-            <code className='bg-muted rounded px-1 py-0.5 text-xs'>
+            <code className='bg-muted rounded-md px-1 py-0.5 text-xs'>
               web_search_preview:gpt-4o*
             </code>{' '}
             {t('overrides for matching model prefix.')}
@@ -305,7 +305,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
         <StaticDataTable
           data={rows}
           getRowKey={(row) => row.id}
-          emptyClassName='text-muted-foreground py-8'
+          emptyClassName='text-muted-foreground py-10'
           emptyContent={t('No tools configured')}
           columns={[
             {
@@ -373,7 +373,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
             heightClassName='h-72 min-h-72 max-h-72'
             aria-invalid={Boolean(jsonError)}
           />
-          {jsonError && <p className='text-destructive text-sm'>{jsonError}</p>}
+          {jsonError && <p className='text-destructive text-xs'>{jsonError}</p>}
         </div>
       )}
 

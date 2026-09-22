@@ -57,6 +57,8 @@ import type {
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
 import { formatQuota } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import type { PaymentMethod, TopupInfo } from '../types'
@@ -126,18 +128,19 @@ export function SubscriptionPlansCard({
 
   const fetchPlans = useCallback(async () => {
     try {
-      const res = await getPublicPlans()
+      const res = requireServerSuccess(await getPublicPlans())
       if (res.success) {
         setPlans(res.data || [])
       }
-    } catch {
+    } catch (error) {
+      handleServerError(error)
       setPlans([])
     }
   }, [])
 
   const fetchSelfSubscription = useCallback(async () => {
     try {
-      const res = await getSelfSubscriptionFull()
+      const res = requireServerSuccess(await getSelfSubscriptionFull())
       if (res.success && res.data) {
         setBillingPreference(
           res.data.billing_preference || 'subscription_first'
@@ -145,8 +148,8 @@ export function SubscriptionPlansCard({
         setActiveSubscriptions(res.data.subscriptions || [])
         setAllSubscriptions(res.data.all_subscriptions || [])
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      handleServerError(error)
     }
   }, [])
 
@@ -178,11 +181,11 @@ export function SubscriptionPlansCard({
         const normalized = res.data?.billing_preference || pref
         setBillingPreference(normalized)
       } else {
-        toast.error(res.message || t('Update failed'))
+        handleServerError(res, t('Update failed'))
         setBillingPreference(previous)
       }
-    } catch {
-      toast.error(t('Request failed'))
+    } catch (error) {
+      handleServerError(error, t('Request failed'))
       setBillingPreference(previous)
     }
   }
@@ -194,8 +197,6 @@ export function SubscriptionPlansCard({
   const isSubPref =
     billingPreference === 'subscription_first' ||
     billingPreference === 'subscription_only'
-  const displayPref =
-    disablePref && isSubPref ? 'wallet_first' : billingPreference
 
   const planPurchaseCountMap = useMemo(() => {
     const map = new Map<number, number>()
@@ -293,7 +294,7 @@ export function SubscriptionPlansCard({
                 )}
                 {allSubscriptions.length > activeSubscriptions.length && (
                   <>
-                    <span className='text-muted-foreground/30'>·</span>
+                    <span className='text-muted-foreground'>·</span>
                     <span className='text-muted-foreground'>
                       {allSubscriptions.length - activeSubscriptions.length}{' '}
                       {t('expired')}
@@ -332,12 +333,12 @@ export function SubscriptionPlansCard({
                     label: getBillingPreferenceLabel('wallet_only', t),
                   },
                 ]}
-                value={displayPref}
+                value={billingPreference}
                 onValueChange={(v) => v !== null && handlePreferenceChange(v)}
               >
                 <SelectTrigger className='h-8 flex-1 text-xs sm:w-[140px] sm:flex-none'>
                   <SelectValue>
-                    {getBillingPreferenceLabel(displayPref, t)}
+                    {getBillingPreferenceLabel(billingPreference, t)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
@@ -371,6 +372,7 @@ export function SubscriptionPlansCard({
                 className='h-8 w-8'
                 onClick={handleRefresh}
                 disabled={refreshing}
+                aria-label={t('Refresh')}
               >
                 <RefreshCw
                   className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`}
@@ -381,15 +383,15 @@ export function SubscriptionPlansCard({
 
           {disablePref && isSubPref && (
             <p className='text-muted-foreground mt-2 text-xs'>
-              {t(
-                'Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.',
-                {
-                  pref:
-                    billingPreference === 'subscription_only'
-                      ? t('Subscription Only')
-                      : t('Subscription First'),
-                }
-              )}
+              {billingPreference === 'subscription_only'
+                ? t(
+                    'Preference saved as {{pref}}, but no active subscription. Requests will be rejected.',
+                    { pref: t('Subscription Only') }
+                  )
+                : t(
+                    'Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.',
+                    { pref: t('Subscription First') }
+                  )}
             </p>
           )}
 
@@ -413,6 +415,19 @@ export function SubscriptionPlansCard({
                   const isActive =
                     subscription?.status === 'active' && !isExpired
                   const nextResetTime = subscription?.next_reset_time ?? 0
+                  const fiveHourLimit = Number(
+                    subscription?.five_hour_limit || 0
+                  )
+                  const fiveHourUsed = Number(
+                    subscription?.five_hour_used || 0
+                  )
+                  const fiveHourPercent =
+                    fiveHourLimit > 0
+                      ? Math.min(
+                          100,
+                          Math.round((fiveHourUsed / fiveHourLimit) * 100)
+                        )
+                      : 0
                   let statusBadge = (
                     <StatusBadge
                       label={t('Expired')}
@@ -507,6 +522,28 @@ export function SubscriptionPlansCard({
                       {totalAmount > 0 && isActive && (
                         <Progress value={usagePercent} className='mt-2 h-1.5' />
                       )}
+                      {fiveHourLimit > 0 && (
+                        <div className='text-muted-foreground mt-1'>
+                          {t('5-Hour Usage')}:{' '}
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={<span className='cursor-help' />}
+                            >
+                              {formatQuota(fiveHourUsed)}/
+                              {formatQuota(fiveHourLimit)} · {fiveHourPercent}%
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t('Raw Quota')}: {fiveHourUsed}/{fiveHourLimit}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )}
+                      {fiveHourLimit > 0 && isActive && (
+                        <Progress
+                          value={fiveHourPercent}
+                          className='mt-2 h-1.5'
+                        />
+                      )}
                     </div>
                   )
                 })}
@@ -554,7 +591,7 @@ export function SubscriptionPlansCard({
                   data-card-hover='false'
                   className={cn(isPopular && 'border-primary/70 shadow-sm')}
                 >
-                  <CardContent className='flex h-full flex-col p-3.5 sm:p-4'>
+                  <CardContent className='flex h-full flex-col p-4'>
                     <div className='mb-2 flex items-start justify-between gap-3'>
                       <div className='min-w-0'>
                         <h4 className='truncate font-semibold'>
@@ -579,7 +616,7 @@ export function SubscriptionPlansCard({
                     </div>
 
                     <div className='py-2'>
-                      <span className='text-primary text-2xl font-bold'>
+                      <span className='text-primary font-mono text-2xl font-bold tabular-nums'>
                         ${price}
                       </span>
                     </div>

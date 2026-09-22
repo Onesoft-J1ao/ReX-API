@@ -39,6 +39,32 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export interface PasskeyDomainChange {
+  rp_id: string
+  legacy_rp_ids: string
+  origins: string
+  previous_rp_id: string
+  effective_rp_id: string
+  removed_rp_ids: string[]
+  affected_credentials: number
+  unknown_credentials: number
+  confirmation_required: boolean
+  removal_confirmation: string
+}
+
+export interface UpdatePasskeyDomainsRequest {
+  rp_id: string
+  legacy_rp_ids: string
+  origins: string
+  preview: boolean
+  removal_confirmation?: string
+}
+
+export interface UpdatePasskeyDomainsResponse extends UpdateOptionResponse {
+  code?: string
+  data: PasskeyDomainChange
+}
+
 export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string
@@ -114,10 +140,12 @@ export type SiteSettings = {
   About: string
   HomePageContent: string
   ServerAddress: string
+  TaskPublicAddress: string
   'legal.user_agreement': string
   'legal.privacy_policy': string
   HeaderNavModules: string
   SidebarModulesAdmin: string
+  SidebarAdminLinks: string
 }
 
 export type AuthSettings = {
@@ -136,6 +164,7 @@ export type AuthSettings = {
   'discord.client_id': string
   'discord.client_secret': string
   'oidc.enabled': boolean
+  'oidc.display_name': string
   'oidc.client_id': string
   'oidc.client_secret': string
   'oidc.well_known': string
@@ -143,6 +172,8 @@ export type AuthSettings = {
   'oidc.token_endpoint': string
   'oidc.user_info_endpoint': string
   TelegramOAuthEnabled: boolean
+  'telegram.client_id': string
+  'telegram.client_secret': string
   TelegramBotToken: string
   TelegramBotName: string
   LinuxDOOAuthEnabled: boolean
@@ -161,6 +192,7 @@ export type AuthSettings = {
   'passkey.enabled': boolean
   'passkey.rp_display_name': string
   'passkey.rp_id': string
+  'passkey.legacy_rp_ids': string
   'passkey.origins': string
   'passkey.allow_insecure_origin': boolean
   'passkey.user_verification': 'required' | 'preferred' | 'discouraged'
@@ -176,6 +208,11 @@ export type ContentSettings = {
   'console_setting.announcements_enabled': boolean
   'console_setting.faq_enabled': boolean
   'console_setting.uptime_kuma_enabled': boolean
+  'console_setting.upstream_status_url': string
+  'console_setting.upstream_status_name': string
+  'console_setting.upstream_status_enabled': boolean
+  'console_setting.support_qq_url': string
+  'console_setting.support_qq_enabled': boolean
   DataExportEnabled: boolean
   DataExportDefaultTime: string
   DataExportInterval: number
@@ -218,12 +255,14 @@ export type ModelSettings = {
   ExposeRatioEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
+  'billing_setting.plugin_billing_expr': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
   RetryTimes: number
@@ -235,7 +274,11 @@ export type ModelSettings = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
-  'monitor_setting.channel_test_mode': 'scheduled_all' | 'passive_recovery'
+  'monitor_setting.channel_test_concurrency': number
+  'monitor_setting.channel_test_mode':
+    | 'scheduled_all'
+    | 'auto_ban_only'
+    | 'passive_recovery'
   'channel_affinity_setting.enabled': boolean
   'channel_affinity_setting.switch_on_success': boolean
   'channel_affinity_setting.keep_on_channel_disabled': boolean
@@ -272,12 +315,14 @@ export type BillingSettings = {
   ExposeRatioEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
+  'billing_setting.plugin_billing_expr': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
   PayAddress: string
@@ -361,6 +406,14 @@ export type OperationsSettings = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number
+  'perf_metrics_setting.upstream_enabled': boolean
+  'perf_metrics_setting.upstream_summary_url': string
+  'perf_metrics_setting.upstream_timeout_seconds': number
+  'status_check_setting.probe_free_models_only': boolean
+  'model_catalog_setting.enabled': boolean
+  'model_catalog_setting.source_url': string
+  'model_catalog_setting.timeout_seconds': number
+  'model_catalog_setting.cache_minutes': number
 }
 
 export type SecuritySettings = {
@@ -414,6 +467,12 @@ export type DifferencesMap = Record<
   Partial<Record<RatioType, RatioDifference>>
 >
 
+export type PricingSyncValues = Partial<Record<RatioType, number | string>>
+export type PricingSyncModels = Record<
+  string,
+  { current: PricingSyncValues; upstreams: Record<string, PricingSyncValues> }
+>
+
 export type UpstreamChannelsResponse = {
   success: boolean
   message: string
@@ -443,6 +502,7 @@ export type UpstreamRatiosResponse = {
   message: string
   data: {
     differences: DifferencesMap
+    prices: PricingSyncModels
     test_results: TestResult[]
   }
 }

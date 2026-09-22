@@ -151,7 +151,7 @@ export function Pricing() {
   if (isLoading) {
     return (
       <PublicLayout showMainContainer={false}>
-        <div className='mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
+        <div className='mx-auto w-full max-w-[1800px] px-4 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10'>
           <LoadingSkeleton viewMode={viewMode} />
         </div>
       </PublicLayout>
@@ -176,17 +176,17 @@ export function Pricing() {
               'linear-gradient(to bottom, black 40%, transparent 100%)',
           }}
         />
-        <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
+        <PageTransition className='relative mx-auto w-full max-w-[1800px] px-4 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10'>
           <header className='mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
             <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
               {t('Model Square')}
             </h1>
-            <p className='text-muted-foreground/80 mt-3 text-sm sm:mt-4 sm:text-base'>
+            <p className='text-muted-foreground mt-3 text-sm sm:mt-4 sm:text-base'>
               {t('This site currently has {{count}} models enabled', {
                 count: models?.length || 0,
               })}
             </p>
-            <p className='text-muted-foreground/60 mx-auto mt-2 max-w-2xl text-xs leading-relaxed sm:text-sm'>
+            <p className='text-muted-foreground mx-auto mt-2 max-w-2xl text-xs leading-relaxed sm:text-sm'>
               {t(
                 'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
               )}
@@ -202,7 +202,7 @@ export function Pricing() {
             />
           </header>
 
-          <div className='grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]'>
+          <div className='grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]'>
             <PricingSidebar
               quotaTypeFilter={quotaTypeFilter}
               endpointTypeFilter={endpointTypeFilter}
@@ -221,7 +221,7 @@ export function Pricing() {
               models={models || []}
               hasActiveFilters={hasActiveFilters}
               onClearFilters={clearFilters}
-              className='hover-scrollbar sticky top-4 hidden max-h-[calc(100dvh-2rem)] self-start overflow-y-auto xl:block'
+              className='hover-scrollbar sticky top-20 hidden max-h-[calc(100dvh-6rem)] self-start overflow-y-auto xl:block'
             />
 
             <main className='min-w-0 space-y-4'>

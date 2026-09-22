@@ -92,7 +92,7 @@ export function TagInput({
                 e.stopPropagation()
                 removeTag(tag)
               }}
-              className='hover:bg-secondary-foreground/20 size-auto rounded-sm p-0'
+              className='hover:bg-secondary-foreground/20 size-auto rounded-full p-0'
             >
               <X className='h-3 w-3' aria-hidden='true' />
             </Button>

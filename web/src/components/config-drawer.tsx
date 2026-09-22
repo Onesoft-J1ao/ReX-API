@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Radio as RadioPrimitive } from '@base-ui/react/radio'
 import { RadioGroup as Radio } from '@base-ui/react/radio-group'
-import { CircleCheck, Palette, RotateCcw } from 'lucide-react'
+import { CircleCheck, Palette } from 'lucide-react'
 import type { SVGProps } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,6 +38,7 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { SectionTitle } from '@/components/section-title'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -52,6 +53,7 @@ import { useDirection } from '@/context/direction-provider'
 import { type Collapsible, useLayout } from '@/context/layout-provider'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
+import { WallpaperConfig } from '@/features/wallpaper/components/wallpaper-config'
 import {
   type ContentLayout,
   THEME_PRESETS,
@@ -106,6 +108,7 @@ export function ConfigDrawer() {
         </SheetHeader>
         <div className={sideDrawerFormClassName()}>
           <ThemeConfig />
+          <WallpaperConfig />
           <PresetConfig />
           <FontConfig />
           <RadiusConfig />
@@ -126,35 +129,6 @@ export function ConfigDrawer() {
         </SheetFooter>
       </SheetContent>
     </Sheet>
-  )
-}
-
-function SectionTitle(props: {
-  title: string
-  showReset?: boolean
-  onReset?: () => void
-  className?: string
-}) {
-  return (
-    <div
-      className={cn(
-        'text-muted-foreground mb-2 flex items-center gap-2 text-sm font-semibold',
-        props.className
-      )}
-    >
-      {props.title}
-      {props.showReset && props.onReset && (
-        <Button
-          size='icon'
-          variant='secondary'
-          className='size-4'
-          onClick={props.onReset}
-          aria-label='Reset'
-        >
-          <RotateCcw className='size-3' aria-hidden='true' />
-        </Button>
-      )}
-    </div>
   )
 }
 
@@ -687,7 +661,7 @@ function ContentLayoutConfig() {
 function ContentLayoutPreview(props: { centered: boolean }) {
   return (
     <div aria-hidden='true' className='absolute inset-2 flex flex-col gap-1.5'>
-      <span className='bg-foreground/40 block h-1.5 w-full rounded-sm' />
+      <span className='bg-foreground/40 block h-1.5 w-full rounded-full' />
       <div
         className={cn(
           'flex flex-1 flex-col gap-1',

@@ -20,13 +20,17 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
-import { updateSystemOption } from '../api'
-import type { UpdateOptionRequest } from '../types'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
+
+import { updatePasskeyDomains, updateSystemOption } from '../api'
+import type { UpdateOptionRequest, UpdatePasskeyDomainsRequest } from '../types'
 
 // Configuration keys that require status refresh
 const STATUS_RELATED_KEYS = new Set([
   'HeaderNavModules',
   'SidebarModulesAdmin',
+  'SidebarAdminLinks',
   'Notice',
   'LogConsumeEnabled',
   'QuotaPerUnit',
@@ -36,13 +40,35 @@ const STATUS_RELATED_KEYS = new Set([
   'general_setting.quota_display_type',
   'general_setting.custom_currency_symbol',
   'general_setting.custom_currency_exchange_rate',
+  'oidc.display_name',
+  'ServerAddress',
+  'passkey.enabled',
+  'passkey.rp_id',
+  'passkey.legacy_rp_ids',
+  'passkey.origins',
+  // These feed the /status page and the model square's health badges.
+  'status_check_setting.enabled',
+  'status_check_setting.groups',
+  'status_check_setting.excluded_models',
+  'status_check_setting.passive_window_hours',
+  'status_check_setting.probe_free_models_only',
+  'perf_metrics_setting.enabled',
+  'perf_metrics_setting.upstream_enabled',
+  'perf_metrics_setting.upstream_summary_url',
+  // The model catalog fills the detail view's context/modality/capability
+  // fields, which the gateway itself has no column for.
+  'model_catalog_setting.enabled',
+  'model_catalog_setting.source_url',
+  'model_catalog_setting.timeout_seconds',
+  'model_catalog_setting.cache_minutes',
 ])
 
 export function useUpdateOption() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (request: UpdateOptionRequest) => updateSystemOption(request),
+    mutationFn: async (request: UpdateOptionRequest) =>
+      requireServerSuccess(await updateSystemOption(request)),
     onSuccess: (data, variables) => {
       if (data.success) {
         // Always refresh system-options
@@ -60,11 +86,40 @@ export function useUpdateOption() {
 
         toast.success(i18next.t('Setting updated successfully'))
       } else {
-        toast.error(data.message || i18next.t('Failed to update setting'))
+        handleServerError(data, i18next.t('Failed to update setting'))
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || i18next.t('Failed to update setting'))
+      handleServerError(error, i18next.t('Failed to update setting'))
     },
+  })
+}
+
+export function useUpdatePasskeyDomains() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (request: UpdatePasskeyDomainsRequest) => {
+      const result = await updatePasskeyDomains(request)
+      if (
+        result.code === 'PASSKEY_RP_ID_REMOVAL_CONFIRMATION_REQUIRED' &&
+        result.data
+      ) {
+        return result
+      }
+      return requireServerSuccess(result)
+    },
+    onSuccess: (result, request) => {
+      if (request.preview || !result.success) return
+      queryClient.invalidateQueries({ queryKey: ['system-options'] })
+      queryClient.invalidateQueries({ queryKey: ['status'] })
+      try {
+        window.localStorage.removeItem('status')
+      } catch {
+        /* Storage may be disabled. */
+      }
+      toast.success(i18next.t('Setting updated successfully'))
+    },
+    onError: (error: Error) =>
+      handleServerError(error, i18next.t('Failed to update setting')),
   })
 }

@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 
-import { TOOLS_VIEW } from '../config/tools.config'
 import { SYSTEM_SETTINGS_VIEW } from '../config/system-settings.config'
+import { TOOLS_VIEW } from '../config/tools.config'
 import type { NavGroup, SidebarView } from '../types'
 
 /**

@@ -5,7 +5,7 @@ import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/relay"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +25,7 @@ func SetRelayRouter(router *gin.Engine) {
 			case c.GetHeader("x-api-key") != "" && c.GetHeader("anthropic-version") != "":
 				controller.ListModels(c, constant.ChannelTypeAnthropic)
 			case c.GetHeader("x-goog-api-key") != "" || c.Query("key") != "": // 单独的适配
-				controller.RetrieveModel(c, constant.ChannelTypeGemini)
+				controller.ListModels(c, constant.ChannelTypeGemini)
 			default:
 				controller.ListModels(c, constant.ChannelTypeOpenAI)
 			}
@@ -61,10 +61,22 @@ func SetRelayRouter(router *gin.Engine) {
 
 	playgroundRouter := router.Group("/pg")
 	playgroundRouter.Use(middleware.RouteTag("relay"))
+	playgroundRouter.Use(middleware.PlaygroundGuard())
 	playgroundRouter.Use(middleware.SystemPerformanceCheck())
 	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
+		playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
+		playgroundRouter.POST("/images/edits", controller.PlaygroundImage)
+		playgroundRouter.POST("/audio/speech", controller.PlaygroundAudio)
+		playgroundRouter.POST("/audio/transcriptions", controller.PlaygroundAudio)
+		playgroundRouter.POST("/audio/translations", controller.PlaygroundAudio)
+		// Task endpoints: video and 3D are asynchronous, so the panel submits
+		// and then polls by task id instead of holding one streaming response.
+		playgroundRouter.POST("/videos", controller.PlaygroundVideo)
+		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundTaskFetch)
+		playgroundRouter.POST("/3d", controller.PlaygroundThreeD)
+		playgroundRouter.GET("/3d/:task_id", controller.PlaygroundTaskFetch)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
@@ -85,6 +97,8 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.Use(middleware.Distribute())
 
 		// claude related routes
+		// TODO: /messages/count_tokens is disabled. The current controller.CountClaudeTokens
+		// httpRouter.POST("/messages/count_tokens", controller.CountClaudeTokens)
 		httpRouter.POST("/messages", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatClaude)
 		})
@@ -98,9 +112,6 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 
 		// response related routes
-		httpRouter.POST("/responses", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIResponses)
-		})
 		httpRouter.POST("/responses/compact", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
 		})
@@ -180,16 +191,6 @@ func SetRelayRouter(router *gin.Engine) {
 	relayMjModeRouter.Use(middleware.SystemPerformanceCheck())
 	registerMjRouterGroup(relayMjModeRouter)
 	//relayMjRouter.Use()
-
-	relaySunoRouter := router.Group("/suno")
-	relaySunoRouter.Use(middleware.RouteTag("relay"))
-	relaySunoRouter.Use(middleware.SystemPerformanceCheck())
-	relaySunoRouter.Use(middleware.TokenAuth(), middleware.Distribute())
-	{
-		relaySunoRouter.POST("/submit/:action", controller.RelayTask)
-		relaySunoRouter.POST("/fetch", controller.RelayTaskFetch)
-		relaySunoRouter.GET("/fetch/:id", controller.RelayTaskFetch)
-	}
 
 	relayGeminiRouter := router.Group("/v1beta")
 	relayGeminiRouter.Use(middleware.RouteTag("relay"))

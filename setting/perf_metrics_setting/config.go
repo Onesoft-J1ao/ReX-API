@@ -1,12 +1,28 @@
 package perf_metrics_setting
 
-import "github.com/QuantumNous/new-api/setting/config"
+import (
+	"time"
+
+	"github.com/QuantumNous/new-api/setting/config"
+)
 
 type PerfMetricsSetting struct {
 	Enabled       bool   `json:"enabled"`
 	FlushInterval int    `json:"flush_interval"`
 	BucketTime    string `json:"bucket_time"`
 	RetentionDays int    `json:"retention_days"`
+
+	// UpstreamSummaryUrl mirrors another new-api instance's public perf-metrics
+	// summary. Pay-per-request models cost real money to probe, so an upstream
+	// that already samples them is a cheaper source of the same numbers. The
+	// upstream wins for models it knows about; our own data fills the rest.
+	UpstreamSummaryUrl string `json:"upstream_summary_url"`
+	// UpstreamEnabled gates the fetch. The upstream is a third party, so this is
+	// on by default but can be turned off without losing the URL.
+	UpstreamEnabled bool `json:"upstream_enabled"`
+	// UpstreamTimeoutSeconds bounds one fetch. The payload is ~100KB, so this is
+	// generous enough for a slow link without stalling a page load behind it.
+	UpstreamTimeoutSeconds int `json:"upstream_timeout_seconds"`
 }
 
 var perfMetricsSetting = PerfMetricsSetting{
@@ -14,6 +30,10 @@ var perfMetricsSetting = PerfMetricsSetting{
 	FlushInterval: 5,
 	BucketTime:    "hour",
 	RetentionDays: 0,
+
+	UpstreamSummaryUrl:     "https://ai.furry.vg/api/perf-metrics/summary",
+	UpstreamEnabled:        true,
+	UpstreamTimeoutSeconds: 5,
 }
 
 func init() {
@@ -42,4 +62,12 @@ func GetFlushIntervalMinutes() int {
 		return 1
 	}
 	return perfMetricsSetting.FlushInterval
+}
+
+func GetUpstreamTimeout() time.Duration {
+	seconds := perfMetricsSetting.UpstreamTimeoutSeconds
+	if seconds < 1 {
+		seconds = 5
+	}
+	return time.Duration(seconds) * time.Second
 }

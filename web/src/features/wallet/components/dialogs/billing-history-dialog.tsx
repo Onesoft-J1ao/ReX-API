@@ -150,7 +150,7 @@ export function BillingHistoryDialog({
             {loading ? (
               <div className='space-y-3'>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className='rounded-lg border p-3 sm:p-4'>
+                  <div key={i} className='rounded-xl border p-3 sm:p-4'>
                     <div className='flex items-start justify-between'>
                       <div className='flex-1 space-y-2'>
                         <Skeleton className='h-4 w-48' />
@@ -184,7 +184,7 @@ export function BillingHistoryDialog({
                   return (
                     <div
                       key={record.id}
-                      className='rounded-lg border p-3 sm:p-4'
+                      className='rounded-xl border p-3 sm:p-4'
                     >
                       {/* Header Row */}
                       <div className='flex items-start justify-between gap-2'>
@@ -196,13 +196,14 @@ export function BillingHistoryDialog({
                             <Button
                               variant='ghost'
                               size='sm'
-                              className='h-5 w-5 p-0'
+                              className='size-7 p-0'
                               onClick={() => copyToClipboard(record.trade_no)}
+                              aria-label={t('Copy')}
                             >
                               {copiedText === record.trade_no ? (
-                                <Check className='h-3 w-3' />
+                                <Check className='h-3.5 w-3.5' />
                               ) : (
-                                <Copy className='h-3 w-3' />
+                                <Copy className='h-3.5 w-3.5' />
                               )}
                             </Button>
                             {isAdmin && record.user_id != null && (
@@ -252,7 +253,7 @@ export function BillingHistoryDialog({
                           <Label className='text-muted-foreground text-xs'>
                             {t('Payment')}
                           </Label>
-                          <div className='text-sm font-semibold text-red-600'>
+                          <div className='text-destructive font-mono text-sm font-semibold tabular-nums'>
                             {formatNumber(record.money)}
                           </div>
                         </div>
@@ -292,10 +293,11 @@ export function BillingHistoryDialog({
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page <= 1}
                   className='h-8 w-8 p-0'
+                  aria-label={t('Previous page')}
                 >
                   <ChevronLeft className='h-4 w-4' />
                 </Button>
-                <div className='text-muted-foreground flex items-center gap-1 text-sm'>
+                <div className='text-muted-foreground flex items-center gap-1 font-mono text-sm tabular-nums'>
                   <span className='font-medium'>{page}</span>
                   <span>/</span>
                   <span>{totalPages}</span>
@@ -306,6 +308,7 @@ export function BillingHistoryDialog({
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page >= totalPages}
                   className='h-8 w-8 p-0'
+                  aria-label={t('Next page')}
                 >
                   <ChevronRight className='h-4 w-4' />
                 </Button>

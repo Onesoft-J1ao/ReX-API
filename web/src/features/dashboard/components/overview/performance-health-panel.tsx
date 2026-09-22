@@ -32,6 +32,7 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { PerfModelSummary } from '@/features/performance-metrics/types'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 const PERFORMANCE_WINDOW_HOURS = 24
@@ -59,7 +60,10 @@ export function PerformanceHealthPanel() {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
     queryKey: ['perf-metrics-summary', PERFORMANCE_WINDOW_HOURS],
-    queryFn: () => getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS),
+    queryFn: async () =>
+      requireServerSuccess(
+        await getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS)
+      ),
     staleTime: 60 * 1000,
     retry: false,
   })
@@ -92,7 +96,7 @@ export function PerformanceHealthPanel() {
   const hasData = models.length > 0
 
   return (
-    <section className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>
+    <section className='bg-card h-full overflow-hidden rounded-xl border shadow-xs'>
       <div className='flex items-center gap-2 border-b px-4 py-3 sm:px-5'>
         <IconBadge tone='success' size='sm'>
           <HeartPulse />
@@ -132,22 +136,22 @@ export function PerformanceHealthPanel() {
         {loading ? (
           <div className='space-y-1'>
             {['success', 'latency', 'throughput'].map((key) => (
-              <Skeleton key={key} className='h-5 w-full rounded' />
+              <Skeleton key={key} className='h-5 w-full rounded-md' />
             ))}
           </div>
         ) : (
           hasData && (
             <div>
-              <span className='text-muted-foreground mb-1 block text-[11px] font-medium'>
+              <span className='text-muted-foreground mb-1 block text-xs font-medium'>
                 {t('Top models by traffic')}
               </span>
               <div className='grid grid-cols-1 gap-x-4 sm:grid-cols-2'>
                 {topModels.map((model) => (
                   <div
                     key={model.model_name}
-                    className='flex items-center justify-between gap-2 rounded px-1.5 py-1'
+                    className='flex items-center justify-between gap-2 rounded-md px-1.5 py-1'
                   >
-                    <span className='min-w-0 flex-1 truncate font-mono text-[11px]'>
+                    <span className='min-w-0 flex-1 truncate font-mono text-xs'>
                       {model.model_name}
                     </span>
                     <span className='inline-flex shrink-0 items-center gap-1'>
@@ -160,7 +164,7 @@ export function PerformanceHealthPanel() {
                       />
                       <span
                         className={cn(
-                          'font-mono text-[11px] font-semibold tabular-nums',
+                          'font-mono text-xs font-semibold tabular-nums',
                           getSuccessRateTextClass(model.success_rate)
                         )}
                       >
@@ -189,7 +193,7 @@ function MetricCell(props: {
   const Icon = props.icon
   return (
     <div className='bg-muted/40 rounded-xl px-3 py-2.5'>
-      <div className='text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium'>
+      <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
         <IconBadge tone={props.tone} size='xs'>
           <Icon />
         </IconBadge>

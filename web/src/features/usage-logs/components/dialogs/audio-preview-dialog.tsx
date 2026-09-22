@@ -26,6 +26,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
 export interface AudioClip {
   clip_id?: string
@@ -74,12 +75,12 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
   if (!audioUrl) return null
 
   return (
-    <div className='bg-card flex gap-4 rounded-lg border p-4'>
+    <div className='bg-card flex gap-4 rounded-xl border p-4'>
       {imageUrl && (
         <img
           src={imageUrl}
           alt={title}
-          className='h-20 w-20 shrink-0 rounded-lg object-cover'
+          className='h-20 w-20 shrink-0 rounded-md object-cover'
           onError={(e) => {
             ;(e.target as HTMLElement).style.display = 'none'
           }}
@@ -121,8 +122,13 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
               size='sm'
               className='h-7 gap-1 text-xs'
               onClick={() => {
-                navigator.clipboard.writeText(audioUrl)
-                toast.success(t('Copied'))
+                void copyToClipboard(audioUrl).then((copied) => {
+                  if (copied) {
+                    toast.success(t('Copied'))
+                  } else {
+                    toast.error(t('Failed to copy'))
+                  }
+                })
               }}
             >
               <Copy className='h-3 w-3' />

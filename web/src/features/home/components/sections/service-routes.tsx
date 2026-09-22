@@ -26,22 +26,25 @@ import { RouteChart } from '../route-chart'
 
 const KIND_META: Record<
   RouteKind,
-  { label: string; title: string; dot: string }
+  { lane: string; title: string; dot: string; rail: string }
 > = {
   priority: {
-    label: '01',
+    lane: 'A',
     title: 'Priority',
-    dot: 'bg-emerald-500',
+    dot: 'bg-emerald-400',
+    rail: 'from-emerald-400/70',
   },
   free: {
-    label: '02',
+    lane: 'B',
     title: 'Free models',
-    dot: 'bg-sky-500',
+    dot: 'bg-sky-400',
+    rail: 'from-sky-400/70',
   },
   value: {
-    label: '03',
+    lane: 'C',
     title: 'Value & aggregated',
-    dot: 'bg-amber-500',
+    dot: 'bg-amber-400',
+    rail: 'from-amber-400/70',
   },
 }
 
@@ -50,12 +53,9 @@ export function ServiceRoutes() {
   const config = useLandingModels()
 
   return (
-    <section className='relative z-10 px-6 py-14 sm:px-10 md:py-20 lg:px-14'>
+    <section className='relative z-10 px-6 py-16 sm:px-10 md:py-24 lg:px-14'>
       <div className='mx-auto max-w-7xl'>
-        <AnimateInView className='mb-10 max-w-2xl md:mb-12'>
-          <p className='text-primary mb-5 font-mono text-[11px] tracking-[0.28em] uppercase'>
-            01 / {t('Service routes')}
-          </p>
+        <AnimateInView className='mb-12 max-w-2xl md:mb-16'>
           <h2 className='text-foreground font-serif text-4xl leading-[1.05] font-medium tracking-[-0.02em] md:text-5xl'>
             {t('The same model,')}
             <br />
@@ -76,33 +76,45 @@ export function ServiceRoutes() {
                 key={group.id}
                 delay={i * 80}
                 animation='fade-up'
-                className='landing-card-motion border-border/60 bg-card/40 rounded-2xl border p-7 md:p-8'
+                className='landing-card-motion border-border/60 bg-card/40 group relative overflow-hidden rounded-2xl border p-7 md:p-8'
               >
-                <div className='text-muted-foreground mb-6 flex items-center gap-3'>
-                  <span className='font-mono text-xs tracking-[0.2em]'>
-                    {meta.label}
-                  </span>
-                  <span className='text-primary font-mono text-[10px] tracking-[0.2em] uppercase'>
+                {/* Lane rail: the route's own supply path, drawn once down
+                    the card edge so the three groups read as parallel tracks
+                    rather than three interchangeable boxes. */}
+                <span
+                  aria-hidden='true'
+                  className={`absolute inset-y-0 start-0 w-px bg-gradient-to-b ${meta.rail} via-transparent to-transparent`}
+                />
+                <div className='mb-7 flex items-center justify-between'>
+                  <span className='text-muted-foreground flex items-center gap-2.5 font-mono text-[10px] tracking-[0.22em] uppercase'>
+                    <span className={`size-1.5 rounded-full ${meta.dot}`} />
                     {t(meta.title)}
                   </span>
+                  <span className='text-muted-foreground/50 font-mono text-[10px] tracking-[0.22em] uppercase'>
+                    {t('Lane')} {meta.lane}
+                  </span>
                 </div>
+
                 <p className='text-muted-foreground mb-6 text-sm leading-6'>
                   {t(group.description)}
                 </p>
-                <div className='border-border/60 flex items-center gap-2 border-t pt-5 font-mono text-xs'>
-                  <span className='text-muted-foreground'>group</span>
-                  <span className='text-foreground'>{group.group}</span>
+
+                <div className='border-border/50 flex items-baseline gap-2 border-t pt-5 font-mono text-xs'>
+                  <span className='text-muted-foreground/70'>group</span>
+                  <span className='text-primary'>{group.group}</span>
                 </div>
-                <ul className='mt-4 space-y-2'>
+
+                <ul className='mt-5 space-y-1'>
                   {group.models.map((model) => (
                     <li
                       key={model}
-                      className='border-border/40 flex items-center gap-2.5 border-b pb-2 text-sm'
+                      className='text-foreground/90 flex items-center gap-3 py-1.5 font-mono text-[13px]'
                     >
                       <span
-                        className={`size-1.5 shrink-0 rounded-full ${meta.dot}`}
+                        aria-hidden='true'
+                        className={`h-px w-3 shrink-0 bg-gradient-to-r ${meta.rail} to-transparent`}
                       />
-                      <span className='text-foreground/90'>{model}</span>
+                      <span className='truncate'>{model}</span>
                     </li>
                   ))}
                 </ul>
@@ -111,7 +123,7 @@ export function ServiceRoutes() {
           })}
         </div>
 
-        <div className='mt-12 grid items-center gap-10 lg:grid-cols-[1fr_20rem] lg:gap-14'>
+        <div className='mt-14 grid items-center gap-10 lg:grid-cols-[1fr_20rem] lg:gap-14'>
           <RouteChart />
           <AnimateInView animation='fade-up' className='max-w-sm'>
             <p className='text-muted-foreground text-sm leading-6'>

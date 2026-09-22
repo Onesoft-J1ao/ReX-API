@@ -24,7 +24,14 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
-import { useState, useMemo, useEffect, useCallback, memo } from 'react'
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  memo,
+  type ReactNode,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
@@ -50,16 +57,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -76,6 +76,7 @@ type GroupRatioVisualEditorProps = {
   userUsableGroups: string
   groupGroupRatio: string
   autoGroups: string
+  maxTokenAutoGroupsField: ReactNode
   groupSpecialUsableGroup: string
   onChange: (field: string, value: string) => void
 }
@@ -229,25 +230,16 @@ function GroupNameSelect(props: GroupNameSelectProps) {
   }, [props.options, props.value])
 
   return (
-    <Select
-      value={props.value === '' ? null : props.value}
-      onValueChange={(v) => {
-        if (typeof v === 'string' && v !== '') props.onValueChange(v)
+    <Combobox
+      options={options.map((name) => ({ value: name, label: name }))}
+      value={props.value}
+      onValueChange={(value) => {
+        if (value) props.onValueChange(value)
       }}
-    >
-      <SelectTrigger className={props.className ?? 'w-48'}>
-        <SelectValue placeholder={props.placeholder} />
-      </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
-        <SelectGroup>
-          {options.map((name) => (
-            <SelectItem key={name} value={name}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+      className={props.className ?? 'w-48'}
+      placeholder={props.placeholder}
+      aria-label={props.placeholder}
+    />
   )
 }
 
@@ -257,6 +249,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   userUsableGroups,
   groupGroupRatio,
   autoGroups,
+  maxTokenAutoGroupsField,
   groupSpecialUsableGroup,
   onChange,
 }: GroupRatioVisualEditorProps) {
@@ -351,6 +344,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         </CardHeader>
         <CardContent>
           <div className='space-y-4'>
+            {maxTokenAutoGroupsField}
             <GroupNameSelect
               options={autoGroupCandidates}
               value={null}
@@ -388,6 +382,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                         variant='ghost'
                         size='sm'
                         onClick={() => handleAutoGroupDelete(index)}
+                        aria-label={t('Delete')}
                       >
                         <Trash2 className='h-4 w-4' />
                       </Button>
@@ -657,7 +652,7 @@ function GroupPricingTable({
           />
 
           {duplicateNames.length > 0 && (
-            <p className='text-destructive text-sm'>
+            <p className='text-destructive text-xs'>
               {t('Duplicate group names: {{names}}', {
                 names: duplicateNames.join(', '),
               })}
@@ -816,11 +811,17 @@ function GroupOverrideRules({
             <div className='space-y-3'>
               {groupGroupRatioList.map((userGroupData) => (
                 <Collapsible key={userGroupData.userGroup}>
-                  <div className='rounded-lg border'>
+                  <div className='rounded-xl border'>
                     <div className='flex items-center justify-between p-4'>
                       <div className='flex items-center gap-2'>
                         <CollapsibleTrigger
-                          render={<Button variant='ghost' size='sm' />}
+                          render={
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              aria-label={t('Details')}
+                            />
+                          }
                         >
                           <ChevronDown className='h-4 w-4' />
                         </CollapsibleTrigger>
@@ -846,6 +847,7 @@ function GroupOverrideRules({
                           onClick={() =>
                             handleOverrideAdd(userGroupData.userGroup)
                           }
+                          aria-label={t('Add')}
                         >
                           <Plus className='h-4 w-4' />
                         </Button>
@@ -855,6 +857,7 @@ function GroupOverrideRules({
                           onClick={() =>
                             handleUserGroupDelete(userGroupData.userGroup)
                           }
+                          aria-label={t('Delete')}
                         >
                           <Trash2 className='h-4 w-4' />
                         </Button>
