@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 
 import { AnimateInView } from '@/components/animate-in-view'
 import { Button } from '@/components/ui/button'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
 /** Deployment address shown in every snippet — keep in sync with the docs page. */
 const API_BASE = 'https://ai.j1ao.vip/v1'
@@ -44,12 +45,11 @@ function SnippetBlock(props: { title: string; code: string }) {
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(props.code)
+    // On failure the snippet stays selectable rather than reporting a copy
+    // that did not happen.
+    if (await copyToClipboard(props.code)) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      // Clipboard unavailable; leave the code selectable.
     }
   }
 

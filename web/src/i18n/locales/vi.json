@@ -3048,6 +3048,7 @@
     "OAuth failed": "OAuth thất bại",
     "OAuth Integrations": "Tích hợp OAuth",
     "OAuth pop-up was blocked": "Cửa sổ bật lên OAuth đã bị chặn",
+  "This step needs a full browser. Open this page in Chrome or Safari and try again.": "Bước này cần một trình duyệt đầy đủ. Hãy mở trang này bằng Chrome hoặc Safari rồi thử lại.",
     "Object Prune Rules": "Quy tắc dọn dẹp đối tượng",
     "Observability": "Khả năng quan sát",
     "Obtain the API key, merchant ID, and RSA key pair from the Waffo dashboard, and configure the callback URL.": "Lấy API key, mã thương gia và cặp khóa RSA từ bảng điều khiển Waffo, đồng thời cấu hình URL callback.",

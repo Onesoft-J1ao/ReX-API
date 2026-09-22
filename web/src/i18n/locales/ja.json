@@ -3048,6 +3048,7 @@
     "OAuth failed": "OAuth に失敗しました",
     "OAuth Integrations": "OAuth連携",
     "OAuth pop-up was blocked": "OAuth ポップアップがブロックされました",
+  "This step needs a full browser. Open this page in Chrome or Safari and try again.": "この操作には通常のブラウザが必要です。Chrome または Safari でこのページを開いて、もう一度お試しください。",
     "Object Prune Rules": "オブジェクト削除ルール",
     "Observability": "可観測性",
     "Obtain the API key, merchant ID, and RSA key pair from the Waffo dashboard, and configure the callback URL.": "Waffoダッシュボードから APIキー、マーチャントID、RSAキーペアを取得し、コールバックURLを設定してください。",
