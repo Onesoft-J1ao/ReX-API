@@ -217,6 +217,23 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
 		}
 
+		// Refund requests (plan refunds and general cash refunds). Every route
+		// that creates a refund or moves it forward is admin-gated; the user
+		// route is read-only and scoped to the caller.
+		refundRoute := apiRouter.Group("/refund")
+		refundRoute.Use(middleware.UserAuth())
+		{
+			refundRoute.GET("/self", controller.GetUserRefundRequests)
+		}
+		refundAdminRoute := apiRouter.Group("/refund/admin")
+		refundAdminRoute.Use(middleware.AdminAuth())
+		{
+			refundAdminRoute.GET("/", controller.AdminListRefundRequests)
+			refundAdminRoute.POST("/plan", controller.AdminCreatePlanRefundRequest)
+			refundAdminRoute.POST("/cash", controller.AdminCreateCashRefundRequest)
+			refundAdminRoute.POST("/:id/advance", controller.AdminAdvanceRefundRequest)
+		}
+
 		// Subscription payment callbacks (no auth)
 		apiRouter.POST("/subscription/epay/notify", anonymousRequestBodyLimit, controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
