@@ -98,8 +98,20 @@ func ensureLogRequestId(log *Log) {
 	}
 }
 
+// createLog persists one log row. When the async writer is running (see
+// log_queue.go) the row is handed to it and the caller returns without touching
+// LOG_DB, so log persistence no longer sits inside the request's response
+// budget. Without a running queue -- unit tests and CLI paths -- the insert is
+// synchronous, exactly as before.
 func createLog(log *Log) error {
 	ensureLogRequestId(log)
+	if q := logQueue.Load(); q != nil {
+		return q.enqueue(log)
+	}
+	return createLogSync(log)
+}
+
+func createLogSync(log *Log) error {
 	return LOG_DB.Create(log).Error
 }
 

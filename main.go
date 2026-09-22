@@ -46,6 +46,10 @@ var buildFS embed.FS
 //go:embed web/dist/index.html
 var indexPage []byte
 
+// logQueueDrainTimeout bounds how long shutdown waits for queued log rows to
+// reach the database before reporting the remainder as lost.
+const logQueueDrainTimeout = 15 * time.Second
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "plugin" {
 		os.Exit(jsplugin.RunCLI(os.Args[2:], os.Stdout, os.Stderr))
@@ -236,6 +240,15 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(fmt.Sprintf("server forced to shutdown: %v", err))
 	}
+	// srv.Shutdown has already waited for the in-flight handlers, so no new log
+	// is produced after this point; drain what the writer still holds. This gets
+	// its own deadline because ctx may already be expired when the server had to
+	// be forced down, and an expired ctx would skip the drain entirely.
+	drainCtx, cancelDrain := context.WithTimeout(context.Background(), logQueueDrainTimeout)
+	if err := model.StopLogQueue(drainCtx); err != nil {
+		common.SysError(fmt.Sprintf("failed to drain the async log queue: %v", err))
+	}
+	cancelDrain()
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()
@@ -343,6 +356,10 @@ func InitResources() error {
 	if err != nil {
 		return err
 	}
+	// Move log persistence off the request goroutine: a consume/task log insert
+	// used to be a synchronous database round-trip (and, on SQLite, a wait for
+	// the single write lock) inside every relay request's response budget.
+	model.StartLogQueue()
 
 	// Initialize Redis
 	err = common.InitRedisClient()
