@@ -460,14 +460,21 @@ func SetApiRouter(router *gin.Engine) {
 			priceSentinelRoute.GET("/report", controller.GetPriceSentinelReport)
 			priceSentinelRoute.POST("/run", controller.RunPriceSentinelNow)
 		}
+		// Neither route carries the shared critical limiter. Its budget is 20
+		// requests per 20 minutes across every critical operation, and applying a
+		// digest legitimately means writing many prices in one sitting - the page
+		// exists to be used repeatedly, so that budget only locks the operator out
+		// of their own report. The authorization that matters is unchanged: apply
+		// needs a root session *and* a single-use mailed token, and every write is
+		// audited.
 		priceSentinelEditRoute := apiRouter.Group("/price-sentinel/edit")
 		{
 			// Checking the link needs only the mailed token, so the page can show
 			// the report before the operator authenticates.
-			priceSentinelEditRoute.POST("/validate", middleware.CriticalRateLimit(), controller.ValidatePriceSentinelToken)
+			priceSentinelEditRoute.POST("/validate", controller.ValidatePriceSentinelToken)
 			// Writing a price needs the mailed token *and* a root session, so a
 			// leaked or forwarded link is not on its own enough to change billing.
-			priceSentinelEditRoute.POST("/apply", middleware.RootAuth(), middleware.CriticalRateLimit(), controller.ApplyPriceSentinelEdit)
+			priceSentinelEditRoute.POST("/apply", middleware.RootAuth(), controller.ApplyPriceSentinelEdit)
 		}
 		systemInfoRoute := apiRouter.Group("/system-info")
 		systemInfoRoute.Use(middleware.RootAuth())

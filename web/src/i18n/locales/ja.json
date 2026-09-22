@@ -33,6 +33,7 @@
     "This link stops working at {{time}}.": "This link stops working at {{time}}.",
     "This report compares our prices with the mirrored upstream. It only reports: nothing is changed until you apply it below.": "This report compares our prices with the mirrored upstream. It only reports: nothing is changed until you apply it below.",
     "Updated {{model}} {{field}}": "Updated {{model}} {{field}}",
+    "Upstream Price Sentinel": "Upstream Price Sentinel",
     "Upstream is {{percent}}% higher": "Upstream is {{percent}}% higher",
     "Upstream is {{percent}}% lower": "Upstream is {{percent}}% lower",
     "Upstream price changes": "Upstream price changes",
