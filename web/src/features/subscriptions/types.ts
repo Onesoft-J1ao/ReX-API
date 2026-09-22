@@ -39,6 +39,9 @@ export const subscriptionPlanSchema = z.object({
   allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
+  // Rolling 5-hour usage cap in quota units (0 = no cap). Runs alongside
+  // total_amount, so a plan can grant a large allowance while smoothing bursts.
+  five_hour_limit: z.number().optional().default(0),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -66,6 +69,10 @@ export const userSubscriptionSchema = z.object({
   end_time: z.number(),
   amount_total: z.number(),
   amount_used: z.number(),
+  // Rolling 5-hour window, snapshotted from the plan at purchase. Both are 0
+  // until the first consumption anchors the window.
+  five_hour_limit: z.number().optional().default(0),
+  five_hour_used: z.number().optional().default(0),
   next_reset_time: z.number().optional(),
 })
 

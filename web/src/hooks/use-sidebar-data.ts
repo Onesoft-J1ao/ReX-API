@@ -31,6 +31,7 @@ import {
   MessageSquare,
   PlugZap,
   Radio,
+  RotateCcw,
   ServerCog,
   Settings,
   ShieldCheck,
@@ -198,6 +199,11 @@ export function useSidebarData(): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Refund Requests'),
+            url: '/refunds',
+            icon: RotateCcw,
           },
           {
             title: t('System Info'),
