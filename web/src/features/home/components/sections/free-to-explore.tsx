@@ -54,9 +54,6 @@ export function FreeToExplore() {
       <div className='mx-auto max-w-7xl'>
         <div className='grid gap-12 lg:grid-cols-[minmax(0,18rem)_1fr] lg:gap-20'>
           <AnimateInView className='lg:sticky lg:top-24 lg:self-start'>
-            <p className='text-primary mb-5 font-mono text-[11px] tracking-[0.28em] uppercase'>
-              04 / {t('Free to explore')}
-            </p>
             <h2 className='text-foreground font-serif text-4xl leading-[1.05] font-medium tracking-[-0.02em] md:text-5xl'>
               {t('Free models,')}
               <br />
@@ -69,7 +66,7 @@ export function FreeToExplore() {
               <AnimateInView
                 key={cat.key}
                 delay={i * 60}
-                animation='fade-up'
+                animation='fade-in'
                 className='hover:bg-card/50 grid gap-2 px-7 py-6 transition-colors duration-200 md:grid-cols-[12rem_1fr] md:items-center md:gap-8'
               >
                 <span className='text-muted-foreground font-mono text-[10px] tracking-[0.2em] uppercase'>

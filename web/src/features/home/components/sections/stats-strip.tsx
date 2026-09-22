@@ -20,20 +20,28 @@ import { AnimateInView } from '@/components/animate-in-view'
 
 import { useLandingModels } from '../../hooks/use-landing-models'
 
+/**
+ * Instrument readout, not a metric card row.
+ *
+ * The dark world speaks in console language: one hairline rail carrying
+ * labelled counters separated by dim ticks, the way a router status line
+ * reads out live state. Deliberately not four equal boxes with a big number
+ * over a small label — that template belongs to no particular product.
+ */
 export function StatsStrip() {
   const { t } = useTranslation()
   const config = useLandingModels()
 
-  const stats = useMemo(() => {
+  const readings = useMemo(() => {
     const models = config.serviceRoutes.reduce(
       (sum, group) => sum + group.models.length,
       0
     )
     return [
-      { value: String(models), label: t('Models routed') },
-      { value: String(config.serviceRoutes.length), label: t('Route groups') },
-      { value: String(config.coverage.length), label: t('Model families') },
-      { value: '1', label: t('OpenAI-compatible endpoint') },
+      { label: t('Models routed'), value: String(models) },
+      { label: t('Route groups'), value: String(config.serviceRoutes.length) },
+      { label: t('Model families'), value: String(config.coverage.length) },
+      { label: t('Endpoint'), value: 'OpenAI-compatible' },
     ]
   }, [config, t])
 
@@ -43,27 +51,46 @@ export function StatsStrip() {
   )
 
   return (
-    <section className='relative z-10 px-6 pt-4 pb-14 sm:px-10 md:pb-20 lg:px-14'>
+    <section className='relative z-10 px-6 pb-14 sm:px-10 md:pb-20 lg:px-14'>
       <div className='mx-auto max-w-7xl'>
-        <AnimateInView animation='fade-up'>
-          <dl className='border-border/60 bg-card/40 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border lg:grid-cols-4'>
-            {stats.map((stat) => (
-              <div key={stat.label} className='bg-background/60 px-7 py-6'>
-                <dt className='text-muted-foreground order-2 mt-1 text-xs leading-5'>
-                  {stat.label}
-                </dt>
-                <dd className='text-foreground order-1 font-serif text-4xl font-medium tracking-tight tabular-nums'>
-                  {stat.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
+        <AnimateInView animation='fade-in'>
+          <div className='landing-scanline border-border/60 relative overflow-hidden rounded-xl border bg-[var(--surface-sunken)]'>
+            <div className='flex flex-wrap items-center gap-x-10 gap-y-5 px-6 py-5 sm:px-8'>
+              <span className='flex items-center gap-2 font-mono text-[10px] tracking-[0.22em] text-emerald-400 uppercase'>
+                <span className='relative flex size-1.5'>
+                  <span className='absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60' />
+                  <span className='relative inline-flex size-1.5 rounded-full bg-emerald-400' />
+                </span>
+                {t('Live')}
+              </span>
+
+              {readings.map((reading, i) => (
+                <div
+                  key={reading.label}
+                  className='flex items-baseline gap-2.5'
+                >
+                  {i > 0 && (
+                    <span
+                      aria-hidden='true'
+                      className='bg-border/70 me-7 hidden h-4 w-px self-center sm:block'
+                    />
+                  )}
+                  <span className='text-foreground font-mono text-xl leading-none font-medium tabular-nums'>
+                    {reading.value}
+                  </span>
+                  <span className='text-muted-foreground font-mono text-[10px] tracking-[0.18em] uppercase'>
+                    {reading.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </AnimateInView>
 
         {families.length > 0 && (
           <div
             aria-hidden='true'
-            className='border-border/60 text-muted-foreground/70 mt-6 overflow-hidden rounded-2xl border'
+            className='border-border/50 text-muted-foreground/70 mt-4 overflow-hidden rounded-xl border'
           >
             <div className='rt-ticker flex w-max items-center gap-8 py-2.5 font-mono text-[10px] tracking-[0.18em] uppercase'>
               {Array.from({ length: 3 }, (_, k) => (

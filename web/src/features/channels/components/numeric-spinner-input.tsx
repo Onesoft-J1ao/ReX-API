@@ -145,7 +145,7 @@ export function NumericSpinnerInput({
         className={cn(
           'group/spinner border-input inline-flex h-7 items-center gap-0 rounded-md border transition-colors',
           !disabled && 'hover:bg-muted/60',
-          editing && 'bg-muted/60 ring-primary/30 ring-1'
+          editing && 'bg-muted/60 ring-ring/40 ring-1'
         )}
       >
         <button

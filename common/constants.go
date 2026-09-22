@@ -60,6 +60,7 @@ var ItemsPerPage = 10
 var MaxRecentItems = 1000
 
 var PasswordLoginEnabled = true
+var PasswordLoginEncryptionEnabled = false
 var PasswordRegisterEnabled = true
 var EmailVerificationEnabled = false
 var GitHubOAuthEnabled = false
@@ -176,6 +177,29 @@ var RelayIdleConnTimeout int // unit is second
 var RelayResponseHeaderTimeout int // unit is second
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
+
+// RelayStreamFirstByteTimeout bounds how long a *streaming* relay request waits
+// for the first byte of the upstream response headers. 0 disables it.
+//
+// This is the lever that keeps Cloudflare's 524 out of the picture. A streaming
+// upstream that accepts the connection and then never answers (or answers after
+// minutes) leaves the origin with nothing to send, so Cloudflare sees an
+// unresponsive origin and returns 524 at ~100s. The origin cannot distinguish
+// that from a slow-but-healthy upstream, so it must bound the wait itself and
+// fail below 100s, with a real status code the client can retry on.
+//
+// It only applies to streaming requests: any upstream that streams sends the
+// response headers before the first chunk, so this cannot truncate a stream or
+// a long generation. It is deliberately NOT applied to non-streaming requests,
+// where "time to first byte" is the whole generation time and a bound would cut
+// legitimate long calls. Unlike RelayTimeout it never applies to the response
+// body, so an established SSE stream runs to completion.
+var RelayStreamFirstByteTimeout int // unit is second
+
+// LogQueueSize is the capacity of the asynchronous log write queue. It is a
+// backpressure buffer, not a lossy one: a full queue blocks the producing
+// request until the writer catches up.
+var LogQueueSize int
 
 var GeminiSafetySetting string
 

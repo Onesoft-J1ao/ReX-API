@@ -51,7 +51,7 @@ func UsingLogDatabase(databaseType DatabaseType) bool {
 //     parameter. The pure-Go driver (modernc.org/sqlite, used through
 //     github.com/glebarez/sqlite) silently ignores the plain `_busy_timeout=`
 //     form, so without this the effective timeout stays at SQLite's 5s default
-//     and concurrent writes surface as "database is locked".
+//     and concurrent writes surface as "database is locked" (see #6805).
 //
 //  2. `_txlock=immediate` (BEGIN IMMEDIATE) must be enabled. Without it, a
 //     transaction that first SELECTs (establishing a read snapshot) and then

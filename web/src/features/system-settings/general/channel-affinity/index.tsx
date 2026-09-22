@@ -36,6 +36,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { SettingsSwitchField } from '../../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../../components/settings-page-context'
@@ -195,9 +196,13 @@ export function ChannelAffinitySection(props: Props) {
     setCacheLoading(true)
     try {
       const res = await getCacheStats()
-      if (res.success) setCacheStats(res.data || null)
-    } catch {
-      toast.error(t('Failed to refresh cache stats'))
+      if (res.success) {
+        setCacheStats(res.data || null)
+      } else {
+        handleServerError(res)
+      }
+    } catch (error) {
+      handleServerError(error, t('Failed to refresh cache stats'))
     } finally {
       setCacheLoading(false)
     }
@@ -323,8 +328,8 @@ export function ChannelAffinitySection(props: Props) {
         await updateOption.mutateAsync(u)
       }
       toast.success(t('Saved successfully'))
-    } catch {
-      toast.error(t('Failed to save'))
+    } catch (error) {
+      handleServerError(error, t('Failed to save'))
     } finally {
       setSaving(false)
     }
@@ -353,22 +358,34 @@ export function ChannelAffinitySection(props: Props) {
   }
 
   const handleClearAll = async () => {
-    const res = await clearAllCache()
-    if (res.success) {
-      toast.success(t('Cleared'))
-      refreshCache()
+    try {
+      const res = await clearAllCache()
+      if (res.success) {
+        toast.success(t('Cleared'))
+        refreshCache()
+      } else {
+        handleServerError(res)
+      }
+      setClearAllDialogOpen(false)
+    } catch (error) {
+      handleServerError(error)
     }
-    setClearAllDialogOpen(false)
   }
 
   const handleClearRule = async () => {
     if (!clearRuleName) return
-    const res = await clearRuleCache(clearRuleName)
-    if (res.success) {
-      toast.success(t('Cleared'))
-      refreshCache()
+    try {
+      const res = await clearRuleCache(clearRuleName)
+      if (res.success) {
+        toast.success(t('Cleared'))
+        refreshCache()
+      } else {
+        handleServerError(res)
+      }
+      setClearRuleName(null)
+    } catch (error) {
+      handleServerError(error)
     }
-    setClearRuleName(null)
   }
 
   const switchToJsonMode = () => {
@@ -549,7 +566,7 @@ export function ChannelAffinitySection(props: Props) {
           <StaticDataTable
             tableClassName='min-w-max'
             data={rules}
-            emptyClassName='text-muted-foreground py-8'
+            emptyClassName='text-muted-foreground py-10'
             emptyContent={t('No rules yet')}
             columns={[
               {
@@ -630,6 +647,7 @@ export function ChannelAffinitySection(props: Props) {
                         className='h-7 w-7'
                         onClick={() => setClearRuleName(rule.name)}
                         title={t('Clear cache for this rule')}
+                        aria-label={t('Clear cache for this rule')}
                       >
                         <X className='h-3 w-3' />
                       </Button>
@@ -643,6 +661,7 @@ export function ChannelAffinitySection(props: Props) {
                         setRuleTemplateKey(null)
                         setRuleEditorOpen(true)
                       }}
+                      aria-label={t('Edit')}
                     >
                       <Edit className='h-3 w-3' />
                     </Button>
@@ -651,6 +670,7 @@ export function ChannelAffinitySection(props: Props) {
                       size='icon'
                       className='h-7 w-7'
                       onClick={() => handleDeleteRule(idx)}
+                      aria-label={t('Delete')}
                     >
                       <Trash2 className='h-3 w-3' />
                     </Button>

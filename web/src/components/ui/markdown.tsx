@@ -26,6 +26,8 @@ import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 
 interface MarkdownProps {
+  /** Resolve relative document links against their source, never the dashboard URL. */
+  baseUrl?: string
   breaks?: boolean
   children: string
   className?: string
@@ -718,7 +720,7 @@ const markdownParser = new Marked({
 
 markdownParser.use(...markdownExtensions)
 
-function addExternalLinkAttributes(html: string): string {
+function addExternalLinkAttributes(html: string, baseUrl?: string): string {
   if (typeof window === 'undefined') {
     return html
   }
@@ -727,6 +729,18 @@ function addExternalLinkAttributes(html: string): string {
   template.innerHTML = html
 
   template.content.querySelectorAll('a[href]').forEach((link) => {
+    if (baseUrl) {
+      try {
+        const url = new URL(link.getAttribute('href') ?? '', baseUrl)
+        if (['http:', 'https:', 'mailto:'].includes(url.protocol)) {
+          link.setAttribute('href', url.href)
+        } else {
+          link.removeAttribute('href')
+        }
+      } catch {
+        link.removeAttribute('href')
+      }
+    }
     link.setAttribute('target', '_blank')
     link.setAttribute('rel', 'noopener noreferrer')
   })
@@ -734,20 +748,24 @@ function addExternalLinkAttributes(html: string): string {
   return template.innerHTML
 }
 
-function renderMarkdown(markdown: string, breaks = false): string {
+function renderMarkdown(
+  markdown: string,
+  breaks = false,
+  baseUrl?: string
+): string {
   const parsedHtml = markdownParser.parse(markdown, {
     ...markdownOptions,
     breaks,
   })
   const html = DOMPurify.sanitize(parsedHtml, sanitizeOptions)
 
-  return addExternalLinkAttributes(html)
+  return addExternalLinkAttributes(html, baseUrl)
 }
 
 export function Markdown(props: MarkdownProps) {
   const html = useMemo(
-    () => renderMarkdown(props.children, props.breaks),
-    [props.breaks, props.children]
+    () => renderMarkdown(props.children, props.breaks, props.baseUrl),
+    [props.breaks, props.children, props.baseUrl]
   )
 
   return (
@@ -762,11 +780,11 @@ export function Markdown(props: MarkdownProps) {
         '[&_a]:text-primary [&_a]:underline hover:[&_a]:text-primary/80',
         '[&_ol]:my-2 [&_ul]:my-2 [&_ol]:list-decimal [&_ul]:list-disc [&_ol]:pl-5 [&_ul]:pl-5 [&_li]:my-1 [&_li]:pl-1',
         '[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:bg-muted/50 [&_blockquote]:py-1 [&_blockquote]:pl-4',
-        '[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono',
+        '[&_code]:rounded-md [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono',
         '[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:bg-muted [&_pre]:p-3 [&_table]:my-4 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto',
         '[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-sm',
         '[&_thead]:bg-muted [&_th]:border [&_td]:border [&_th]:px-3 [&_td]:px-3 [&_th]:py-2 [&_td]:py-2 [&_th]:text-left',
-        '[&_hr]:my-6 [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-lg',
+        '[&_hr]:my-6 [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-xl',
         '[&_.katex-display]:my-4 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden',
         '[&_.markdown-page-break]:my-6 [&_.markdown-page-break]:border-dashed',
         '[&_.markdown-diagram]:my-4 [&_.markdown-diagram]:overflow-x-auto [&_.markdown-diagram]:rounded-md [&_.markdown-diagram]:border [&_.markdown-diagram]:bg-background [&_.markdown-diagram]:p-4',

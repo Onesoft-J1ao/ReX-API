@@ -198,6 +198,25 @@ export function MultiSelect(props: MultiSelectProps) {
     setInputValue(value)
   }
 
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>): void => {
+    if (!props.allowCreate || props.disabled) return
+
+    const pasted = event.clipboardData.getData('text/plain')
+    if (!COMMA_REGEX.test(pasted)) return
+
+    event.preventDefault()
+    const input = event.currentTarget
+    const value =
+      input.value.slice(0, input.selectionStart ?? input.value.length) +
+      pasted +
+      input.value.slice(input.selectionEnd ?? input.value.length)
+
+    // A pasted batch is complete, including its final value. Read the clipboard
+    // before the single-line input can strip newline separators.
+    addValues(value.split(COMMA_REGEX))
+    setInputValue('')
+  }
+
   const handleValueChange = (next: string[]) => {
     props.onChange(next)
     // When an item is picked (multiple mode), Base UI keeps the input but most
@@ -265,7 +284,7 @@ export function MultiSelect(props: MultiSelectProps) {
           {(values: string[]) => {
             if (props.renderSelectedSummary) {
               return (
-                <span className='bg-muted text-muted-foreground flex h-[calc(--spacing(5.25))] w-fit items-center justify-center rounded-sm px-1.5 font-mono text-xs font-medium whitespace-nowrap'>
+                <span className='bg-muted text-muted-foreground flex h-[calc(--spacing(5.25))] w-fit items-center justify-center rounded-full px-1.5 font-mono text-xs font-medium whitespace-nowrap'>
                   {props.renderSelectedSummary(values)}
                 </span>
               )
@@ -292,7 +311,7 @@ export function MultiSelect(props: MultiSelectProps) {
                           }
                           onPointerDown={(event) => event.stopPropagation()}
                           title={t('Click to copy')}
-                          className='max-w-[16rem] cursor-pointer truncate rounded-sm hover:underline'
+                          className='max-w-[16rem] cursor-pointer truncate rounded-full hover:underline'
                         >
                           {label}
                         </button>
@@ -312,7 +331,7 @@ export function MultiSelect(props: MultiSelectProps) {
                     }}
                     onPointerDown={(event) => event.stopPropagation()}
                     title={t('Show All')}
-                    className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
+                    className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-full px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
                   >
                     {t('+{{count}} more', { count: hiddenCount })}
                   </button>
@@ -329,7 +348,7 @@ export function MultiSelect(props: MultiSelectProps) {
                       }}
                       onPointerDown={(event) => event.stopPropagation()}
                       title={t('Collapse')}
-                      className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
+                      className='bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-[calc(--spacing(5.25))] w-fit cursor-pointer items-center justify-center rounded-full px-1.5 text-xs font-medium whitespace-nowrap transition-colors'
                     >
                       {t('Collapse')}
                     </button>
@@ -346,6 +365,7 @@ export function MultiSelect(props: MultiSelectProps) {
               : undefined
           }
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           aria-label={placeholder}
         />
       </ComboboxChips>

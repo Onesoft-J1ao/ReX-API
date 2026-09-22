@@ -62,7 +62,7 @@ export function DataTableView<TData>(props: DataTableViewProps<TData>) {
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-lg border',
+        'overflow-hidden rounded-xl border',
         props.containerClassName
       )}
       {...props.containerProps}
@@ -145,12 +145,9 @@ function SplitHeaderTableView<TData>({
           props.bodyContainerClassName
         )}
       >
-        <table
-          data-slot='table'
-          className={cn(
-            'w-full caption-bottom text-sm tabular-nums [&_td]:text-sm [&_td_*]:text-sm [&_th]:text-sm [&_th_*]:text-sm',
-            props.tableClassName
-          )}
+        <Table
+          withContainer={false}
+          className={props.tableClassName}
           style={tableSizing.style}
         >
           {tableSizing.colgroup}
@@ -162,7 +159,7 @@ function SplitHeaderTableView<TData>({
             getColumnClassName={getColumnClassName}
           />
           {renderTableBody(props, rows, colSpan, getColumnClassName)}
-        </table>
+        </Table>
       </div>
     </div>
   )

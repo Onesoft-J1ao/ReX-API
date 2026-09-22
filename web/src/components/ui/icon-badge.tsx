@@ -41,8 +41,8 @@ const iconBadgeVariants = cva(
       size: {
         xs: 'size-5 rounded-md [&>svg]:size-3',
         sm: 'size-7 rounded-md [&>svg]:size-3.5',
-        md: 'size-8 rounded-lg [&>svg]:size-4',
-        title: 'size-8 rounded-lg sm:size-9 [&>svg]:size-4',
+        md: 'size-8 rounded-md [&>svg]:size-4',
+        title: 'size-8 rounded-md sm:size-9 [&>svg]:size-4',
         lg: 'size-10 rounded-xl [&>svg]:size-5',
         stat: 'size-5 rounded-md sm:size-7 [&>svg]:size-3 sm:[&>svg]:size-3.5',
       },

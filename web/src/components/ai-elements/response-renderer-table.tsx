@@ -73,7 +73,7 @@ export function renderTable(
 ): ReactNode {
   return (
     <div
-      className='border-border/70 my-4 w-full overflow-x-auto rounded-lg border'
+      className='border-border/70 my-4 w-full overflow-x-auto rounded-xl border'
       key={key}
     >
       <table className='my-0 w-full min-w-max border-separate border-spacing-0 text-sm'>

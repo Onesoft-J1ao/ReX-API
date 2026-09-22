@@ -57,6 +57,8 @@ import {
 } from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import {
@@ -74,14 +76,13 @@ const INSTANCE_SKELETON_KEYS = [
 ]
 
 const STATUS_CLASS_NAME: Record<SystemInstanceStatus, string> = {
-  online:
-    'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-  stale: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  online: 'bg-success/10 text-success',
+  stale: 'bg-warning/10 text-warning',
 }
 
 const STATUS_DOT_CLASS_NAME: Record<SystemInstanceStatus, string> = {
-  online: 'bg-emerald-500',
-  stale: 'bg-amber-500',
+  online: 'bg-success',
+  stale: 'bg-warning',
 }
 
 function roleLabel(instance: SystemInstance) {
@@ -135,10 +136,10 @@ function formatBytes(bytes?: number): string {
 }
 
 function ringColorClass(percent: number | null) {
-  if (percent === null) return 'text-muted-foreground/40'
-  if (percent >= 90) return 'text-red-500'
-  if (percent >= 70) return 'text-amber-500'
-  return 'text-emerald-500'
+  if (percent === null) return 'text-muted-foreground'
+  if (percent >= 90) return 'text-destructive'
+  if (percent >= 70) return 'text-warning'
+  return 'text-success'
 }
 
 type RingProgressProps = {
@@ -205,7 +206,7 @@ function ResourceCell(props: ResourceCellProps) {
   const content = (
     <div className='flex items-center gap-2'>
       <RingProgress percent={percent} />
-      <span className='font-mono text-[11px] tabular-nums'>
+      <span className='font-mono text-xs tabular-nums'>
         {formatPercent(props.value)}
       </span>
     </div>
@@ -216,7 +217,7 @@ function ResourceCell(props: ResourceCellProps) {
   return (
     <TooltipProvider delay={100}>
       <Tooltip>
-        <TooltipTrigger className='block w-full rounded-sm text-left focus-visible:ring-2 focus-visible:outline-none'>
+        <TooltipTrigger className='focus-visible:ring-ring block w-full rounded-md text-left focus-visible:ring-2 focus-visible:outline-none'>
           {content}
         </TooltipTrigger>
         <TooltipContent className='max-w-80'>{props.tooltip}</TooltipContent>
@@ -239,7 +240,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
     <div className='overflow-x-auto rounded-md border'>
       <Table className='min-w-[1230px]'>
         <TableHeader>
-          <TableRow className='bg-muted/40 hover:bg-muted/40'>
+          <TableRow className='hover:bg-transparent'>
             <TableHead className='h-9 min-w-[240px] px-4 text-xs'>
               {t('Instances')}
             </TableHead>
@@ -299,12 +300,12 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                         {shouldConfigure && (
                           <Popover>
                             <PopoverTrigger
-                              className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
+                              className='focus-visible:ring-ring inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
                               aria-label={t('Configure NODE_NAME')}
                             >
                               <Badge
                                 variant='outline'
-                                className='border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300'
+                                className='border-warning/30 bg-warning/10 text-warning'
                               >
                                 <AlertTriangle
                                   className='size-3'
@@ -328,7 +329,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                                   <div className='mb-1 font-medium'>
                                     {t('Example')}
                                   </div>
-                                  <code className='bg-muted block rounded-md px-2 py-1.5 font-mono text-[11px] break-all'>
+                                  <code className='bg-muted block rounded-md px-2 py-1.5 font-mono text-xs break-all'>
                                     NODE_NAME=new-api-master-1
                                   </code>
                                 </div>
@@ -342,7 +343,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                           </Popover>
                         )}
                       </div>
-                      <div className='text-muted-foreground truncate font-mono text-[11px]'>
+                      <div className='text-muted-foreground truncate font-mono text-xs'>
                         {instance.info?.host?.hostname || '-'}
                       </div>
                     </div>
@@ -370,7 +371,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                   <TooltipProvider delay={100}>
                     <Tooltip>
                       <TooltipTrigger
-                        className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
+                        className='focus-visible:ring-ring inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
                         aria-label={t('Node role')}
                       >
                         <Badge variant='outline'>{roleLabel(instance)}</Badge>
@@ -450,7 +451,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                             <Button
                               type='button'
                               variant='destructive'
-                              size='icon-xs'
+                              size='icon-sm'
                               onClick={() =>
                                 props.onDeleteStaleInstance(instance)
                               }
@@ -500,7 +501,7 @@ export function SystemInstancesPanel() {
     queryFn: async () => {
       const res = await listSystemInstances()
       if (!res.success || !Array.isArray(res.data)) {
-        throw new Error(res.message || t('We could not load instances.'))
+        throw createServerError(res, t('We could not load instances.'))
       }
       return res.data
     },
@@ -527,7 +528,7 @@ export function SystemInstancesPanel() {
     mutationFn: async (nodeName: string) => {
       const res = await deleteStaleSystemInstance(nodeName)
       if (!res.success) {
-        throw new Error(res.message || t('Delete failed'))
+        throw createServerError(res, t('Delete failed'))
       }
       return res
     },
@@ -540,7 +541,7 @@ export function SystemInstancesPanel() {
       setDeleteTarget(null)
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : t('Delete failed'))
+      handleServerError(error, t('Delete failed'))
       void invalidateInstances()
     },
     onSettled: () => {
@@ -552,7 +553,7 @@ export function SystemInstancesPanel() {
     mutationFn: async () => {
       const res = await deleteStaleSystemInstances()
       if (!res.success) {
-        throw new Error(res.message || t('Delete failed'))
+        throw createServerError(res, t('Delete failed'))
       }
       return res
     },
@@ -566,7 +567,7 @@ export function SystemInstancesPanel() {
       setDeleteAllConfirmOpen(false)
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : t('Delete failed'))
+      handleServerError(error, t('Delete failed'))
     },
   })
 
@@ -600,7 +601,7 @@ export function SystemInstancesPanel() {
   } else if (instances.length === 0) {
     instancesContent = (
       <div className='px-4 py-10 text-center sm:px-5'>
-        <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-lg'>
+        <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-xl'>
           <ServerCog
             className='text-muted-foreground size-5'
             aria-hidden='true'
@@ -628,7 +629,7 @@ export function SystemInstancesPanel() {
 
   return (
     <>
-      <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
+      <section className='bg-card overflow-hidden rounded-xl border shadow-xs'>
         <div className='flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5'>
           <div className='min-w-0'>
             <div className='flex items-center gap-2'>

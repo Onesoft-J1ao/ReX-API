@@ -135,7 +135,7 @@ export function AmountDiscountVisualEditor({
       </div>
 
       {discounts.length === 0 ? (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm'>
+        <div className='text-muted-foreground rounded-xl border border-dashed px-4 py-10 text-center text-sm'>
           {t(
             'No discount tiers configured. Click "Add discount tier" to get started.'
           )}
@@ -159,7 +159,7 @@ export function AmountDiscountVisualEditor({
                 id: 'discount-rate',
                 header: t('Discount Rate'),
                 cell: (discount) => (
-                  <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 text-sm'>
                     {discount.discountRate.toFixed(2)}
                   </code>
                 ),
@@ -222,6 +222,7 @@ export function AmountDiscountVisualEditor({
                         e.stopPropagation()
                         handleEdit(discount)
                       }}
+                      aria-label={t('Edit')}
                     >
                       <Pencil className='h-4 w-4' />
                     </Button>
@@ -234,6 +235,7 @@ export function AmountDiscountVisualEditor({
                         e.stopPropagation()
                         handleDelete(discount.amount)
                       }}
+                      aria-label={t('Delete')}
                     >
                       <Trash2 className='h-4 w-4' />
                     </Button>
@@ -243,7 +245,7 @@ export function AmountDiscountVisualEditor({
                   <span className='text-muted-foreground'>
                     {t('Discount Rate:')}{' '}
                   </span>
-                  <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 text-xs'>
                     {discount.discountRate.toFixed(2)}
                   </code>
                 </div>

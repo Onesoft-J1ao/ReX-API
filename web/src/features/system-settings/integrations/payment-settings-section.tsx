@@ -46,6 +46,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { handleServerError } from '@/lib/handle-server-error'
 import { cn } from '@/lib/utils'
 
 import { confirmPaymentCompliance } from '../api'
@@ -339,11 +340,11 @@ export function PaymentSettingsSection({
         setShowComplianceDialog(false)
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
       } else {
-        toast.error(data.message || t('Failed to confirm compliance'))
+        handleServerError(data, t('Failed to confirm compliance'))
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || t('Failed to confirm compliance'))
+      handleServerError(error, t('Failed to confirm compliance'))
     },
   })
 
@@ -758,13 +759,14 @@ export function PaymentSettingsSection({
       }
 
       const reason = typeof body?.data === 'string' ? body.data : undefined
-      toast.error(
-        reason
+      handleServerError(body, undefined, {
+        title: reason
           ? `${t('Waffo Pancake save failed')}: ${reason}`
-          : t('Waffo Pancake save failed')
-      )
+          : t('Waffo Pancake save failed'),
+      })
     } catch (error) {
-      toast.error(
+      handleServerError(
+        error,
         `${t('Waffo Pancake save failed')}: ${
           error instanceof Error ? error.message : String(error)
         }`
@@ -1262,24 +1264,24 @@ export function PaymentSettingsSection({
                   </p>
                 </div>
 
-                <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+                <div className='bg-info/10 text-info rounded-xl p-4 text-sm'>
                   <p className='mb-2 font-medium'>
                     {t('Webhook Configuration:')}
                   </p>
                   <ul className='list-inside list-disc space-y-1'>
                     <li>
                       {t('Webhook URL:')}{' '}
-                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                      <code className='bg-info/20 rounded-md px-1 py-0.5 text-xs'>
                         {'<ServerAddress>/api/stripe/webhook'}
                       </code>
                     </li>
                     <li>
                       {t('Required events:')}{' '}
-                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                      <code className='bg-info/20 rounded-md px-1 py-0.5 text-xs'>
                         {t('checkout.session.completed')}
                       </code>{' '}
                       {t('and')}{' '}
-                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                      <code className='bg-info/20 rounded-md px-1 py-0.5 text-xs'>
                         {t('checkout.session.expired')}
                       </code>
                     </li>
@@ -1454,14 +1456,14 @@ export function PaymentSettingsSection({
                   </p>
                 </div>
 
-                <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+                <div className='bg-info/10 text-info rounded-xl p-4 text-sm'>
                   <p className='mb-2 font-medium'>
                     {t('Webhook Configuration:')}
                   </p>
                   <ul className='list-inside list-disc space-y-1'>
                     <li>
                       {t('Webhook URL:')}{' '}
-                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                      <code className='bg-info/20 rounded-md px-1 py-0.5 text-xs'>
                         {'<ServerAddress>/api/creem/webhook'}
                       </code>
                     </li>

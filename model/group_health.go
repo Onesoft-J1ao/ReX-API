@@ -164,7 +164,7 @@ func DeleteHealthBefore(groupCutoff int64, modelCutoff int64) error {
 func GetPerfMetricsSummaryByGroup(startTs int64, endTs int64, groups []string) ([]PerfMetricSummaryByGroup, error) {
 	var summaries []PerfMetricSummaryByGroup
 	query := DB.Model(&PerfMetric{}).
-		Select("model_name, " + commonGroupCol + " as `group`, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
+		Select("model_name, "+commonGroupCol+" as `group`, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
 		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs)
 	if groups != nil {
 		if len(groups) == 0 {
@@ -188,4 +188,34 @@ type PerfMetricSummaryByGroup struct {
 	TotalLatencyMs int64  `json:"total_latency_ms"`
 	OutputTokens   int64  `json:"output_tokens"`
 	GenerationMs   int64  `json:"generation_ms"`
+}
+
+// PerfMetricBucket is one un-aggregated perf_metrics row: a single model in a
+// single time bucket. The status page draws these as the per-model history
+// strip, so bucket_ts is preserved rather than summed away.
+type PerfMetricBucket struct {
+	ModelName      string `json:"model_name"`
+	Group          string `json:"group" gorm:"column:group"`
+	BucketTs       int64  `json:"bucket_ts"`
+	RequestCount   int64  `json:"request_count"`
+	SuccessCount   int64  `json:"success_count"`
+	TotalLatencyMs int64  `json:"total_latency_ms"`
+}
+
+// GetPerfMetricBucketsByGroup returns every bucket row for the given groups in
+// the window, ordered so the caller can walk each model's series forward in
+// time. One query covers all models, which matters because the status page
+// renders a series per model.
+func GetPerfMetricBucketsByGroup(startTs int64, endTs int64, groups []string) ([]PerfMetricBucket, error) {
+	var buckets []PerfMetricBucket
+	if len(groups) == 0 {
+		return buckets, nil
+	}
+	err := DB.Model(&PerfMetric{}).
+		Select("model_name, "+commonGroupCol+" as `group`, bucket_ts, request_count, success_count, total_latency_ms").
+		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs).
+		Where(commonGroupCol+" IN ?", groups).
+		Order("model_name ASC, bucket_ts ASC").
+		Find(&buckets).Error
+	return buckets, err
 }

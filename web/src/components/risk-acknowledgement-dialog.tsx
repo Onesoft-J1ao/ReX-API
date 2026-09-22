@@ -201,7 +201,7 @@ export function RiskAcknowledgementDialog({
 
         <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4 sm:px-6'>
           {items.length > 0 ? (
-            <ol className='border-border/70 bg-muted/30 text-foreground list-decimal space-y-2 rounded-lg border px-4 py-3 pl-8 text-sm leading-6 sm:px-5 sm:py-4 sm:pl-9'>
+            <ol className='border-border/70 bg-muted/30 text-foreground list-decimal space-y-2 rounded-xl border px-4 py-3 pl-8 text-sm leading-6 sm:px-5 sm:py-4 sm:pl-9'>
               {items.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -209,7 +209,7 @@ export function RiskAcknowledgementDialog({
           ) : null}
 
           {checklist.length > 0 ? (
-            <div className='border-border/70 bg-muted/30 space-y-3 rounded-lg border p-3 sm:p-4'>
+            <div className='border-border/70 bg-muted/30 space-y-3 rounded-xl border p-3 sm:p-4'>
               {checklist.map((item, index) => {
                 const id = `risk-acknowledgement-${index}`
                 return (
@@ -235,7 +235,7 @@ export function RiskAcknowledgementDialog({
           ) : null}
 
           {requiredTextToDisplay ? (
-            <div className='border-destructive/30 bg-destructive/5 space-y-3 rounded-lg border p-3 sm:p-4'>
+            <div className='border-destructive/30 bg-destructive/5 space-y-3 rounded-xl border p-3 sm:p-4'>
               <Label className='text-sm font-medium'>
                 {inputPrompt ?? t('Please type the following text to confirm:')}
               </Label>

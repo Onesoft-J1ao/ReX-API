@@ -1,7 +1,6 @@
 package constant
 
 import (
-	"net/http"
 	"strings"
 )
 
@@ -36,10 +35,6 @@ const (
 	RelayModeAudioTranscription // whisper
 	RelayModeAudioTranslation   // whisper
 
-	RelayModeSunoFetch
-	RelayModeSunoFetchByID
-	RelayModeSunoSubmit
-
 	RelayModeVideoFetchByID
 	RelayModeVideoSubmit
 
@@ -54,11 +49,18 @@ const (
 	RelayModeResponsesCompact
 
 	RelayModeAlphaSearch
+	RelayModeThreeDSubmit
+	RelayModeThreeDFetchByID
 )
 
 func Path2RelayMode(path string) int {
 	relayMode := RelayModeUnknown
-	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") {
+	// The playground mirrors the /v1 surface, so normalize its prefix once
+	// rather than repeating every /v1 path below.
+	if strings.HasPrefix(path, "/pg/") {
+		path = "/v1/" + strings.TrimPrefix(path, "/pg/")
+	}
+	if strings.HasPrefix(path, "/v1/chat/completions") {
 		relayMode = RelayModeChatCompletions
 	} else if strings.HasPrefix(path, "/v1/completions") {
 		relayMode = RelayModeCompletions
@@ -78,6 +80,10 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeResponsesCompact
 	} else if strings.HasPrefix(path, "/v1/responses") {
 		relayMode = RelayModeResponses
+	} else if path == "/v1/3d" {
+		relayMode = RelayModeThreeDSubmit
+	} else if strings.HasPrefix(path, "/v1/3d/") {
+		relayMode = RelayModeThreeDFetchByID
 	} else if strings.HasPrefix(path, "/v1/alpha/search") {
 		relayMode = RelayModeAlphaSearch
 	} else if strings.HasPrefix(path, "/v1/audio/speech") {
@@ -137,18 +143,6 @@ func Path2RelayModeMidjourney(path string) int {
 		relayMode = RelayModeMidjourneyTaskImageSeed
 	} else if strings.HasSuffix(path, "/list-by-condition") {
 		relayMode = RelayModeMidjourneyTaskFetchByCondition
-	}
-	return relayMode
-}
-
-func Path2RelaySuno(method, path string) int {
-	relayMode := RelayModeUnknown
-	if method == http.MethodPost && strings.HasSuffix(path, "/fetch") {
-		relayMode = RelayModeSunoFetch
-	} else if method == http.MethodGet && strings.Contains(path, "/fetch/") {
-		relayMode = RelayModeSunoFetchByID
-	} else if strings.Contains(path, "/submit/") {
-		relayMode = RelayModeSunoSubmit
 	}
 	return relayMode
 }

@@ -86,6 +86,7 @@ import type {
 } from '@/features/dashboard/types'
 import { formatQuota } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { computeTimeRange } from '@/lib/time'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
@@ -336,7 +337,8 @@ export function FlowCharts(props: FlowChartsProps) {
     isLoading,
   } = useQuery({
     queryKey: ['dashboard', 'flow', flowQueryParams, flowRole],
-    queryFn: () => getFlowQuotaDates(flowQueryParams, isAdmin),
+    queryFn: async () =>
+      requireServerSuccess(await getFlowQuotaDates(flowQueryParams, isAdmin)),
     select: (res) =>
       requireSuccessfulFlowRows(res, t('Please try again later.')),
     staleTime: 60_000,
@@ -545,7 +547,7 @@ export function FlowCharts(props: FlowChartsProps) {
                     render={
                       <button
                         type='button'
-                        className='text-muted-foreground/60 hover:text-foreground flex size-5 shrink-0 items-center justify-center rounded-md'
+                        className='text-muted-foreground hover:text-foreground flex size-5 shrink-0 items-center justify-center rounded-md'
                         aria-label={t('Flow width metric')}
                       />
                     }
@@ -664,7 +666,7 @@ export function FlowCharts(props: FlowChartsProps) {
         </div>
       </div>
 
-      <div className='overflow-hidden rounded-lg border'>
+      <div className='overflow-hidden rounded-xl border'>
         <div className='flex w-full flex-col gap-2 border-b px-3 py-2 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
             <IconBadge tone='info' size='sm'>
@@ -679,7 +681,7 @@ export function FlowCharts(props: FlowChartsProps) {
                   render={
                     <button
                       type='button'
-                      className='text-muted-foreground/60 hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md'
+                      className='text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md'
                       aria-label={t('Show or hide flow columns')}
                     />
                   }
@@ -696,7 +698,7 @@ export function FlowCharts(props: FlowChartsProps) {
                 return (
                   <Fragment key={stage}>
                     {index > 0 && (
-                      <ChevronRight className='text-muted-foreground/40 size-3.5 shrink-0' />
+                      <ChevronRight className='text-muted-foreground size-3.5 shrink-0' />
                     )}
                     <Tooltip>
                       <TooltipTrigger

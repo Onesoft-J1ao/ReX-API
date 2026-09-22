@@ -17,14 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
-import {
-  Box,
-  Globe,
-  Mail,
-  Users,
-  Workflow,
-  Zap,
-} from 'lucide-react'
+import { Box, Globe, Mail, Users, Workflow, Zap } from 'lucide-react'
 
 import type { NavGroup, SidebarView } from '../types'
 

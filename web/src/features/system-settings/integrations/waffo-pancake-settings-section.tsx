@@ -22,16 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { removeTrailingSlash } from './utils'
 import {
@@ -165,19 +160,20 @@ export function WaffoPancakeSettingsSection({
           stores = (body.data as { stores: CatalogStore[] }).stores ?? []
         } else {
           const reason = typeof body?.data === 'string' ? body.data : undefined
-          toast.error(
-            reason
+          handleServerError(body, undefined, {
+            title: reason
               ? `${t('Credentials verification failed')}: ${reason}`
               : t(
                   'Credentials verification failed — double-check Merchant ID and API private key.'
-                )
-          )
+                ),
+          })
           setPhase('idle')
           return
         }
       } catch (err) {
         if (serial !== fetchSerialRef.current) return
-        toast.error(
+        handleServerError(
+          err,
           `${t('Credentials verification failed')}: ${
             err instanceof Error ? err.message : String(err)
           }`
@@ -328,11 +324,14 @@ export function WaffoPancakeSettingsSection({
       const reason =
         errData?.error ??
         (typeof body?.data === 'string' ? body.data : undefined)
-      toast.error(
-        reason ? `${t('Creation failed')}: ${reason}` : t('Creation failed')
-      )
+      handleServerError(body, undefined, {
+        title: reason
+          ? `${t('Creation failed')}: ${reason}`
+          : t('Creation failed'),
+      })
     } catch (err) {
-      toast.error(
+      handleServerError(
+        err,
         `${t('Creation failed')}: ${err instanceof Error ? err.message : String(err)}`
       )
     } finally {
@@ -385,18 +384,18 @@ export function WaffoPancakeSettingsSection({
       </div>
       <div className='grid min-w-0 gap-x-5 gap-y-4 lg:grid-cols-2'>
         {/* Blue box — webhook configuration only. */}
-        <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 lg:col-span-2 dark:bg-blue-950 dark:text-blue-100'>
+        <div className='bg-info/10 text-info rounded-xl p-4 text-sm lg:col-span-2'>
           <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
           <ul className='list-inside list-disc space-y-1'>
             <li>
               {t('Webhook URL (Test):')}{' '}
-              <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+              <code className='bg-info/20 rounded-md px-1 py-0.5 text-xs'>
                 {'<ServerAddress>/api/waffo-pancake/webhook/test'}
               </code>
             </li>
             <li>
               {t('Webhook URL (Production):')}{' '}
-              <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+              <code className='bg-info/20 rounded-md px-1 py-0.5 text-xs'>
                 {'<ServerAddress>/api/waffo-pancake/webhook/prod'}
               </code>
             </li>
@@ -474,7 +473,7 @@ export function WaffoPancakeSettingsSection({
               for. Subscriptions reuse the same Store but get their own
               per-plan product, configured in the Subscriptions admin.
             */}
-          <div className='rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100'>
+          <div className='border-info/40 bg-info/10 text-info rounded-xl border p-3 text-xs'>
             <p className='mb-1 font-medium'>
               {t('Why only one store + product?')}
             </p>
@@ -532,7 +531,7 @@ export function WaffoPancakeSettingsSection({
             <>
               <div className='relative flex items-center py-1'>
                 <div className='flex-1 border-t' />
-                <span className='text-muted-foreground px-3 text-[10px] font-medium tracking-[0.2em] uppercase'>
+                <span className='text-muted-foreground px-3 text-xs font-medium tracking-[0.2em] uppercase'>
                   {t('or pick existing')}
                 </span>
                 <div className='flex-1 border-t' />
@@ -541,8 +540,8 @@ export function WaffoPancakeSettingsSection({
               <div className='grid grid-cols-2 gap-3'>
                 <div className='grid gap-1.5'>
                   <Label>{t('Store')}</Label>
-                  <Select
-                    items={storeSelectItems}
+                  <Combobox
+                    options={storeSelectItems}
                     value={chosenStoreID}
                     onValueChange={(value) => {
                       // Base UI Select can deliver null on deselect.
@@ -551,24 +550,15 @@ export function WaffoPancakeSettingsSection({
                         productID: '',
                       })
                     }}
-                  >
-                    <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Select a store')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {storeSelectItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    className='w-full'
+                    placeholder={t('Select a store')}
+                  />
                 </div>
 
                 <div className='grid gap-1.5'>
                   <Label>{t('Product')}</Label>
-                  <Select
-                    items={productSelectItems}
+                  <Combobox
+                    options={productSelectItems}
                     value={chosenProductID}
                     onValueChange={(value) =>
                       onSelectedBindingChange((previous) => ({
@@ -577,18 +567,9 @@ export function WaffoPancakeSettingsSection({
                       }))
                     }
                     disabled={!chosenStoreID || productSelectItems.length === 0}
-                  >
-                    <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Select a product')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productSelectItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    className='w-full'
+                    placeholder={t('Select a product')}
+                  />
                 </div>
               </div>
             </>
@@ -600,7 +581,7 @@ export function WaffoPancakeSettingsSection({
                 {storeID ? (
                   <span>
                     {t('Bound store:')}{' '}
-                    <code className='bg-muted rounded px-1 py-0.5'>
+                    <code className='bg-muted rounded-md px-1 py-0.5'>
                       {storeID}
                     </code>
                   </span>
@@ -608,7 +589,7 @@ export function WaffoPancakeSettingsSection({
                 {productID ? (
                   <span>
                     {t('Bound product:')}{' '}
-                    <code className='bg-muted rounded px-1 py-0.5'>
+                    <code className='bg-muted rounded-md px-1 py-0.5'>
                       {productID}
                     </code>
                   </span>

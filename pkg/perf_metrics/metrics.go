@@ -28,6 +28,12 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 	if info == nil {
 		return
 	}
+	// Real traffic through a group proves the group is serving, which is what
+	// flexible status probing paces itself by. Only successes count: a group
+	// that is failing must keep being probed.
+	if success {
+		NoteStatusCheckPassiveActivity(info.UsingGroup)
+	}
 	now := time.Now()
 	hasTtft := info.IsStream && info.HasSendResponse()
 	ttftMs := int64(0)
@@ -183,19 +189,55 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			avgTps = float64(total.outputTokens) / (float64(total.generationMs) / 1000.0)
 		}
 		models = append(models, ModelSummary{
-			ModelName:          name,
-			AvgLatencyMs:       avgLatency,
-			SuccessRate:        math.Round(successRate*100) / 100,
-			AvgTps:             math.Round(avgTps*100) / 100,
-			RecentSuccessRates: recentSuccessRates(modelBuckets[name], 3),
-			RequestCount:       total.requestCount,
+			ModelName:           name,
+			AvgLatencyMs:        avgLatency,
+			SuccessRate:         math.Round(successRate*100) / 100,
+			AvgTps:              math.Round(avgTps*100) / 100,
+			RecentSuccessSeries: recentSuccessSeries(modelBuckets[name]),
+			RequestCount:        total.requestCount,
 		})
 	}
-	sort.Slice(models, func(i, j int) bool {
-		return models[i].RequestCount > models[j].RequestCount
-	})
 
-	return SummaryAllResult{Models: models}, nil
+	return SummaryAllResult{Models: mergeUpstreamModels(models, hours)}, nil
+}
+
+// mergeUpstreamModels overlays the mirrored upstream summary on our own numbers.
+// The upstream sees the same models served by the same kind of instance, so for
+// a model it reports it is the better source: it samples traffic we never
+// carried, which matters most for pay-per-request models we no longer probe.
+// Models it does not report keep our own data.
+//
+// Upstream entries carry no request count, so they sort after models we have
+// actually served; ordering stays "busiest local model first".
+func mergeUpstreamModels(local []ModelSummary, hours int) []ModelSummary {
+	upstream, ok := fetchUpstreamSummary(hours)
+	if !ok {
+		sort.Slice(local, func(i, j int) bool {
+			return local[i].RequestCount > local[j].RequestCount
+		})
+		return local
+	}
+
+	merged := make([]ModelSummary, 0, len(local)+len(upstream.Models))
+	seen := make(map[string]struct{}, len(upstream.Models))
+	for _, model := range upstream.Models {
+		if model.ModelName == "" {
+			continue
+		}
+		model.RequestCount = 0
+		merged = append(merged, model)
+		seen[model.ModelName] = struct{}{}
+	}
+	for _, model := range local {
+		if _, mirrored := seen[model.ModelName]; mirrored {
+			continue
+		}
+		merged = append(merged, model)
+	}
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].RequestCount > merged[j].RequestCount
+	})
+	return merged
 }
 
 func mergeModelTotals(totals map[string]counters, modelName string, value counters) {
@@ -231,25 +273,39 @@ func mergeModelBucket(modelBuckets map[string]map[int64]counters, modelName stri
 	modelBuckets[modelName][bucketTs] = current
 }
 
-func recentSuccessRates(buckets map[int64]counters, limit int) []float64 {
-	if len(buckets) == 0 || limit <= 0 {
+func recentSuccessSeries(buckets map[int64]counters) []SuccessRatePoint {
+	if len(buckets) == 0 {
 		return nil
 	}
-	timestamps := make([]int64, 0, len(buckets))
-	for ts := range buckets {
-		timestamps = append(timestamps, ts)
+	hourly := map[int64]counters{}
+	for ts, value := range buckets {
+		hourTs := ts - ts%3600
+		merged := hourly[hourTs]
+		merged.requestCount += value.requestCount
+		merged.successCount += value.successCount
+		hourly[hourTs] = merged
+	}
+	timestamps := make([]int64, 0, len(hourly))
+	for hourTs, value := range hourly {
+		if value.requestCount == 0 {
+			continue
+		}
+		timestamps = append(timestamps, hourTs)
+	}
+	if len(timestamps) == 0 {
+		return nil
 	}
 	sort.Slice(timestamps, func(i, j int) bool {
 		return timestamps[i] < timestamps[j]
 	})
-	if len(timestamps) > limit {
-		timestamps = timestamps[len(timestamps)-limit:]
+	points := make([]SuccessRatePoint, 0, len(timestamps))
+	for _, hourTs := range timestamps {
+		points = append(points, SuccessRatePoint{
+			Ts:          hourTs,
+			SuccessRate: math.Round(successRate(hourly[hourTs])*100) / 100,
+		})
 	}
-	rates := make([]float64, 0, len(timestamps))
-	for _, ts := range timestamps {
-		rates = append(rates, math.Round(successRate(buckets[ts])*100)/100)
-	}
-	return rates
+	return points
 }
 
 func allowedGroupSet(groups []string) map[string]struct{} {
@@ -425,4 +481,23 @@ func mergeRedisActiveBuckets(merged map[bucketKey]counters, params QueryParams, 
 
 func redisBucketKey(key bucketKey) string {
 	return fmt.Sprintf("perf:%s:%s:%d", key.model, key.group, key.bucketTs)
+}
+
+// RecordedSampleCount reports the number of samples buffered in memory for the
+// given model and group in the current bucket. It exists so callers outside this
+// package can assert that recording happened without reaching into hotBuckets.
+func RecordedSampleCount(modelName string, group string) int64 {
+	if group == "" {
+		group = "default"
+	}
+	key := bucketKey{
+		model:    modelName,
+		group:    group,
+		bucketTs: bucketStart(time.Now().Unix()),
+	}
+	value, ok := hotBuckets.Load(key)
+	if !ok {
+		return 0
+	}
+	return value.(*atomicBucket).snapshot().requestCount
 }

@@ -70,5 +70,13 @@ export function useDashboardContentVisibility() {
     announcements: hasStatus && status?.announcements_enabled !== false,
     faq: hasStatus && status?.faq_enabled !== false,
     uptimeKuma: hasStatus && status?.uptime_kuma_enabled !== false,
+    upstreamStatus: hasStatus && status?.upstream_status_enabled !== false,
+    // The server sends the link only when an operator configured one, so a
+    // non-empty URL is the real gate here.
+    support:
+      hasStatus &&
+      status?.support_qq_enabled !== false &&
+      typeof status?.support_qq_url === 'string' &&
+      status.support_qq_url !== '',
   }
 }

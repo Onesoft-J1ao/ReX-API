@@ -34,6 +34,7 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import type { UptimeDayPoint } from '../lib/mock-stats'
@@ -50,8 +51,8 @@ function StatCard(props: {
 }) {
   const Icon = props.icon
   return (
-    <div className='bg-background flex flex-col gap-1 rounded-lg border p-3'>
-      <span className='text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase'>
+    <div className='bg-background flex flex-col gap-1 rounded-xl border p-3'>
+      <span className='text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium tracking-wider uppercase'>
         <Icon className='size-3' />
         {props.label}
       </span>
@@ -64,9 +65,7 @@ function StatCard(props: {
         {props.value}
       </span>
       {props.hint && (
-        <span className='text-muted-foreground/70 text-[11px]'>
-          {props.hint}
-        </span>
+        <span className='text-muted-foreground text-xs'>{props.hint}</span>
       )}
     </div>
   )
@@ -165,7 +164,8 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
     queryKey: ['perf-metrics', props.model.model_name],
-    queryFn: () => getPerfMetrics(props.model.model_name, 24),
+    queryFn: async () =>
+      requireServerSuccess(await getPerfMetrics(props.model.model_name, 24)),
     staleTime: 60 * 1000,
   })
   const groups = useMemo(
@@ -195,7 +195,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
 
   if (metricsQuery.isLoading || performances.length === 0) {
     return (
-      <div className='text-muted-foreground rounded-lg border p-6 text-center text-sm'>
+      <div className='text-muted-foreground rounded-xl border px-4 py-10 text-center text-sm'>
         {t('Performance data is not yet available for this model.')}
       </div>
     )
@@ -255,7 +255,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           description={t('Average latency, TTFT, TPS, and success rate')}
         />
         <StaticDataTable
-          className='rounded-lg'
+          className='rounded-xl'
           tableClassName='text-sm'
           headerRowClassName={tableStyles.compactHeaderRow}
           data={performances}
@@ -330,7 +330,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           }
           accent={
             incidentCount > 0 ? (
-              <span className='inline-flex items-center gap-1 text-amber-600 dark:text-amber-400'>
+              <span className='text-warning inline-flex items-center gap-1'>
                 <AlertTriangle className='size-3.5' />
                 {t('{{count}} incidents', {
                   count: incidentCount,
@@ -355,15 +355,13 @@ function SectionHeader(props: {
   return (
     <div className='mb-2 flex flex-wrap items-center justify-between gap-2'>
       <div className='flex min-w-0 items-center gap-2'>
-        <Icon className='text-muted-foreground/70 size-3.5 shrink-0' />
+        <Icon className='text-muted-foreground size-3.5 shrink-0' />
         <div className='min-w-0'>
           <div className='text-foreground text-sm font-semibold'>
             {props.title}
           </div>
           {props.description && (
-            <p className='text-muted-foreground/80 text-xs'>
-              {props.description}
-            </p>
+            <p className='text-muted-foreground text-xs'>{props.description}</p>
           )}
         </div>
       </div>

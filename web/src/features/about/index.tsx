@@ -24,6 +24,7 @@ import { PublicLayout } from '@/components/layout'
 import { RichContent } from '@/components/rich-content'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isHttpUrl, isLikelyHtml } from '@/lib/content-format'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getAboutContent } from './api'
 
@@ -32,7 +33,7 @@ function EmptyAboutState() {
   const currentYear = new Date().getFullYear()
 
   return (
-    <div className='flex min-h-[60vh] items-center justify-center p-8'>
+    <div className='flex min-h-[60vh] items-center justify-center px-4 py-10'>
       <div className='max-w-2xl space-y-6 text-center'>
         <div className='flex justify-center'>
           <Construction className='text-muted-foreground h-24 w-24' />
@@ -116,7 +117,7 @@ export function About() {
   const { t } = useTranslation()
   const { data, isLoading } = useQuery({
     queryKey: ['about-content'],
-    queryFn: getAboutContent,
+    queryFn: async () => requireServerSuccess(await getAboutContent()),
   })
 
   const rawContent = data?.data?.trim() ?? ''

@@ -38,6 +38,7 @@ import type {
   PerformanceGroup,
   PerfModelSummary,
 } from '@/features/performance-metrics/types'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 const PERFORMANCE_WINDOW_HOURS = 24
@@ -92,7 +93,10 @@ export function PerformanceOverview() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const metricsQuery = useQuery({
     queryKey: ['perf-metrics-summary', PERFORMANCE_WINDOW_HOURS],
-    queryFn: () => getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS),
+    queryFn: async () =>
+      requireServerSuccess(
+        await getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS)
+      ),
     staleTime: 60 * 1000,
     retry: false,
   })
@@ -132,7 +136,7 @@ export function PerformanceOverview() {
 
   if (!loading && !hasData) {
     return (
-      <div className='text-muted-foreground overflow-hidden rounded-lg border px-4 py-3 text-center text-xs'>
+      <div className='text-muted-foreground overflow-hidden rounded-xl border px-4 py-3 text-center text-xs'>
         {t('No performance data available')}
       </div>
     )
@@ -140,7 +144,7 @@ export function PerformanceOverview() {
 
   return (
     <section
-      className='overflow-hidden rounded-lg border'
+      className='overflow-hidden rounded-xl border'
       aria-label={t('Performance health')}
     >
       <div className='flex flex-wrap items-center gap-x-5 gap-y-2.5 border-b px-4 py-2.5 sm:px-5 sm:py-3'>
@@ -188,7 +192,7 @@ export function PerformanceOverview() {
           </div>
         )}
 
-        <span className='text-muted-foreground text-[11px] sm:ml-auto'>
+        <span className='text-muted-foreground text-xs sm:ml-auto'>
           {t('Reported-model averages · last 24 hours')}
         </span>
       </div>
@@ -207,7 +211,7 @@ export function PerformanceOverview() {
                   )}
                 </p>
               </div>
-              <span className='text-muted-foreground text-[11px]'>
+              <span className='text-muted-foreground text-xs'>
                 {t('Last 24 hours')}
               </span>
             </div>
@@ -255,7 +259,7 @@ function InlineMetric(props: {
       <IconBadge tone={props.tone} size='xs'>
         <Icon />
       </IconBadge>
-      <span className='text-muted-foreground text-[11px]'>{props.label}</span>
+      <span className='text-muted-foreground text-xs'>{props.label}</span>
       <span
         className={cn(
           'font-mono text-xs font-semibold tabular-nums',
@@ -291,7 +295,7 @@ function ModelButton(props: {
       })}
       onClick={() => props.onSelect(model.model_name)}
     >
-      <span className='max-w-[10rem] truncate font-mono text-[11px]'>
+      <span className='max-w-[10rem] truncate font-mono text-xs'>
         {model.model_name}
       </span>
       <span
@@ -305,7 +309,7 @@ function ModelButton(props: {
       />
       <span
         className={cn(
-          'font-mono text-[11px] font-semibold tabular-nums',
+          'font-mono text-xs font-semibold tabular-nums',
           props.selected
             ? 'text-primary-foreground'
             : getSuccessRateTextClass(model.success_rate)
@@ -379,22 +383,20 @@ function PerformanceDetail(props: {
           </thead>
           <tbody className='divide-y'>
             {props.groups.map((group) => (
-              <tr key={group.group} className='hover:bg-muted/25'>
-                <td className='px-3 py-2.5 font-medium sm:px-4'>
-                  {group.group}
-                </td>
-                <td className='px-3 py-2.5 text-right font-mono text-xs tabular-nums'>
+              <tr key={group.group} className='hover:bg-muted/40'>
+                <td className='px-3 py-2 font-medium sm:px-4'>{group.group}</td>
+                <td className='px-3 py-2 text-right font-mono text-xs tabular-nums'>
                   {formatLatency(group.avg_ttft_ms)}
                 </td>
-                <td className='px-3 py-2.5 text-right font-mono text-xs tabular-nums'>
+                <td className='px-3 py-2 text-right font-mono text-xs tabular-nums'>
                   {formatLatency(group.avg_latency_ms)}
                 </td>
-                <td className='px-3 py-2.5 text-right font-mono text-xs tabular-nums'>
+                <td className='px-3 py-2 text-right font-mono text-xs tabular-nums'>
                   {formatThroughput(group.avg_tps)}
                 </td>
                 <td
                   className={cn(
-                    'px-3 py-2.5 text-right font-mono text-xs font-semibold tabular-nums sm:px-4',
+                    'px-3 py-2 text-right font-mono text-xs font-semibold tabular-nums sm:px-4',
                     getSuccessRateTextClass(group.success_rate)
                   )}
                 >
@@ -409,7 +411,7 @@ function PerformanceDetail(props: {
   }
 
   return (
-    <div className='rounded-lg border'>
+    <div className='rounded-xl border'>
       <div className='flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2.5 sm:px-4'>
         <div className='min-w-0'>
           <p className='text-sm font-semibold'>{t('Per-group performance')}</p>

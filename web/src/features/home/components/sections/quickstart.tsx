@@ -13,14 +13,18 @@ GNU Affero General Public License for more details.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Copy } from 'lucide-react'
 
 import { AnimateInView } from '@/components/animate-in-view'
 import { Button } from '@/components/ui/button'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
-const CHAT_SNIPPET = `curl https://your-host/v1/chat/completions \\
+/** Deployment address shown in every snippet — keep in sync with the docs page. */
+const API_BASE = 'https://ai.j1ao.vip/v1'
+
+const CHAT_SNIPPET = `curl ${API_BASE}/chat/completions \\
   -H "Authorization: Bearer $REX_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -28,7 +32,7 @@ const CHAT_SNIPPET = `curl https://your-host/v1/chat/completions \\
     "messages": [{"role": "user", "content": "Hello"}]
   }'`
 
-const IMAGE_SNIPPET = `curl https://your-host/v1/images/generations \\
+const IMAGE_SNIPPET = `curl ${API_BASE}/images/generations \\
   -H "Authorization: Bearer $REX_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -41,19 +45,18 @@ function SnippetBlock(props: { title: string; code: string }) {
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(props.code)
+    // On failure the snippet stays selectable rather than reporting a copy
+    // that did not happen.
+    if (await copyToClipboard(props.code)) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      // Clipboard unavailable; leave the code selectable.
     }
   }
 
   return (
     <div className='border-border/60 bg-card/40 overflow-hidden rounded-2xl border'>
       <div className='border-border/60 flex items-center justify-between gap-3 border-b px-5 py-3'>
-        <span className='font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase'>
+        <span className='text-muted-foreground font-mono text-[11px] tracking-[0.18em] uppercase'>
           {props.title}
         </span>
         <Button
@@ -70,7 +73,7 @@ function SnippetBlock(props: { title: string; code: string }) {
           {copied ? t('Copied') : t('Copy')}
         </Button>
       </div>
-      <pre className='overflow-x-auto p-5 font-mono text-xs leading-6 text-foreground/90'>
+      <pre className='text-foreground/90 overflow-x-auto p-5 font-mono text-xs leading-6'>
         <code>{props.code}</code>
       </pre>
     </div>
@@ -84,9 +87,6 @@ export function Quickstart() {
     <section className='relative z-10 px-6 py-14 sm:px-10 md:py-20 lg:px-14'>
       <div className='mx-auto max-w-7xl'>
         <AnimateInView className='mb-10 max-w-2xl md:mb-12'>
-          <p className='text-primary mb-5 font-mono text-[11px] tracking-[0.28em] uppercase'>
-            {t('Quickstart')}
-          </p>
           <h2 className='text-foreground font-serif text-4xl leading-[1.05] font-medium tracking-[-0.02em] md:text-5xl'>
             {t('One key,')}
             <br />
@@ -100,10 +100,10 @@ export function Quickstart() {
         </AnimateInView>
 
         <div className='grid gap-4 lg:grid-cols-2'>
-          <AnimateInView delay={0} animation='fade-up'>
+          <AnimateInView delay={0} animation='scale-in'>
             <SnippetBlock title='Chat' code={CHAT_SNIPPET} />
           </AnimateInView>
-          <AnimateInView delay={80} animation='fade-up'>
+          <AnimateInView delay={80} animation='scale-in'>
             <SnippetBlock title='Image' code={IMAGE_SNIPPET} />
           </AnimateInView>
         </div>

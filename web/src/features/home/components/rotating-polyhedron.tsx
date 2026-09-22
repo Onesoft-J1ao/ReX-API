@@ -233,13 +233,29 @@ const VERTEX_SHADER = `
   }
 `
 
+// How far the animated hue field spreads around the theme hue, in turns. Small
+// values keep the palette tight around the preset; larger ones read as a sweep.
+const HUE_SPAN = 0.45
+
 const FRAGMENT_SHADER = `
   precision mediump float;
   uniform vec3 u_primary;
   uniform vec3 u_secondary;
   uniform vec3 u_accent;
+  uniform float u_time;
+  uniform float u_hue_span;
   varying vec3 v_normal;
   varying vec3 v_position;
+
+  // Rotates a colour around the grey axis, which moves its hue without changing
+  // how light or saturated it reads.
+  vec3 hueShift(vec3 color, float turns) {
+    float angle = turns * 6.2831853;
+    vec3 axis = vec3(0.57735027);
+    float cosA = cos(angle);
+    return color * cosA + cross(axis, color) * sin(angle) + axis * dot(axis, color) * (1.0 - cosA);
+  }
+
   void main() {
     vec3 normal = normalize(v_normal);
     vec3 viewDir = normalize(-v_position);
@@ -255,21 +271,37 @@ const FRAGMENT_SHADER = `
     // Steep diffuse ramp: adjacent facets (sharp dihedral angles) separate
     // cleanly instead of blending, so the star's edges read crisply.
     float keyDiff = smoothstep(0.0, 0.6, ndotl);
-    // Lit faces read as primary; shadow faces swing toward the accent hue so
-    // the two-tone split is visible even when the theme secondary is neutral.
-    vec3 shadowHue = mix(u_secondary, u_accent, 0.55);
-    vec3 baseColor = mix(shadowHue, u_primary, keyDiff);
-    baseColor += u_accent * ndotf * 0.22;
-    // Controlled specular: tight bright hotspot, no overblown wash.
+    // Doppler iridescence: a gemstone's colour is a function of the angle each
+    // facet presents, so neighbouring facets fall into different bands and the
+    // pattern slides across the surface as the star turns.
     float ndoth = max(dot(normal, halfDir), 0.0);
-    float spec = pow(ndoth, 96.0) * 0.9 + pow(ndoth, 24.0) * 0.25;
-    vec3 specColor = mix(vec3(1.0), u_primary, 0.25);
-    // Fresnel edge + rim carry the accent so silhouettes show the second hue.
     float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.0);
     float rim = pow(1.0 - max(dot(normal, rimLight), 0.0), 1.4);
-    vec3 color = baseColor * 0.85 + specColor * spec + u_accent * fresnel * 0.45 + mix(u_accent, u_primary, 0.35) * rim * 0.3;
+    float iridescence =
+      dot(normal, viewDir) * 1.3 +
+      fresnel * 0.85 +
+      v_position.y * 0.3 +
+      sin(u_time * 0.00021) * 0.35;
+    float band = sin(iridescence * 9.4) * 0.5 + 0.5;
+
+    // Deep body: the stone stays dark between the bands, which is what makes the
+    // bright ones read as lit from inside rather than painted on.
+    vec3 color = mix(u_secondary, u_accent, 0.3) * 0.22 * (0.35 + keyDiff * 0.7);
+    color += u_accent * ndotf * 0.08;
+
+    // The bands carry the colour, sweeping through the theme hue family.
+    vec3 bandColor = hueShift(mix(u_primary, u_accent, band), band * u_hue_span * 0.5);
+    color += bandColor * pow(band, 2.2) * (0.55 + keyDiff * 0.9);
+
+    // One hard light source: a tight hotspot with a soft bloom around it.
+    vec3 highlight = mix(vec3(1.0), u_primary, 0.2);
+    color += highlight * (pow(ndoth, 190.0) * 1.5 + pow(ndoth, 16.0) * 0.3);
+
+    // Edge glow keeps the silhouette alive against the dark page.
+    color += u_accent * fresnel * 0.6 + u_primary * rim * 0.22;
+
     float luma = dot(color, vec3(0.299, 0.587, 0.114));
-    color = mix(vec3(luma), color, 1.35);
+    color = mix(vec3(luma), color, 1.65);
     gl_FragColor = vec4(color, 1.0);
   }
 `
@@ -470,6 +502,8 @@ export function RotatingPolyhedron(props: RotatingPolyhedronProps) {
     const primaryLocation = gl.getUniformLocation(program, 'u_primary')
     const secondaryLocation = gl.getUniformLocation(program, 'u_secondary')
     const accentLocation = gl.getUniformLocation(program, 'u_accent')
+    const timeLocation = gl.getUniformLocation(program, 'u_time')
+    const hueSpanLocation = gl.getUniformLocation(program, 'u_hue_span')
     let frame = 0
     let rotationX = -0.35
     let rotationY = 0
@@ -484,6 +518,9 @@ export function RotatingPolyhedron(props: RotatingPolyhedronProps) {
     let pointerX = 0
     let pointerY = 0
     let lastTime = 0
+    // Advances only while motion is allowed, so a reduced-motion visitor gets a
+    // still palette rather than a frozen frame part-way through the drift.
+    let hueTime = 0
     let canvasW = 0
     let canvasH = 0
 
@@ -508,6 +545,7 @@ export function RotatingPolyhedron(props: RotatingPolyhedronProps) {
       lastTime = time
       const colors = themeColors(stage)
       if (!reducedMotion.matches) {
+        hueTime += delta
         // Slow precession: steady spin around Y with a gentle X wobble.
         rotationYBase += delta * 0.00022
         const wobble = -0.35 + Math.sin(time * 0.00012) * 0.18
@@ -557,6 +595,8 @@ export function RotatingPolyhedron(props: RotatingPolyhedronProps) {
         colors.accent[1],
         colors.accent[2]
       )
+      gl.uniform1f(timeLocation, hueTime)
+      gl.uniform1f(hueSpanLocation, HUE_SPAN)
       gl.drawArrays(gl.TRIANGLES, 0, geometry.positions.length / 3)
       if (!reducedMotion.matches) frame = requestAnimationFrame(draw)
     }
@@ -654,6 +694,20 @@ export function RotatingPolyhedron(props: RotatingPolyhedronProps) {
         aria-hidden='true'
         className='pointer-events-none absolute inset-[8%] rounded-[1.5rem] shadow-[inset_0_0_60px_-30px_var(--primary)]'
       />
+      {/* Orbit rings + satellite nodes — the routing-core metaphor made
+          mechanical: packets (dots) orbit the polyhedron on two tilted rails. */}
+      <div
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-[14%]'
+      >
+        <div className='border-primary/20 absolute inset-0 [transform:rotateX(68deg)] animate-spin rounded-full border border-dashed [animation-duration:26s] [animation-timing-function:linear]'>
+          <span className='bg-primary absolute -top-1 left-1/2 size-2 -translate-x-1/2 rounded-full shadow-[0_0_12px_2px_var(--glow-soft)]' />
+          <span className='bg-primary/60 absolute top-1/2 -right-1 size-1.5 translate-y-1/2 rounded-full' />
+        </div>
+        <div className='border-primary/15 absolute inset-[12%] [transform:rotateX(72deg)_rotateY(24deg)] animate-spin rounded-full border [animation-direction:reverse] [animation-duration:38s] [animation-timing-function:linear]'>
+          <span className='bg-primary absolute -bottom-1 left-1/3 size-1.5 -translate-x-1/2 rounded-full shadow-[0_0_10px_2px_var(--glow-soft)]' />
+        </div>
+      </div>
       {/* Four radiating guide lines + agent labels around the loop. */}
       <div aria-hidden='true' className='pointer-events-none absolute inset-0'>
         {/* Top */}
@@ -690,6 +744,12 @@ export function RotatingPolyhedron(props: RotatingPolyhedronProps) {
       <div
         aria-hidden='true'
         className='pointer-events-none absolute inset-0 bg-[linear-gradient(150deg,color-mix(in_oklch,var(--background)_55%,transparent)_0%,transparent_38%,color-mix(in_oklch,var(--primary)_10%,transparent)_100%)] opacity-60 mix-blend-soft-light'
+      />
+      {/* Horizontal scanline crossing the stage — the dark-world signature
+          motion, echoing the telemetry ticker in the hero footer. */}
+      <div
+        aria-hidden='true'
+        className='landing-scanline pointer-events-none absolute inset-0'
       />
       {props.statusLabel ? (
         <div className='border-border/60 bg-background/70 text-muted-foreground pointer-events-none absolute top-[6%] left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[10px] tracking-[0.18em] uppercase shadow-sm backdrop-blur-md'>

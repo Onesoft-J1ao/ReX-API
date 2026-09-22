@@ -266,7 +266,7 @@ export function JsonCodeEditor({
   return (
     <div
       className={cn(
-        'border-input bg-background focus-within:border-ring focus-within:ring-ring/50 overflow-hidden rounded-lg border transition-colors focus-within:ring-3',
+        'border-input bg-background focus-within:border-ring focus-within:ring-ring/50 overflow-hidden rounded-xl border transition-colors focus-within:ring-3',
         className
       )}
       data-form-root={dataFormRoot}
@@ -276,9 +276,7 @@ export function JsonCodeEditor({
         <div className='text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs font-medium'>
           <Braces className='h-3.5 w-3.5' aria-hidden='true' />
           <span>{t('JSON')}</span>
-          <span className='text-muted-foreground/70 font-mono'>
-            {cursorText}
-          </span>
+          <span className='text-muted-foreground font-mono'>{cursorText}</span>
         </div>
         <div className='flex items-center gap-2'>
           <span

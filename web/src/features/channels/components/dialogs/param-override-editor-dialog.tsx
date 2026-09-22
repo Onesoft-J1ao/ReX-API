@@ -45,7 +45,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
@@ -577,16 +579,19 @@ const getOperationSummary = (
 }
 
 const getModeTagTailwind = (mode: string): string => {
+  // Three neutral operation categories get their own hues so they stay
+  // distinguishable at a glance; error/prune and sync keep the status tokens,
+  // where the colour actually carries meaning.
   if (mode.includes('header'))
-    {return 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/20'}
+    return 'bg-category-1/10 text-category-1 border-category-1/20'
   if (mode.includes('replace') || mode.includes('trim'))
-    {return 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/20'}
+    return 'bg-category-2/10 text-category-2 border-category-2/20'
   if (mode.includes('copy') || mode.includes('move'))
-    {return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/20'}
+    return 'bg-category-3/10 text-category-3 border-category-3/20'
   if (mode.includes('error') || mode.includes('prune'))
-    {return 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/20'}
+    return 'bg-destructive/10 text-destructive border-destructive/20'
   if (mode.includes('sync'))
-    {return 'bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/20'}
+    return 'bg-success/10 text-success border-success/20'
   return 'bg-muted text-muted-foreground'
 }
 
@@ -631,17 +636,20 @@ const getModeToPlaceholder = (mode: string): string => {
 }
 
 const getModeValueLabel = (mode: string): string => {
-  if (mode === 'set_header')
-    {return 'Header Value (supports string or JSON mapping)'}
-  if (mode === 'pass_headers')
-    {return 'Pass-through Headers (comma-separated or JSON array)'}
+  if (mode === 'set_header') {
+    return 'Header Value (supports string or JSON mapping)'
+  }
+  if (mode === 'pass_headers') {
+    return 'Pass-through Headers (comma-separated or JSON array)'
+  }
   if (
     mode === 'trim_prefix' ||
     mode === 'trim_suffix' ||
     mode === 'ensure_prefix' ||
     mode === 'ensure_suffix'
-  )
-    {return 'Prefix/Suffix Text'}
+  ) {
+    return 'Prefix/Suffix Text'
+  }
   if (mode === 'prune_objects') return 'Prune Rule (string or JSON object)'
   return 'Value (supports JSON or plain text)'
 }
@@ -654,8 +662,9 @@ const getModeValuePlaceholder = (mode: string): string => {
     mode === 'trim_suffix' ||
     mode === 'ensure_prefix' ||
     mode === 'ensure_suffix'
-  )
-    {return 'openai/'}
+  ) {
+    return 'openai/'
+  }
   if (mode === 'prune_objects') return '{"type":"redacted_thinking"}'
   return '0.7'
 }
@@ -791,8 +800,9 @@ const parsePruneObjectsDraft = (valueText: string): PruneObjectsDraft => {
   if (!raw) return defaults
   try {
     const parsed = JSON.parse(raw)
-    if (typeof parsed === 'string')
-      {return { ...defaults, typeText: parsed.trim() }}
+    if (typeof parsed === 'string') {
+      return { ...defaults, typeText: parsed.trim() }
+    }
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const rules: PruneRule[] = []
       if (
@@ -808,8 +818,9 @@ const parsePruneObjectsDraft = (valueText: string): PruneObjectsDraft => {
       }
       if (Array.isArray(parsed.conditions)) {
         for (const item of parsed.conditions) {
-          if (item && typeof item === 'object')
-            {rules.push(normalizePruneRule(item))}
+          if (item && typeof item === 'object') {
+            rules.push(normalizePruneRule(item))
+          }
         }
       } else if (
         parsed.conditions &&
@@ -868,31 +879,35 @@ const buildPruneObjectsValueText = (draft: PruneObjectsDraft): string => {
       return conditionPayload
     })
   if (conditions.length > 0) payload.conditions = conditions
-  if (!payload.type && !payload.conditions)
-    {return JSON.stringify({ logic: 'AND' })}
+  if (!payload.type && !payload.conditions) {
+    return JSON.stringify({ logic: 'AND' })
+  }
   return JSON.stringify(payload)
 }
 
 // pass_headers helpers
 
 const parsePassHeaderNames = (rawValue: unknown): string[] => {
-  if (Array.isArray(rawValue))
-    {return rawValue.map((i) => String(i ?? '').trim()).filter(Boolean)}
+  if (Array.isArray(rawValue)) {
+    return rawValue.map((i) => String(i ?? '').trim()).filter(Boolean)
+  }
   if (rawValue && typeof rawValue === 'object') {
     const obj = rawValue as Record<string, unknown>
-    if (Array.isArray(obj.headers))
-      {return obj.headers.map((i) => String(i ?? '').trim()).filter(Boolean)}
+    if (Array.isArray(obj.headers)) {
+      return obj.headers.map((i) => String(i ?? '').trim()).filter(Boolean)
+    }
     if (obj.header !== undefined) {
       const single = String(obj.header ?? '').trim()
       return single ? [single] : []
     }
     return []
   }
-  if (typeof rawValue === 'string')
-    {return rawValue
+  if (typeof rawValue === 'string') {
+    return rawValue
       .split(',')
       .map((i) => i.trim())
-      .filter(Boolean)}
+      .filter(Boolean)
+  }
   return []
 }
 
@@ -927,18 +942,22 @@ const validateOperations = (
     const fromValue = op.from.trim()
     const toValue = op.to.trim()
 
-    if (meta.path && !pathValue)
-      {return t('Rule {{line}} is missing target path', { line })}
+    if (meta.path && !pathValue) {
+      return t('Rule {{line}} is missing target path', { line })
+    }
     if (FROM_REQUIRED_MODES.has(mode) && !fromValue) {
-      if (!(meta.pathAlias && pathValue))
-        {return t('Rule {{line}} is missing source field', { line })}
+      if (!(meta.pathAlias && pathValue)) {
+        return t('Rule {{line}} is missing source field', { line })
+      }
     }
     if (TO_REQUIRED_MODES.has(mode) && !toValue) {
-      if (!(meta.pathAlias && pathValue))
-        {return t('Rule {{line}} is missing target field', { line })}
+      if (!(meta.pathAlias && pathValue)) {
+        return t('Rule {{line}} is missing target field', { line })
+      }
     }
-    if (VALUE_REQUIRED_MODES.has(mode) && op.value_text.trim() === '')
-      {return t('Rule {{line}} is missing value', { line })}
+    if (VALUE_REQUIRED_MODES.has(mode) && op.value_text.trim() === '') {
+      return t('Rule {{line}} is missing value', { line })
+    }
 
     if (mode === 'return_error') {
       const raw = op.value_text.trim()
@@ -946,10 +965,13 @@ const validateOperations = (
       try {
         const parsed = JSON.parse(raw)
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          if (!String((parsed as Record<string, unknown>).message || '').trim())
-            {return t('Rule {{line}} return_error requires a message field', {
+          if (
+            !String((parsed as Record<string, unknown>).message || '').trim()
+          ) {
+            return t('Rule {{line}} return_error requires a message field', {
               line,
-            })}
+            })
+          }
         }
       } catch {
         /* plain string is allowed */
@@ -958,18 +980,21 @@ const validateOperations = (
 
     if (mode === 'prune_objects') {
       const raw = op.value_text.trim()
-      if (!raw)
-        {return t('Rule {{line}} prune_objects is missing conditions', { line })}
+      if (!raw) {
+        return t('Rule {{line}} prune_objects is missing conditions', { line })
+      }
     }
 
     if (mode === 'pass_headers') {
       const raw = op.value_text.trim()
-      if (!raw)
-        {return t('Rule {{line}} pass_headers is missing header names', { line })}
+      if (!raw) {
+        return t('Rule {{line}} pass_headers is missing header names', { line })
+      }
       const parsed = parseLooseValue(raw)
       const headers = parsePassHeaderNames(parsed)
-      if (headers.length === 0)
-        {return t('Rule {{line}} pass_headers format is invalid', { line })}
+      if (headers.length === 0) {
+        return t('Rule {{line}} pass_headers format is invalid', { line })
+      }
     }
   }
   return ''
@@ -1215,14 +1240,16 @@ export function ParamOverrideEditorDialog(
   )
 
   const returnErrorDraft = useMemo(() => {
-    if (!selectedOperation || selectedOperation.mode !== 'return_error')
-      {return null}
+    if (!selectedOperation || selectedOperation.mode !== 'return_error') {
+      return null
+    }
     return parseReturnErrorDraft(selectedOperation.value_text)
   }, [selectedOperation])
 
   const pruneObjectsDraft = useMemo(() => {
-    if (!selectedOperation || selectedOperation.mode !== 'prune_objects')
-      {return null}
+    if (!selectedOperation || selectedOperation.mode !== 'prune_objects') {
+      return null
+    }
     return parsePruneObjectsDraft(selectedOperation.value_text)
   }, [selectedOperation])
 
@@ -1479,11 +1506,13 @@ export function ParamOverrideEditorDialog(
     if (visualMode === 'legacy') {
       const trimmed = legacyValue.trim()
       if (!trimmed) return ''
-      if (!verifyJSON(trimmed))
-        {throw new Error(t('Parameter override must be valid JSON format'))}
+      if (!verifyJSON(trimmed)) {
+        throw new Error(t('Parameter override must be valid JSON format'))
+      }
       const parsed = JSON.parse(trimmed) as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-        {throw new Error(t('Legacy format must be a JSON object'))}
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(t('Legacy format must be a JSON object'))
+      }
       return JSON.stringify(parsed, null, 2)
     }
     return buildOperationsJson(operations, { validate: true }, t)
@@ -1674,8 +1703,9 @@ export function ParamOverrideEditorDialog(
       if (editMode === 'json') {
         const trimmed = jsonText.trim()
         if (trimmed) {
-          if (!verifyJSON(trimmed))
-            {throw new Error(t('Parameter override must be valid JSON format'))}
+          if (!verifyJSON(trimmed)) {
+            throw new Error(t('Parameter override must be valid JSON format'))
+          }
           result = JSON.stringify(JSON.parse(trimmed), null, 2)
         }
       } else {
@@ -1763,29 +1793,17 @@ export function ParamOverrideEditorDialog(
           <span className='text-muted-foreground text-xs font-medium'>
             {t('Template')}
           </span>
-          <Select
-            items={templatePresetOptions.map((o) => ({
-                value: o.value,
-                label: t(o.label),
-              }))}
+          <Combobox
+            options={templatePresetOptions.map((o) => ({
+              value: o.value,
+              label: t(o.label),
+            }))}
             value={templatePresetKey}
             onValueChange={(v) =>
               setTemplatePresetKey(v || 'operations_default')
             }
-          >
-            <SelectTrigger className='h-8 w-[220px]'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              <SelectGroup>
-                {templatePresetOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {t(o.label)}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+            className='h-8 w-[220px]'
+          />
           <Button
             type='button'
             variant='outline'
@@ -1814,8 +1832,8 @@ export function ParamOverrideEditorDialog(
       </div>
       {/* Content */}
       <div className='min-h-0 flex-1 overflow-hidden'>
-        {editMode === 'visual' ? (
-          visualMode === 'legacy' ? (
+        {editMode === 'visual' &&
+          (visualMode === 'legacy' ? (
             <div className='p-4'>
               <p className='text-muted-foreground mb-2 text-sm'>
                 {t('Legacy Format (JSON Object)')}
@@ -1860,7 +1878,7 @@ export function ParamOverrideEditorDialog(
                       <span
                         key={`mode_stat_${mode}`}
                         className={cn(
-                          'inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium',
+                          'inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs font-medium',
                           getModeTagTailwind(mode)
                         )}
                       >
@@ -1919,7 +1937,7 @@ export function ParamOverrideEditorDialog(
                               }
                             }}
                             className={cn(
-                              'cursor-pointer rounded-lg border p-2.5 transition-colors',
+                              'cursor-pointer rounded-xl border p-2.5 transition-colors',
                               isActive
                                 ? 'border-primary bg-primary/5'
                                 : 'hover:bg-muted/50',
@@ -1946,24 +1964,21 @@ export function ParamOverrideEditorDialog(
                                   <span className='text-xs font-semibold'>
                                     #{index + 1}
                                   </span>
-                                  <Badge
-                                    variant='outline'
-                                    className='text-[10px]'
-                                  >
+                                  <Badge variant='outline' className='text-xs'>
                                     {operation.conditions.length}
                                   </Badge>
                                 </div>
-                                <p className='text-muted-foreground mt-0.5 line-clamp-1 text-[11px]'>
+                                <p className='text-muted-foreground mt-0.5 line-clamp-1 text-xs'>
                                   {getOperationSummary(operation, index)}
                                 </p>
                                 {operation.description.trim() && (
-                                  <p className='text-muted-foreground mt-0.5 line-clamp-2 text-[10px]'>
+                                  <p className='text-muted-foreground mt-0.5 line-clamp-2 text-xs'>
                                     {operation.description}
                                   </p>
                                 )}
                                 <span
                                   className={cn(
-                                    'mt-1 inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium',
+                                    'mt-1 inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs font-medium',
                                     getModeTagTailwind(operation.mode || 'set')
                                   )}
                                 >
@@ -2027,9 +2042,9 @@ export function ParamOverrideEditorDialog(
                 )}
               </div>
             </div>
-          )
-        ) : (
-          /* JSON mode */
+          ))}
+        {/* JSON mode */}
+        {editMode !== 'visual' && (
           <div className='p-4'>
             <div className='mb-2 flex items-center gap-2'>
               <span className='text-muted-foreground text-xs'>
@@ -2110,6 +2125,10 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
   const { t } = useTranslation()
   const operation = ruleEditorProps.operation
   const mode = operation.mode || 'set'
+  const returnErrorDraft =
+    mode === 'return_error' ? ruleEditorProps.returnErrorDraft : null
+  const pruneObjectsDraft =
+    mode === 'prune_objects' ? ruleEditorProps.pruneObjectsDraft : null
   const meta = MODE_META[mode] || MODE_META.set
   const conditions = operation.conditions
   const syncFromTarget =
@@ -2157,11 +2176,11 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
         <div className='grid gap-3 sm:grid-cols-2'>
           <div className='space-y-1.5'>
             <label className='text-xs font-medium'>{t('Operation Type')}</label>
-            <Select
-              items={OPERATION_MODE_OPTIONS.map((o) => ({
-                  value: o.value,
-                  label: t(o.label),
-                }))}
+            <Combobox
+              options={OPERATION_MODE_OPTIONS.map((o) => ({
+                value: o.value,
+                label: t(o.label),
+              }))}
               value={mode}
               onValueChange={(nextMode) =>
                 nextMode !== null &&
@@ -2169,20 +2188,8 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   mode: nextMode,
                 })
               }
-            >
-              <SelectTrigger className='h-9'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent alignItemWithTrigger={false}>
-                <SelectGroup>
-                  {OPERATION_MODE_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {t(o.label)}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              className='h-9'
+            />
           </div>
           {(meta.path || meta.pathOptional) && (
             <div className='space-y-1.5'>
@@ -2216,7 +2223,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
             <label className='text-xs font-medium'>
               {t('Rule Description (optional)')}
             </label>
-            <span className='text-muted-foreground text-[10px]'>
+            <span className='text-muted-foreground text-xs'>
               {operation.description.length}/180
             </span>
           </div>
@@ -2236,66 +2243,71 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
         </div>
 
         {/* Value section */}
-        {meta.value &&
-          (mode === 'return_error' && ruleEditorProps.returnErrorDraft ? (
-            <ReturnErrorEditor
-              operationId={operation.id}
-              draft={ruleEditorProps.returnErrorDraft}
-              updateDraft={ruleEditorProps.updateReturnErrorDraft}
-            />
-          ) : mode === 'prune_objects' && ruleEditorProps.pruneObjectsDraft ? (
-            <PruneObjectsEditor
-              operationId={operation.id}
-              draft={ruleEditorProps.pruneObjectsDraft}
-              updateDraft={ruleEditorProps.updatePruneObjectsDraft}
-              addRule={ruleEditorProps.addPruneRule}
-              updateRule={ruleEditorProps.updatePruneRule}
-              removeRule={ruleEditorProps.removePruneRule}
-            />
-          ) : (
-            <div className='space-y-1.5'>
-              <div className='flex items-center justify-between'>
-                <label className='text-xs font-medium'>
-                  {t(getModeValueLabel(mode))}
-                </label>
-                {operation.value_text.trim().startsWith('{') && (
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='text-muted-foreground h-auto px-1.5 py-0.5 text-xs'
-                    onClick={() => {
-                      try {
-                        const parsed = JSON.parse(operation.value_text)
-                        ruleEditorProps.updateOperation(operation.id, {
-                          value_text: JSON.stringify(parsed, null, 2),
-                        })
-                      } catch {
-                        /* not valid JSON */
-                      }
-                    }}
-                  >
-                    {t('Format')}
-                  </Button>
-                )}
-              </div>
-              <Textarea
-                value={operation.value_text}
-                onChange={(e) =>
-                  ruleEditorProps.updateOperation(operation.id, {
-                    value_text: e.target.value,
-                  })
-                }
-                placeholder={getModeValuePlaceholder(mode)}
-                rows={3}
-                className='max-h-[200px] resize-y overflow-y-auto font-mono text-xs'
+        {meta.value && (
+          <>
+            {returnErrorDraft && (
+              <ReturnErrorEditor
+                operationId={operation.id}
+                draft={returnErrorDraft}
+                updateDraft={ruleEditorProps.updateReturnErrorDraft}
               />
-            </div>
-          ))}
+            )}
+            {pruneObjectsDraft && (
+              <PruneObjectsEditor
+                operationId={operation.id}
+                draft={pruneObjectsDraft}
+                updateDraft={ruleEditorProps.updatePruneObjectsDraft}
+                addRule={ruleEditorProps.addPruneRule}
+                updateRule={ruleEditorProps.updatePruneRule}
+                removeRule={ruleEditorProps.removePruneRule}
+              />
+            )}
+            {!returnErrorDraft && !pruneObjectsDraft && (
+              <div className='space-y-1.5'>
+                <div className='flex items-center justify-between'>
+                  <label className='text-xs font-medium'>
+                    {t(getModeValueLabel(mode))}
+                  </label>
+                  {operation.value_text.trim().startsWith('{') && (
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      className='text-muted-foreground h-auto px-1.5 py-0.5 text-xs'
+                      onClick={() => {
+                        try {
+                          const parsed = JSON.parse(operation.value_text)
+                          ruleEditorProps.updateOperation(operation.id, {
+                            value_text: JSON.stringify(parsed, null, 2),
+                          })
+                        } catch {
+                          /* not valid JSON */
+                        }
+                      }}
+                    >
+                      {t('Format')}
+                    </Button>
+                  )}
+                </div>
+                <Textarea
+                  value={operation.value_text}
+                  onChange={(e) =>
+                    ruleEditorProps.updateOperation(operation.id, {
+                      value_text: e.target.value,
+                    })
+                  }
+                  placeholder={getModeValuePlaceholder(mode)}
+                  rows={3}
+                  className='max-h-[200px] resize-y overflow-y-auto font-mono text-xs'
+                />
+              </div>
+            )}
+          </>
+        )}
 
         {/* keep_origin */}
         {meta.keepOrigin && (
-          <div className='flex items-center justify-between rounded-lg border px-3 py-2'>
+          <div className='flex items-center justify-between rounded-xl border px-3 py-2'>
             <p className='text-sm font-medium'>
               {t('Keep original value (skip if target exists)')}
             </p>
@@ -2311,14 +2323,15 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
         )}
 
         {/* sync_fields */}
-        {mode === 'sync_fields' && syncFromTarget && syncToTarget ? (
+        {mode === 'sync_fields' && syncFromTarget && syncToTarget && (
           <SyncFieldsEditor
             operationId={operation.id}
             syncFromTarget={syncFromTarget}
             syncToTarget={syncToTarget}
             updateOperation={ruleEditorProps.updateOperation}
           />
-        ) : (meta.from || meta.to !== undefined) && mode !== 'sync_fields' ? (
+        )}
+        {(meta.from || meta.to !== undefined) && mode !== 'sync_fields' && (
           <div className='grid gap-3 sm:grid-cols-2'>
             {(meta.from || meta.to === false) && (
               <div className='space-y-1.5'>
@@ -2355,10 +2368,10 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
               </div>
             )}
           </div>
-        ) : null}
+        )}
 
         {/* Conditions */}
-        <div className='rounded-lg border p-3'>
+        <div className='rounded-xl border p-3'>
           <div className='mb-2 flex items-center justify-between'>
             <div className='flex items-center gap-2'>
               <span className='text-sm font-medium'>{t('Conditions')}</span>
@@ -2487,7 +2500,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
       <div className='rounded-md border'>
         <CollapsibleTrigger className='hover:bg-muted/50 flex w-full items-center justify-between px-3 py-2'>
           <div className='flex items-center gap-2'>
-            <Badge variant='outline' className='text-[10px]'>
+            <Badge variant='outline' className='text-xs'>
               C{conditionEditorProps.conditionIndex + 1}
             </Badge>
             <span className='text-muted-foreground text-xs'>
@@ -2524,9 +2537,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
             </div>
             <div className='grid gap-2 sm:grid-cols-3'>
               <div className='space-y-1'>
-                <label className='text-[10px] font-medium'>
-                  {t('Field Path')}
-                </label>
+                <label className='text-xs font-medium'>{t('Field Path')}</label>
                 <Input
                   value={condition.path}
                   onChange={(e) =>
@@ -2541,14 +2552,12 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                 />
               </div>
               <div className='space-y-1'>
-                <label className='text-[10px] font-medium'>
-                  {t('Match Mode')}
-                </label>
-                <Select
-                  items={CONDITION_MODE_OPTIONS.map((o) => ({
-                      value: o.value,
-                      label: t(o.label),
-                    }))}
+                <label className='text-xs font-medium'>{t('Match Mode')}</label>
+                <Combobox
+                  options={CONDITION_MODE_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: t(o.label),
+                  }))}
                   value={condition.mode}
                   onValueChange={(v) =>
                     v !== null &&
@@ -2558,23 +2567,11 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                       { mode: v }
                     )
                   }
-                >
-                  <SelectTrigger className='h-8 text-xs'>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {CONDITION_MODE_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {t(o.label)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  className='h-8 text-xs'
+                />
               </div>
               <div className='space-y-1'>
-                <label className='text-[10px] font-medium'>
+                <label className='text-xs font-medium'>
                   {t('Match Value')}
                 </label>
                 <Input
@@ -2644,7 +2641,7 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
   const draft = returnErrorEditorProps.draft
 
   return (
-    <div className='rounded-lg border p-3'>
+    <div className='rounded-xl border p-3'>
       <div className='mb-2 flex items-center justify-between'>
         <span className='text-sm font-medium'>
           {t('Custom Error Response')}
@@ -2683,9 +2680,9 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
       </div>
 
       <div className='space-y-1.5'>
-        <label className='text-xs font-medium'>
-          {t('Error Message (required)')}
-        </label>
+        <Label required className='text-xs font-medium'>
+          {t('Error Message')}
+        </Label>
         <Textarea
           value={draft.message}
           onChange={(e) =>
@@ -2815,7 +2812,7 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
                 type='button'
                 variant='outline'
                 size='sm'
-                className='h-6 text-[10px]'
+                className='h-6 text-xs'
                 onClick={() =>
                   returnErrorEditorProps.updateDraft(
                     returnErrorEditorProps.operationId,
@@ -2864,7 +2861,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
   const draft = pruneObjectsEditorProps.draft
 
   return (
-    <div className='rounded-lg border p-3'>
+    <div className='rounded-xl border p-3'>
       <div className='mb-2 flex items-center justify-between'>
         <span className='text-sm font-medium'>{t('Object Prune Rules')}</span>
         <div className='flex items-center gap-1'>
@@ -3021,14 +3018,14 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                     className='bg-background rounded-md border p-2'
                   >
                     <div className='mb-1 flex items-center justify-between'>
-                      <Badge variant='outline' className='text-[10px]'>
+                      <Badge variant='outline' className='text-xs'>
                         R{ruleIndex + 1}
                       </Badge>
                       <Button
                         type='button'
                         variant='ghost'
                         size='sm'
-                        className='text-destructive hover:text-destructive h-6 text-[10px]'
+                        className='text-destructive hover:text-destructive h-6 text-xs'
                         onClick={() =>
                           pruneObjectsEditorProps.removeRule(
                             pruneObjectsEditorProps.operationId,
@@ -3042,7 +3039,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                     </div>
                     <div className='grid gap-2 sm:grid-cols-3'>
                       <div className='space-y-0.5'>
-                        <label className='text-[10px] font-medium'>
+                        <label className='text-xs font-medium'>
                           {t('Field Path')}
                         </label>
                         <Input
@@ -3059,14 +3056,14 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                         />
                       </div>
                       <div className='space-y-0.5'>
-                        <label className='text-[10px] font-medium'>
+                        <label className='text-xs font-medium'>
                           {t('Match Mode')}
                         </label>
-                        <Select
-                          items={CONDITION_MODE_OPTIONS.map((o) => ({
-                              value: o.value,
-                              label: t(o.label),
-                            }))}
+                        <Combobox
+                          options={CONDITION_MODE_OPTIONS.map((o) => ({
+                            value: o.value,
+                            label: t(o.label),
+                          }))}
                           value={rule.mode}
                           onValueChange={(v) =>
                             v !== null &&
@@ -3076,23 +3073,11 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                               { mode: v }
                             )
                           }
-                        >
-                          <SelectTrigger className='h-7 text-xs'>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent alignItemWithTrigger={false}>
-                            <SelectGroup>
-                              {CONDITION_MODE_OPTIONS.map((o) => (
-                                <SelectItem key={o.value} value={o.value}>
-                                  {t(o.label)}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
+                          className='h-7 text-xs'
+                        />
                       </div>
                       <div className='space-y-0.5'>
-                        <label className='text-[10px] font-medium'>
+                        <label className='text-xs font-medium'>
                           {t('Match Value (optional)')}
                         </label>
                         <Input
@@ -3110,7 +3095,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                       </div>
                     </div>
                     <div className='mt-1.5 flex flex-wrap gap-3'>
-                      <label className='flex items-center gap-1.5 text-[10px]'>
+                      <label className='flex items-center gap-1.5 text-xs'>
                         <Switch
                           checked={rule.invert}
                           onCheckedChange={(checked) =>
@@ -3123,7 +3108,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                         />
                         {t('Invert match')}
                       </label>
-                      <label className='flex items-center gap-1.5 text-[10px]'>
+                      <label className='flex items-center gap-1.5 text-xs'>
                         <Switch
                           checked={rule.pass_missing_key}
                           onCheckedChange={(checked) =>
@@ -3169,15 +3154,13 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
       <label className='text-xs font-medium'>{t('Sync Endpoints')}</label>
       <div className='grid gap-3 sm:grid-cols-2'>
         <div className='space-y-1.5'>
-          <label className='text-[10px] font-medium'>
-            {t('Source Endpoint')}
-          </label>
+          <label className='text-xs font-medium'>{t('Source Endpoint')}</label>
           <div className='flex gap-2'>
             <Select
               items={SYNC_TARGET_TYPE_OPTIONS.map((o) => ({
-                  value: o.value,
-                  label: t(o.label),
-                }))}
+                value: o.value,
+                label: t(o.label),
+              }))}
               value={syncFieldsEditorProps.syncFromTarget.type || 'json'}
               onValueChange={(v) =>
                 v !== null &&
@@ -3224,15 +3207,13 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
           </div>
         </div>
         <div className='space-y-1.5'>
-          <label className='text-[10px] font-medium'>
-            {t('Target Endpoint')}
-          </label>
+          <label className='text-xs font-medium'>{t('Target Endpoint')}</label>
           <div className='flex gap-2'>
             <Select
               items={SYNC_TARGET_TYPE_OPTIONS.map((o) => ({
-                  value: o.value,
-                  label: t(o.label),
-                }))}
+                value: o.value,
+                label: t(o.label),
+              }))}
               value={syncFieldsEditorProps.syncToTarget.type || 'json'}
               onValueChange={(v) =>
                 v !== null &&
@@ -3297,7 +3278,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
             type='button'
             variant='outline'
             size='sm'
-            className='h-6 text-[10px]'
+            className='h-6 text-xs'
             onClick={() =>
               syncFieldsEditorProps.updateOperation(
                 syncFieldsEditorProps.operationId,

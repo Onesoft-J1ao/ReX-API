@@ -41,6 +41,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import { IconBadge } from '@/components/ui/icon-badge'
 import {
   Select,
@@ -51,6 +52,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getDeploymentLogs, listDeploymentContainers } from '../../api'
 
@@ -79,8 +81,10 @@ export function ViewLogsDialog({
     isFetching: isFetchingContainers,
   } = useQuery({
     queryKey: ['deployment-containers', deploymentId],
-    queryFn: () =>
-      deploymentId ? listDeploymentContainers(deploymentId) : null,
+    queryFn: async () =>
+      requireServerSuccess(
+        await (deploymentId ? listDeploymentContainers(deploymentId) : null)
+      ),
     enabled: open && deploymentId !== null,
   })
 
@@ -117,14 +121,16 @@ export function ViewLogsDialog({
     isFetching: isFetchingLogs,
   } = useQuery({
     queryKey: ['deployment-logs', deploymentId, containerId, stream],
-    queryFn: () =>
-      deploymentId && containerId
-        ? getDeploymentLogs(deploymentId, {
-            container_id: containerId,
-            stream,
-            limit: 500,
-          })
-        : null,
+    queryFn: async () =>
+      requireServerSuccess(
+        await (deploymentId && containerId
+          ? getDeploymentLogs(deploymentId, {
+              container_id: containerId,
+              stream,
+              limit: 500,
+            })
+          : null)
+      ),
     enabled: open && deploymentId !== null && Boolean(containerId),
     refetchInterval: open && autoRefresh ? 5000 : false,
   })
@@ -174,28 +180,32 @@ export function ViewLogsDialog({
   if (isLoadingContainers || isLoadingLogs) {
     logsContent = (
       <div className='flex items-center justify-center py-8'>
-        <Loader2 className='h-6 w-6 animate-spin text-gray-400' />
+        <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
       </div>
     )
   } else if (containers.length === 0) {
     logsContent = (
-      <div className='py-8 text-center text-gray-400'>{t('No containers')}</div>
+      <div className='text-muted-foreground py-10 text-center text-sm'>
+        {t('No containers')}
+      </div>
     )
   } else if (!containerId) {
     logsContent = (
-      <div className='py-8 text-center text-gray-400'>
+      <div className='text-muted-foreground py-10 text-center text-sm'>
         {t('Please select a container')}
       </div>
     )
   } else if (!logsText.trim()) {
     logsContent = (
-      <div className='py-8 text-center text-gray-400'>{t('No logs')}</div>
+      <div className='text-muted-foreground py-10 text-center text-sm'>
+        {t('No logs')}
+      </div>
     )
   } else {
     logsContent = (
       <div className='font-mono text-sm'>
         {keyedLogLines.map(({ key, line }) => (
-          <div key={key} className='whitespace-pre-wrap text-gray-200'>
+          <div key={key} className='text-foreground whitespace-pre-wrap'>
             {line}
           </div>
         ))}
@@ -259,8 +269,8 @@ export function ViewLogsDialog({
       <div className='mb-3 grid gap-2 sm:grid-cols-2 sm:gap-3'>
         <div className='space-y-1'>
           <div className='text-muted-foreground text-xs'>{t('Container')}</div>
-          <Select
-            items={containers.flatMap((c) => {
+          <Combobox
+            options={containers.flatMap((c) => {
               const id = c?.container_id
               if (typeof id !== 'string' || !id) return []
               const status =
@@ -270,43 +280,16 @@ export function ViewLogsDialog({
               return [
                 {
                   value: id,
-                  label: (
-                    <>
-                      {id}
-                      {status}
-                    </>
-                  ),
+                  label: `${id}${status}`,
                 },
               ]
             })}
             value={containerId}
             onValueChange={(v) => v !== null && setContainerId(v)}
             disabled={isLoadingContainers || containers.length === 0}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={containerPlaceholder} />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              <SelectGroup>
-                {containers.map((c) => {
-                  const id = c?.container_id
-                  if (typeof id !== 'string' || !id) {
-                    return null
-                  }
-                  const status =
-                    typeof c?.status === 'string' && c.status
-                      ? ` (${c.status})`
-                      : ''
-                  return (
-                    <SelectItem key={id} value={id}>
-                      {id}
-                      {status}
-                    </SelectItem>
-                  )
-                })}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+            className='w-full'
+            placeholder={containerPlaceholder}
+          />
         </div>
         <div className='space-y-1'>
           <div className='text-muted-foreground text-xs'>{t('Stream')}</div>

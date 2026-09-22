@@ -171,7 +171,7 @@ export function CreemProductsVisualEditor({
       </div>
 
       {filteredProducts.length === 0 ? (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm'>
+        <div className='text-muted-foreground rounded-xl border border-dashed px-4 py-10 text-center text-sm'>
           {searchText
             ? t('No products match your search')
             : t('No products configured. Click "Add product" to get started.')}
@@ -194,7 +194,7 @@ export function CreemProductsVisualEditor({
                 id: 'product-id',
                 header: t('Product ID'),
                 cell: (product) => (
-                  <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
+                  <code className='bg-muted rounded-md px-1.5 py-0.5 text-sm'>
                     {product.productId}
                   </code>
                 ),
@@ -242,7 +242,7 @@ export function CreemProductsVisualEditor({
                 <div className='mb-3 flex items-start justify-between'>
                   <div className='flex-1'>
                     <div className='mb-1 font-medium'>{product.name}</div>
-                    <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
+                    <code className='bg-muted rounded-md px-1.5 py-0.5 text-xs'>
                       {product.productId}
                     </code>
                   </div>
@@ -256,6 +256,7 @@ export function CreemProductsVisualEditor({
                         e.stopPropagation()
                         handleEdit(product)
                       }}
+                      aria-label={t('Edit')}
                     >
                       <Pencil className='h-4 w-4' />
                     </Button>
@@ -268,6 +269,7 @@ export function CreemProductsVisualEditor({
                         e.stopPropagation()
                         handleDelete(product)
                       }}
+                      aria-label={t('Delete')}
                     >
                       <Trash2 className='h-4 w-4' />
                     </Button>
