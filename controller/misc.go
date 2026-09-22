@@ -112,6 +112,8 @@ func GetStatus(c *gin.Context) {
 		// 模块管理配置
 		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
 		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
+		// 侧边栏的外部管理链接。运营者自己维护，因此源码里不写死任何地址。
+		"SidebarAdminLinks": common.OptionMap["SidebarAdminLinks"],
 
 		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
