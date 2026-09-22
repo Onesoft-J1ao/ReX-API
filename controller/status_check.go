@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/status_check_setting"
 
@@ -327,12 +328,88 @@ type groupHealthProbeSummary struct {
 	Failed   int `json:"failed"`
 }
 
+// selectFlexibleProbeGroups applies the flexible pacing rules and returns the
+// groups this cycle may probe.
+//
+// A group that has been serving real requests does not need an automatic probe
+// to tell it is up, so each group waits out its own quiet period; and once a
+// group has been probed maxConsecutiveProbes times without any traffic needing
+// it, probing stops until traffic returns. Both limits are per group, so a busy
+// group is skipped while a quiet one keeps being checked.
+//
+// With flexible probing off every group is returned untouched and nothing is
+// read or written, so the existing cadence is preserved exactly.
+func selectFlexibleProbeGroups(groups []string, now int64) ([]string, error) {
+	if !status_check_setting.FlexibleProbingEnabled() {
+		return groups, nil
+	}
+
+	states, err := model.GetStatusCheckProbeStates(groups)
+	if err != nil {
+		return nil, err
+	}
+	idleSeconds := int64(status_check_setting.GetFlexibleIdleMinutes()) * 60
+	maxConsecutive := status_check_setting.GetFlexibleMaxConsecutiveProbes()
+
+	eligible := make([]string, 0, len(groups))
+	for _, group := range groups {
+		state, exists := states[group]
+		if !exists {
+			// Open the idle window instead of spending a probe the moment
+			// flexible probing is switched on for this group.
+			if err := model.InitializeStatusCheckProbeState(group, now); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		lastPassiveAt := perfmetrics.LatestStatusCheckPassiveActivity(group, state.LastPassiveAt)
+		if lastPassiveAt > state.LastPassiveAt {
+			if err := model.TouchStatusCheckProbePassiveActivity(group, lastPassiveAt); err != nil {
+				return nil, err
+			}
+		}
+
+		lastActivityAt := state.LastProbeAt
+		if lastPassiveAt > lastActivityAt {
+			lastActivityAt = lastPassiveAt
+		}
+		if now-lastActivityAt < idleSeconds {
+			continue // recently serving; it has already proven itself
+		}
+
+		consecutive := state.ConsecutiveProbeCount
+		if lastPassiveAt > state.LastProbeAt {
+			consecutive = 0 // traffic arrived after the last probe
+		}
+		if consecutive >= maxConsecutive {
+			continue // nothing has needed this group; stop paying to check it
+		}
+
+		eligible = append(eligible, group)
+	}
+	return eligible, nil
+}
+
 func runGroupHealthProbe(ctx context.Context, report func(processed, total int)) (*groupHealthProbeSummary, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	groups := status_check_setting.GetGroups()
 	excluded := status_check_setting.GetExcludedModelsMap()
+
+	// Flexible pacing narrows the cycle to the groups that actually need a
+	// probe. Off by default, in which case this returns the configured groups
+	// unchanged and reads and writes no state.
+	groups, err := selectFlexibleProbeGroups(groups, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	if len(groups) == 0 {
+		// Every configured group is serving traffic or has hit its probe cap;
+		// there is nothing to spend this cycle.
+		return &groupHealthProbeSummary{}, nil
+	}
 
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
@@ -379,6 +456,9 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 	for _, g := range groups {
 		acc[g] = &groupAcc{}
 	}
+	// Groups this cycle actually probed, recorded once each afterwards so an
+	// idle group's streak counts cycles rather than channels.
+	probedGroups := make(map[string]struct{}, len(groups))
 
 	for _, ch := range channels {
 		if ctx.Err() != nil {
@@ -433,6 +513,7 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 			// One live probe per (channel, model); fan the same outcome out
 			// to every configured group that owns this channel.
 			for _, g := range relevant {
+				probedGroups[g] = struct{}{}
 				mh := model.ModelHealth{
 					ModelName: modelName,
 					Group:     g,
@@ -465,6 +546,16 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 					return summary, nil
 				case <-time.After(common.RequestInterval):
 				}
+			}
+		}
+	}
+
+	// One probe recorded per group for this cycle. Only when flexible probing is
+	// on, so an installation that does not use it keeps no pacing state at all.
+	if status_check_setting.FlexibleProbingEnabled() {
+		for group := range probedGroups {
+			if err := model.RecordStatusCheckProbeResult(group, probeTs); err != nil {
+				common.SysError(fmt.Sprintf("group_health_probe: record probe result failed: group=%s err=%v", group, err))
 			}
 		}
 	}
