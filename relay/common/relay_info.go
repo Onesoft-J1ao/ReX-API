@@ -99,9 +99,9 @@ type RelayInfo struct {
 	// PlaygroundFreeTier marks a playground request the free allowance covers:
 	// it is served without touching the wallet and settled from the allowance.
 	PlaygroundFreeTier bool
-	UsePrice               bool
-	RelayMode              int
-	OriginModelName        string
+	UsePrice           bool
+	RelayMode          int
+	OriginModelName    string
 
 	// BillingModelName is the pricing identity for this request. It is kept
 	// separate from OriginModelName and UpstreamModelName so virtual pricing
@@ -957,6 +957,9 @@ type OriginTaskRef struct {
 type TaskRelayInfo struct {
 	Action       string
 	OriginTaskID string
+	// OriginUpstreamTaskID is the upstream id of the task this request was
+	// derived from, read when a 3D texture is generated from an earlier task.
+	OriginUpstreamTaskID string
 	// PublicTaskID 是提交时预生成的 task_xxxx 格式公开 ID，
 	// 供 DoResponse 在返回给客户端时使用（避免暴露上游真实 ID）。
 	PublicTaskID string
@@ -983,6 +986,8 @@ type TaskSubmitReq struct {
 	Duration       int            `json:"duration,omitempty"`
 	Seconds        string         `json:"seconds,omitempty"`
 	InputReference string         `json:"input_reference,omitempty"`
+	FirstFrame     *string        `json:"first_frame,omitempty"`
+	LastFrame      *string        `json:"last_frame,omitempty"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 

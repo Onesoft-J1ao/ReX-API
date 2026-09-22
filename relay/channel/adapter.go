@@ -101,6 +101,12 @@ type TaskArtifactClientRequest struct {
 	Headers map[string]string `json:"headers,omitempty"`
 }
 
+// ThreeDConverter turns a finished 3D task into the payload the client sees,
+// mirroring OpenAIVideoConverter for video tasks.
+type ThreeDConverter interface {
+	ConvertToThreeD(originTask *model.Task) ([]byte, error)
+}
+
 type TaskArtifactProvider interface {
 	ListArtifacts(task *model.Task) ([]TaskArtifact, error)
 }

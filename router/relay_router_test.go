@@ -124,3 +124,35 @@ func setupRelayRouterTestDB(t *testing.T) {
 		}
 	})
 }
+
+// The playground workbench submits a video or 3D task and then polls it by task
+// id. Those paths are registered explicitly -- the /pg/ -> /v1/ rewrite happens
+// after routing, so it cannot rescue a missing route -- which is how the panels
+// ended up calling endpoints that did not exist. Lock the whole playground set
+// down so a panel cannot be added against a route that was never registered.
+func TestPlaygroundWorkbenchRoutesAreRegistered(t *testing.T) {
+	setupRelayRouterTestDB(t)
+
+	engine := gin.New()
+	SetRelayRouter(engine)
+
+	registered := make(map[string]bool, len(engine.Routes()))
+	for _, route := range engine.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+
+	for _, want := range []string{
+		"POST /pg/chat/completions",
+		"POST /pg/images/generations",
+		"POST /pg/images/edits",
+		"POST /pg/audio/speech",
+		"POST /pg/audio/transcriptions",
+		"POST /pg/audio/translations",
+		"POST /pg/videos",
+		"GET /pg/videos/:task_id",
+		"POST /pg/3d",
+		"GET /pg/3d/:task_id",
+	} {
+		assert.Truef(t, registered[want], "playground route %q is not registered", want)
+	}
+}

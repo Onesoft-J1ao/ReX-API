@@ -59,7 +59,11 @@ const (
 	ChannelTypeSub2API        = 59
 	ChannelTypeNewAPI         = 60
 	ChannelTypeTaskPlugin     = 61
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	// Meshy sits at 62 here rather than Steve's 59, which this tree uses for
+	// Sub2API. Agnes keeps the same value as his fork.
+	ChannelTypeMeshy2API = 62
+	ChannelTypeAgnes     = 63
+	ChannelTypeDummy     // this one is only for count, do not add any channel after this
 
 )
 
@@ -128,6 +132,8 @@ var ChannelBaseURLs = []string{
 	"",                                          //59
 	"",                                          //60
 	"",                                          //61
+	"",                                          //62 Meshy2API
+	"https://apihub.agnes-ai.com",               //63 Agnes
 }
 
 func GetChannelBaseURL(channelType int) string {
@@ -196,6 +202,8 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSub2API:        "Sub2API",
 	ChannelTypeNewAPI:         "New API",
 	ChannelTypeTaskPlugin:     "Task Plugin",
+	ChannelTypeMeshy2API:      "Meshy2API",
+	ChannelTypeAgnes:          "Agnes",
 }
 
 func GetChannelTypeName(channelType int) string {

@@ -39,6 +39,8 @@ export const API_ENDPOINTS = {
   IMAGE_EDITS: '/pg/images/edits',
   AUDIO_SPEECH: '/pg/audio/speech',
   AUDIO_TRANSCRIPTIONS: '/pg/audio/transcriptions',
+  VIDEO_GENERATIONS: '/pg/videos',
+  THREE_D_GENERATIONS: '/pg/3d',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const
@@ -127,6 +129,42 @@ export const DEFAULT_SPEECH_CONFIG = {
   responseFormat: 'mp3',
   speed: 1,
 } as const
+
+// Video task defaults. Agnes 2.5 accepts 4-12 seconds and defaults to 5 when
+// the client omits the duration, so the panel opens on the provider default.
+export const VIDEO_DURATION_MIN = 4
+export const VIDEO_DURATION_MAX = 12
+export const VIDEO_DURATION_DEFAULT = 5
+export const VIDEO_MAX_REFERENCE_IMAGES = 5
+
+export const DEFAULT_VIDEO_CONFIG = {
+  model: '',
+  group: DEFAULT_GROUP,
+  duration: VIDEO_DURATION_DEFAULT,
+} as const
+
+// 3D task defaults. Meshy validates the art style against this list.
+export const THREE_D_ART_STYLE_OPTIONS = [
+  { value: '', label: 'Provider default' },
+  { value: 'realistic', label: 'Realistic' },
+  { value: 'cartoon', label: 'Cartoon' },
+  { value: 'sculpture', label: 'Sculpture' },
+  { value: 'pbr', label: 'PBR' },
+] as const
+
+// Meshy models suffixed with -texture re-texture an earlier draft instead of
+// creating geometry, and the adaptor requires a source task for them.
+export const THREE_D_TEXTURE_MODEL_SUFFIX = '-texture'
+
+export const DEFAULT_THREE_D_CONFIG = {
+  model: '',
+  group: DEFAULT_GROUP,
+  artStyle: '',
+} as const
+
+// Both task APIs are asynchronous, so the panels submit, then poll the task
+// until it reaches a terminal status.
+export const TASK_POLL_INTERVAL_MS = 5000
 
 // Storage keys
 export const STORAGE_KEYS = {
