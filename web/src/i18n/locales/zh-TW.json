@@ -33,6 +33,7 @@
     "This link stops working at {{time}}.": "此連結將於 {{time}} 失效。",
     "This report compares our prices with the mirrored upstream. It only reports: nothing is changed until you apply it below.": "本報告把我們的價格與鏡像上游作對比。它只做報告：在你於下方點選套用之前，什麼都不會改變。",
     "Updated {{model}} {{field}}": "已更新 {{model}} 的 {{field}}",
+    "Upstream Price Sentinel": "上游價格哨兵",
     "Upstream is {{percent}}% higher": "上游高 {{percent}}%",
     "Upstream is {{percent}}% lower": "上游低 {{percent}}%",
     "Upstream price changes": "上游價格變動",
