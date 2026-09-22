@@ -188,3 +188,25 @@ func TestUpstreamModelSummaryBacksTheDetailView(t *testing.T) {
 	_, ok = upstreamModelSummary("never-seen", 24)
 	assert.False(t, ok)
 }
+
+// The refresh loop retries soon after a cold start, and the signal for "still
+// cold" is this return value. A failing upstream must report false so the loop
+// retries, and a good one must report true so it settles into the normal cadence.
+func TestRefreshUpstreamSummaryReportsWhetherTheMirrorWasStored(t *testing.T) {
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(failing.Close)
+	withUpstreamSetting(t, failing.URL)
+	assert.False(t, refreshUpstreamSummary(24),
+		"a failed fetch must report that the mirror stayed cold")
+
+	good := upstreamServer(t, `{"success":true,"data":{"models":[
+		{"model_name":"mirrored","avg_latency_ms":10,"success_rate":90,"avg_tps":1}
+	]}}`)
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"perf_metrics_setting.upstream_summary_url": good.URL,
+	}))
+	assert.True(t, refreshUpstreamSummary(24),
+		"a stored fetch must report that the mirror is warm")
+}

@@ -21,6 +21,13 @@ import (
 // network call and a request serves whatever the loop last stored.
 const upstreamRefreshInterval = 5 * time.Minute
 
+// upstreamRetryInterval is how long to wait after a refresh that reached
+// nothing. A cold start is the case that matters: the first attempt after a
+// restart pays for DNS and TLS against a third-party host and can outlast its
+// own timeout, and waiting the full refresh interval would leave the console
+// without mirrored numbers for that whole window.
+const upstreamRetryInterval = 30 * time.Second
+
 // upstreamMaxBytes caps what a single fetch may buffer. The observed payload is
 // ~50KB; anything far past that is not the response we expect.
 const upstreamMaxBytes = 8 << 20
@@ -119,24 +126,38 @@ func upstreamSummaryUrl(hours int) string {
 	return fmt.Sprintf("%s?hours=%d", strings.TrimRight(base, "/"), hours)
 }
 
-// upstreamRefreshLoop keeps the mirrored summary warm. It refreshes immediately
-// on start so a restart does not leave the console blank for a whole interval.
+// upstreamRefreshLoop keeps the mirrored summary warm. It refreshes on start so
+// a restart does not leave the console blank, and retries once soon after if
+// that first attempt reached nothing.
 func upstreamRefreshLoop(hours []int) {
-	for _, window := range hours {
-		refreshUpstreamSummary(window)
+	if !refreshAllUpstreamSummaries(hours) {
+		time.Sleep(upstreamRetryInterval)
+		refreshAllUpstreamSummaries(hours)
 	}
 	ticker := time.NewTicker(upstreamRefreshInterval)
 	defer ticker.Stop()
 	for range ticker.C {
-		for _, window := range hours {
-			refreshUpstreamSummary(window)
-		}
+		refreshAllUpstreamSummaries(hours)
 	}
 }
 
-func refreshUpstreamSummary(hours int) {
+// refreshAllUpstreamSummaries reports whether at least one window was stored, so
+// the loop knows whether the mirror is still cold.
+func refreshAllUpstreamSummaries(hours []int) bool {
+	stored := false
+	for _, window := range hours {
+		if refreshUpstreamSummary(window) {
+			stored = true
+		}
+	}
+	return stored
+}
+
+// refreshUpstreamSummary fetches and stores one window, reporting whether the
+// mirror was updated.
+func refreshUpstreamSummary(hours int) bool {
 	if !upstreamConfigured() {
-		return
+		return false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), perf_metrics_setting.GetUpstreamTimeout())
 	defer cancel()
@@ -146,7 +167,7 @@ func refreshUpstreamSummary(hours int) {
 		if err != nil {
 			common.SysLog(fmt.Sprintf("perf metrics upstream fetch failed, keeping the previous mirror: %s", err.Error()))
 		}
-		return
+		return false
 	}
 
 	upstreamSummaryCache.Lock()
@@ -155,6 +176,7 @@ func refreshUpstreamSummary(hours int) {
 	}
 	upstreamSummaryCache.entries[hours] = upstreamCacheEntry{at: time.Now(), result: result}
 	upstreamSummaryCache.Unlock()
+	return true
 }
 
 func requestUpstreamSummary(ctx context.Context, url string) (SummaryAllResult, error) {
