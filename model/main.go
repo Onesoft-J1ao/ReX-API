@@ -376,6 +376,10 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&SupportConversation{},
 		&SupportMessage{},
+		&PriceSentinelReport{},
+		&PriceSentinelEditToken{},
+		&GroupHealth{},
+		&ModelHealth{},
 		&CasbinRule{},
 		&AuthzRole{},
 	)
@@ -447,6 +451,10 @@ func migrateDBFast() error {
 		{&SystemTaskLock{}, "SystemTaskLock"},
 		{&SupportConversation{}, "SupportConversation"},
 		{&SupportMessage{}, "SupportMessage"},
+		{&PriceSentinelReport{}, "PriceSentinelReport"},
+		{&PriceSentinelEditToken{}, "PriceSentinelEditToken"},
+		{&GroupHealth{}, "GroupHealth"},
+		{&ModelHealth{}, "ModelHealth"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
