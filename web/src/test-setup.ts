@@ -89,6 +89,16 @@ Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
   value: () => undefined,
 })
 
+// jsdom does not implement the Web Animations API that Base UI's scroll area
+// reads when it settles a scroll after mounting.
+if (!Element.prototype.getAnimations) {
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    writable: true,
+    value: () => [],
+  })
+}
+
 // Node.js 25+ defines `localStorage`/`sessionStorage` accessors on the global
 // object that resolve to `undefined` unless `--localstorage-file` is set, and
 // vitest's jsdom environment does not replace globals that already exist.

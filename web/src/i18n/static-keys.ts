@@ -813,4 +813,15 @@ export const STATIC_I18N_KEYS = [
   'Provider default',
   'Low',
   'High',
+
+  // Video and 3D workbench status labels and 3D art styles, selected at runtime
+  // from the panels' label maps and option lists.
+  'Queued',
+  'Processing',
+  'Completed',
+  'Failed',
+  'Realistic',
+  'Cartoon',
+  'Sculpture',
+  'PBR',
 ] as const

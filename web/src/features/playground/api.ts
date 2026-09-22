@@ -32,7 +32,13 @@ import type {
   ModelOption,
   GroupOption,
   SpeechWorkbenchConfig,
+  ThreeDTaskResponse,
+  ThreeDWorkbenchConfig,
   TranscriptionResponse,
+  VideoTaskFetchResponse,
+  VideoTaskInput,
+  VideoTaskSubmitResponse,
+  VideoWorkbenchConfig,
 } from './types'
 
 /**
@@ -165,6 +171,114 @@ export async function transcribeAudio(
     skipErrorHandler: true,
     headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
   } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Submit a video task. Agnes expects base64 data URLs for the reference and
+ * frame images, and the mode decides which of them it accepts.
+ */
+export async function submitVideoTask(
+  config: VideoWorkbenchConfig,
+  input: VideoTaskInput,
+  signal?: AbortSignal
+): Promise<VideoTaskSubmitResponse> {
+  const payload: Record<string, unknown> = {
+    model: config.model,
+    group: config.group,
+    prompt: input.prompt,
+    mode: input.mode,
+    duration: config.duration,
+  }
+  if (input.mode === 'reference') {
+    payload.images = input.referenceImages
+  }
+  if (input.mode === 'keyframe') {
+    if (input.firstFrame) {
+      payload.first_frame = input.firstFrame
+    }
+    if (input.lastFrame) {
+      payload.last_frame = input.lastFrame
+    }
+  }
+  const res = await api.post(API_ENDPOINTS.VIDEO_GENERATIONS, payload, {
+    signal,
+    skipErrorHandler: true,
+    headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Read a video task back by its public id. The video relay has no OpenAI
+ * converter, so the gateway answers with its generic task record.
+ */
+export async function fetchVideoTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<VideoTaskFetchResponse> {
+  const res = await api.get(
+    `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(taskId)}`,
+    {
+      signal,
+      skipErrorHandler: true,
+      headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+    } as Record<string, unknown>
+  )
+  return res.data
+}
+
+/**
+ * Submit a 3D task. Meshy accepts a prompt or a reference image for geometry
+ * models, and a source task id for the texture models.
+ */
+export async function submitThreeDTask(
+  config: ThreeDWorkbenchConfig,
+  prompt: string,
+  inputReference: string,
+  sourceTaskId: string,
+  signal?: AbortSignal
+): Promise<ThreeDTaskResponse> {
+  const payload: Record<string, unknown> = {
+    model: config.model,
+    group: config.group,
+  }
+  if (prompt) {
+    payload.prompt = prompt
+  }
+  if (inputReference) {
+    payload.input_reference = inputReference
+  }
+  if (sourceTaskId) {
+    payload.source_task_id = sourceTaskId
+  }
+  if (config.artStyle) {
+    payload.metadata = { art_style: config.artStyle }
+  }
+  const res = await api.post(API_ENDPOINTS.THREE_D_GENERATIONS, payload, {
+    signal,
+    skipErrorHandler: true,
+    headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Read a 3D task back by its public id. Submit and fetch answer with the same
+ * object shape.
+ */
+export async function fetchThreeDTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<ThreeDTaskResponse> {
+  const res = await api.get(
+    `${API_ENDPOINTS.THREE_D_GENERATIONS}/${encodeURIComponent(taskId)}`,
+    {
+      signal,
+      skipErrorHandler: true,
+      headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
+    } as Record<string, unknown>
+  )
   return res.data
 }
 
