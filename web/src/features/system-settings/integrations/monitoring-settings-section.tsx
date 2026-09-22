@@ -67,6 +67,26 @@ const monitoringSchema = z.object({
     flush_interval: z.coerce.number().min(1),
     bucket_time: z.enum(['minute', '5min', 'hour']),
     retention_days: z.coerce.number().min(0),
+    upstream_enabled: z.boolean(),
+    upstream_summary_url: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^https?:\/\//.test(trimmed)
+    }, 'Provide a valid URL starting with http:// or https://'),
+    upstream_timeout_seconds: z.coerce.number().min(1),
+  }),
+  status_check_setting: z.object({
+    probe_free_models_only: z.boolean(),
+  }),
+  model_catalog_setting: z.object({
+    enabled: z.boolean(),
+    source_url: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^https?:\/\//.test(trimmed)
+    }, 'Provide a valid URL starting with http:// or https://'),
+    timeout_seconds: z.coerce.number().min(1),
+    cache_minutes: z.coerce.number().min(1),
   }),
 })
 
@@ -79,6 +99,14 @@ type FlatMonitoringDefaults = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'minute' | '5min' | 'hour'
   'perf_metrics_setting.retention_days': number
+  'perf_metrics_setting.upstream_enabled': boolean
+  'perf_metrics_setting.upstream_summary_url': string
+  'perf_metrics_setting.upstream_timeout_seconds': number
+  'status_check_setting.probe_free_models_only': boolean
+  'model_catalog_setting.enabled': boolean
+  'model_catalog_setting.source_url': string
+  'model_catalog_setting.timeout_seconds': number
+  'model_catalog_setting.cache_minutes': number
 }
 
 type MonitoringSettingsSectionProps = {
@@ -94,6 +122,21 @@ const buildFormDefaults = (
     flush_interval: defaults['perf_metrics_setting.flush_interval'],
     bucket_time: defaults['perf_metrics_setting.bucket_time'],
     retention_days: defaults['perf_metrics_setting.retention_days'],
+    upstream_enabled: defaults['perf_metrics_setting.upstream_enabled'],
+    upstream_summary_url:
+      defaults['perf_metrics_setting.upstream_summary_url'] ?? '',
+    upstream_timeout_seconds:
+      defaults['perf_metrics_setting.upstream_timeout_seconds'],
+  },
+  status_check_setting: {
+    probe_free_models_only:
+      defaults['status_check_setting.probe_free_models_only'],
+  },
+  model_catalog_setting: {
+    enabled: defaults['model_catalog_setting.enabled'],
+    source_url: defaults['model_catalog_setting.source_url'] ?? '',
+    timeout_seconds: defaults['model_catalog_setting.timeout_seconds'],
+    cache_minutes: defaults['model_catalog_setting.cache_minutes'],
   },
 })
 
@@ -108,6 +151,23 @@ const normalizeDefaults = (
     defaults['perf_metrics_setting.bucket_time'],
   'perf_metrics_setting.retention_days':
     defaults['perf_metrics_setting.retention_days'],
+  'perf_metrics_setting.upstream_enabled':
+    defaults['perf_metrics_setting.upstream_enabled'],
+  'perf_metrics_setting.upstream_summary_url': (
+    defaults['perf_metrics_setting.upstream_summary_url'] ?? ''
+  ).trim(),
+  'perf_metrics_setting.upstream_timeout_seconds':
+    defaults['perf_metrics_setting.upstream_timeout_seconds'],
+  'status_check_setting.probe_free_models_only':
+    defaults['status_check_setting.probe_free_models_only'],
+  'model_catalog_setting.enabled': defaults['model_catalog_setting.enabled'],
+  'model_catalog_setting.source_url': (
+    defaults['model_catalog_setting.source_url'] ?? ''
+  ).trim(),
+  'model_catalog_setting.timeout_seconds':
+    defaults['model_catalog_setting.timeout_seconds'],
+  'model_catalog_setting.cache_minutes':
+    defaults['model_catalog_setting.cache_minutes'],
 })
 
 const normalizeFormValues = (
@@ -120,6 +180,21 @@ const normalizeFormValues = (
   'perf_metrics_setting.bucket_time': values.perf_metrics_setting.bucket_time,
   'perf_metrics_setting.retention_days':
     values.perf_metrics_setting.retention_days,
+  'perf_metrics_setting.upstream_enabled':
+    values.perf_metrics_setting.upstream_enabled,
+  'perf_metrics_setting.upstream_summary_url':
+    values.perf_metrics_setting.upstream_summary_url.trim(),
+  'perf_metrics_setting.upstream_timeout_seconds':
+    values.perf_metrics_setting.upstream_timeout_seconds,
+  'status_check_setting.probe_free_models_only':
+    values.status_check_setting.probe_free_models_only,
+  'model_catalog_setting.enabled': values.model_catalog_setting.enabled,
+  'model_catalog_setting.source_url':
+    values.model_catalog_setting.source_url.trim(),
+  'model_catalog_setting.timeout_seconds':
+    values.model_catalog_setting.timeout_seconds,
+  'model_catalog_setting.cache_minutes':
+    values.model_catalog_setting.cache_minutes,
 })
 
 export function MonitoringSettingsSection({
@@ -155,6 +230,7 @@ export function MonitoringSettingsSection({
   }, [defaultValues])
 
   const perfMetricsEnabled = form.watch('perf_metrics_setting.enabled')
+  const upstreamEnabled = form.watch('perf_metrics_setting.upstream_enabled')
 
   const onSubmit = async (values: MonitoringFormValues) => {
     const normalized = normalizeFormValues(values)
@@ -307,6 +383,221 @@ export function MonitoringSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('0 means data is kept permanently')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div>
+            <h4 className='font-medium'>{t('Mirrored upstream health')}</h4>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {t(
+                'Reuse another instance’s published health data. It covers models we do not sample ourselves, including pay-per-request models we avoid probing.'
+              )}
+            </p>
+          </div>
+
+          <FormField
+            control={form.control}
+            name='perf_metrics_setting.upstream_enabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Mirror upstream health data')}</FormLabel>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='perf_metrics_setting.upstream_summary_url'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Upstream summary URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='url'
+                      inputMode='url'
+                      placeholder={t(
+                        'https://example.com/api/perf-metrics/summary'
+                      )}
+                      autoComplete='off'
+                      disabled={!upstreamEnabled}
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'The other instance’s perf-metrics summary endpoint.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='perf_metrics_setting.upstream_timeout_seconds'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Upstream timeout (seconds)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                      disabled={!upstreamEnabled}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'A failed fetch keeps showing the last successful data.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div>
+            <h4 className='font-medium'>{t('Active probing')}</h4>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {t(
+                'Probing sends a real request upstream, so a pay-per-request model costs money on every cycle.'
+              )}
+            </p>
+          </div>
+
+          <FormField
+            control={form.control}
+            name='status_check_setting.probe_free_models_only'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Only probe free models')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Skip paid groups entirely. Their health comes from the mirrored upstream instead.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <div>
+            <h4 className='font-medium'>{t('Model catalog')}</h4>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {t(
+                'Fill the model detail view with context window, modalities and capabilities. The gateway stores billing data and has no column for these, so they are read from an external catalog and merged into the pricing response.'
+              )}
+            </p>
+          </div>
+
+          <FormField
+            control={form.control}
+            name='model_catalog_setting.enabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable model catalog')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Show context window, modalities and capabilities on the model detail view.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='model_catalog_setting.source_url'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Catalog source URL')}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder='https://models.dev/api.json'
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Point this at a mirror when the public catalog is unreachable from your region.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='model_catalog_setting.timeout_seconds'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Catalog fetch timeout (seconds)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('The catalog document is a few megabytes.')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='model_catalog_setting.cache_minutes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Catalog cache (minutes)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'The catalog changes daily, so a long cache costs nothing.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

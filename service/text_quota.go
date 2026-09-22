@@ -471,7 +471,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		RecordPlaygroundFreeConsumption(ctx, relayInfo, int64(summary.PromptTokens+summary.CompletionTokens))
 	}
 
-	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
+	if err := SettleBilling(ctx, relayInfo, summary.Quota, summary.CompletionTokens); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
 	}
 

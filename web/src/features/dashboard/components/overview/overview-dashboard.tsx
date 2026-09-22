@@ -68,6 +68,7 @@ import { ApiInfoPanel } from './api-info-panel'
 import { FAQPanel } from './faq-panel'
 import { PerformanceHealthPanel } from './performance-health-panel'
 import { SummaryCards } from './summary-cards'
+import { SupportPanel } from './support-panel'
 import { UptimePanel } from './uptime-panel'
 
 const SETUP_GUIDE_VISIBILITY_STORAGE_KEY =
@@ -470,8 +471,13 @@ export function OverviewDashboard() {
     apiInfo: showApiInfoPanel,
     announcements: showAnnouncementsPanel,
     faq: showFAQPanel,
-    uptimeKuma: showUptimePanel,
+    uptimeKuma,
+    upstreamStatus,
+    support: showSupportPanel,
   } = useDashboardContentVisibility()
+  // One panel renders both monitor sets, so either switch keeps it visible: the
+  // upstream provider's page is useful on its own, without a local Kuma.
+  const showUptimePanel = uptimeKuma || upstreamStatus
   const [manualSetupGuideExpanded, setManualSetupGuideExpanded] = useState<
     boolean | null
   >(() => getSavedSetupGuideExpanded())
@@ -615,7 +621,11 @@ export function OverviewDashboard() {
   const setupGuideExpanded =
     manualSetupGuideExpanded ?? (setupStatusReady && !setupComplete)
   const showLeftContentPanels =
-    isAdmin || showApiInfoPanel || showAnnouncementsPanel || showFAQPanel
+    isAdmin ||
+    showApiInfoPanel ||
+    showAnnouncementsPanel ||
+    showFAQPanel ||
+    showSupportPanel
   const showContentPanels = showLeftContentPanels || showUptimePanel
 
   const handleSetupGuideToggle = () => {
@@ -804,7 +814,8 @@ export function OverviewDashboard() {
                     'grid min-w-0 grid-cols-1 gap-4',
                     (showApiInfoPanel ||
                       showAnnouncementsPanel ||
-                      showFAQPanel) &&
+                      showFAQPanel ||
+                      showSupportPanel) &&
                       'lg:grid-cols-2'
                   )}
                 >
@@ -828,6 +839,9 @@ export function OverviewDashboard() {
                       <FAQPanel />
                     </CardStaggerItem>
                   )}
+                  <CardStaggerItem>
+                    <SupportPanel />
+                  </CardStaggerItem>
                 </div>
               )}
               {showUptimePanel && (

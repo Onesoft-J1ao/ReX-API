@@ -46,6 +46,21 @@ const STATUS_RELATED_KEYS = new Set([
   'passkey.rp_id',
   'passkey.legacy_rp_ids',
   'passkey.origins',
+  // These feed the /status page and the model square's health badges.
+  'status_check_setting.enabled',
+  'status_check_setting.groups',
+  'status_check_setting.excluded_models',
+  'status_check_setting.passive_window_hours',
+  'status_check_setting.probe_free_models_only',
+  'perf_metrics_setting.enabled',
+  'perf_metrics_setting.upstream_enabled',
+  'perf_metrics_setting.upstream_summary_url',
+  // The model catalog fills the detail view's context/modality/capability
+  // fields, which the gateway itself has no column for.
+  'model_catalog_setting.enabled',
+  'model_catalog_setting.source_url',
+  'model_catalog_setting.timeout_seconds',
+  'model_catalog_setting.cache_minutes',
 ])
 
 export function useUpdateOption() {

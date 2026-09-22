@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/status_check_setting"
 
 	"github.com/gin-gonic/gin"
@@ -282,6 +283,19 @@ func GradeAvailability(pct float64) string {
 	}
 }
 
+// probeGroupsFor narrows a channel's groups to the ones worth probing. When
+// only-free probing is on, a group whose ratio is non-zero is dropped: the
+// probe would bill a real request, and the mirrored upstream already reports
+// that group's health.
+func probeGroupsFor(groups []string, modelName string) []string {
+	if !status_check_setting.ShouldProbeOnlyFreeModels() {
+		return groups
+	}
+	return lo.Filter(groups, func(group string, _ int) bool {
+		return ratio_setting.IsModelFreeInGroup(modelName, group)
+	})
+}
+
 // ------------------- scheduled probe -------------------
 
 type groupHealthProbeHandler struct{}
@@ -481,6 +495,15 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 		probeModel := models[0]
 		if ch.TestModel != nil && strings.TrimSpace(*ch.TestModel) != "" {
 			probeModel = strings.TrimSpace(*ch.TestModel)
+		}
+		// A probe is a real upstream request, so probing a paid group bills us
+		// every cycle. Those groups get their health from the mirrored upstream
+		// instead. Filtering here (rather than dropping the channel) keeps a
+		// channel that serves both a free and a paid group probed for the free
+		// one.
+		relevant = probeGroupsFor(relevant, probeModel)
+		if len(relevant) == 0 {
+			continue
 		}
 		models = []string{probeModel}
 		for _, modelName := range models {

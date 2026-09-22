@@ -854,4 +854,7 @@ export const STATIC_I18N_KEYS = [
   'Version resolved from the upstream release channel.',
   'Live version lookup failed, showing the pinned version {{version}}.',
   'Resolving the latest version…',
+  // Gateway retry notices, rendered at runtime from GATEWAY_RETRY_MESSAGES.
+  'Network fluctuation, retrying… ({{current}}/{{total}})',
+  'Network is unstable. Please refresh the page and try again.',
 ] as const
