@@ -68,6 +68,7 @@ const (
 	ChannelTypeTaskPlugin   = 64
 	ChannelTypeVLLM         = 65
 	ChannelTypeSGLang       = 66
+	ChannelTypeTypeSafe     = 67
 	ChannelTypeDummy        // this one is only for count, do not add any channel after this
 
 )
@@ -142,6 +143,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //64
 	"",                                          //65
 	"",                                          //66
+	"https://opencode.ai",                       //67
 }
 
 func GetChannelBaseURL(channelType int) string {
@@ -218,6 +220,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeTaskPlugin:     "Task Plugin",
 	ChannelTypeVLLM:           "vLLM",
 	ChannelTypeSGLang:         "SGLang",
+	ChannelTypeTypeSafe:       "TypeSafe",
 }
 
 func GetChannelTypeName(channelType int) string {
