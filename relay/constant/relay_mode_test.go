@@ -29,6 +29,8 @@ func TestPath2RelayMode(t *testing.T) {
 		{path: "/pg/audio/speech", want: RelayModeAudioSpeech},
 		{path: "/pg/audio/transcriptions", want: RelayModeAudioTranscription},
 		{path: "/pg/audio/translations", want: RelayModeAudioTranslation},
+		{path: "/v1/systemone", want: RelayModeSystemOne},
+		{path: "/v1/systemone?trace=1", want: RelayModeSystemOne},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
