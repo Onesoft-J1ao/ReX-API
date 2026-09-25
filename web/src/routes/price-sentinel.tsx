@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
 import { z } from 'zod'
 
 import { PublicLayout } from '@/components/layout'
@@ -36,9 +37,20 @@ export const Route = createFileRoute('/price-sentinel')({
  * authenticated shell on purpose: the operator arrives from an email and
  * authenticates by pasting an admin access token, which may well be on a
  * browser that has no session.
+ *
+ * The token is read once and then removed from the address bar. Left in the
+ * URL it is copied into browser history, screenshots, and the Referer header
+ * of anything this page requests.
  */
 function PriceSentinelPage() {
-  const { token } = Route.useSearch()
+  const { token: tokenFromUrl } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const [token] = useState(tokenFromUrl)
+
+  useEffect(() => {
+    if (!tokenFromUrl) return
+    void navigate({ search: { token: '' }, replace: true })
+  }, [navigate, tokenFromUrl])
 
   return (
     <PublicLayout showMainContainer>
