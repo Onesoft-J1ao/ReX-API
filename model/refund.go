@@ -417,24 +417,25 @@ func settlePlanRefundTx(tx *gorm.DB, req *RefundRequest, now int64) (string, err
 	if sub.UserId != req.UserId {
 		return "", ErrRefundRequestNotOwned
 	}
-	downgradeGroup := ""
-	if sub.Status == "active" {
-		// Zero the remaining allowance before ending the plan so the refunded
-		// portion cannot also be spent.
-		if err := tx.Model(&sub).Updates(map[string]any{
-			"status":      "cancelled",
-			"end_time":    now,
-			"amount_used": sub.AmountTotal,
-			"updated_at":  now,
-		}).Error; err != nil {
-			return "", err
-		}
-		target, err := downgradeUserGroupForSubscriptionTx(tx, &sub, now)
-		if err != nil {
-			return "", err
-		}
-		downgradeGroup = target
+	if sub.Status != "active" {
+		return "", ErrRefundSubscriptionNotActive
 	}
+	downgradeGroup := ""
+	// Zero the remaining allowance before ending the plan so the refunded
+	// portion cannot also be spent.
+	if err := tx.Model(&sub).Updates(map[string]any{
+		"status":      "cancelled",
+		"end_time":    now,
+		"amount_used": sub.AmountTotal,
+		"updated_at":  now,
+	}).Error; err != nil {
+		return "", err
+	}
+	target, err := downgradeUserGroupForSubscriptionTx(tx, &sub, now)
+	if err != nil {
+		return "", err
+	}
+	downgradeGroup = target
 	if err := creditRefundQuotaTx(tx, req.UserId, req.Quota); err != nil {
 		return "", err
 	}

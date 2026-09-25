@@ -1756,11 +1756,12 @@ func ManageMultiKeys(c *gin.Context) {
 			}
 
 			// Create key preview (first 10 chars)
-			keyPreview := key
-			if len(key) > 10 {
-				keyPreview = key[:10] + "..."
+			// A status list must not reveal key bytes. Reading a key is a
+			// separate route that requires a second verification.
+			keyPreview := ""
+			if strings.TrimSpace(key) != "" {
+				keyPreview = "configured"
 			}
-
 			allKeyStatusList = append(allKeyStatusList, KeyStatus{
 				Index:        i,
 				Status:       status,

@@ -53,7 +53,10 @@ func isFreeUnitPrice(price float64) bool {
 func isFreeTokenPricing(modelRatio, completionRatio, groupRatio float64) bool {
 	inputPrice := modelRatio * 2 * groupRatio
 	outputPrice := inputPrice * completionRatio
-	return isFreeUnitPrice(inputPrice) || isFreeUnitPrice(outputPrice)
+	// Both sides have to be free. A completion ratio of zero makes the output
+	// price zero, and treating that alone as free would drop the charge for a
+	// model whose input ratio is still being paid for.
+	return isFreeUnitPrice(inputPrice) && isFreeUnitPrice(outputPrice)
 }
 
 func resolveAutoRoutePricingModel(c *gin.Context, modelName string) string {

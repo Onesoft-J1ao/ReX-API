@@ -45,7 +45,7 @@ func TestDefaultEmailVerificationTemplateRendersVerificationData(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, content, "Example API")
 	require.Contains(t, content, ">123456<")
-	require.Contains(t, content, "10 minutes")
+	require.Contains(t, content, "10 分钟")
 }
 
 func TestValidateEmailVerificationTemplateRejectsInvalidTemplates(t *testing.T) {

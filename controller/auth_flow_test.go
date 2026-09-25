@@ -448,7 +448,7 @@ func TestSecurityLoginAllPrimaryTransportsRequireAdditionalVerification(t *testi
 			case "telegram":
 				require.NoError(t, model.DB.Model(user).Update("telegram_id", "42").Error)
 				state, code := telegram.authorization(t, "login", service.AuthIdentity{}, "", telegramIdentityClaims(42))
-				response = telegramOAuthCallback(state, code, service.AuthIdentity{})
+				response = telegramOAuthCallback(telegram, state, code, service.AuthIdentity{})
 			case "wechat":
 				require.NoError(t, model.DB.Model(user).Update("wechat_id", "bound-wechat").Error)
 				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -481,12 +481,13 @@ func TestSecurityLoginAllPrimaryTransportsRequireAdditionalVerification(t *testi
 					oauth.Register(slug, &boundLoginOAuthProvider{userID: user.Id})
 				}
 				t.Cleanup(func() { oauth.Unregister(slug) })
-				token, _, err := model.CreateAuthFlow(model.AuthFlowCreate{Purpose: model.AuthFlowPurposeOAuth, Provider: slug, Intent: model.AuthFlowIntentLogin, Payload: `{}`, ExpiresAt: time.Now().Add(time.Minute)})
-				require.NoError(t, err)
+				token, browser := bindOAuthTestFlow(t, model.AuthFlowCreate{Purpose: model.AuthFlowPurposeOAuth, Provider: slug, Intent: model.AuthFlowIntentLogin, ExpiresAt: time.Now().Add(time.Minute)})
 				router := gin.New()
 				router.GET("/api/oauth/:provider", HandleOAuth)
 				response = httptest.NewRecorder()
-				router.ServeHTTP(response, httptest.NewRequest("GET", "/api/oauth/"+slug+"?state="+token+"&code=provider-code", nil))
+				request := httptest.NewRequest("GET", "/api/oauth/"+slug+"?state="+token+"&code=provider-code", nil)
+				request.AddCookie(browser)
+				router.ServeHTTP(response, request)
 			}
 			var result struct {
 				Success bool                   `json:"success"`
@@ -884,15 +885,16 @@ func TestGenerateOAuthCodeStoresPKCEVerifier(t *testing.T) {
 
 func TestOAuthCallbackPassesPKCEVerifierToProvider(t *testing.T) {
 	provider := setupAuthFlowControllerTest(t)
-	flowToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+	flowToken, browser := bindOAuthTestFlow(t, model.AuthFlowCreate{
 		Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentLogin,
 		Payload: `{"code_verifier":"test-code-verifier"}`, ExpiresAt: time.Now().Add(time.Minute),
 	})
-	require.NoError(t, err)
 	router := gin.New()
 	router.GET("/api/oauth/:provider", HandleOAuth)
 	response := httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test?state="+flowToken+"&code=test", nil))
+	pkceRequest := httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test?state="+flowToken+"&code=test", nil)
+	pkceRequest.AddCookie(browser)
+	router.ServeHTTP(response, pkceRequest)
 
 	assert.Equal(t, "test-code-verifier", provider.codeVerifier)
 }
@@ -912,15 +914,14 @@ func TestOAuthLoginConsumesFlowOnlyAfterProviderIdentity(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			provider.exchangeErr = test.exchangeErr
 			provider.userInfoErr = test.userInfoErr
-			token, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+			token, browser := bindOAuthTestFlow(t, model.AuthFlowCreate{
 				Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentLogin,
-				Payload: `{}`, ExpiresAt: time.Now().Add(time.Minute),
+				ExpiresAt: time.Now().Add(time.Minute),
 			})
-			require.NoError(t, err)
-
 			router := gin.New()
 			router.GET("/api/oauth/:provider", HandleOAuth)
 			request := httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test?state="+token+"&code=test", nil)
+			request.AddCookie(browser)
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, request)
 
@@ -938,27 +939,27 @@ func TestOAuthLoginConsumesFlowAfterProviderIdentityAndOnProviderError(t *testin
 
 	provider.exchangeErr = nil
 	provider.userInfoErr = nil
-	successToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+	successToken, browser := bindOAuthTestFlow(t, model.AuthFlowCreate{
 		Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentLogin,
-		Payload: `{invalid`, ExpiresAt: time.Now().Add(time.Minute),
+		ExpiresAt: time.Now().Add(time.Minute),
 	})
-	require.NoError(t, err)
 	router := gin.New()
 	router.GET("/api/oauth/:provider", HandleOAuth)
 	request := httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test?state="+successToken+"&code=test", nil)
+	request.AddCookie(browser)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
-	_, err = model.GetAuthFlow(successToken, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeOAuth})
+	_, err := model.GetAuthFlow(successToken, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeOAuth})
 	assert.ErrorIs(t, err, model.ErrAuthFlowConsumed)
 	assert.Equal(t, 1, provider.exchangeCalls)
 	assert.Equal(t, 1, provider.userInfoCalls)
 
-	providerErrorToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+	providerErrorToken, browser := bindOAuthTestFlow(t, model.AuthFlowCreate{
 		Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentLogin,
-		Payload: `{}`, ExpiresAt: time.Now().Add(time.Minute),
+		ExpiresAt: time.Now().Add(time.Minute),
 	})
-	require.NoError(t, err)
 	request = httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test?state="+providerErrorToken+"&error=access_denied", nil)
+	request.AddCookie(browser)
 	response = httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	_, err = model.GetAuthFlow(providerErrorToken, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeOAuth})
@@ -981,10 +982,16 @@ func TestOAuthBindProviderErrorConsumesSessionBoundFlow(t *testing.T) {
 	}
 	require.NoError(t, common.Unmarshal(started.Body.Bytes(), &result))
 	require.NotEmpty(t, result.Data.FlowToken)
+	var browser *http.Cookie
+	for _, cookie := range started.Result().Cookies() {
+		if cookie.Name == oauthBrowserCookie {
+			browser = cookie
+		}
+	}
 	response := securityEnrollmentRequest(http.MethodGet, "/api/oauth/auth-flow-test?state="+result.Data.FlowToken+"&error=access_denied&error_description=cancelled", "", "", identity, func(c *gin.Context) {
 		c.Params = gin.Params{{Key: "provider", Value: "auth-flow-test"}}
 		HandleOAuth(c)
-	})
+	}, browser)
 	assert.Equal(t, http.StatusOK, response.Code)
 	_, err := model.GetAuthFlow(result.Data.FlowToken, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeOAuth})
 	assert.ErrorIs(t, err, model.ErrAuthFlowConsumed)
@@ -1039,12 +1046,14 @@ func legacyGitHubOAuthLogin(t *testing.T, provider *legacyGitHubOAuthProvider) *
 	const slug = "github-legacy-login-test"
 	oauth.Register(slug, provider)
 	t.Cleanup(func() { oauth.Unregister(slug) })
-	token, _, err := model.CreateAuthFlow(model.AuthFlowCreate{Purpose: model.AuthFlowPurposeOAuth, Provider: slug, Intent: model.AuthFlowIntentLogin, Payload: `{}`, ExpiresAt: time.Now().Add(time.Minute)})
-	require.NoError(t, err)
+	token, browser := bindOAuthTestFlow(t, model.AuthFlowCreate{Purpose: model.AuthFlowPurposeOAuth, Provider: slug, Intent: model.AuthFlowIntentLogin, ExpiresAt: time.Now().Add(time.Minute)})
+	require.NotEmpty(t, token)
 	router := gin.New()
 	router.GET("/api/oauth/:provider", HandleOAuth)
 	response := httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/oauth/"+slug+"?state="+token+"&code=provider-code", nil))
+	request := httptest.NewRequest(http.MethodGet, "/api/oauth/"+slug+"?state="+token+"&code=provider-code", nil)
+	request.AddCookie(browser)
+	router.ServeHTTP(response, request)
 	return response
 }
 
@@ -1288,10 +1297,16 @@ func TestOAuthBindIgnoresLegacyGitHubUsernames(t *testing.T) {
 			}
 			require.NoError(t, common.Unmarshal(started.Body.Bytes(), &flow))
 			require.NotEmpty(t, flow.Data.FlowToken, started.Body.String())
+			var browser *http.Cookie
+			for _, cookie := range started.Result().Cookies() {
+				if cookie.Name == oauthBrowserCookie {
+					browser = cookie
+				}
+			}
 			response := securityEnrollmentRequest(http.MethodGet, "/api/oauth/"+slug+"?state="+flow.Data.FlowToken+"&code=provider-code", "", "", identity, func(c *gin.Context) {
 				c.Params = gin.Params{{Key: "provider", Value: slug}}
 				HandleOAuth(c)
-			})
+			}, browser)
 			var result struct {
 				Success bool   `json:"success"`
 				Message string `json:"message"`
@@ -1311,4 +1326,20 @@ func TestOAuthBindIgnoresLegacyGitHubUsernames(t *testing.T) {
 			assert.Equal(t, "This GitHub account has already been bound", result.Message)
 		})
 	}
+}
+
+func bindOAuthTestFlow(t *testing.T, create model.AuthFlowCreate) (string, *http.Cookie) {
+	t.Helper()
+	raw, hash := newOAuthBrowserBinding()
+	body := oauthFlowPayload{BrowserBinding: hash}
+	if strings.TrimSpace(create.Payload) != "" {
+		_ = common.UnmarshalJsonStr(create.Payload, &body)
+		body.BrowserBinding = hash
+	}
+	encoded, err := common.Marshal(body)
+	require.NoError(t, err)
+	create.Payload = string(encoded)
+	token, _, err := model.CreateAuthFlow(create)
+	require.NoError(t, err)
+	return token, &http.Cookie{Name: oauthBrowserCookie, Value: raw}
 }

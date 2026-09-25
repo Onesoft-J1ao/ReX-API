@@ -343,6 +343,10 @@ func FetchUpstreamRatios(c *gin.Context) {
 					ch <- upstreamResult{Name: uniqueName, Err: "no API key configured for this channel"}
 					return
 				}
+				if !ratioSyncHostMatchesChannel(fullURL, dbCh.GetBaseURL()) {
+					ch <- upstreamResult{Name: uniqueName, Err: "refusing to send the channel key to a different host"}
+					return
+				}
 				httpReq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(key))
 			} else if isOpenRouter {
 				ch <- upstreamResult{Name: uniqueName, Err: "OpenRouter requires a valid channel with API key"}
@@ -1146,4 +1150,23 @@ func GetSyncableChannels(c *gin.Context) {
 		"message": "",
 		"data":    syncableChannels,
 	})
+}
+
+func ratioSyncHostMatchesChannel(requestURL, channelBase string) bool {
+	parsed, err := url.Parse(requestURL)
+	if err != nil || parsed.Hostname() == "" {
+		return false
+	}
+	base := strings.TrimSpace(channelBase)
+	if base == "" {
+		return false
+	}
+	if !strings.Contains(base, "://") {
+		base = "https://" + base
+	}
+	configured, err := url.Parse(base)
+	if err != nil || configured.Hostname() == "" {
+		return false
+	}
+	return strings.EqualFold(parsed.Hostname(), configured.Hostname())
 }

@@ -782,16 +782,22 @@ func TestSecurityAccountOAuthBindingRejectsInvalidFlow(t *testing.T) {
 			case "mfa enabled":
 				require.NoError(t, model.DB.Create(&model.TwoFA{UserId: user.Id, Secret: "JBSWY3DPEHPK3PXP", IsEnabled: true}).Error)
 			}
+			var browser *http.Cookie
+			for _, cookie := range response.Result().Cookies() {
+				if cookie.Name == oauthBrowserCookie {
+					browser = cookie
+				}
+			}
 			handler := func(c *gin.Context) { c.Params = gin.Params{{Key: "provider", Value: provider}}; HandleOAuth(c) }
 			path := "/api/oauth/" + provider + "?state=" + started.FlowToken + "&code=provider-code"
-			response = securityEnrollmentRequest("GET", path, "", "", identity, handler)
+			response = securityEnrollmentRequest("GET", path, "", "", identity, handler, browser)
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
 			assert.Equal(t, scenario == "success and replay", result.Success, response.Body.String())
 			current, err := model.GetUserById(user.Id, false)
 			require.NoError(t, err)
 			assert.Equal(t, scenario == "success and replay", current.GitHubId == "new-binding")
 			if result.Success {
-				replay := securityEnrollmentRequest("GET", path, "", "", identity, handler)
+				replay := securityEnrollmentRequest("GET", path, "", "", identity, handler, browser)
 				assert.Contains(t, replay.Body.String(), `"success":false`)
 			}
 		})

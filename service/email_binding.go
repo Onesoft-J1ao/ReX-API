@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"html/template"
 	"math/big"
 	"slices"
 	"strings"
@@ -178,13 +179,31 @@ func generateEmailBindingCodes(requireOld bool) (emailBindingCodes, error) {
 }
 
 func sendEmailBindingCodes(state model.EmailBindingState, codes emailBindingCodes) error {
-	subject := common.SystemName + " — Confirm your email address"
-	content := fmt.Sprintf("<p>Confirm linking this email address to your account.</p><p>Verification code: <strong>%s</strong></p><p>This code expires in 10 minutes. If you did not request this change, do not share this code.</p>", html.EscapeString(codes.New))
+	subject := common.SystemName + " 确认邮箱"
+	body := fmt.Sprintf(
+		`<h1 style="margin:0 0 8px;font-size:20px;line-height:28px;font-weight:600;color:#111827;">确认绑定邮箱</h1>`+
+			`<p style="margin:0 0 16px;font-size:14px;line-height:22px;color:#4b5563;">用下面的验证码确认把这个邮箱绑定到你的账号：</p>`+
+			`<div style="margin:0 0 16px;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;font-family:monospace;font-size:30px;letter-spacing:8px;text-align:center;color:#111827;">%s</div>`+
+			`<p style="margin:0;font-size:13px;line-height:20px;color:#6b7280;">验证码 10 分钟内有效。如果不是你的操作，不要把验证码告诉任何人。</p>`,
+		html.EscapeString(codes.New))
+	content, err := common.RenderEmailLayout(template.HTML(body), "这封邮件由系统自动发送，用于绑定邮箱。")
+	if err != nil {
+		return err
+	}
 	if err := common.SendEmail(subject, state.Email, content); err != nil {
 		return err
 	}
 	if codes.Old != "" {
-		content = fmt.Sprintf("<p>A change to your account email address was requested. Confirm replacing your current address.</p><p>Verification code: <strong>%s</strong></p><p>This code expires in 10 minutes. If you did not request this change, do not share this code and contact your administrator.</p>", html.EscapeString(codes.Old))
+		body = fmt.Sprintf(
+			`<h1 style="margin:0 0 8px;font-size:20px;line-height:28px;font-weight:600;color:#111827;">确认更换邮箱</h1>`+
+				`<p style="margin:0 0 16px;font-size:14px;line-height:22px;color:#4b5563;">有人申请把你账号的邮箱换成一个新地址。用下面的验证码确认：</p>`+
+				`<div style="margin:0 0 16px;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;font-family:monospace;font-size:30px;letter-spacing:8px;text-align:center;color:#111827;">%s</div>`+
+				`<p style="margin:0;font-size:13px;line-height:20px;color:#6b7280;">验证码 10 分钟内有效。如果不是你的操作，不要把验证码告诉任何人，并联系管理员。</p>`,
+			html.EscapeString(codes.Old))
+		content, err = common.RenderEmailLayout(template.HTML(body), "这封邮件由系统自动发送，用于更换邮箱。")
+		if err != nil {
+			return err
+		}
 		return common.SendEmail(subject, state.CurrentEmail, content)
 	}
 	return nil
