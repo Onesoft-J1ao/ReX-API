@@ -107,12 +107,17 @@ func setupSecurityEnrollmentTest(t *testing.T) (*model.User, service.AuthIdentit
 	return user, identity
 }
 
-func securityEnrollmentRequest(method, path, body, proof string, identity service.AuthIdentity, handler gin.HandlerFunc) *httptest.ResponseRecorder {
+func securityEnrollmentRequest(method, path, body, proof string, identity service.AuthIdentity, handler gin.HandlerFunc, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	response := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(response)
 	c.Request = httptest.NewRequest(method, path, strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Request.Header.Set("X-Security-Proof", proof)
+	for _, cookie := range cookies {
+		if cookie != nil {
+			c.Request.AddCookie(cookie)
+		}
+	}
 	c.Set("id", identity.UserID)
 	c.Set("role", common.RoleCommonUser)
 	c.Set("session_id", identity.SessionID)
@@ -1448,11 +1453,11 @@ func TestSecurityEnrollmentTelegramAndWeChatFirstFactor(t *testing.T) {
 					user, identity = fixture.user, fixture.identity
 					require.NoError(t, model.DB.Model(user).Updates(map[string]any{"password": "", "telegram_id": "42"}).Error)
 					state, code := fixture.authorization(t, "verify", identity, scope, telegramIdentityClaims(99))
-					mismatch := telegramOAuthCallback(state, code, identity)
+					mismatch := telegramOAuthCallback(fixture, state, code, identity)
 					assert.Contains(t, mismatch.Body.String(), "OAUTH_ACCOUNT_MISMATCH")
 					assert.NotContains(t, mismatch.Body.String(), "proof_token")
 					state, code = fixture.authorization(t, "verify", identity, scope, telegramIdentityClaims(42))
-					response = telegramOAuthCallback(state, code, identity)
+					response = telegramOAuthCallback(fixture, state, code, identity)
 					method = service.VerificationMethodOAuth
 				} else {
 					user, identity = setupSecurityEnrollmentTest(t)
@@ -1595,7 +1600,7 @@ func TestSecurityEnrollmentRejectsChangedFirstFactorPolicy(t *testing.T) {
 				if provider == "telegram" {
 					require.NoError(t, model.DB.Model(user).Update("telegram_id", "42").Error)
 					state, code := fixture.authorization(t, "verify", identity, "2fa.setup", telegramIdentityClaims(42))
-					response := telegramOAuthCallback(state, code, identity)
+					response := telegramOAuthCallback(fixture, state, code, identity)
 					var body securityEnrollmentResponse
 					require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 					require.True(t, body.Success, response.Body.String())

@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +45,10 @@ type oauthFlowPayload struct {
 	Authorization   *model.AuthFlowAuthorization   `json:"authorization,omitempty"`
 	// CodeVerifier stored during the auth flow for the PKCE token exchange.
 	CodeVerifier string `json:"code_verifier,omitempty"`
+	// BrowserBinding is the hash of a cookie set on the browser that started
+	// the flow. The callback is a normal link; without this, an attacker can
+	// finish their own login and hand the callback URL to someone else.
+	BrowserBinding string `json:"browser_binding,omitempty"`
 }
 
 // providerParams returns map with Provider key for i18n templates
@@ -50,6 +57,38 @@ func providerParams(name string) map[string]any {
 }
 
 // GenerateOAuthCode generates a state code for OAuth CSRF protection
+const oauthBrowserCookie = "oauth_browser"
+
+func newOAuthBrowserBinding() (string, string) {
+	raw := common.GetRandomString(32)
+	sum := sha256.Sum256([]byte(raw))
+	return raw, hex.EncodeToString(sum[:])
+}
+
+func setOAuthBrowserCookie(c *gin.Context, raw string) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     oauthBrowserCookie,
+		Value:    raw,
+		Path:     "/api/oauth",
+		MaxAge:   int(oauthAuthFlowTTL / time.Second),
+		HttpOnly: true,
+		Secure:   common.SessionCookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func oauthBrowserMatches(c *gin.Context, binding string) bool {
+	if binding == "" {
+		return false
+	}
+	cookie, err := c.Cookie(oauthBrowserCookie)
+	if err != nil || cookie == "" {
+		return false
+	}
+	sum := sha256.Sum256([]byte(cookie))
+	return subtle.ConstantTimeCompare([]byte(binding), []byte(hex.EncodeToString(sum[:]))) == 1
+}
+
 func GenerateOAuthCode(c *gin.Context) {
 	var request oauthStateRequest
 	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
@@ -118,6 +157,8 @@ func GenerateOAuthCode(c *gin.Context) {
 			flowPayload.Verification = verification
 		}
 	}
+	rawBinding, bindingHash := newOAuthBrowserBinding()
+	flowPayload.BrowserBinding = bindingHash
 	payload, err := common.Marshal(flowPayload)
 	if err != nil {
 		writeSecurityOperationError(c, err)
@@ -138,6 +179,7 @@ func GenerateOAuthCode(c *gin.Context) {
 		return
 	}
 	bindingStarted = request.Intent == model.AuthFlowIntentBind
+	setOAuthBrowserCookie(c, rawBinding)
 	data := gin.H{"flow_token": state, "expires_at": expiresAt.Unix()}
 	if flowPayload.Telegram != nil {
 		data["authorization_url"] = flowPayload.Telegram.AuthorizationURL(state)
@@ -175,6 +217,14 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
+	var started oauthFlowPayload
+	if err := common.UnmarshalJsonStr(pendingFlow.Payload, &started); err != nil || !oauthBrowserMatches(c, started.BrowserBinding) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
+		})
+		return
+	}
 	consumeMatch := model.AuthFlowMatch{
 		Purpose:  model.AuthFlowPurposeOAuth,
 		Provider: providerName,

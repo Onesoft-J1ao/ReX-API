@@ -650,6 +650,14 @@ func TestModelPriceHelperPreservesGpt51CodexMaxIdentity(t *testing.T) {
 	assert.Equal(t, 1.75, priceData.ModelRatio)
 }
 
+func TestIsFreeTokenPricingRequiresBothSides(t *testing.T) {
+	// A zero completion ratio used to make the output price zero and, because
+	// either side being free was enough, dropped the charge for a paid input.
+	assert.False(t, isFreeTokenPricing(1, 0, 1))
+	assert.True(t, isFreeTokenPricing(0, 1, 1))
+	assert.True(t, isFreeTokenPricing(0, 0, 1))
+}
+
 func TestModelPriceHelperNativeGeminiNoThinkingDoesNotAliasBillingModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

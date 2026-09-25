@@ -6,32 +6,10 @@ import (
 	"strings"
 )
 
-const DefaultEmailVerificationTemplate = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin:0;padding:24px;background:#f5f7fb;font-family:Arial,sans-serif;color:#1f2937;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;">
-          <tr>
-            <td style="padding:32px;">
-              <h1 style="margin:0 0 20px;font-size:20px;line-height:28px;font-weight:600;">Verify your email address</h1>
-              <p style="margin:0 0 16px;font-size:14px;line-height:22px;">Hello from {{.SystemName}},</p>
-              <p style="margin:0 0 20px;font-size:14px;line-height:22px;">Use the verification code below to continue:</p>
-              <div style="margin:0 0 20px;padding:14px 18px;background:#f3f4f6;border-radius:6px;font-family:monospace;font-size:28px;letter-spacing:6px;text-align:center;color:#111827;">{{.Code}}</div>
-              <p style="margin:0;font-size:13px;line-height:20px;color:#4b5563;">This code expires in {{.ValidMinutes}} minutes. If you did not request it, you can safely ignore this email.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`
+const DefaultEmailVerificationTemplate = `<h1 style="margin:0 0 8px;font-size:20px;line-height:28px;font-weight:600;color:#111827;">验证你的邮箱</h1>
+<p style="margin:0 0 20px;font-size:14px;line-height:22px;color:#4b5563;">你正在 {{.SystemName}} 进行邮箱验证，请使用下面的验证码：</p>
+<div style="margin:0 0 20px;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;font-family:'SFMono-Regular',Consolas,monospace;font-size:30px;letter-spacing:8px;text-align:center;color:#111827;">{{.Code}}</div>
+<p style="margin:0;font-size:13px;line-height:20px;color:#6b7280;">验证码 {{.ValidMinutes}} 分钟内有效。如果这不是你的操作，忽略这封邮件即可，你的账号不会有任何变化。</p>`
 
 type emailVerificationTemplateData struct {
 	SystemName   string
@@ -66,5 +44,5 @@ func renderEmailVerificationTemplate(value string, code string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("invalid email verification template: %w", err)
 	}
-	return content.String(), nil
+	return RenderEmailLayout(template.HTML(content.String()), "这封邮件由系统自动发送，用于验证邮箱所有权。")
 }

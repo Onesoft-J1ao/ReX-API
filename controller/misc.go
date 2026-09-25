@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
+	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -207,6 +210,13 @@ func GetStatus(c *gin.Context) {
 		data["custom_oauth_providers"] = providersInfo
 	}
 
+	// The build stamp is a deploy fingerprint. Only the root session sees it;
+	// everyone else, including an anonymous status read, gets the field omitted.
+	if c.GetInt("role") != common.RoleRootUser {
+		delete(data, "version")
+		delete(data, "start_time")
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -373,14 +383,21 @@ func SendPasswordResetEmail(c *gin.Context) {
 	if _, err := model.GetUniqueUserByEmail(email); err == nil {
 		code := common.GenerateVerificationCode(0)
 		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
-		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
+		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s",
+			strings.TrimRight(system_setting.ServerAddress, "/"),
+			url.QueryEscape(email), code)
 		subject := fmt.Sprintf("%s密码重置", common.SystemName)
-		content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
-			"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
-			"<p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> %s </p>"+
-			"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
-		err := common.SendEmail(subject, email, content)
-		if err != nil {
+		body := fmt.Sprintf(
+			`<h1 style="margin:0 0 8px;font-size:20px;line-height:28px;font-weight:600;color:#111827;">重置密码</h1>`+
+				`<p style="margin:0 0 20px;font-size:14px;line-height:22px;color:#4b5563;">收到了 %s 的密码重置请求。如果是你本人操作，点下面的按钮继续。</p>`+
+				`<p style="margin:0 0 20px;"><a href="%s" style="display:inline-block;padding:10px 18px;background:#111827;color:#ffffff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;">重置密码</a></p>`+
+				`<p style="margin:0 0 8px;font-size:12px;line-height:18px;color:#9ca3af;word-break:break-all;">如果按钮打不开，复制这个地址：<br>%s</p>`+
+				`<p style="margin:0;font-size:13px;line-height:20px;color:#6b7280;">链接 %d 分钟内有效。如果不是你的操作，忽略这封邮件即可，密码不会改变。</p>`,
+			html.EscapeString(common.SystemName), html.EscapeString(link), html.EscapeString(link), common.VerificationValidMinutes)
+		content, renderErr := common.RenderEmailLayout(template.HTML(body), "这封邮件由系统自动发送，用于重置密码。")
+		if renderErr != nil {
+			logger.LogError(c.Request.Context(), "failed to render password reset email: "+renderErr.Error())
+		} else if err := common.SendEmail(subject, email, content); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
 		}
 	} else if err != nil && !errors.Is(err, model.ErrEmailNotFound) {

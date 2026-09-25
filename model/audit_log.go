@@ -380,6 +380,9 @@ func WriteAuditLogsCSV(writer io.Writer, filter AuditLogFilter, viewerRole int) 
 			return err
 		}
 		projectAuditLogOther(&entry, visibility)
+		if filter.SelfView {
+			entry.Ip = ""
+		}
 		other, err := common.Marshal(entry.Other)
 		if err != nil {
 			return err
