@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { KeyRound, TrendingDown, TrendingUp } from 'lucide-react'
+import { KeyRound, Percent, TrendingDown, TrendingUp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -37,8 +37,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatNumber } from '@/lib/format'
+import { getServerErrorMessage } from '@/lib/server-error-message'
 
-import { applyPriceSentinelEdit, validatePriceSentinelToken } from '../api'
+import {
+  applyPriceSentinelEdit,
+  syncPriceSentinelPrices,
+  validatePriceSentinelToken,
+} from '../api'
 import type { PriceChange, PriceSentinelEditSession } from '../types'
 
 type LoadState =
@@ -103,10 +108,9 @@ function ChangeRow(props: {
       )
       props.onApplied(props.change, parsed)
     } catch (error) {
-      const message =
-        (error as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message || (error as Error)?.message
-      toast.error(message || t('Failed to update the price'))
+      toast.error(
+        getServerErrorMessage(error, t('Failed to update the price'))
+      )
     } finally {
       setApplying(false)
     }
@@ -166,6 +170,8 @@ export function PriceSentinelEditor(props: { token: string }) {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [adminToken, setAdminToken] = useState('')
   const [applied, setApplied] = useState<Set<string>>(new Set())
+  const [margin, setMargin] = useState('')
+  const [syncing, setSyncing] = useState(false)
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -173,12 +179,12 @@ export function PriceSentinelEditor(props: { token: string }) {
       const session = await validatePriceSentinelToken(props.token)
       setState({ kind: 'ready', session })
     } catch (error) {
-      const message =
-        (error as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message || (error as Error)?.message
       setState({
         kind: 'error',
-        message: message || t('This link is invalid or has expired.'),
+        message: getServerErrorMessage(
+          error,
+          t('This link is invalid or has expired.')
+        ),
       })
     }
   }, [props.token, t])
@@ -193,6 +199,45 @@ export function PriceSentinelEditor(props: { token: string }) {
       (change) => !applied.has(`${change.model_name}|${change.field}`)
     )
   }, [state, applied])
+
+  const sync = async () => {
+    // An empty field means "use the margin configured on the server", which is
+    // why it parses to undefined rather than to 0: zero is a meaningful value
+    // (follow the upstream exactly) and must not be sent by accident.
+    const trimmed = margin.trim()
+    const parsed = trimmed === '' ? undefined : Number(trimmed)
+    if (parsed !== undefined && (!Number.isFinite(parsed) || parsed < 0)) {
+      toast.error(t('Enter a non-negative number'))
+      return
+    }
+    setSyncing(true)
+    try {
+      const result = await syncPriceSentinelPrices({
+        token: props.token,
+        adminToken,
+        marginPercent: parsed === undefined ? undefined : parsed / 100,
+      })
+      toast.success(
+        t('Applied {{applied}} prices and skipped {{skipped}} unpriced models.', {
+          applied: result.applied,
+          skipped: result.skipped,
+        })
+      )
+      if (state.kind === 'ready') {
+        setApplied(
+          new Set(
+            state.session.changes.map(
+              (change) => `${change.model_name}|${change.field}`
+            )
+          )
+        )
+      }
+    } catch (error) {
+      toast.error(getServerErrorMessage(error, t('Failed to sync the prices')))
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   if (state.kind === 'loading') {
     return <LoadingState message={t('Checking this link...')} />
@@ -291,6 +336,47 @@ export function PriceSentinelEditor(props: { token: string }) {
               )}
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Sync the whole report')}</CardTitle>
+          <CardDescription>
+            {t(
+              'Writes every price below in one step, setting each to the upstream value plus the margin. Applying rows one by one is only needed for the exceptions.'
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='flex flex-col gap-3'>
+          <div className='flex flex-wrap items-end gap-3'>
+            <div className='flex flex-col gap-2'>
+              <Label htmlFor='price-sentinel-margin' className='text-sm'>
+                <Percent className='me-1 inline size-3.5' aria-hidden />
+                {t('Gross margin (%)')}
+              </Label>
+              <Input
+                id='price-sentinel-margin'
+                className='w-32'
+                inputMode='decimal'
+                placeholder={t('Server default')}
+                value={margin}
+                onChange={(event) => setMargin(event.target.value)}
+                aria-describedby='price-sentinel-margin-help'
+              />
+            </div>
+            <Button onClick={sync} disabled={syncing || pending.length === 0}>
+              {syncing ? t('Syncing...') : t('Sync all')}
+            </Button>
+          </div>
+          <p
+            id='price-sentinel-margin-help'
+            className='text-muted-foreground text-xs'
+          >
+            {t(
+              'A 20 margin charges 20% above the upstream price. Leave it empty to use the margin configured on the server. Models we never priced are skipped, because syncing one would start charging for a model we do not sell.'
+            )}
+          </p>
         </CardContent>
       </Card>
 

@@ -24,6 +24,7 @@ import type {
   PriceSentinelApplyResponse,
   PriceSentinelEditSession,
   PriceSentinelReportResponse,
+  PriceSentinelSyncResponse,
 } from './types'
 
 /**
@@ -44,8 +45,8 @@ const editClient = axios.create({
 export async function validatePriceSentinelToken(
   token: string
 ): Promise<PriceSentinelEditSession> {
-  const res = await editClient.post('/api/price-sentinel/edit/validate', null, {
-    params: { token },
+  const res = await editClient.post('/api/price-sentinel/edit/validate', {
+    token,
   })
   return res.data?.data as PriceSentinelEditSession
 }
@@ -76,6 +77,31 @@ export async function applyPriceSentinelEdit(params: {
     }
   )
   return res.data?.data as PriceSentinelApplyResponse
+}
+
+/**
+ * Applies every change in the link's report at once, marking each upstream price
+ * up by `marginPercent`. The same credentials as a single edit are required;
+ * `marginPercent` omitted means "use the configured default".
+ */
+export async function syncPriceSentinelPrices(params: {
+  token: string
+  adminToken: string
+  marginPercent?: number
+}): Promise<PriceSentinelSyncResponse> {
+  const res = await editClient.post(
+    '/api/price-sentinel/edit/sync',
+    {
+      token: params.token,
+      margin_percent: params.marginPercent,
+    },
+    {
+      headers: params.adminToken
+        ? { Authorization: `Bearer ${params.adminToken}` }
+        : undefined,
+    }
+  )
+  return res.data?.data as PriceSentinelSyncResponse
 }
 
 /** Reads the newest report for the admin console. Requires a root session. */

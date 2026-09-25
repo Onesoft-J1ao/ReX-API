@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 // priceSentinelHandler runs the hourly upstream price check.
 //
 // It only reports. The digest names each model whose price differs and by how
-// much, and mails a single-use link to an edit page; changing a price stays the
+// much, and mails an expiring link to an edit page; changing a price stays the
 // operator's call, because whether to follow an upstream move depends on which
 // side of the trade that model sits on.
 type priceSentinelHandler struct{}
@@ -116,13 +117,16 @@ func runPriceSentinelCheck(ctx context.Context) (*priceSentinelRunSummary, error
 		}
 	}
 
-	body := pricesentinel.BuildReport(comparison, checkedAt, editUrl)
+	var body string
 	if compareErr != nil {
-		body = fmt.Sprintf(
-			"上游价格巡检报告（%s）\n\n本次检查未能读取上游价格：\n  %s\n\n下一轮会自动重试。\n",
-			time.Unix(checkedAt, 0).Format("2006-01-02 15:04"),
-			compareErr.Error(),
-		)
+		rendered, err := pricesentinel.BuildFailureReport(checkedAt, compareErr.Error())
+		if err != nil {
+			common.SysLog("price sentinel: failed to render failure report: " + err.Error())
+			return summary, nil
+		}
+		body = rendered
+	} else {
+		body = pricesentinel.BuildReport(comparison, checkedAt, editUrl)
 	}
 
 	subject := pricesentinel.ReportSubject(checkedAt)
@@ -183,7 +187,7 @@ func GetPriceSentinelReport(c *gin.Context) {
 			changes = []model.PriceChange{}
 		}
 	}
-	common.ApiSuccess(c, gin.H{"report": report, "changes": changes})
+	common.ApiSuccess(c, gin.H{"report": priceSentinelReportForClient(report), "changes": changes})
 }
 
 // RunPriceSentinelNow triggers a check on demand.
@@ -198,16 +202,16 @@ func RunPriceSentinelNow(c *gin.Context) {
 
 // priceSentinelEditRequest carries one price change applied from the edit page.
 type priceSentinelEditRequest struct {
-	Token     string   `json:"token"`
-	ModelName string   `json:"model_name"`
-	Field     string   `json:"field"`
-	Value     float64  `json:"value"`
+	Token     string  `json:"token"`
+	ModelName string  `json:"model_name"`
+	Field     string  `json:"field"`
+	Value     float64 `json:"value"`
 }
 
-// ApplyPriceSentinelEdit consumes the mailed token and writes one price.
+// ApplyPriceSentinelEdit verifies the mailed token and writes one price.
 //
 // The token only proves the request came from a link we mailed; it is not an
-// admin credential. This route therefore sits behind AdminAuth as well, so the
+// admin credential. This route therefore sits behind RootAuth as well, so the
 // operator still authenticates before anything is written.
 func ApplyPriceSentinelEdit(c *gin.Context) {
 	var req priceSentinelEditRequest
@@ -225,8 +229,18 @@ func ApplyPriceSentinelEdit(c *gin.Context) {
 		return
 	}
 
-	if _, err := model.ConsumePriceSentinelEditToken(req.Token); err != nil {
+	record, err := model.VerifyPriceSentinelEditToken(req.Token)
+	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	changes, err := loadPriceSentinelChanges(record.ReportId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !pricesentinel.ChangeIsReported(changes, modelName, req.Field) {
+		common.ApiErrorMsg(c, "该模型不在这份报告里")
 		return
 	}
 
@@ -243,15 +257,110 @@ func ApplyPriceSentinelEdit(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"model_name": modelName, "field": req.Field, "value": req.Value})
 }
 
+func loadPriceSentinelChanges(reportId int) ([]model.PriceChange, error) {
+	report, err := model.GetPriceSentinelReport(reportId)
+	if err != nil {
+		return nil, err
+	}
+	var changes []model.PriceChange
+	if strings.TrimSpace(report.Changes) == "" {
+		return changes, nil
+	}
+	if err := common.UnmarshalJsonStr(report.Changes, &changes); err != nil {
+		return nil, err
+	}
+	return changes, nil
+}
+
+// priceSentinelSyncRequest asks to apply a whole report at once.
+type priceSentinelSyncRequest struct {
+	Token string `json:"token"`
+	// MarginPercent overrides the configured markup for this one sync. Absent
+	// means "use the configured default", which is why it is a pointer: a
+	// deliberate 0 (follow the upstream exactly) must be distinguishable from
+	// an omitted field.
+	MarginPercent *float64 `json:"margin_percent"`
+}
+
+// SyncPriceSentinelPrices applies every change in the link's report at once,
+// marking each upstream price up by the requested margin.
+//
+// This is the page's primary action. A report routinely lists dozens of models,
+// and writing them one row at a time is slow and easy to leave half finished —
+// a half-applied report is worse than an untouched one, because the next
+// comparison reports the models that were skipped as though nothing happened.
+//
+// Which changes become writes is decided by BuildSyncEdits, including leaving
+// models we never priced alone. The margin matters because a sync that landed
+// exactly on the upstream's own number would sell at cost.
+func SyncPriceSentinelPrices(c *gin.Context) {
+	var req priceSentinelSyncRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "无效的参数")
+		return
+	}
+	record, err := model.VerifyPriceSentinelEditToken(req.Token)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	margin := price_sentinel_setting.GetMarginPercent()
+	if req.MarginPercent != nil {
+		margin = price_sentinel_setting.ClampMarginPercent(*req.MarginPercent)
+	}
+
+	report, err := model.GetPriceSentinelReport(record.ReportId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var changes []model.PriceChange
+	if strings.TrimSpace(report.Changes) != "" {
+		if err := common.UnmarshalJsonStr(report.Changes, &changes); err != nil {
+			common.ApiErrorMsg(c, "报告内容无法解析")
+			return
+		}
+	}
+
+	edits, skipped := pricesentinel.BuildSyncEdits(changes, margin)
+
+	applied := 0
+	if len(edits) > 0 {
+		applied, err = pricesentinel.ApplyPriceEdits(edits)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+
+	recordManageAudit(c, "price_sentinel.sync", map[string]any{
+		"report_id":      report.Id,
+		"applied":        applied,
+		"skipped":        skipped,
+		"margin_percent": margin,
+	})
+	common.ApiSuccess(c, gin.H{
+		"applied":        applied,
+		"skipped":        skipped,
+		"margin_percent": margin,
+	})
+}
+
 // ValidatePriceSentinelToken lets the edit page check a link before the
 // operator types their access token, so an expired link fails fast.
 func ValidatePriceSentinelToken(c *gin.Context) {
-	token := strings.TrimSpace(c.Query("token"))
-	if token == "" {
+	var body struct {
+		Token string `json:"token"`
+	}
+	// The token is a capability. It has to travel in the body: a query parameter
+	// is written into access logs and Referer headers, which is enough to redeem
+	// the link without ever seeing the mail.
+	if err := common.DecodeJson(c.Request.Body, &body); err != nil || strings.TrimSpace(body.Token) == "" {
 		common.ApiErrorMsg(c, "缺少链接令牌")
 		return
 	}
-	record, err := model.FindPriceSentinelEditToken(token)
+	record, err := model.VerifyPriceSentinelEditToken(body.Token)
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return
@@ -266,10 +375,22 @@ func ValidatePriceSentinelToken(c *gin.Context) {
 		_ = common.UnmarshalJsonStr(report.Changes, &changes)
 	}
 	common.ApiSuccess(c, gin.H{
-		"report":  report,
-		"changes": changes,
+		"report":     priceSentinelReportForClient(report),
+		"changes":    changes,
 		"expires_at": record.ExpiresAt,
 	})
+}
+
+var upstreamAddress = regexp.MustCompile(`https?://\S+`)
+
+func priceSentinelReportForClient(report *model.PriceSentinelReport) *model.PriceSentinelReport {
+	if report == nil {
+		return nil
+	}
+	visible := *report
+	visible.UpstreamUrl = ""
+	visible.FetchError = strings.TrimSpace(upstreamAddress.ReplaceAllString(visible.FetchError, "upstream"))
+	return &visible
 }
 
 // errPriceSentinelDisabled is returned when the sentinel is switched off.

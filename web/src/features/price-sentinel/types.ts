@@ -68,3 +68,13 @@ export type PriceSentinelApplyResponse = {
   field: string
   value: number
 }
+
+/** Result of applying a whole report at once. */
+export type PriceSentinelSyncResponse = {
+  /** Prices actually written. */
+  applied: number
+  /** Reported changes left alone because we never priced that model. */
+  skipped: number
+  /** The markup that was applied, after clamping. */
+  margin_percent: number
+}

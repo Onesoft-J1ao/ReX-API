@@ -32,6 +32,7 @@ import {
   MessageSquare,
   PlugZap,
   Radio,
+  Tags,
   RotateCcw,
   ServerCog,
   Settings,
@@ -203,6 +204,12 @@ export function useSidebarData(): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: t('Upstream price sentinel'),
+            url: '/status/sentinel',
+            icon: Tags,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Models'),

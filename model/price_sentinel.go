@@ -63,11 +63,11 @@ type PriceChange struct {
 	Groups []string `json:"groups,omitempty"`
 }
 
-// PriceSentinelEditToken authorizes one price edit from a mailed link.
+// PriceSentinelEditToken authorizes the edit page reached from a mailed link.
 //
-// The token is not an admin credential: it only unlocks the edit page, which
-// still requires the operator's access token. It is single-use and expiring,
-// and the digest of its payload is stored so the token itself is never
+// The token is not an admin credential: it only unlocks the page, which still
+// requires the operator's access token to write anything. What bounds it is its
+// expiry; the digest of its payload is stored so the token itself is never
 // recoverable from the database.
 type PriceSentinelEditToken struct {
 	Id        int    `json:"id" gorm:"primaryKey"`
@@ -75,8 +75,8 @@ type PriceSentinelEditToken struct {
 	// ReportId is the report the link came from, so the page can show what was
 	// proposed at the time the mail was written.
 	ReportId int `json:"report_id" gorm:"index"`
-	// ExpiresAt and UsedAt bound the token's life. A used token is kept so a
-	// replay is refused rather than silently accepted.
+	// ExpiresAt bounds the token's life; UsedAt records the first time the link
+	// was opened, which is kept as an audit trail rather than as a lock.
 	ExpiresAt int64 `json:"expires_at" gorm:"index"`
 	UsedAt    int64 `json:"used_at"`
 	CreatedAt int64 `json:"created_at"`
@@ -123,37 +123,35 @@ func HashPriceSentinelToken(token string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(token)))
 }
 
-// ConsumePriceSentinelEditToken validates a token and marks it used in one
-// transaction, so two concurrent clicks cannot both succeed.
-func ConsumePriceSentinelEditToken(token string) (*PriceSentinelEditToken, error) {
+// VerifyPriceSentinelEditToken validates a mailed edit link and records the
+// first time it was opened.
+//
+// The link is a page credential, not a one-shot action credential. The report it
+// opens lists every model whose price differs, and the page exists to act on
+// that list: a token that died after the first write would leave the operator
+// unable to finish the report they were sent. Expiry is what closes the link,
+// and the write itself still needs a root session, so reuse grants nothing the
+// link did not already grant.
+func VerifyPriceSentinelEditToken(token string) (*PriceSentinelEditToken, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return nil, errors.New("token is empty")
 	}
-	hash := HashPriceSentinelToken(token)
-	var result *PriceSentinelEditToken
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		var record PriceSentinelEditToken
-		if err := lockForUpdate(tx).Where("token_hash = ?", hash).First(&record).Error; err != nil {
-			return errors.New("edit link is not valid")
-		}
-		if record.UsedAt > 0 {
-			return errors.New("edit link has already been used")
-		}
-		if record.ExpiresAt > 0 && common.GetTimestamp() > record.ExpiresAt {
-			return errors.New("edit link has expired")
-		}
-		record.UsedAt = common.GetTimestamp()
-		if err := tx.Save(&record).Error; err != nil {
-			return err
-		}
-		result = &record
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	var record PriceSentinelEditToken
+	if err := DB.Where("token_hash = ?", HashPriceSentinelToken(token)).First(&record).Error; err != nil {
+		return nil, errors.New("edit link is not valid")
 	}
-	return result, nil
+	if record.ExpiresAt > 0 && common.GetTimestamp() > record.ExpiresAt {
+		return nil, errors.New("edit link has expired")
+	}
+	if record.UsedAt == 0 {
+		record.UsedAt = common.GetTimestamp()
+		if err := DB.Model(&PriceSentinelEditToken{}).Where("id = ?", record.Id).
+			Update("used_at", record.UsedAt).Error; err != nil {
+			common.SysLog("price sentinel: failed to record link first use: " + err.Error())
+		}
+	}
+	return &record, nil
 }
 
 // GetPriceSentinelReport returns one report by id.
@@ -200,26 +198,6 @@ func GetLatestPriceSentinelReport() (*PriceSentinelReport, error) {
 		return nil, err
 	}
 	return &report, nil
-}
-
-// FindPriceSentinelEditToken looks a token up without consuming it, so the edit
-// page can reject a dead link before the operator types anything.
-func FindPriceSentinelEditToken(token string) (*PriceSentinelEditToken, error) {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return nil, errors.New("token is empty")
-	}
-	var record PriceSentinelEditToken
-	if err := DB.Where("token_hash = ?", HashPriceSentinelToken(token)).First(&record).Error; err != nil {
-		return nil, errors.New("edit link is not valid")
-	}
-	if record.UsedAt > 0 {
-		return nil, errors.New("edit link has already been used")
-	}
-	if record.ExpiresAt > 0 && common.GetTimestamp() > record.ExpiresAt {
-		return nil, errors.New("edit link has expired")
-	}
-	return &record, nil
 }
 
 // GetRootUserEmail returns the root account's address, which is where operator

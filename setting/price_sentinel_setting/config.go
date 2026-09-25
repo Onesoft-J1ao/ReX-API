@@ -35,6 +35,12 @@ type PriceSentinelSetting struct {
 	// IgnoredModels are never reported. Operators use it for models whose price
 	// is deliberately kept above or below the upstream's.
 	IgnoredModels string `json:"ignored_models"`
+	// MarginPercent is the markup a synchronisation applies on top of the
+	// upstream price: ours = upstream * (1 + MarginPercent). Following the
+	// upstream at its own number would sell at cost, and the digest exists to be
+	// applied in bulk, so the margin is what keeps a bulk apply from moving every
+	// price onto the upstream's. 0.2 means 20% above.
+	MarginPercent float64 `json:"margin_percent"`
 }
 
 var priceSentinelSetting = PriceSentinelSetting{
@@ -46,6 +52,7 @@ var priceSentinelSetting = PriceSentinelSetting{
 	ReportEmail:        "",
 	EditTokenTTLHours:  24,
 	IgnoredModels:      "",
+	MarginPercent:      0.2,
 }
 
 func init() {
@@ -70,6 +77,29 @@ func GetMinChangePercent() float64 {
 		return 0
 	}
 	return priceSentinelSetting.MinChangePercent
+}
+
+// MaxMarginPercent bounds the markup. A value far past this is a typo rather
+// than an intended price, and the apply path multiplies money by it.
+const MaxMarginPercent = 10.0
+
+// ClampMarginPercent bounds a markup to the range the apply path will accept.
+// It is exported because the edit page may send its own margin for one sync, and
+// that value has to be bounded by the same rule as the stored one.
+func ClampMarginPercent(value float64) float64 {
+	if value < 0 {
+		return 0
+	}
+	if value > MaxMarginPercent {
+		return MaxMarginPercent
+	}
+	return value
+}
+
+// GetMarginPercent returns the configured markup, clamped to a sane range so a
+// malformed value cannot multiply every synced price into nonsense.
+func GetMarginPercent() float64 {
+	return ClampMarginPercent(priceSentinelSetting.MarginPercent)
 }
 
 // GetIgnoredModels returns the never-report list.
