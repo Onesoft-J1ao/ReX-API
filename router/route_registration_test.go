@@ -30,24 +30,47 @@ func TestRouterRegistersEveryPathOnce(t *testing.T) {
 }
 
 // The mailed edit link proves the request came from us; it is not an admin
-// credential. Writing a price therefore also requires a root session or access
-// token, so a forwarded or leaked link cannot change billing on its own.
-func TestPriceSentinelApplyRequiresAdminCredentials(t *testing.T) {
+// credential. Every route that writes a price therefore also requires a root
+// session or access token, so a forwarded or leaked link cannot change billing
+// on its own. The bulk route is listed separately because it is registered apart
+// from the single-row one and would otherwise be the one that lost its guard.
+func TestPriceSentinelWriteRoutesRequireAdminCredentials(t *testing.T) {
 	engine := buildTestRouter(t)
 
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/api/price-sentinel/edit/apply",
-		strings.NewReader(`{"token":"mailed","model_name":"m","field":"model_ratio","value":1}`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	engine.ServeHTTP(recorder, request)
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "single edit",
+			path: "/api/price-sentinel/edit/apply",
+			body: `{"token":"mailed","model_name":"m","field":"model_ratio","value":1}`,
+		},
+		{
+			name: "bulk sync",
+			path: "/api/price-sentinel/edit/sync",
+			body: `{"token":"mailed"}`,
+		},
+	}
 
-	require.NotEqual(t, http.StatusOK, recorder.Code,
-		"an unauthenticated apply must not be accepted")
-	assert.Contains(t,
-		[]int{http.StatusUnauthorized, http.StatusForbidden},
-		recorder.Code,
-		"an unauthenticated apply must be rejected as unauthenticated, not treated as a missing route")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(
+				http.MethodPost,
+				tc.path,
+				strings.NewReader(tc.body),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			engine.ServeHTTP(recorder, request)
+
+			require.NotEqual(t, http.StatusOK, recorder.Code,
+				"an unauthenticated write must not be accepted")
+			assert.Contains(t,
+				[]int{http.StatusUnauthorized, http.StatusForbidden},
+				recorder.Code,
+				"an unauthenticated write must be rejected as unauthenticated, not treated as a missing route")
+		})
+	}
 }

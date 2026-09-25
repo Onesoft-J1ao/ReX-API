@@ -87,7 +87,13 @@ func upsertTitle(head *html.Node, title string) {
 	setElementText(node, title)
 }
 
-func renderSPAIndex(indexPage []byte, logo, systemName string, meta console_setting.SPAMetaSetting) ([]byte, error) {
+// renderSPAIndex rewrites the public metadata on the SPA shell.
+//
+// The tab icon is deliberately left alone. The configured logo is normally a
+// wide wordmark, and a browser scales whatever it is given to fill the square
+// tab slot, so using it here squashed the mark sideways. The packaged square
+// icon is already the site's mark, undistorted, so it stays as the href.
+func renderSPAIndex(indexPage []byte, systemName string, meta console_setting.SPAMetaSetting) ([]byte, error) {
 	document, err := html.Parse(bytes.NewReader(indexPage))
 	if err != nil {
 		return nil, err
@@ -97,11 +103,6 @@ func renderSPAIndex(indexPage []byte, logo, systemName string, meta console_sett
 		return nil, nil
 	}
 
-	if logo != "" {
-		if favicon := findHTMLElement(head, "link", "rel", "icon"); favicon != nil {
-			setHTMLAttribute(favicon, "href", logo)
-		}
-	}
 	if systemName != "" {
 		upsertTitle(head, systemName)
 		upsertMeta(head, "name", "title", systemName)
@@ -141,11 +142,10 @@ func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.Han
 			middleware.Cache()(c)
 			c.Header("Cache-Control", "no-cache")
 			common.OptionMapRWMutex.RLock()
-			logo := common.Logo
 			systemName := common.SystemName
 			meta := console_setting.GetSPAMetaSetting()
 			common.OptionMapRWMutex.RUnlock()
-			indexPage, err := renderSPAIndex(assets.IndexPage, logo, systemName, meta)
+			indexPage, err := renderSPAIndex(assets.IndexPage, systemName, meta)
 			if err != nil || indexPage == nil {
 				indexPage = assets.IndexPage
 			}

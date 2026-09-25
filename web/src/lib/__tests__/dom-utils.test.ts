@@ -70,8 +70,8 @@ describe('applyFaviconToDom', () => {
     })
   })
 
-  // A tab slot is square and the browser stretches whatever fills it, so a
-  // wordmark must be rejected rather than shown squashed.
+  // A tab slot is square. A wordmark is letterboxed when a canvas is available;
+  // this environment cannot draw one, so the packaged icon stays.
   it('keeps the packaged icon when the logo is not square', async () => {
     stubImage(821, 430)
 

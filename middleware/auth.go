@@ -97,6 +97,20 @@ func TryUserAuth() func(c *gin.Context) {
 	}
 }
 
+// OptionalUserAuth attaches a valid dashboard identity when one is present and
+// otherwise continues. A missing or rejected credential must not fail the
+// request: public reads such as /api/status use it only to decide which fields
+// to return.
+func OptionalUserAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		user, identity, credentialKind, err := classifyDashboardCredential(c)
+		if err == nil && credentialKind != dashboardCredentialUnmatched && user != nil {
+			setDashboardAuthContext(c, user, identity, credentialKind == dashboardCredentialPAT)
+		}
+		c.Next()
+	}
+}
+
 func UserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		authHelper(c, common.RoleCommonUser)
