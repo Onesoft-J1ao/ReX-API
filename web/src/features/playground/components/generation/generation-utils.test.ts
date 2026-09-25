@@ -4,9 +4,12 @@ import { describe, expect, test } from 'vitest'
 import {
   filterGenerationGroups,
   filterGenerationModelsForGroup,
+  filterModelsForGeneration,
   imageSizeFromResolution,
   normalizeImageAspectRatio,
   resolveGenerationGroup,
+  selectGenerationModels,
+  type GenerationModelMeta,
 } from './generation-utils'
 
 const groups = [
@@ -118,5 +121,91 @@ describe('image size controls', () => {
     expect(imageSizeFromResolution(2560, '16:9')).toBe('2560x1440')
     expect(imageSizeFromResolution(4096, '9:16')).toBe('2304x4096')
     expect(imageSizeFromResolution(2560, '5:4')).toBe('2560x2048')
+  })
+})
+
+describe('generation model filtering', () => {
+  const metaFor = (
+    entries: Record<string, GenerationModelMeta>
+  ): Map<string, GenerationModelMeta> => new Map(Object.entries(entries))
+  const options = (...names: string[]) =>
+    names.map((name) => ({ label: name, value: name }))
+  const values = (models: Array<{ value: string }>) =>
+    models.map((model) => model.value)
+
+  test('drops text-only models from the image picker', () => {
+    const meta = metaFor({
+      'gpt-image-2': { endpoints: ['image-generation'], outputs: ['image'] },
+      'Kimi-K3': { endpoints: ['openai'], outputs: ['text'] },
+    })
+    const result = filterModelsForGeneration(
+      options('gpt-image-2', 'Kimi-K3'),
+      meta,
+      'image'
+    )
+    expect(values(result)).toEqual(['gpt-image-2'])
+  })
+
+  test('drops text-only models from the video picker', () => {
+    const meta = metaFor({
+      'grok-imagine-video': { endpoints: ['openai'], outputs: ['video'] },
+      'Kimi-K3': { endpoints: ['openai'], outputs: ['text'] },
+    })
+    const result = filterModelsForGeneration(
+      options('grok-imagine-video', 'Kimi-K3'),
+      meta,
+      'video'
+    )
+    expect(values(result)).toEqual(['grok-imagine-video'])
+  })
+
+  // The site's video models publish no modality at all; hiding them would break
+  // the picker they belong in.
+  test('keeps models the payload does not describe', () => {
+    const meta = metaFor({
+      'agnes-video-v2.0': { endpoints: ['openai'], outputs: [] },
+      'Kimi-K3': { endpoints: ['openai'], outputs: ['text'] },
+    })
+    const result = filterModelsForGeneration(
+      options('agnes-video-v2.0', 'Kimi-K3'),
+      meta,
+      'video'
+    )
+    expect(values(result)).toEqual(['agnes-video-v2.0'])
+  })
+
+  test('keeps every model when nothing is known about any of them', () => {
+    const result = filterModelsForGeneration(
+      options('mystery-a', 'mystery-b'),
+      metaFor({}),
+      'image'
+    )
+    expect(values(result)).toEqual(['mystery-a', 'mystery-b'])
+  })
+
+  test('an operator-configured list wins over the capability filter', () => {
+    const meta = metaFor({
+      'Kimi-K3': { endpoints: ['openai'], outputs: ['text'] },
+    })
+    const result = selectGenerationModels(
+      options('Kimi-K3', 'gpt-image-2'),
+      ['Kimi-K3'],
+      meta,
+      'image'
+    )
+    expect(values(result)).toEqual(['Kimi-K3'])
+  })
+
+  test('falls back to the capability filter when no list is configured', () => {
+    const meta = metaFor({
+      'Kimi-K3': { endpoints: ['openai'], outputs: ['text'] },
+    })
+    const result = selectGenerationModels(
+      options('Kimi-K3'),
+      null,
+      meta,
+      'image'
+    )
+    expect(values(result)).toEqual([])
   })
 })

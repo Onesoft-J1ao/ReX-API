@@ -843,17 +843,40 @@ body[data-theme-liquid='on'] {
 }
 
 body[data-theme-liquid='on'] [data-slot='card'],
+body[data-theme-liquid='on'] .bg-card,
 body[data-theme-liquid='on'] [data-slot='sidebar-inset'],
 body[data-theme-liquid='on'] [data-slot='sidebar-container'],
 body[data-theme-liquid='on'] [data-slot='sidebar-inner'],
 body[data-theme-liquid='on'] [data-slot='table-container'] {
+  /* Only the standard property: the build adds the webkit prefix itself, and
+   * writing both made it collapse the pair to the prefixed one alone. */
   backdrop-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate));
-  -webkit-backdrop-filter: blur(var(--liquid-blur))
-    saturate(var(--liquid-saturate));
   border-color: var(--liquid-border);
   box-shadow:
     inset 0 1px 0 0 var(--liquid-edge),
     0 1px 2px 0 oklch(0 0 0 / 0.04);
+}
+
+/*
+ * A pane built from the `bg-card` utility rather than the Card primitive.
+ *
+ * The model square draws its toolbar, filter rail and every model tile this
+ * way, so the rule above never reached them: `--card` is mixed toward
+ * transparent in liquid mode, which left those panes see-through with no blur,
+ * and the page behind them showed through their own text. The fill is set on
+ * the element instead of left to the token because a colour preset re-declares
+ * `--card` with a longer selector than the liquid block can match — on a
+ * tinted preset the token stays opaque, and the pane would then read as a
+ * plain card sitting beside a glassy one.
+ */
+body[data-theme-liquid='on'] .bg-card,
+body[data-theme-liquid='on'] [data-slot='card'],
+body[data-theme-liquid='on'] [data-slot='table-container'] {
+  background-color: color-mix(
+    in oklab,
+    var(--card) var(--liquid-surface-alpha),
+    transparent
+  );
 }
 
 /* Overlays sit above the page, so they take a stronger blur and an opaque
@@ -868,8 +891,6 @@ body[data-theme-liquid='on'] [data-slot='sheet-content'],
 body[data-theme-liquid='on'] [data-slot='drawer-content'],
 body[data-theme-liquid='on'] [data-slot='command'] {
   backdrop-filter: blur(calc(var(--liquid-blur) * 1.4))
-    saturate(var(--liquid-saturate));
-  -webkit-backdrop-filter: blur(calc(var(--liquid-blur) * 1.4))
     saturate(var(--liquid-saturate));
   border-color: var(--liquid-border);
   box-shadow:

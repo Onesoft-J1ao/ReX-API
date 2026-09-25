@@ -2545,7 +2545,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "出于安全考虑，现有访问令牌无法再次显示。仅在需要新令牌时重新生成。",
@@ -4119,6 +4119,7 @@
     "Per-call": "每次调用",
     "Per-feature metered windows split by model or capability.": "按模型或能力拆分的附加计费能力窗口。",
     "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.": "按分组明细与小时级图表仅针对本站直接服务的模型记录。以上数值来自共享上游样本。",
+    "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.": "按分组明细仅针对本站直接服务的模型记录。以上数值来自共享上游样本。",
     "Per-group performance": "各分组性能",
     "Per-request": "按次",
     "Per-request (deprecated)": "按次（已弃用）",
@@ -5697,6 +5698,7 @@
     "This route is used only by channel management to query the upstream balance.": "此路由仅供渠道管理查询上游余额。",
     "This session will lose access immediately and must sign in again.": "此会话将立即失去访问权限，并且必须重新登录。",
     "This site currently has {{count}} models enabled": "本站当前已启用模型，总计 {{count}} 个",
+    "{{ways}} sign-in": "{{ways}} 登录",
     "This source does not publish a sha256 for this version, so the downloaded source cannot be pinned to what the source intended.": "该源未为此版本提供 sha256，因此无法确认下载到的源码与该源所发布的内容一致。",
     "This source lists no installable task plugins.": "该源未列出任何可安装的任务插件。",
     "This Telegram account is already bound.": "此 Telegram 账户已被绑定。",
@@ -7846,6 +7848,16 @@
     "You have used all your wallpaper changes for this month.": "本月壁纸更换次数已用完。",
     "Your balance is too low for this wallpaper change.": "余额不足以支付本次壁纸更换。",
     "Your console returns to the default background. Removing is free and does not give back a change.": "控制台将恢复默认背景。移除免费，且不会返还更换次数。",
-    "{{used}} of {{limit}} changes used this month": "本月已使用 {{used}}/{{limit}} 次更换"
+    "{{used}} of {{limit}} changes used this month": "本月已使用 {{used}}/{{limit}} 次更换",
+    "Gross margin (%)": "毛利率（%）",
+    "Server default": "服务器默认值",
+    "Sync all": "一键同步",
+    "Sync the whole report": "一键同步整份报告",
+    "Failed to sync the prices": "同步价格失败",
+    "Writes every price below in one step, setting each to the upstream value plus the margin. Applying rows one by one is only needed for the exceptions.": "一次性写入下方全部价格，每个都设为上游价加上毛利。逐行应用只用于处理例外情况。",
+    "A 20 margin charges 20% above the upstream price. Leave it empty to use the margin configured on the server. Models we never priced are skipped, because syncing one would start charging for a model we do not sell.": "毛利 20 表示在上游价基础上加价 20%。留空则使用服务器上配置的毛利。我们从未定价的模型会被跳过，因为同步它会开始对不售卖的模型计费。",
+    "Applied {{applied}} prices and skipped {{skipped}} unpriced models.": "已应用 {{applied}} 个价格，跳过 {{skipped}} 个未定价模型。",
+    "Success trend": "成功率走势",
+    "Latency trend": "延迟走势"
   }
 }

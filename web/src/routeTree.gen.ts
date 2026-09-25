@@ -51,6 +51,8 @@ import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/
 import { Route as AuthenticatedRefundsIndexRouteImport } from './routes/_authenticated/refunds/index'
 import { Route as AuthenticatedSecurityIndexRouteImport } from './routes/_authenticated/security/index'
 import { Route as AuthenticatedStatusIndexRouteImport } from './routes/_authenticated/status/index'
+import { Route as AuthenticatedStatusPerfRouteImport } from './routes/_authenticated/status/perf'
+import { Route as AuthenticatedStatusSentinelRouteImport } from './routes/_authenticated/status/sentinel'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
 import { Route as AuthenticatedSupportIndexRouteImport } from './routes/_authenticated/support/index'
 import { Route as AuthenticatedSystemInfoIndexRouteImport } from './routes/_authenticated/system-info/index'
@@ -304,6 +306,17 @@ const AuthenticatedStatusIndexRoute =
     path: '/status/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedStatusPerfRoute = AuthenticatedStatusPerfRouteImport.update({
+  id: '/status/perf',
+  path: '/status/perf',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedStatusSentinelRoute =
+  AuthenticatedStatusSentinelRouteImport.update({
+    id: '/status/sentinel',
+    path: '/status/sentinel',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSubscriptionsIndexRoute =
   AuthenticatedSubscriptionsIndexRouteImport.update({
     id: '/subscriptions/',
@@ -511,6 +524,8 @@ export interface FileRoutesByFullPath {
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
+  '/status/perf': typeof AuthenticatedStatusPerfRoute
+  '/status/sentinel': typeof AuthenticatedStatusSentinelRoute
   '/tools/$tool': typeof AuthenticatedToolsToolRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
@@ -582,6 +597,8 @@ export interface FileRoutesByTo {
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
+  '/status/perf': typeof AuthenticatedStatusPerfRoute
+  '/status/sentinel': typeof AuthenticatedStatusSentinelRoute
   '/tools/$tool': typeof AuthenticatedToolsToolRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
@@ -657,6 +674,8 @@ export interface FileRoutesById {
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
+  '/_authenticated/status/perf': typeof AuthenticatedStatusPerfRoute
+  '/_authenticated/status/sentinel': typeof AuthenticatedStatusSentinelRoute
   '/_authenticated/tools/$tool': typeof AuthenticatedToolsToolRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
@@ -731,6 +750,8 @@ export interface FileRouteTypes {
     | '/dashboard/$section'
     | '/errors/$error'
     | '/models/$section'
+    | '/status/perf'
+    | '/status/sentinel'
     | '/tools/$tool'
     | '/usage-logs/$section'
     | '/usage-logs/audit'
@@ -802,6 +823,8 @@ export interface FileRouteTypes {
     | '/dashboard/$section'
     | '/errors/$error'
     | '/models/$section'
+    | '/status/perf'
+    | '/status/sentinel'
     | '/tools/$tool'
     | '/usage-logs/$section'
     | '/usage-logs/audit'
@@ -876,6 +899,8 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
+    | '/_authenticated/status/perf'
+    | '/_authenticated/status/sentinel'
     | '/_authenticated/tools/$tool'
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/usage-logs/audit'
@@ -1236,6 +1261,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStatusIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/status/perf': {
+      id: '/_authenticated/status/perf'
+      path: '/status/perf'
+      fullPath: '/status/perf'
+      preLoaderRoute: typeof AuthenticatedStatusPerfRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/status/sentinel': {
+      id: '/_authenticated/status/sentinel'
+      path: '/status/sentinel'
+      fullPath: '/status/sentinel'
+      preLoaderRoute: typeof AuthenticatedStatusSentinelRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/subscriptions/': {
       id: '/_authenticated/subscriptions/'
       path: '/subscriptions'
@@ -1545,6 +1584,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
+  AuthenticatedStatusPerfRoute: typeof AuthenticatedStatusPerfRoute
+  AuthenticatedStatusSentinelRoute: typeof AuthenticatedStatusSentinelRoute
   AuthenticatedToolsToolRoute: typeof AuthenticatedToolsToolRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedUsageLogsAuditRoute: typeof AuthenticatedUsageLogsAuditRoute
@@ -1578,6 +1619,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
+  AuthenticatedStatusPerfRoute: AuthenticatedStatusPerfRoute,
+  AuthenticatedStatusSentinelRoute: AuthenticatedStatusSentinelRoute,
   AuthenticatedToolsToolRoute: AuthenticatedToolsToolRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedUsageLogsAuditRoute: AuthenticatedUsageLogsAuditRoute,

@@ -2545,7 +2545,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "セキュリティ上、既存のアクセストークンは再表示できません。新しいトークンが必要な場合のみ再生成してください。",
@@ -4119,6 +4119,7 @@
     "Per-call": "呼び出しごと",
     "Per-feature metered windows split by model or capability.": "機能ごとの従量制ウィンドウ。モデルまたは能力別に分かれます。",
     "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.",
+    "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.",
     "Per-group performance": "グループ別パフォーマンス",
     "Per-request": "リクエスト単位",
     "Per-request (deprecated)": "リクエスト単位（非推奨）",
@@ -5697,6 +5698,7 @@
     "This route is used only by channel management to query the upstream balance.": "このルートは、チャネル管理で上流残高を照会するためだけに使用されます。",
     "This session will lose access immediately and must sign in again.": "このセッションは直ちにアクセスできなくなり、再度サインインが必要になります。",
     "This site currently has {{count}} models enabled": "このサイトでは現在 {{count}} 個のモデルが有効です",
+    "{{ways}} sign-in": "{{ways}} sign-in",
     "This source does not publish a sha256 for this version, so the downloaded source cannot be pinned to what the source intended.": "このソースはこのバージョンの sha256 を公開していないため、ダウンロードしたソースがソース側の意図した内容と一致するか確認できません。",
     "This source lists no installable task plugins.": "このソースにはインストール可能なタスクプラグインがありません。",
     "This Telegram account is already bound.": "この Telegram アカウントはすでに連携されています。",
@@ -7846,6 +7848,16 @@
     "You have used all your wallpaper changes for this month.": "今月の壁紙変更回数をすべて使用しました。",
     "Your balance is too low for this wallpaper change.": "この壁紙の変更には残高が不足しています。",
     "Your console returns to the default background. Removing is free and does not give back a change.": "コンソールは既定の背景に戻ります。削除は無料で、変更回数は返還されません。",
-    "{{used}} of {{limit}} changes used this month": "今月の変更を {{used}}/{{limit}} 回使用しました"
+    "{{used}} of {{limit}} changes used this month": "今月の変更を {{used}}/{{limit}} 回使用しました",
+    "Gross margin (%)": "粗利益率（%）",
+    "Server default": "サーバーの既定値",
+    "Sync all": "すべて同期",
+    "Sync the whole report": "レポート全体を同期",
+    "Failed to sync the prices": "価格の同期に失敗しました",
+    "Writes every price below in one step, setting each to the upstream value plus the margin. Applying rows one by one is only needed for the exceptions.": "以下のすべての価格を一度に書き込み、それぞれを上流の価格に粗利を加えた値に設定します。行ごとの適用は例外の処理にのみ必要です。",
+    "A 20 margin charges 20% above the upstream price. Leave it empty to use the margin configured on the server. Models we never priced are skipped, because syncing one would start charging for a model we do not sell.": "粗利 20 は上流価格に 20% 上乗せして請求します。空欄にするとサーバーに設定された粗利を使用します。一度も価格設定していないモデルはスキップされます。同期すると販売していないモデルの課金が始まるためです。",
+    "Applied {{applied}} prices and skipped {{skipped}} unpriced models.": "{{applied}} 件の価格を適用し、{{skipped}} 件の未設定モデルをスキップしました。",
+    "Success trend": "成功率の推移",
+    "Latency trend": "遅延の推移"
   }
 }
