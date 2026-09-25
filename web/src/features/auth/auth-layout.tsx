@@ -23,6 +23,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { cn } from '@/lib/utils'
 
+import { AuthTrustStrip } from './components/auth-trust-strip'
+
 type AuthLayoutProps = {
   children: React.ReactNode
 }
@@ -49,16 +51,36 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
   return (
     <div
-      className='relative isolate grid min-h-svh max-w-none'
+      className='relative isolate grid min-h-svh max-w-none overflow-x-clip'
       data-console-background={backgroundImage ? 'image' : undefined}
       style={surfaceStyles}
     >
-      {backgroundImage && (
+      {backgroundImage ? (
         <div
           aria-hidden='true'
           className='pointer-events-none fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat'
           style={{ backgroundImage: `url(${JSON.stringify(backgroundImage)})` }}
         />
+      ) : (
+        <>
+          {/* Same visual language as the landing hero: horizon glow, faint
+              grid fading into a radial mask, and a vignette that keeps the
+              edges quiet so the form owns the viewport. These three tokens
+              (--primary, --muted-foreground, --background) are global, so no
+              landing scope leaks into the rest of the app. */}
+          <div
+            aria-hidden='true'
+            className='pointer-events-none absolute top-[-16rem] left-1/2 -z-10 h-[38rem] w-[120%] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--primary)_22%,transparent),transparent)]'
+          />
+          <div
+            aria-hidden='true'
+            className='pointer-events-none absolute inset-0 -z-10 [background-image:linear-gradient(color-mix(in_oklch,var(--muted-foreground)_7%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_oklch,var(--muted-foreground)_7%,transparent)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_75%_60%_at_50%_35%,black,transparent)] [background-size:56px_56px]'
+          />
+          <div
+            aria-hidden='true'
+            className='pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_90%_70%_at_50%_45%,transparent_55%,var(--background)_100%)]'
+          />
+        </>
       )}
       <Link
         to='/'
@@ -88,12 +110,15 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       <div className='relative z-0 container flex items-center pt-16 sm:pt-0'>
         <div
           className={cn(
-            'mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8',
-            backgroundImage && 'rounded-lg backdrop-blur-sm'
+            'mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[520px] sm:p-8',
+            backgroundImage
+              ? 'rounded-lg backdrop-blur-sm'
+              : 'sm:rounded-2xl sm:border sm:bg-card sm:shadow-[0_18px_50px_-24px_rgba(0,0,0,0.35)]'
           )}
           style={glassSurfaceStyle}
         >
           {children}
+          <AuthTrustStrip className='pt-4' />
         </div>
       </div>
     </div>
