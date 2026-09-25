@@ -34,6 +34,7 @@ export type ModelPerfBadgeData = {
   success_rate: number
   avg_tps: number
   recent_success_series?: SuccessRatePoint[]
+  recent_latency_series?: { ts: number; latency_ms: number }[]
 }
 
 export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -41,6 +42,35 @@ export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement
 }
 
 const STATUS_SLOTS = Array.from({ length: 24 }, (_, slot) => slot)
+
+function Sparkline(props: { values: number[]; label: string }) {
+  const finite = props.values.filter((value) => Number.isFinite(value))
+  if (finite.length < 2) return null
+  const min = Math.min(...finite)
+  const max = Math.max(...finite)
+  const span = max - min || 1
+  const width = 96
+  const height = 28
+  const path = finite
+    .map((value, index) => {
+      const x = (index / (finite.length - 1)) * width
+      const y = height - ((value - min) / span) * (height - 4) - 2
+      return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`
+    })
+    .join(' ')
+  return (
+    <svg
+      role='img'
+      aria-label={props.label}
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className='text-foreground'
+    >
+      <path d={path} fill='none' stroke='currentColor' strokeWidth='1.5' />
+    </svg>
+  )
+}
 
 export const ModelPerfBadge = memo(function ModelPerfBadge(
   props: ModelPerfBadgeProps
@@ -76,10 +106,11 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
     <div
       aria-label={t('Performance metrics for the last 24 hours')}
       className={cn(
-        'flex w-full min-w-0 items-center justify-between gap-3',
+        'flex w-full min-w-0 flex-col gap-2',
         props.className
       )}
     >
+      <div className='flex min-w-0 items-center justify-between gap-3'>
       <dl className='flex min-w-0 items-start gap-5 text-xs tabular-nums'>
         <div className='w-24 shrink-0'>
           <dt
@@ -141,6 +172,31 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         </div>
       </dl>
       {props.children}
+      </div>
+      <div className='flex shrink-0 gap-3'>
+        <div>
+          <div className='text-muted-foreground text-xs leading-4'>
+            {t('Success trend')}
+          </div>
+          <Sparkline
+            label={t('Success rate')}
+            values={(props.perf?.recent_success_series ?? []).map(
+              (point) => point.success_rate
+            )}
+          />
+        </div>
+        <div>
+          <div className='text-muted-foreground text-xs leading-4'>
+            {t('Latency trend')}
+          </div>
+          <Sparkline
+            label={t('Average latency')}
+            values={(props.perf?.recent_latency_series ?? []).map(
+              (point) => point.latency_ms
+            )}
+          />
+        </div>
+      </div>
     </div>
   )
 })

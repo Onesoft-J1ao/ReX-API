@@ -59,7 +59,33 @@ func pickProbeModel(channel *model.Channel) string {
 	return candidates[0]
 }
 
-// probeModelRank places a model in a cost tier.
+// uncoveredProbeModels lists every model on a channel that the upstream mirror
+// does not report, cheapest first. Those models have no mirrored health, so a
+// probe is the only way to know whether they answer. covered reports whether
+// the mirror already has the model; the caller supplies it so this package
+// stays free of the metrics cache.
+func uncoveredProbeModels(channel *model.Channel, covered func(string) bool) []string {
+	if channel == nil || covered == nil {
+		return nil
+	}
+	groups := channel.GetGroups()
+	candidates := make([]string, 0, 8)
+	for _, name := range channel.GetModels() {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" || covered(trimmed) {
+			continue
+		}
+		candidates = append(candidates, trimmed)
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	sort.Strings(candidates)
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return probeModelRank(candidates[i], groups) < probeModelRank(candidates[j], groups)
+	})
+	return candidates
+}
 func probeModelRank(modelName string, groups []string) int {
 	// Free in any of the channel's groups is free enough to prefer: the probe
 	// would be billed to that group.

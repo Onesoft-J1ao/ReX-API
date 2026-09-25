@@ -499,31 +499,35 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 		if !ok {
 			continue
 		}
-		// One live request per channel is enough to tell whether its group is
-		// healthy. Probing every model multiplied the upstream calls and token
-		// spend by the size of the model list — go-plan alone serves 59 models —
-		// without adding any group-level signal. Prefer the channel's configured
-		// test model, matching what the scheduled channel test uses, and fall
-		// back to the first model the channel serves.
-		models := ch.GetModels()
-		if len(models) == 0 {
+		// One live request per channel tells whether its group is healthy.
+		// Prefer the channel's configured test model, matching the scheduled
+		// channel test, and fall back to the first model the channel serves.
+		// Models the upstream mirror does not report are probed as well: that
+		// is the only health data those models will ever have.
+		probeModel := pickProbeModel(ch)
+		if probeModel == "" {
 			continue
 		}
-		probeModel := models[0]
-		if ch.TestModel != nil && strings.TrimSpace(*ch.TestModel) != "" {
-			probeModel = strings.TrimSpace(*ch.TestModel)
+		// A model the upstream mirror does not report has no health data unless we
+		// ask it ourselves, so every such model is probed even when it is
+		// paid. Models the mirror does report stay on the free-only filter.
+		uncovered := uncoveredProbeModels(ch, perfmetrics.UpstreamCoversModel)
+		uncoveredSet := make(map[string]struct{}, len(uncovered))
+		models := []string{probeModel}
+		for _, name := range uncovered {
+			uncoveredSet[name] = struct{}{}
+			if name != probeModel {
+				models = append(models, name)
+			}
 		}
-		// A probe is a real upstream request, so probing a paid group bills us
-		// every cycle. Those groups get their health from the mirrored upstream
-		// instead. Filtering here (rather than dropping the channel) keeps a
-		// channel that serves both a free and a paid group probed for the free
-		// one.
-		relevant = probeGroupsFor(relevant, probeModel)
-		if len(relevant) == 0 {
-			continue
-		}
-		models = []string{probeModel}
 		for _, modelName := range models {
+			groupsForModel := relevant
+			if _, isUncovered := uncoveredSet[modelName]; !isUncovered {
+				groupsForModel = probeGroupsFor(relevant, modelName)
+			}
+			if len(groupsForModel) == 0 {
+				continue
+			}
 			if excluded != nil {
 				if _, skip := excluded[modelName]; skip {
 					continue
@@ -552,7 +556,7 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 
 			// One live probe per (channel, model); fan the same outcome out
 			// to every configured group that owns this channel.
-			for _, g := range relevant {
+			for _, g := range groupsForModel {
 				probedGroups[g] = struct{}{}
 				mh := model.ModelHealth{
 					ModelName: modelName,
@@ -566,6 +570,17 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 				}
 				if err := model.UpsertModelHealth(&mh); err != nil {
 					common.SysLog(fmt.Sprintf("group_health_probe: upsert model_health failed: group=%s model=%s err=%v", g, modelName, err))
+				}
+				// The model page reads perf samples, not the health table. Only
+				// uncovered models are recorded: a covered model's one probe must
+				// not replace the mirror's fuller series.
+				if _, isUncovered := uncoveredSet[modelName]; isUncovered {
+					perfmetrics.Record(perfmetrics.Sample{
+						Model:     modelName,
+						Group:     g,
+						LatencyMs: latMs,
+						Success:   ok,
+					})
 				}
 				accG := acc[g]
 				accG.total++

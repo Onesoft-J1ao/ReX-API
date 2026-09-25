@@ -227,3 +227,35 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 		})
 	}
 }
+
+func TestUpstreamDetailSeriesMergesLatencyAndSuccess(t *testing.T) {
+	series := upstreamDetailSeries(ModelSummary{
+		RecentSuccessSeries: []SuccessRatePoint{
+			{Ts: 20, SuccessRate: 90},
+			{Ts: 10, SuccessRate: 100},
+		},
+		RecentLatencySeries: []LatencyPoint{
+			{Ts: 10, LatencyMs: 400},
+			{Ts: 30, LatencyMs: 250},
+		},
+	})
+	require.Len(t, series, 3)
+	assert.Equal(t, int64(10), series[0].Ts)
+	assert.Equal(t, 100.0, series[0].SuccessRate)
+	assert.Equal(t, int64(400), series[0].AvgLatencyMs)
+	assert.Equal(t, int64(0), series[0].AvgTtftMs)
+	assert.Equal(t, int64(20), series[1].Ts)
+	assert.Equal(t, 90.0, series[1].SuccessRate)
+	assert.Equal(t, int64(30), series[2].Ts)
+	assert.Equal(t, int64(250), series[2].AvgLatencyMs)
+}
+
+func TestUpstreamDetailSeriesFillsAvgLatencyWhenMissing(t *testing.T) {
+	series := upstreamDetailSeries(ModelSummary{
+		AvgLatencyMs:        3210,
+		RecentSuccessSeries: []SuccessRatePoint{{Ts: 10, SuccessRate: 100}, {Ts: 20, SuccessRate: 90}},
+	})
+	require.Len(t, series, 2)
+	assert.Equal(t, int64(3210), series[0].AvgLatencyMs)
+	assert.Equal(t, int64(3210), series[1].AvgLatencyMs)
+}
