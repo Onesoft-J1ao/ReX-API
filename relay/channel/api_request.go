@@ -360,6 +360,13 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
 	resp, err := doRequest(c, req, info)
+	// Streaming may already have written headers to the client, so a second
+	// attempt would send another upstream request and another set of headers.
+	if info == nil || !info.IsStream {
+		resp, err = failoverUpstream(req, fullRequestURL, resp, err, func(retry *http.Request) (*http.Response, error) {
+			return doRequest(c, retry, info)
+		})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
@@ -392,6 +399,13 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
 	resp, err := doRequest(c, req, info)
+	// Streaming may already have written headers to the client, so a second
+	// attempt would send another upstream request and another set of headers.
+	if info == nil || !info.IsStream {
+		resp, err = failoverUpstream(req, fullRequestURL, resp, err, func(retry *http.Request) (*http.Response, error) {
+			return doRequest(c, retry, info)
+		})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
@@ -784,6 +798,13 @@ func DoTaskApiRequest(a taskRequestBuilder, c *gin.Context, info *common.RelayIn
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
 	resp, err := doRequest(c, req, info)
+	// Streaming may already have written headers to the client, so a second
+	// attempt would send another upstream request and another set of headers.
+	if info == nil || !info.IsStream {
+		resp, err = failoverUpstream(req, fullRequestURL, resp, err, func(retry *http.Request) (*http.Response, error) {
+			return doRequest(c, retry, info)
+		})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
