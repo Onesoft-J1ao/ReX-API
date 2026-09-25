@@ -42,7 +42,7 @@ function requireTool(tools: ToolDownload[], id: string): ToolDownload {
 describe('download catalog', () => {
   it('offers every tool the page advertises', () => {
     const ids = buildDownloadCatalog(release).map((tool) => tool.id)
-    expect(ids).toEqual(['cc-switch', 'claude-codex', 'chatgpt'])
+    expect(ids).toEqual(['cc-switch', 'claude', 'chatgpt'])
   })
 })
 
