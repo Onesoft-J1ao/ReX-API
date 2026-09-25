@@ -11,9 +11,9 @@ import (
 )
 
 func TestRenderSPAIndexUpdatesPublicMetadata(t *testing.T) {
-	input := []byte(`<!doctype html><html><head><title>New API</title><link rel="icon" href="/logo.png"><meta name="title" content="New API"><meta name="description" content="old"></head><body></body></html>`)
+	input := []byte(`<!doctype html><html><head><title>New API</title><link rel="icon" href="/brand-icon.png"><meta name="title" content="New API"><meta name="description" content="old"></head><body></body></html>`)
 
-	output, err := renderSPAIndex(input, "/_custom/img/logo.png", "Configured Site", console_setting.SPAMetaSetting{
+	output, err := renderSPAIndex(input, "Configured Site", console_setting.SPAMetaSetting{
 		Description:   "Configured description",
 		OGType:        "website",
 		OGDescription: "Configured Open Graph description",
@@ -25,7 +25,9 @@ func TestRenderSPAIndexUpdatesPublicMetadata(t *testing.T) {
 	assert.Contains(t, string(output), "<title>Configured Site</title>")
 	assert.Contains(t, string(output), `<meta name="title" content="Configured Site"/>`)
 	assert.Contains(t, string(output), `<meta property="og:title" content="Configured Site"/>`)
-	assert.Contains(t, string(output), `href="/_custom/img/logo.png"`)
+	// The packaged square icon stays: the configured logo is a wide wordmark
+	// that a browser would squash into the square tab slot.
+	assert.Contains(t, string(output), `href="/brand-icon.png"`)
 	assert.Contains(t, string(output), `content="Configured description"`)
 	assert.Contains(t, string(output), `property="og:type"`)
 	assert.Contains(t, string(output), `content="Configured Open Graph description"`)

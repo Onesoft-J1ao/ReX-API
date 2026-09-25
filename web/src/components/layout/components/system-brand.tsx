@@ -26,7 +26,9 @@ import {
 } from '@/components/ui/sidebar'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 type SystemBrandProps = {
   defaultName?: string
@@ -49,11 +51,11 @@ export function SystemBrand(props: SystemBrandProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
   const { logo } = useSystemConfig()
+  const isRoot = useAuthStore((s) => s.auth.user?.role) === ROLE.SUPER_ADMIN
 
   const variant = props.variant ?? 'sidebar'
   const name = status?.system_name || props.defaultName || 'ReX API'
-  const version =
-    status?.version || props.defaultVersion || t('Unknown version')
+  const version = isRoot && typeof status?.version === 'string' ? status.version : ''
 
   if (variant === 'inline') {
     return (
@@ -94,7 +96,9 @@ export function SystemBrand(props: SystemBrandProps) {
           </div>
           <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
             <span className='truncate font-semibold'>{name}</span>
-            <span className='truncate text-xs'>{version}</span>
+            {version ? (
+              <span className='truncate text-xs'>{version}</span>
+            ) : null}
           </div>
         </SidebarMenuButton>
       </SidebarMenuItem>

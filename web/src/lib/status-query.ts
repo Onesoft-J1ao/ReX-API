@@ -33,10 +33,9 @@ import {
 /**
  * Single source of truth for `/api/status`.
  *
- * `/api/status` is entirely global on the backend: every field is read from
- * in-memory option maps under a read lock, with no user context and no auth
- * middleware on the route. That makes it safe to share one cache entry across
- * every consumer — branding, nav module gates, and the setup guard.
+ * `/api/status` is global configuration plus, for a root session only, the build
+ * stamp. Branding and nav gates share one cache entry. The stamp is not written
+ * to localStorage, so a later signed-out load cannot read it back.
  *
  * Anything that needs status must go through `statusQueryOptions` so React
  * Query can dedupe. Calling `getStatus()` directly re-introduces the duplicate
@@ -127,7 +126,13 @@ export function readCachedStatus(): StatusData | null {
 function writeCachedStatus(status: StatusData | null): void {
   try {
     if (typeof window !== 'undefined' && status) {
-      window.localStorage.setItem(STATUS_STORAGE_KEY, JSON.stringify(status))
+      const persisted = { ...status }
+      delete persisted.version
+      delete persisted.start_time
+      window.localStorage.setItem(
+        STATUS_STORAGE_KEY,
+        JSON.stringify(persisted)
+      )
     }
   } catch {
     /* Storage can be unavailable in private mode. */

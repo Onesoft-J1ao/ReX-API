@@ -22,7 +22,7 @@ func SetApiRouter(router *gin.Engine) {
 	{
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)
-		apiRouter.GET("/status", controller.GetStatus)
+		apiRouter.GET("/status", middleware.OptionalUserAuth(), controller.GetStatus)
 		// Two independent status views converged on one path during the fork
 		// merge. /status-check is the console's channel-status page: probe
 		// results merged with passive traffic, per-model rows and the operator
@@ -452,8 +452,8 @@ func SetApiRouter(router *gin.Engine) {
 			systemTaskRoute.GET("/:task_id", controller.GetSystemTask)
 		}
 		// Upstream price sentinel. The report and the manual run are root-only;
-		// applying an edit is reachable with the one-shot edit token mailed with
-		// the report, so a buyer of the link still needs the admin access token.
+		// the edit page is reached with the token mailed with the report, so a
+		// buyer of the link still needs the admin access token to write.
 		priceSentinelRoute := apiRouter.Group("/price-sentinel")
 		priceSentinelRoute.Use(middleware.RootAuth())
 		{
@@ -464,8 +464,8 @@ func SetApiRouter(router *gin.Engine) {
 		// requests per 20 minutes across every critical operation, and applying a
 		// digest legitimately means writing many prices in one sitting - the page
 		// exists to be used repeatedly, so that budget only locks the operator out
-		// of their own report. The authorization that matters is unchanged: apply
-		// needs a root session *and* a single-use mailed token, and every write is
+		// of their own report. The authorization that matters is unchanged: every
+		// write needs a root session *and* a mailed link token, and each one is
 		// audited.
 		priceSentinelEditRoute := apiRouter.Group("/price-sentinel/edit")
 		{
@@ -475,6 +475,9 @@ func SetApiRouter(router *gin.Engine) {
 			// Writing a price needs the mailed token *and* a root session, so a
 			// leaked or forwarded link is not on its own enough to change billing.
 			priceSentinelEditRoute.POST("/apply", middleware.RootAuth(), controller.ApplyPriceSentinelEdit)
+			// Applying a whole report at once, marked up by a margin, so the
+			// operator does not have to write dozens of rows by hand.
+			priceSentinelEditRoute.POST("/sync", middleware.RootAuth(), controller.SyncPriceSentinelPrices)
 		}
 		systemInfoRoute := apiRouter.Group("/system-info")
 		systemInfoRoute.Use(middleware.RootAuth())

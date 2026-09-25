@@ -20,8 +20,9 @@ For commercial licensing, please contact support@quantumnous.com
  * How far from square an image may be and still be usable as a tab icon.
  *
  * A tab slot is square and the browser stretches whatever it is given to fill
- * it, so a wordmark (a 2:1 banner, say) arrives squashed. Only art that is
- * already square is used; anything else keeps the packaged icon.
+ * it, so a wordmark (a 2:1 banner, say) is letterboxed onto a square canvas
+ * instead of being squashed. If that canvas cannot be drawn, the packaged icon
+ * stays.
  */
 const FAVICON_ASPECT_TOLERANCE = 0.08
 
@@ -34,6 +35,35 @@ function replaceIconLink(href: string) {
   link.href = href
   existing.forEach((l) => l.remove())
   document.head.appendChild(link)
+}
+
+function squareFaviconHref(
+  image: CanvasImageSource,
+  width: number,
+  height: number
+): string | null {
+  try {
+    const canvas = document.createElement('canvas')
+    const size = 64
+    canvas.width = size
+    canvas.height = size
+    const context = canvas.getContext('2d')
+    if (!context) return null
+    const scale = Math.min(size / width, size / height)
+    const drawnWidth = width * scale
+    const drawnHeight = height * scale
+    context.drawImage(
+      image,
+      (size - drawnWidth) / 2,
+      (size - drawnHeight) / 2,
+      drawnWidth,
+      drawnHeight
+    )
+    const href = canvas.toDataURL('image/png')
+    return href.startsWith('data:image/') ? href : null
+  } catch {
+    return null
+  }
 }
 
 export function applyFaviconToDom(url: string) {
@@ -55,8 +85,14 @@ export function applyFaviconToDom(url: string) {
       const { naturalWidth: width, naturalHeight: height } = probe
       if (width <= 0 || height <= 0) return
       const longest = Math.max(width, height)
-      if (Math.abs(width - height) / longest > FAVICON_ASPECT_TOLERANCE) return
-      replaceIconLink(next)
+      if (Math.abs(width - height) / longest <= FAVICON_ASPECT_TOLERANCE) {
+        replaceIconLink(next)
+        return
+      }
+      // A wordmark would be stretched to fill the square tab slot. Letterbox it
+      // onto a square canvas instead of keeping the packaged mark.
+      const squared = squareFaviconHref(probe, width, height)
+      if (squared) replaceIconLink(squared)
     },
     { once: true }
   )

@@ -77,6 +77,10 @@ export default defineConfig(({ envMode }) => {
     },
     html: {
       template: './index.html',
+      // A fresh filename, not /favicon.ico: browsers keep a favicon for the URL
+      // it was first seen at, so reusing the name left the previous mark in the
+      // tab. New name, new fetch.
+      favicon: './public/brand-icon.png',
     },
     server: {
       host: '127.0.0.1',
