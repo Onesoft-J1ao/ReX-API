@@ -78,6 +78,7 @@ export function LatencyTrendChart(props: {
   series: LatencyTimePoint[]
   bucket: PerfMetricsBucketTime
   className?: string
+  valueLabel?: string
 }) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
@@ -110,7 +111,7 @@ export function LatencyTrendChart(props: {
           title: { value: (d: { time: string }) => d.time },
           content: [
             {
-              key: t('Average TTFT'),
+              key: props.valueLabel ?? t('Average TTFT'),
               value: (d: { ttft: number }) => `${Math.round(d.ttft)} ms`,
             },
           ],
@@ -138,7 +139,7 @@ export function LatencyTrendChart(props: {
         },
       ],
     }
-  }, [gridColor, props.bucket, props.series, t, textColor])
+  }, [gridColor, props.bucket, props.series, props.valueLabel, t, textColor])
 
   if (props.series.length === 0) {
     return (

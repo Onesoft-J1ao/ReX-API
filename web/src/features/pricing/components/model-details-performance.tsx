@@ -90,13 +90,19 @@ function toUptimePct(value: number): number {
 }
 
 function toLatencySeries(series: PerformanceSeriesPoint[]) {
-  return series
-    .filter((point) => point.avg_ttft_ms > 0)
-    .map((point) => ({
-      timestamp: new Date(point.ts * 1000).toISOString(),
-      group: 'latency',
-      ttft_ms: point.avg_ttft_ms,
-    }))
+  return series.flatMap((point) => {
+    const measuredTtft = point.avg_ttft_ms > 0
+    const ms = measuredTtft ? point.avg_ttft_ms : point.avg_latency_ms
+    if (ms <= 0) return []
+    return [
+      {
+        timestamp: new Date(point.ts * 1000).toISOString(),
+        group: 'latency',
+        ttft_ms: ms,
+        measuredTtft,
+      },
+    ]
+  })
 }
 
 function toUptimeSeries(series: PerformanceSeriesPoint[]): UptimeDayPoint[] {
@@ -219,9 +225,13 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
 
       {!hasGroups && (
         <p className='text-muted-foreground rounded-xl border px-4 py-3 text-xs'>
-          {t(
-            'Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.'
-          )}
+          {series.length > 0
+            ? t(
+                'Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.'
+              )
+            : t(
+                'Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.'
+              )}
         </p>
       )}
 
@@ -290,9 +300,21 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           <SectionHeader
             icon={Timer}
             title={t('Latency trend (last 24h)')}
-            description={t('Average TTFT')}
+            description={
+              latencySeries.every((point) => point.measuredTtft)
+                ? t('Average TTFT')
+                : t('Average latency')
+            }
           />
-          <LatencyTrendChart series={latencySeries} bucket={bucket} />
+          <LatencyTrendChart
+            series={latencySeries}
+            bucket={bucket}
+            valueLabel={
+              latencySeries.every((point) => point.measuredTtft)
+                ? t('Average TTFT')
+                : t('Average latency')
+            }
+          />
         </section>
       )}
 

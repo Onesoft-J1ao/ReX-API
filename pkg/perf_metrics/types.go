@@ -97,12 +97,18 @@ type SuccessRatePoint struct {
 	SuccessRate float64 `json:"success_rate"`
 }
 
+type LatencyPoint struct {
+	Ts        int64 `json:"ts"`
+	LatencyMs int64 `json:"latency_ms"`
+}
+
 type ModelSummary struct {
 	ModelName           string             `json:"model_name"`
 	AvgLatencyMs        int64              `json:"avg_latency_ms"`
 	SuccessRate         float64            `json:"success_rate"`
 	AvgTps              float64            `json:"avg_tps"`
 	RecentSuccessSeries []SuccessRatePoint `json:"recent_success_series,omitempty"`
+	RecentLatencySeries []LatencyPoint     `json:"recent_latency_series,omitempty"`
 	RequestCount        int64              `json:"-"`
 }
 

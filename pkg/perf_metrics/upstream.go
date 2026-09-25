@@ -100,6 +100,14 @@ func fetchUpstreamSummary(hours int) (SummaryAllResult, bool) {
 // upstreamModelSummary looks one model up in the mirrored summary. It backs the
 // per-model detail view for models this instance mirrors from upstream but has
 // not carried enough traffic for on its own.
+// UpstreamCoversModel reports whether the mirrored upstream summary includes a
+// model. A model it does not include has no health data unless we probe it
+// ourselves.
+func UpstreamCoversModel(modelName string) bool {
+	_, ok := upstreamModelSummary(modelName, 24)
+	return ok
+}
+
 func upstreamModelSummary(modelName string, hours int) (ModelSummary, bool) {
 	mirrored, ok := fetchUpstreamSummary(hours)
 	if !ok {

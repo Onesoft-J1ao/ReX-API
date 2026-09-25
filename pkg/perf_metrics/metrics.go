@@ -219,10 +219,9 @@ func Query(params QueryParams) (QueryResult, error) {
 	result := buildQueryResult(params.Model, merged)
 	result.WindowStart, result.WindowEnd = startTs, endTs
 	// Models this instance mirrors from upstream but has not carried enough
-	// traffic for on its own have no local series. The aggregate the mirror
-	// reports still answers the detail view's headline numbers, so it is used
-	// as a summary-only fallback: no per-group rows and no hourly series, which
-	// we genuinely do not have.
+	// traffic for on its own have no local series. The mirror's own hourly
+	// success and latency series fill the detail charts; per-group rows stay
+	// empty because the mirror does not split them by our groups.
 	if result.Summary == nil {
 		if mirrored, ok := upstreamModelSummary(params.Model, params.Hours); ok {
 			result.Summary = &Summary{
@@ -230,9 +229,51 @@ func Query(params QueryParams) (QueryResult, error) {
 				SuccessRate:  mirrored.SuccessRate,
 				AvgTps:       mirrored.AvgTps,
 			}
+			result.Series = upstreamDetailSeries(mirrored)
 		}
 	}
 	return result, nil
+}
+
+// upstreamDetailSeries turns the mirror's per-model history into the detail
+// chart shape. Latency stays in avg_latency_ms: the mirror reports end-to-end
+// latency, not time-to-first-token, and the chart falls back to that field.
+//
+// The mirrored summary has no hourly latency series at all — measured against
+// the live upstream, every model returns only recent_success_series plus one
+// window-wide avg_latency_ms. A model with no measured hourly latency therefore
+// gets that average repeated on each success-rate hour, so the latency chart
+// exists for every mirrored model instead of only the ones we probed ourselves.
+func upstreamDetailSeries(mirrored ModelSummary) []BucketPoint {
+	byTs := make(map[int64]*BucketPoint, len(mirrored.RecentSuccessSeries)+len(mirrored.RecentLatencySeries))
+	order := make([]int64, 0, len(mirrored.RecentSuccessSeries)+len(mirrored.RecentLatencySeries))
+	pointAt := func(ts int64) *BucketPoint {
+		if point, ok := byTs[ts]; ok {
+			return point
+		}
+		point := &BucketPoint{Ts: ts}
+		byTs[ts] = point
+		order = append(order, ts)
+		return point
+	}
+	for _, point := range mirrored.RecentSuccessSeries {
+		pointAt(point.Ts).SuccessRate = point.SuccessRate
+	}
+	measuredLatency := len(mirrored.RecentLatencySeries) > 0
+	for _, point := range mirrored.RecentLatencySeries {
+		pointAt(point.Ts).AvgLatencyMs = point.LatencyMs
+	}
+	if !measuredLatency && mirrored.AvgLatencyMs > 0 {
+		for _, point := range byTs {
+			point.AvgLatencyMs = mirrored.AvgLatencyMs
+		}
+	}
+	series := make([]BucketPoint, 0, len(order))
+	for _, ts := range order {
+		series = append(series, *byTs[ts])
+	}
+	sort.Slice(series, func(i, j int) bool { return series[i].Ts < series[j].Ts })
+	return series
 }
 
 func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
@@ -306,6 +347,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			SuccessRate:         math.Round(successRate*100) / 100,
 			AvgTps:              math.Round(avgTps*100) / 100,
 			RecentSuccessSeries: recentSuccessSeries(modelBuckets[name]),
+			RecentLatencySeries: recentLatencySeries(modelBuckets[name]),
 			RequestCount:        total.requestCount,
 		})
 	}
@@ -347,6 +389,15 @@ func mergeUpstreamModels(local []ModelSummary, hours int) []ModelSummary {
 	}
 	for _, model := range local {
 		if _, mirrored := seen[model.ModelName]; mirrored {
+			if len(model.RecentLatencySeries) == 0 {
+				continue
+			}
+			for i := range merged {
+				if merged[i].ModelName == model.ModelName && len(merged[i].RecentLatencySeries) == 0 {
+					merged[i].RecentLatencySeries = model.RecentLatencySeries
+					break
+				}
+			}
 			continue
 		}
 		merged = append(merged, model)
@@ -355,6 +406,41 @@ func mergeUpstreamModels(local []ModelSummary, hours int) []ModelSummary {
 		return merged[i].RequestCount > merged[j].RequestCount
 	})
 	return merged
+}
+
+func recentLatencySeries(buckets map[int64]counters) []LatencyPoint {
+	if len(buckets) == 0 {
+		return nil
+	}
+	hourly := map[int64]counters{}
+	for ts, value := range buckets {
+		hourTs := ts - ts%3600
+		merged := hourly[hourTs]
+		merged.requestCount += value.requestCount
+		merged.totalLatencyMs += value.totalLatencyMs
+		hourly[hourTs] = merged
+	}
+	timestamps := make([]int64, 0, len(hourly))
+	for hourTs, value := range hourly {
+		if value.requestCount == 0 {
+			continue
+		}
+		timestamps = append(timestamps, hourTs)
+	}
+	if len(timestamps) == 0 {
+		return nil
+	}
+	sort.Slice(timestamps, func(i, j int) bool {
+		return timestamps[i] < timestamps[j]
+	})
+	points := make([]LatencyPoint, 0, len(timestamps))
+	for _, hourTs := range timestamps {
+		points = append(points, LatencyPoint{
+			Ts:        hourTs,
+			LatencyMs: hourly[hourTs].totalLatencyMs / hourly[hourTs].requestCount,
+		})
+	}
+	return points
 }
 
 func mergeModelTotals(totals map[string]counters, modelName string, value counters) {
