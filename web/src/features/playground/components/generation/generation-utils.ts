@@ -156,3 +156,73 @@ export function readFileAsDataURL(file: File): Promise<string> {
     reader.readAsDataURL(file)
   })
 }
+
+/** What the pricing payload publishes about one model's abilities. */
+export type GenerationModelMeta = {
+  endpoints: string[]
+  outputs: string[]
+}
+
+export type GenerationKind = 'image' | 'video'
+
+/**
+ * The endpoint or output modality that marks a model as serving a kind.
+ *
+ * Speech and 3D are absent on purpose: the payload publishes no audio marker,
+ * and neither picker has a marker to test against, so guessing one would hide
+ * working models.
+ */
+const GENERATION_MARKERS: Record<
+  GenerationKind,
+  { endpoint?: string; output: string }
+> = {
+  image: { endpoint: 'image-generation', output: 'image' },
+  video: { output: 'video' },
+}
+
+/**
+ * Keep only the models that can serve a generation kind.
+ *
+ * The pickers drew from every model the account can reach, so a chat model was
+ * selectable in the image and video tabs even though neither can generate with
+ * it. A model the payload calls text-only is dropped.
+ *
+ * A model the payload does not describe is kept: "no metadata" is not evidence
+ * of being text-only. The site's video models publish none, and hiding them
+ * would break the picker they belong in.
+ */
+export function filterModelsForGeneration(
+  models: ModelOption[],
+  meta: Map<string, GenerationModelMeta>,
+  kind: GenerationKind
+): ModelOption[] {
+  const marker = GENERATION_MARKERS[kind]
+  return models.filter((model) => {
+    const info = meta.get(model.value)
+    if (!info) return true
+    if (marker.endpoint && info.endpoints.includes(marker.endpoint)) return true
+    if (info.outputs.length === 0) return true
+    return info.outputs.includes(marker.output)
+  })
+}
+
+/**
+ * Resolve the model list for a generation tab.
+ *
+ * An operator-configured list wins: it is an explicit statement of what the
+ * instance means for that tab. When none is configured the list is narrowed by
+ * what the model can actually do, which is where the text models were leaking
+ * in. A model the payload does not describe survives that filter, so an
+ * instance whose models carry no metadata keeps its picker unchanged.
+ */
+export function selectGenerationModels(
+  models: ModelOption[],
+  published: string[] | null | undefined,
+  meta: Map<string, GenerationModelMeta>,
+  kind: GenerationKind
+): ModelOption[] {
+  if (published && published.length > 0) {
+    return filterGenerationModels(models, published)
+  }
+  return filterModelsForGeneration(models, meta, kind)
+}

@@ -2545,7 +2545,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "Vì lý do bảo mật, không thể hiển thị lại token truy cập hiện có. Chỉ tạo lại khi bạn cần token mới.",
@@ -4119,6 +4119,7 @@
     "Per-call": "Mỗi lần gọi",
     "Per-feature metered windows split by model or capability.": "Cửa sổ tính phí theo từng tính năng, tách theo mô hình hoặc năng lực.",
     "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.",
+    "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.",
     "Per-group performance": "Hiệu năng theo nhóm",
     "Per-request": "Theo yêu cầu",
     "Per-request (deprecated)": "Theo yêu cầu (không còn khuyến nghị)",
@@ -5697,6 +5698,7 @@
     "This route is used only by channel management to query the upstream balance.": "Route này chỉ được quản lý kênh dùng để truy vấn số dư thượng nguồn.",
     "This session will lose access immediately and must sign in again.": "Phiên này sẽ mất quyền truy cập ngay lập tức và phải đăng nhập lại.",
     "This site currently has {{count}} models enabled": "Trang này hiện đã bật {{count}} mô hình",
+    "{{ways}} sign-in": "{{ways}} sign-in",
     "This source does not publish a sha256 for this version, so the downloaded source cannot be pinned to what the source intended.": "Nguồn này không công bố sha256 cho phiên bản đó, nên không thể xác nhận mã nguồn đã tải đúng với nội dung nguồn phát hành.",
     "This source lists no installable task plugins.": "Nguồn này không liệt kê plugin tác vụ nào có thể cài đặt.",
     "This Telegram account is already bound.": "Tài khoản Telegram này đã được liên kết.",
@@ -7846,6 +7848,16 @@
     "You have used all your wallpaper changes for this month.": "Bạn đã dùng hết lượt thay đổi hình nền trong tháng này.",
     "Your balance is too low for this wallpaper change.": "Số dư của bạn không đủ cho lần thay đổi hình nền này.",
     "Your console returns to the default background. Removing is free and does not give back a change.": "Bảng điều khiển sẽ trở về nền mặc định. Việc xóa miễn phí và không hoàn lại lượt thay đổi.",
-    "{{used}} of {{limit}} changes used this month": "Đã dùng {{used}}/{{limit}} lần thay đổi trong tháng này"
+    "{{used}} of {{limit}} changes used this month": "Đã dùng {{used}}/{{limit}} lần thay đổi trong tháng này",
+    "Gross margin (%)": "Biên lợi nhuận (%)",
+    "Server default": "Mặc định của máy chủ",
+    "Sync all": "Đồng bộ tất cả",
+    "Sync the whole report": "Đồng bộ toàn bộ báo cáo",
+    "Failed to sync the prices": "Đồng bộ giá thất bại",
+    "Writes every price below in one step, setting each to the upstream value plus the margin. Applying rows one by one is only needed for the exceptions.": "Ghi tất cả giá bên dưới trong một bước, đặt mỗi giá bằng giá thượng nguồn cộng biên lợi nhuận. Áp dụng từng dòng chỉ cần cho các trường hợp ngoại lệ.",
+    "A 20 margin charges 20% above the upstream price. Leave it empty to use the margin configured on the server. Models we never priced are skipped, because syncing one would start charging for a model we do not sell.": "Biên lợi nhuận 20 nghĩa là tính cao hơn giá thượng nguồn 20%. Để trống sẽ dùng biên lợi nhuận đã cấu hình trên máy chủ. Các mô hình chúng ta chưa từng định giá sẽ bị bỏ qua, vì đồng bộ chúng sẽ bắt đầu tính phí cho một mô hình chúng ta không bán.",
+    "Applied {{applied}} prices and skipped {{skipped}} unpriced models.": "Đã áp dụng {{applied}} giá và bỏ qua {{skipped}} mô hình chưa định giá.",
+    "Success trend": "Xu hướng tỷ lệ thành công",
+    "Latency trend": "Xu hướng độ trễ"
   }
 }

@@ -2545,7 +2545,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "В целях безопасности существующие токены доступа нельзя просмотреть повторно. Создавайте новый токен только при необходимости.",
@@ -4119,6 +4119,7 @@
     "Per-call": "По вызову",
     "Per-feature metered windows split by model or capability.": "Окна с поминутной тарификацией по фиче, в разбивке по модели или возможностям.",
     "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.",
+    "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.",
     "Per-group performance": "Производительность по группам",
     "Per-request": "За запрос",
     "Per-request (deprecated)": "За запрос (устарело)",
@@ -5697,6 +5698,7 @@
     "This route is used only by channel management to query the upstream balance.": "Этот маршрут используется только управлением каналами для запроса баланса поставщика.",
     "This session will lose access immediately and must sign in again.": "Этот сеанс немедленно потеряет доступ, и потребуется повторный вход.",
     "This site currently has {{count}} models enabled": "На этом сайте сейчас включено моделей: {{count}}",
+    "{{ways}} sign-in": "{{ways}} sign-in",
     "This source does not publish a sha256 for this version, so the downloaded source cannot be pinned to what the source intended.": "Источник не публикует sha256 для этой версии, поэтому нельзя убедиться, что загруженный код совпадает с опубликованным.",
     "This source lists no installable task plugins.": "В этом источнике нет плагинов задач, доступных для установки.",
     "This Telegram account is already bound.": "Эта учётная запись Telegram уже привязана.",
@@ -7846,6 +7848,16 @@
     "You have used all your wallpaper changes for this month.": "Вы использовали все смены обоев на этот месяц.",
     "Your balance is too low for this wallpaper change.": "На балансе недостаточно средств для смены обоев.",
     "Your console returns to the default background. Removing is free and does not give back a change.": "Консоль вернётся к фону по умолчанию. Удаление бесплатно и не возвращает смену.",
-    "{{used}} of {{limit}} changes used this month": "Использовано {{used}} из {{limit}} изменений в этом месяце"
+    "{{used}} of {{limit}} changes used this month": "Использовано {{used}} из {{limit}} изменений в этом месяце",
+    "Gross margin (%)": "Наценка (%)",
+    "Server default": "Значение сервера",
+    "Sync all": "Синхронизировать всё",
+    "Sync the whole report": "Синхронизировать весь отчёт",
+    "Failed to sync the prices": "Не удалось синхронизировать цены",
+    "Writes every price below in one step, setting each to the upstream value plus the margin. Applying rows one by one is only needed for the exceptions.": "Записывает все цены ниже за один раз, устанавливая каждую как цену вышестоящего плюс наценку. Построчное применение нужно только для исключений.",
+    "A 20 margin charges 20% above the upstream price. Leave it empty to use the margin configured on the server. Models we never priced are skipped, because syncing one would start charging for a model we do not sell.": "Наценка 20 означает 20 % сверх цены вышестоящего. Оставьте пустым, чтобы использовать наценку, настроенную на сервере. Модели, которые мы никогда не оценивали, пропускаются: синхронизация начала бы тарификацию модели, которую мы не продаём.",
+    "Applied {{applied}} prices and skipped {{skipped}} unpriced models.": "Применено цен: {{applied}}, пропущено неоценённых моделей: {{skipped}}.",
+    "Success trend": "Динамика успешности",
+    "Latency trend": "Динамика задержки"
   }
 }

@@ -152,6 +152,10 @@ export function Home() {
   return (
     <div
       data-landing-tone={tone}
+      // The landing mirrors the console's light/dark choice. `landing-theme.css`
+      // keys its light surface ladder off this attribute and its darker accent
+      // pair off `html.dark`, so the visitor's in-app theme decides both.
+      data-landing-light={resolvedTheme === 'light' ? '' : undefined}
       className='bg-background text-foreground min-h-svh'
     >
       {/* Mechanical noise grain — low-opacity film over the whole landing to

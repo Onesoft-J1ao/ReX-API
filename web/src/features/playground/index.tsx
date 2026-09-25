@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useStatus } from '@/hooks/use-status'
 
 import { PlaygroundChat } from './components/chat/playground-chat'
-import { filterGenerationModels } from './components/generation/generation-utils'
+import { filterGenerationModels, selectGenerationModels } from './components/generation/generation-utils'
 import { ImagePlayground } from './components/generation/image-playground'
 import { SpeechPlayground } from './components/generation/speech-playground'
 import { ThreeDPlayground } from './components/generation/three-d-playground'
@@ -33,6 +33,7 @@ import { PlaygroundInput } from './components/input/playground-input'
 import { PlaygroundWorkbench } from './components/workbench/playground-workbench'
 import {
   useChatHandler,
+  useGenerationModelMeta,
   usePlaygroundConversation,
   usePlaygroundOptions,
   usePlaygroundState,
@@ -120,14 +121,19 @@ function PlaygroundFeatureTabs(props: { settings: PlaygroundPublicSettings }) {
     updateConfig,
   })
   const generationOptions = useGenerationOptions(groups)
+  // What each model can actually generate, so the image and video tabs do not
+  // offer chat models that cannot answer them.
+  const modelMeta = useGenerationModelMeta()
 
   const chatModels = filterGenerationModels(
     models,
     playgroundSettings.models.chat ?? []
   )
-  const imageModels = filterGenerationModels(
+  const imageModels = selectGenerationModels(
     generationOptions.models,
-    playgroundSettings.models.image ?? []
+    playgroundSettings.models.image,
+    modelMeta,
+    'image'
   )
   const speechModels = filterGenerationModels(
     generationOptions.models,
@@ -137,9 +143,11 @@ function PlaygroundFeatureTabs(props: { settings: PlaygroundPublicSettings }) {
     generationOptions.models,
     playgroundSettings.models.three_d ?? []
   )
-  const videoModels = filterGenerationModels(
+  const videoModels = selectGenerationModels(
     generationOptions.models,
-    playgroundSettings.models.video ?? []
+    playgroundSettings.models.video,
+    modelMeta,
+    'video'
   )
   const chatGroups = useMemo(() => filterChatGroups(groups), [groups])
 

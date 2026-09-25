@@ -2545,7 +2545,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.",
@@ -4119,6 +4119,7 @@
     "Per-call": "Per-call",
     "Per-feature metered windows split by model or capability.": "Per-feature metered windows split by model or capability.",
     "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.",
+    "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.",
     "Per-group performance": "Per-group performance",
     "Per-request": "Per-request",
     "Per-request (deprecated)": "Per-request (deprecated)",
@@ -5697,6 +5698,7 @@
     "This route is used only by channel management to query the upstream balance.": "This route is used only by channel management to query the upstream balance.",
     "This session will lose access immediately and must sign in again.": "This session will lose access immediately and must sign in again.",
     "This site currently has {{count}} models enabled": "This site currently has {{count}} models enabled",
+    "{{ways}} sign-in": "{{ways}} sign-in",
     "This source does not publish a sha256 for this version, so the downloaded source cannot be pinned to what the source intended.": "This source does not publish a sha256 for this version, so the downloaded source cannot be pinned to what the source intended.",
     "This source lists no installable task plugins.": "This source lists no installable task plugins.",
     "This Telegram account is already bound.": "This Telegram account is already bound.",
@@ -7846,6 +7848,16 @@
     "You have used all your wallpaper changes for this month.": "You have used all your wallpaper changes for this month.",
     "Your balance is too low for this wallpaper change.": "Your balance is too low for this wallpaper change.",
     "Your console returns to the default background. Removing is free and does not give back a change.": "Your console returns to the default background. Removing is free and does not give back a change.",
-    "{{used}} of {{limit}} changes used this month": "{{used}} of {{limit}} changes used this month"
+    "{{used}} of {{limit}} changes used this month": "{{used}} of {{limit}} changes used this month",
+    "Gross margin (%)": "Gross margin (%)",
+    "Server default": "Server default",
+    "Sync all": "Sync all",
+    "Sync the whole report": "Sync the whole report",
+    "Failed to sync the prices": "Failed to sync the prices",
+    "Writes every price below in one step, setting each to the upstream value plus the margin. Applying rows one by one is only needed for the exceptions.": "Writes every price below in one step, setting each to the upstream value plus the margin. Applying rows one by one is only needed for the exceptions.",
+    "A 20 margin charges 20% above the upstream price. Leave it empty to use the margin configured on the server. Models we never priced are skipped, because syncing one would start charging for a model we do not sell.": "A 20 margin charges 20% above the upstream price. Leave it empty to use the margin configured on the server. Models we never priced are skipped, because syncing one would start charging for a model we do not sell.",
+    "Applied {{applied}} prices and skipped {{skipped}} unpriced models.": "Applied {{applied}} prices and skipped {{skipped}} unpriced models.",
+    "Success trend": "Success trend",
+    "Latency trend": "Latency trend"
   }
 }

@@ -115,14 +115,42 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
-/* Light surfaces kept for completeness; the wrapper never selects them in
- * the dark-first world, but the tone preview still resolves tokens. */
-@media (prefers-color-scheme: light) {
-  [data-landing-tone][data-landing-light] {
-    --background: oklch(0.995 0.001 250);
-    --foreground: oklch(0.19 0.01 255);
-    color-scheme: light;
-  }
+/* ── Light surfaces ───────────────────────────────────────────────────────
+ * The same ladder as the dark block, inverted. The landing follows the
+ * visitor's in-app theme: `Home` puts `data-landing-light` on the wrapper when
+ * the console is in light mode, and each tone's darker accent pair is selected
+ * by the `html.dark` variants above. The surface ladder stays neutral for
+ * every tone so switching tone re-tints the page instead of swapping design
+ * worlds.
+ */
+[data-landing-tone][data-landing-light] {
+  --background: oklch(0.995 0.001 250);
+  --foreground: oklch(0.19 0.01 255);
+  --card: color-mix(in oklch, var(--primary) 5%, var(--background));
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --secondary: color-mix(in oklch, var(--primary) 12%, var(--background));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
+  --muted-foreground: color-mix(
+    in oklch,
+    var(--foreground) 62%,
+    var(--primary)
+  );
+  --accent: color-mix(in oklch, var(--primary) 12%, var(--background));
+  --accent-foreground: var(--foreground);
+  --input: color-mix(in oklch, var(--primary) 20%, var(--background));
+  --border: color-mix(in oklch, var(--primary) 16%, var(--background));
+  --ring: var(--primary);
+  --primary-foreground: oklch(0.995 0.001 250);
+  /* Elevation ladder + glow scaffolding, mirrored from the dark block. */
+  --surface-raised: color-mix(in oklch, var(--primary) 8%, var(--background));
+  --surface-sunken: oklch(0.965 0.003 250);
+  --glow-soft: color-mix(in oklch, var(--primary) 18%, transparent);
+  --glow-strong: color-mix(in oklch, var(--primary) 34%, transparent);
+  --grid-line: color-mix(in oklch, var(--foreground) 8%, transparent);
+  color-scheme: light;
 }
 
 /* ── Tones ────────────────────────────────────────────────────────────────
@@ -138,120 +166,100 @@ For commercial licensing, please contact support@quantumnous.com
   --primary: oklch(0.692 0.141 243.716);
   --secondary: oklch(0.95 0 0);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='default'] {
+html.dark [data-landing-tone='default'] {
     --primary: oklch(0.54 0.142 248.516);
     --secondary: oklch(0.335 0 0);
   }
-}
 
 /* Underground (green) */
 [data-landing-tone='underground'] {
   --primary: oklch(0.5315 0.0694 156.19);
   --secondary: oklch(0.5748 0.0862 336.52);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='underground'] {
+html.dark [data-landing-tone='underground'] {
     --primary: oklch(0.6147 0.0867 154.73);
     --secondary: oklch(0.6624 0.0855 334.26);
   }
-}
 
 /* Rose Garden */
 [data-landing-tone='rose-garden'] {
   --primary: oklch(0.5827 0.2418 12.23);
   --secondary: oklch(0.8131 0.1129 5.67);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='rose-garden'] {
+html.dark [data-landing-tone='rose-garden'] {
     --primary: oklch(0.6476 0.2348 10.36);
     --secondary: oklch(0.8131 0.1129 5.67);
   }
-}
 
 /* Lake View (teal) */
 [data-landing-tone='lake-view'] {
   --primary: oklch(0.765 0.177 163.22);
   --secondary: oklch(0.551 0.0899 200.52);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='lake-view'] {
+html.dark [data-landing-tone='lake-view'] {
     --primary: oklch(0.765 0.177 163.22);
     --secondary: oklch(0.551 0.0899 200.52);
   }
-}
 
 /* Sunset Glow (amber) */
 [data-landing-tone='sunset-glow'] {
   --primary: oklch(0.5591 0.1882 25.33);
   --secondary: oklch(0.7938 0.1248 42.42);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='sunset-glow'] {
+html.dark [data-landing-tone='sunset-glow'] {
     --primary: oklch(0.6387 0.1822 23.51);
     --secondary: oklch(0.7938 0.1248 42.42);
   }
-}
 
 /* Forest Whisper (green) */
 [data-landing-tone='forest-whisper'] {
   --primary: oklch(0.5276 0.1072 182.22);
   --secondary: oklch(0.5236 0.0505 250.18);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='forest-whisper'] {
+html.dark [data-landing-tone='forest-whisper'] {
     --primary: oklch(0.5991 0.1318 180.39);
     --secondary: oklch(0.6578 0.0485 247.35);
   }
-}
 
 /* Ocean Breeze (indigo) */
 [data-landing-tone='ocean-breeze'] {
   --primary: oklch(0.5461 0.2152 262.88);
   --secondary: oklch(0.5854 0.2041 277.12);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='ocean-breeze'] {
+html.dark [data-landing-tone='ocean-breeze'] {
     --primary: oklch(0.623 0.188 259.81);
     --secondary: oklch(0.5854 0.2041 277.12);
   }
-}
 
 /* Lavender Dream (violet) */
 [data-landing-tone='lavender-dream'] {
   --primary: oklch(0.5709 0.1808 306.89);
   --secondary: oklch(0.811 0.0589 201.14);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='lavender-dream'] {
+html.dark [data-landing-tone='lavender-dream'] {
     --primary: oklch(0.6359 0.1699 307.95);
     --secondary: oklch(0.811 0.0589 201.14);
   }
-}
 
 /* Anthropic (clay) — accent only, surfaces stay on the neutral ladder */
 [data-landing-tone='anthropic'] {
   --primary: oklch(0.685 0.142 38);
   --secondary: oklch(0.925 0.008 92);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='anthropic'] {
+html.dark [data-landing-tone='anthropic'] {
     --primary: oklch(0.72 0.135 40);
     --secondary: oklch(0.305 0.004 60);
   }
-}
 
 /* Simple Large-font (mono ink) */
 [data-landing-tone='simple-large'] {
   --primary: oklch(0.22 0 0);
   --secondary: oklch(0.93 0 0);
 }
-@media (prefers-color-scheme: dark) {
-  [data-landing-tone='simple-large'] {
+html.dark [data-landing-tone='simple-large'] {
     --primary: oklch(0.94 0 0);
     --secondary: oklch(0.315 0 0);
   }
-}
 
 /* ── Landing motion ───────────────────────────────────────────────────────
  * Telemetry ticker: a seamless horizontal mono strip that scrolls endlessly

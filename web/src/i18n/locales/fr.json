@@ -2545,7 +2545,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Pour les déploiements privés, format : https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "Pour des raisons de sécurité, les jetons d'accès existants ne peuvent pas être réaffichés. Ne les régénérez que si vous en avez besoin d'un nouveau.",
@@ -4119,6 +4119,7 @@
     "Per-call": "Par appel",
     "Per-feature metered windows split by model or capability.": "Fenêtres mesurées par fonction, réparties par modèle ou capacité.",
     "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail and hourly charts are only recorded for models this site serves directly. These figures come from the shared upstream sample.",
+    "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.": "Per-group detail is only recorded for models this site serves directly. These figures come from the shared upstream sample.",
     "Per-group performance": "Performance par groupe",
     "Per-request": "Par requête",
     "Per-request (deprecated)": "Par requête (obsolète)",
@@ -5697,6 +5698,7 @@
     "This route is used only by channel management to query the upstream balance.": "Cette route sert uniquement à la gestion du canal pour consulter le solde amont.",
     "This session will lose access immediately and must sign in again.": "Cette session perdra immédiatement l’accès ; vous devrez vous reconnecter.",
     "This site currently has {{count}} models enabled": "Ce site compte actuellement {{count}} modèles activés",
+    "{{ways}} sign-in": "{{ways}} sign-in",
     "This source does not publish a sha256 for this version, so the downloaded source cannot be pinned to what the source intended.": "Cette source ne publie pas de sha256 pour cette version : impossible de garantir que le code téléchargé est bien celui qu’elle a publié.",
     "This source lists no installable task plugins.": "Cette source ne liste aucun plugin de tâches installable.",
     "This Telegram account is already bound.": "Ce compte Telegram est déjà lié.",
@@ -7846,6 +7848,16 @@
     "You have used all your wallpaper changes for this month.": "Vous avez utilisé tous vos changements de fond d'écran pour ce mois-ci.",
     "Your balance is too low for this wallpaper change.": "Votre solde est insuffisant pour ce changement de fond d'écran.",
     "Your console returns to the default background. Removing is free and does not give back a change.": "Votre console revient à l'arrière-plan par défaut. La suppression est gratuite et ne rend pas de changement.",
-    "{{used}} of {{limit}} changes used this month": "{{used}} sur {{limit}} changements utilisés ce mois-ci"
+    "{{used}} of {{limit}} changes used this month": "{{used}} sur {{limit}} changements utilisés ce mois-ci",
+    "Gross margin (%)": "Marge brute (%)",
+    "Server default": "Valeur du serveur",
+    "Sync all": "Tout synchroniser",
+    "Sync the whole report": "Synchroniser tout le rapport",
+    "Failed to sync the prices": "Échec de la synchronisation des prix",
+    "Writes every price below in one step, setting each to the upstream value plus the margin. Applying rows one by one is only needed for the exceptions.": "Écrit tous les prix ci-dessous en une seule fois, en fixant chacun à la valeur amont plus la marge. L'application ligne par ligne ne sert qu'aux exceptions.",
+    "A 20 margin charges 20% above the upstream price. Leave it empty to use the margin configured on the server. Models we never priced are skipped, because syncing one would start charging for a model we do not sell.": "Une marge de 20 facture 20 % au-dessus du prix amont. Laissez vide pour utiliser la marge configurée sur le serveur. Les modèles que nous n'avons jamais tarifés sont ignorés, car les synchroniser reviendrait à facturer un modèle que nous ne vendons pas.",
+    "Applied {{applied}} prices and skipped {{skipped}} unpriced models.": "{{applied}} prix appliqués et {{skipped}} modèles non tarifés ignorés.",
+    "Success trend": "Tendance du taux de réussite",
+    "Latency trend": "Tendance de la latence"
   }
 }
