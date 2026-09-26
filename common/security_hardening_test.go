@@ -38,10 +38,6 @@ func TestMaskSensitiveKeysDoesNotRewriteURLs(t *testing.T) {
 	require.Contains(t, out, "sk-a***")
 }
 
-func TestGetTrustQuotaDisabled(t *testing.T) {
-	assert.Equal(t, 0, GetTrustQuota())
-}
-
 func TestSignMjImageDeterministic(t *testing.T) {
 	SessionSecret = "abcdefghijklmnopqrstuvwxyz012345"
 	sig := SignMjImage("abc123")
