@@ -45,6 +45,10 @@ function Fixture() {
             QuotaForInviter: 0,
             QuotaForInvitee: 0,
             TopUpLink: '',
+            // This fork's quota section also carries the documentation link, and
+            // the schema requires it, so the fixture has to supply it or every
+            // submit fails validation before reaching the save handler.
+            general_setting: { docs_link: '' },
             quota_setting: {
               enable_free_model_pre_consume: true,
               trust_quota_usd: 10,
