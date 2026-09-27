@@ -405,6 +405,34 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 // Upstream entries carry no request count, so they sort after models we have
 // actually served; ordering stays "busiest local model first".
 func mergeUpstreamModels(local []ModelSummary, hours int) []ModelSummary {
+	return mergeUpstreamModelsServedBy(local, hours, servedModelNames())
+}
+
+// servedModelNames returns the models an enabled channel still serves, which is
+// the set the model square advertises. It returns nil when nothing is served or
+// the lookup came back empty, and a nil set disables the filter so a database
+// hiccup degrades to the previous behaviour instead of blanking the page.
+func servedModelNames() map[string]struct{} {
+	// GetEnabledModels reads through the shared handle and panics when no
+	// database has been opened, which is the state a caller that only merges a
+	// mirrored summary runs in. Absent abilities are unknown, not a verdict.
+	if model.DB == nil {
+		return nil
+	}
+	names := model.GetEnabledModels()
+	if len(names) == 0 {
+		return nil
+	}
+	served := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		served[name] = struct{}{}
+	}
+	return served
+}
+
+// mergeUpstreamModelsServedBy is mergeUpstreamModels with the served set passed
+// in, so the filter can be exercised without a database.
+func mergeUpstreamModelsServedBy(local []ModelSummary, hours int, served map[string]struct{}) []ModelSummary {
 	upstream, ok := fetchUpstreamSummary(hours)
 	if !ok {
 		sort.Slice(local, func(i, j int) bool {
@@ -418,6 +446,15 @@ func mergeUpstreamModels(local []ModelSummary, hours int) []ModelSummary {
 	for _, model := range upstream.Models {
 		if model.ModelName == "" {
 			continue
+		}
+		// The mirror reports every model its own instance serves, which is not
+		// the set we advertise: a model whose abilities were all disabled still
+		// arrives in the mirror, and merging it would put it back on the perf
+		// pages after the model square had already dropped it.
+		if served != nil {
+			if _, ok := served[model.ModelName]; !ok {
+				continue
+			}
 		}
 		model.RequestCount = 0
 		merged = append(merged, model)

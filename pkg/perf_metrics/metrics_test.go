@@ -300,3 +300,69 @@ func TestUpstreamDetailSeriesFillsAvgLatencyWhenMissing(t *testing.T) {
 	assert.Equal(t, int64(3210), series[0].AvgLatencyMs)
 	assert.Equal(t, int64(3210), series[1].AvgLatencyMs)
 }
+
+// The mirrored summary lists every model the upstream instance serves, which is
+// not the set this instance advertises. Merging it unfiltered put a retired
+// model back on the perf pages after the model square had already dropped it.
+func TestMergeUpstreamModelsSkipsModelsThePlazaNoLongerServes(t *testing.T) {
+	seedUpstreamMirror(t, 24, ModelSummary{ModelName: "still-served"}, ModelSummary{ModelName: "retired-model"})
+
+	local := []ModelSummary{{ModelName: "local-only", RequestCount: 5}}
+	served := map[string]struct{}{"still-served": {}, "local-only": {}}
+
+	names := summaryModelNames(mergeUpstreamModelsServedBy(local, 24, served))
+
+	assert.Contains(t, names, "still-served",
+		"a model the group still serves keeps its mirrored row")
+	assert.Contains(t, names, "local-only",
+		"our own traffic is never filtered out")
+	assert.NotContains(t, names, "retired-model",
+		"a model the plaza dropped must not come back through the mirror")
+}
+
+// A nil served set means the ability lookup came back empty. That is an unknown
+// rather than a verdict, so the merge keeps its previous behaviour instead of
+// blanking every mirrored model.
+func TestMergeUpstreamModelsKeepsMirrorWhenServedSetIsUnknown(t *testing.T) {
+	seedUpstreamMirror(t, 24, ModelSummary{ModelName: "retired-model"})
+
+	names := summaryModelNames(mergeUpstreamModelsServedBy(nil, 24, nil))
+
+	assert.Contains(t, names, "retired-model")
+}
+
+// seedUpstreamMirror publishes a mirrored summary into the cache the readers
+// consult, and restores the previous mirror and settings afterwards.
+func seedUpstreamMirror(t *testing.T, hours int, models ...ModelSummary) {
+	t.Helper()
+	previous := perf_metrics_setting.GetSetting()
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"perf_metrics_setting.upstream_enabled":     "true",
+		"perf_metrics_setting.upstream_summary_url": "http://upstream.test/summary",
+	}))
+
+	upstreamSummaryCache.Lock()
+	previousEntries := upstreamSummaryCache.entries
+	upstreamSummaryCache.entries = map[int]upstreamCacheEntry{
+		hours: {result: SummaryAllResult{Models: models}},
+	}
+	upstreamSummaryCache.Unlock()
+
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+			"perf_metrics_setting.upstream_enabled":     strconv.FormatBool(previous.UpstreamEnabled),
+			"perf_metrics_setting.upstream_summary_url": previous.UpstreamSummaryUrl,
+		}))
+		upstreamSummaryCache.Lock()
+		upstreamSummaryCache.entries = previousEntries
+		upstreamSummaryCache.Unlock()
+	})
+}
+
+func summaryModelNames(models []ModelSummary) []string {
+	names := make([]string, 0, len(models))
+	for _, m := range models {
+		names = append(names, m.ModelName)
+	}
+	return names
+}

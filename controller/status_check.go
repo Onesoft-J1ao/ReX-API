@@ -130,6 +130,12 @@ func GetStatusCheck(c *gin.Context) {
 	for _, group := range groups {
 		dto := groupHealthDTO{Group: group, Models: []modelHealthDTO{}}
 
+		// The plaza lists a model only while a channel in the group still serves
+		// it. Probe rows and passive metrics outlive that, so without this filter
+		// a retired model keeps a card here long after the model square dropped
+		// it.
+		served := servedModelsForGroup(group)
+
 		// models in this group come from active probe rows; if no active row yet,
 		// fall back to passive perf_metrics models for this group.
 		modelRows, err := model.GetLatestModelHealth(group, since)
@@ -139,10 +145,8 @@ func GetStatusCheck(c *gin.Context) {
 		}
 		seen := map[string]bool{}
 		for _, m := range modelRows {
-			if excluded != nil {
-				if _, skip := excluded[m.ModelName]; skip {
-					continue
-				}
+			if !modelIsAdvertised(served, m.ModelName, excluded) {
+				continue
 			}
 			seen[m.ModelName] = true
 			dto.Models = append(dto.Models, mergeHealthRow(m, passive, group))
@@ -155,10 +159,8 @@ func GetStatusCheck(c *gin.Context) {
 			if seen[s.ModelName] {
 				continue
 			}
-			if excluded != nil {
-				if _, skip := excluded[s.ModelName]; skip {
-					continue
-				}
+			if !modelIsAdvertised(served, s.ModelName, excluded) {
+				continue
 			}
 			dto.Models = append(dto.Models, passiveOnlyRow(s, group))
 		}
@@ -195,6 +197,36 @@ func GetStatusCheck(c *gin.Context) {
 }
 
 // mergeHealthRow builds a per-model DTO combining active probe + passive rollup.
+// servedModelsForGroup returns the models the plaza still lists for a group,
+// read from the same ability table the plaza reads. It returns nil when the
+// table reports none, which leaves the page's previous behaviour in place
+// rather than blanking a group whose abilities are mid-rebuild.
+func servedModelsForGroup(group string) map[string]bool {
+	names := model.GetGroupEnabledModels(group)
+	if len(names) == 0 {
+		return nil
+	}
+	served := make(map[string]bool, len(names))
+	for _, name := range names {
+		served[name] = true
+	}
+	return served
+}
+
+// modelIsAdvertised reports whether a model may still appear on the status page:
+// the group must serve it, and the admin's exclusion list must not name it.
+func modelIsAdvertised(served map[string]bool, modelName string, excluded map[string]struct{}) bool {
+	if served != nil && !served[modelName] {
+		return false
+	}
+	if excluded != nil {
+		if _, skip := excluded[modelName]; skip {
+			return false
+		}
+	}
+	return true
+}
+
 func mergeHealthRow(m model.ModelHealth, passive map[string]model.PerfMetricSummaryByGroup, group string) modelHealthDTO {
 	dto := modelHealthDTO{
 		ModelName: m.ModelName,
