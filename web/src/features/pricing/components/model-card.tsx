@@ -30,11 +30,14 @@ import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { useBillingTime } from '../hooks/use-billing-time'
+import { formatBillingCondition } from '../lib/billing-expression/condition-display'
 import {
   getCardExamplePrice,
   getDynamicDisplayGroupRatio,
+  getDynamicPriceEntries,
   getDynamicPriceUnitLabelKey,
   getDynamicPricingSummary,
+  getDynamicPricingTiers,
   isDynamicPricingFree,
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
@@ -108,6 +111,34 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [props.model, dynamicPriceOptions, currency]
   )
+  // A tiered expression keyed on the clock has one price per period, and the
+  // summary only carries the period that is current. Listing every period is
+  // what makes a peak / off-peak model legible at a glance instead of showing
+  // one number the reader cannot place.
+  const timeSegments = useMemo(() => {
+    if (!dynamicSummary?.isTimePricing) return []
+    const currentLabel = dynamicSummary.tier?.label
+    return getDynamicPricingTiers(props.model).map((tier) => {
+      const entries = getDynamicPriceEntries(tier, dynamicPriceOptions)
+      const prices = ['inputPrice', 'outputPrice']
+        .map((field) => entries.find((entry) => entry.field === field))
+        .filter((entry) => entry != null)
+        .map((entry) => entry.formatted)
+      // conditionText only exists on the expression tier, not the task tier.
+      const conditionText =
+        'conditionText' in tier ? (tier.conditionText as string) : undefined
+      const condition = conditionText
+        ? (formatBillingCondition(conditionText, t, i18n.language) ?? conditionText)
+        : null
+      return {
+        key: `${tier.label}-${conditionText ?? ''}`,
+        label: condition ?? tier.label ?? t('Default'),
+        isCurrent: tier.label === currentLabel,
+        prices: prices.join(' · '),
+      }
+    })
+  }, [props.model, dynamicSummary, dynamicPriceOptions, t, i18n.language])
+
   const dynamicIsFree =
     dynamicSummary != null &&
     isDynamicPricingFree(
@@ -186,7 +217,39 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               </div>
             )
           })}
-          {dynamicSummary.isTimePricing && (
+          {dynamicSummary.isTimePricing && timeSegments.length > 1 && (
+            <div className='col-span-full flex flex-col gap-0.5'>
+              {timeSegments.map((segment) => (
+                <div
+                  key={segment.key}
+                  className='flex min-w-0 flex-wrap items-baseline justify-between gap-x-3'
+                >
+                  <span
+                    className={cn(
+                      'min-w-0 truncate text-xs',
+                      segment.isCurrent
+                        ? 'text-foreground font-medium'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    {segment.label}
+                    {segment.isCurrent && (
+                      <>
+                        {' · '}
+                        <span className='text-muted-foreground font-normal'>
+                          {t('Current period price')}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  <span className='text-muted-foreground shrink-0 font-mono text-xs tabular-nums'>
+                    {segment.prices}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {dynamicSummary.isTimePricing && timeSegments.length <= 1 && (
             <span className='text-muted-foreground col-span-full text-xs'>
               {t('Current period price')}
             </span>
@@ -373,20 +436,22 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </dd>
           </div>
           {groups.length > 0 && (
-            <div className='flex min-w-0 items-baseline gap-1.5'>
+            <div
+              className={cn(
+                'flex min-w-0 items-baseline gap-1.5',
+                groups.length > 1 && 'col-span-2'
+              )}
+            >
               <dt className='text-muted-foreground shrink-0'>{t('Groups')}</dt>
-              <dd className='flex min-w-0 items-baseline gap-1'>
-                <span className='truncate' title={groups.join(', ')}>
-                  {groups[0]}
-                </span>
-                {groups.length > 1 && (
+              <dd className='flex min-w-0 flex-wrap items-baseline gap-1'>
+                {groups.map((group) => (
                   <span
-                    className='text-muted-foreground shrink-0'
-                    title={groups.slice(1).join(', ')}
+                    key={group}
+                    className='bg-muted/60 max-w-full truncate rounded px-1.5 py-0.5 font-mono'
                   >
-                    +{groups.length - 1}
+                    {group}
                   </span>
-                )}
+                ))}
               </dd>
             </div>
           )}
