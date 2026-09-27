@@ -27,14 +27,19 @@ type PricingPluginVariant struct {
 }
 
 type Pricing struct {
-	BillingPluginVariants  []PricingPluginVariant               `json:"billing_plugin_variants,omitempty"`
-	ModelName              string                               `json:"model_name"`
-	Description            string                               `json:"description,omitempty"`
-	Icon                   string                               `json:"icon,omitempty"`
-	Tags                   string                               `json:"tags,omitempty"`
-	VendorID               int                                  `json:"vendor_id,omitempty"`
-	QuotaType              int                                  `json:"quota_type"`
-	ModelRatio             float64                              `json:"model_ratio"`
+	BillingPluginVariants []PricingPluginVariant `json:"billing_plugin_variants,omitempty"`
+	ModelName             string                 `json:"model_name"`
+	Description           string                 `json:"description,omitempty"`
+	Icon                  string                 `json:"icon,omitempty"`
+	Tags                  string                 `json:"tags,omitempty"`
+	VendorID              int                    `json:"vendor_id,omitempty"`
+	QuotaType             int                    `json:"quota_type"`
+	// Pointer with omitempty, like the other optional ratios below: a model
+	// with no configured ratio must not publish one. The unpriced fallback
+	// (see ratio_setting.GetModelRatio) is a sentinel that only exists to keep
+	// billing from dividing by zero, and writing it here made the model square
+	// show every unpriced model at the same price.
+	ModelRatio             *float64                             `json:"model_ratio,omitempty"`
 	ModelPrice             float64                              `json:"model_price"`
 	OwnerBy                string                               `json:"owner_by"`
 	CompletionRatio        float64                              `json:"completion_ratio"`
@@ -363,9 +368,12 @@ func updatePricing() {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
 		} else {
-			modelRatio, _, _ := ratio_setting.GetModelRatio(model)
-			pricing.ModelRatio = modelRatio
-			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
+			// Only publish the ratio when the model actually has one. The
+			// fallback the accessor returns is not a price.
+			if modelRatio, found, _ := ratio_setting.GetModelRatio(model); found {
+				pricing.ModelRatio = &modelRatio
+				pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
+			}
 			pricing.QuotaType = 0
 		}
 		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {
