@@ -109,7 +109,11 @@ export function filterByEndpointType(
  * Get model price for sorting
  */
 function getModelPrice(model: PricingModel): number {
-  return model.quota_type === 0 ? model.model_ratio : model.model_price || 0
+  // An unpriced model has no place in a price ordering, so it sorts after
+  // every real price rather than in front of them as a zero would.
+  return model.quota_type === 0
+    ? (model.model_ratio ?? Number.POSITIVE_INFINITY)
+    : model.model_price || 0
 }
 
 /**

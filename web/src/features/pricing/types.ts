@@ -66,7 +66,9 @@ export type PricingModel = {
   vendor_icon?: string
   vendor_description?: string
   quota_type: number
-  model_ratio: number
+  // Absent when the model has no configured ratio, which is not the same as
+  // a zero price: an unpriced model must not render as free.
+  model_ratio?: number
   completion_ratio: number
   model_price?: number
   cache_ratio?: number | null

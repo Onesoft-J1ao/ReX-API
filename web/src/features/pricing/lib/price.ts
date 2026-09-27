@@ -69,7 +69,10 @@ function calculateTokenPrice(
   type: PriceType,
   ratio: number
 ): number {
-  const base = model.model_ratio * 2 * ratio
+  // No configured ratio means no price, which is not a zero price: an
+  // unpriced model must not render as free. NaN makes the callers below
+  // skip the row, which is what this function documents.
+  const base = (model.model_ratio ?? Number.NaN) * 2 * ratio
 
   switch (type) {
     case 'input':
