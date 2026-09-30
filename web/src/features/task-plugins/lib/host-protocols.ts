@@ -53,3 +53,16 @@ export const HOST_PROTOCOL_ENDPOINTS: Record<string, HostProtocolEndpoint[]> = {
     { method: 'POST', path: '/v1/images/edits' },
   ],
 }
+
+/**
+ * Resolve a manifest protocol claim to its host-owned endpoint bindings.
+ *
+ * A plugin manifest may write the claim with different casing or surrounding
+ * whitespace, so the lookup normalises before matching; an exact-key lookup
+ * silently rendered an empty endpoint list for those claims.
+ */
+export function getHostProtocolEndpoints(
+  protocolName: string
+): HostProtocolEndpoint[] {
+  return HOST_PROTOCOL_ENDPOINTS[protocolName.trim().toLowerCase()] ?? []
+}
