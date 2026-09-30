@@ -16,10 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
+import type { Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import * as z from 'zod'
 
 import {
   StaticDataTable,
@@ -29,6 +32,17 @@ import { EmptyState } from '@/components/empty-state'
 import { LoadingState } from '@/components/loading-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { toIntlLocale } from '@/i18n/languages'
 import { handleServerError } from '@/lib/handle-server-error'
 import { formatNumber } from '@/lib/format'
@@ -36,12 +50,63 @@ import { cn } from '@/lib/utils'
 
 import { getPriceSentinelReport, runPriceSentinelNow } from '../../price-sentinel/api'
 import type { PriceChange } from '../../price-sentinel/types'
+import { FormDirtyIndicator } from '../components/form-dirty-indicator'
+import { FormNavigationGuard } from '../components/form-navigation-guard'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
+import { useSettingsForm } from '../hooks/use-settings-form'
+import { useUpdateOption } from '../hooks/use-update-option'
 
-export function PriceSentinelSection() {
+// Field names are the option keys, so a save writes exactly the keys the form
+// changed. The time and email inputs carry their own type constraints, which
+// keeps the schema free of messages that would need translating.
+const priceSentinelSettingsSchema = z.object({
+  'price_sentinel_setting.enabled': z.boolean(),
+  'price_sentinel_setting.interval_minutes': z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1440),
+  'price_sentinel_setting.send_time': z.string(),
+  'price_sentinel_setting.report_email': z.string(),
+})
+
+export type PriceSentinelSettingsValues = z.infer<
+  typeof priceSentinelSettingsSchema
+>
+
+type PriceSentinelSectionProps = {
+  defaultValues: PriceSentinelSettingsValues
+}
+
+export function PriceSentinelSection(props: PriceSentinelSectionProps) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const queryClient = useQueryClient()
+  const updateOption = useUpdateOption()
+  const { form, handleSubmit, isDirty, isSubmitting } =
+    useSettingsForm<PriceSentinelSettingsValues>({
+      resolver: zodResolver(priceSentinelSettingsSchema) as Resolver<
+        PriceSentinelSettingsValues,
+        unknown,
+        PriceSentinelSettingsValues
+      >,
+      defaultValues: props.defaultValues,
+      onSubmit: async (_data, changedFields) => {
+        for (const [key, value] of Object.entries(changedFields)) {
+          await updateOption.mutateAsync({
+            key,
+            value: value as string | number | boolean,
+          })
+        }
+      },
+    })
+  const intervalMinutes = form.watch('price_sentinel_setting.interval_minutes')
 
   const reportQuery = useQuery({
     queryKey: ['price-sentinel-report'],
@@ -63,11 +128,123 @@ export function PriceSentinelSection() {
 
   return (
     <SettingsSection title={t('Upstream price sentinel')}>
+      <FormNavigationGuard when={isDirty} />
+      <Form {...form}>
+        <SettingsForm onSubmit={handleSubmit}>
+          <SettingsPageFormActions
+            onSave={handleSubmit}
+            isSaving={updateOption.isPending || isSubmitting}
+          />
+          <FormDirtyIndicator isDirty={isDirty} />
+          <FormField
+            control={form.control}
+            name='price_sentinel_setting.enabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable the price sentinel')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Compare the upstream prices on the schedule below and email the digest.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='price_sentinel_setting.interval_minutes'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Check interval (minutes)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={1}
+                    max={1440}
+                    step={1}
+                    value={field.value}
+                    onChange={(event) => field.onChange(event.target.value)}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'How often the check runs. 60 is hourly, 300 is every five hours.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='price_sentinel_setting.send_time'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Send time')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='time'
+                    value={field.value}
+                    onChange={(event) => field.onChange(event.target.value)}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Optional. Anchors the schedule to this time of day: the digest goes out then and every interval after it. Leave it empty to count from the previous run instead.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='price_sentinel_setting.report_email'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Digest recipient')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='email'
+                    placeholder={t('Defaults to the root administrator')}
+                    value={field.value}
+                    onChange={(event) => field.onChange(event.target.value)}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Leave empty to send the digest to the root administrator.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </SettingsForm>
+      </Form>
+
       <div className='space-y-6'>
         <div className='flex flex-wrap items-start justify-between gap-3'>
           <p className='text-muted-foreground max-w-2xl text-sm'>
             {t(
-              'Compares our prices with the mirrored upstream every hour and emails a digest of what differs. It only reports: a price changes only when you apply it from the emailed link.'
+              'Compares our prices with the mirrored upstream on the schedule above and emails a digest of what differs. It only reports: a price changes only when you apply it from the emailed link.'
             )}
           </p>
           <Button
@@ -88,7 +265,8 @@ export function PriceSentinelSection() {
           <EmptyState
             title={t('No check has run yet')}
             description={t(
-              'The sentinel runs hourly. Use “Check now” to run one immediately.'
+              'The sentinel runs every {{minutes}} minutes. Use “Check now” to run one immediately.',
+              { minutes: intervalMinutes }
             )}
             bordered
           />
