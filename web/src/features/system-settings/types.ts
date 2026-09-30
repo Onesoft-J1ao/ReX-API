@@ -219,6 +219,7 @@ export type AuthSettings = {
   PasswordRegisterEnabled: boolean
   EmailVerificationEnabled: boolean
   RegisterEnabled: boolean
+  RegisterDailyLimit: number
   EmailDomainRestrictionEnabled: boolean
   EmailAliasRestrictionEnabled: boolean
   EmailDomainWhitelist: string
@@ -488,6 +489,10 @@ export type OperationsSettings = {
   'console_setting.hide_upstream_request_id': boolean
   'error_rewrite.enabled': boolean
   'error_rewrite.rules': string
+  'price_sentinel_setting.enabled': boolean
+  'price_sentinel_setting.interval_minutes': number
+  'price_sentinel_setting.send_time': string
+  'price_sentinel_setting.report_email': string
   QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string
   SupportEnabled: boolean

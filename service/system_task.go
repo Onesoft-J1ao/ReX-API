@@ -46,6 +46,28 @@ type ScheduledSystemTaskHandler interface {
 	NewPayload() any
 }
 
+// AnchoredSystemTaskHandler is an optional refinement of
+// ScheduledSystemTaskHandler. A handler that implements it pins its cadence to a
+// wall-clock time rather than counting from its own previous run, which is what
+// lets a schedule land in a chosen hour instead of drifting with each run.
+// Handlers that do not implement it keep the plain interval rule unchanged.
+type AnchoredSystemTaskHandler interface {
+	ScheduledSystemTaskHandler
+	// NextRunAfter reports when the handler next wants to run, given the instant
+	// of its last run. It must return an instant strictly after lastRun, or the
+	// task would be recreated on every tick.
+	NextRunAfter(lastRun time.Time) time.Time
+}
+
+// scheduledTaskIsDue applies the handler's own scheduling rule: an anchored
+// handler decides from its anchor, anything else from elapsed time.
+func scheduledTaskIsDue(handler ScheduledSystemTaskHandler, lastRun time.Time, now time.Time) bool {
+	if anchored, ok := handler.(AnchoredSystemTaskHandler); ok {
+		return !now.Before(anchored.NextRunAfter(lastRun))
+	}
+	return now.Sub(lastRun) >= handler.Interval()
+}
+
 var (
 	systemTaskHandlersMu sync.RWMutex
 	systemTaskHandlers   = map[string]SystemTaskHandler{}
@@ -284,7 +306,7 @@ func runSystemTaskScheduler() {
 			if latest.Status == model.SystemTaskStatusPending || latest.Status == model.SystemTaskStatusRunning {
 				continue // an active row already exists
 			}
-			if now-latest.UpdatedAt < int64(scheduled.Interval().Seconds()) {
+			if !scheduledTaskIsDue(scheduled, time.Unix(latest.UpdatedAt, 0), time.Unix(now, 0)) {
 				continue // not due yet
 			}
 		}

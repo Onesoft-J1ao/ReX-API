@@ -2,6 +2,7 @@ package price_sentinel_setting
 
 import (
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/setting/config"
 )
@@ -21,6 +22,11 @@ type PriceSentinelSetting struct {
 	// IntervalMinutes is how often the check runs. The upstream publishes price
 	// changes by hand, so hourly is already generous.
 	IntervalMinutes int `json:"interval_minutes"`
+	// SendTime pins that cadence to a wall-clock time of day, "HH:MM". The digest
+	// then goes out at that time and every IntervalMinutes after it, so the mail
+	// lands in a working hour instead of drifting with each run. Empty keeps the
+	// plain "every IntervalMinutes since the last run" behaviour.
+	SendTime string `json:"send_time"`
 	// TimeoutSeconds bounds one fetch of the upstream pricing document.
 	TimeoutSeconds int `json:"timeout_seconds"`
 	// MinChangePercent filters noise: a model whose ratio moved less than this
@@ -47,6 +53,7 @@ var priceSentinelSetting = PriceSentinelSetting{
 	Enabled:            true,
 	UpstreamPricingUrl: "https://ai.furry.vg/api/pricing",
 	IntervalMinutes:    60,
+	SendTime:           "",
 	TimeoutSeconds:     20,
 	MinChangePercent:   0.5,
 	ReportEmail:        "",
@@ -68,6 +75,22 @@ func GetIntervalMinutes() int {
 		return 60
 	}
 	return priceSentinelSetting.IntervalMinutes
+}
+
+// GetSendTime returns the configured anchor as an hour and minute, or ok=false
+// when it is unset or malformed. A malformed value falls back to the plain
+// interval rather than stalling the digest, since nothing validates the stored
+// string on the way in.
+func GetSendTime() (hour int, minute int, ok bool) {
+	raw := strings.TrimSpace(priceSentinelSetting.SendTime)
+	if raw == "" {
+		return 0, 0, false
+	}
+	parsed, err := time.Parse("15:04", raw)
+	if err != nil {
+		return 0, 0, false
+	}
+	return parsed.Hour(), parsed.Minute(), true
 }
 
 // GetMinChangePercent returns the noise floor. A negative value would report

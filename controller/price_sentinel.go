@@ -36,6 +36,28 @@ func (priceSentinelHandler) Interval() time.Duration {
 	return time.Duration(price_sentinel_setting.GetIntervalMinutes()) * time.Minute
 }
 
+// NextRunAfter pins the cadence to the configured send time: the digest goes out
+// at that time of day and every interval after it, so the mail lands in a chosen
+// hour instead of drifting with each run. With no send time configured this is
+// exactly the plain "one interval after the last run" rule.
+func (priceSentinelHandler) NextRunAfter(lastRun time.Time) time.Time {
+	step := time.Duration(price_sentinel_setting.GetIntervalMinutes()) * time.Minute
+	hour, minute, ok := price_sentinel_setting.GetSendTime()
+	if !ok {
+		return lastRun.Add(step)
+	}
+	anchor := time.Date(
+		lastRun.Year(), lastRun.Month(), lastRun.Day(),
+		hour, minute, 0, 0, lastRun.Location(),
+	)
+	elapsed := lastRun.Sub(anchor)
+	if elapsed < 0 {
+		// The last run predates today's slot, so that slot is the next one.
+		return anchor
+	}
+	return anchor.Add((elapsed/step + 1) * step)
+}
+
 func (priceSentinelHandler) NewPayload() any { return nil }
 
 func (priceSentinelHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {

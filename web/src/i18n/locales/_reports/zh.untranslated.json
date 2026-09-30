@@ -36,5 +36,13 @@
   "JSON with serviceRoutes and coverage arrays": "JSON with serviceRoutes and coverage arrays",
   "JSON configuration for the landing page model groups and coverage table. Leave empty to use defaults.": "JSON configuration for the landing page model groups and coverage table. Leave empty to use defaults.",
   "OpenAI-compatible endpoint": "OpenAI-compatible endpoint",
-  "Quickstart": "Quickstart"
+  "Quickstart": "Quickstart",
+  "Windows": "Windows",
+  "Claude Codex": "Claude Codex",
+  "Windows x64": "Windows x64",
+  "Windows arm64": "Windows arm64",
+  "Linux x64": "Linux x64",
+  "Responses WebSocket": "Responses WebSocket",
+  "SGLang": "SGLang",
+  "Fingerprint": "Fingerprint"
 }

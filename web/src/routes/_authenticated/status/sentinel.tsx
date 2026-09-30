@@ -20,8 +20,16 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { LoadingState } from '@/components/loading-state'
 import { SettingsPageProvider } from '@/features/system-settings/components/settings-page-context'
-import { PriceSentinelSection } from '@/features/system-settings/operations/price-sentinel-section'
+import {
+  getOptionValue,
+  useSystemOptions,
+} from '@/features/system-settings/hooks/use-system-options'
+import {
+  PriceSentinelSection,
+  type PriceSentinelSettingsValues,
+} from '@/features/system-settings/operations/price-sentinel-section'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -35,8 +43,23 @@ export const Route = createFileRoute('/_authenticated/status/sentinel')({
   component: SentinelPage,
 })
 
+// This page renders the section outside the settings shell, so it loads the
+// option keys the section writes itself.
+const SENTINEL_SETTINGS_DEFAULTS: PriceSentinelSettingsValues = {
+  'price_sentinel_setting.enabled': true,
+  'price_sentinel_setting.interval_minutes': 60,
+  'price_sentinel_setting.send_time': '',
+  'price_sentinel_setting.report_email': '',
+}
+
 function SentinelPage() {
   const { t } = useTranslation()
+  const optionsQuery = useSystemOptions()
+  const defaultValues = getOptionValue(
+    optionsQuery.data?.data,
+    SENTINEL_SETTINGS_DEFAULTS
+  ) as PriceSentinelSettingsValues
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
@@ -44,7 +67,13 @@ function SentinelPage() {
       </SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <SettingsPageProvider actionsContainer={null}>
-          <PriceSentinelSection />
+          {optionsQuery.isLoading ? (
+            // The form seeds from these values on mount, so it waits for them
+            // rather than rendering defaults that would then not update.
+            <LoadingState />
+          ) : (
+            <PriceSentinelSection defaultValues={defaultValues} />
+          )}
         </SettingsPageProvider>
       </SectionPageLayout.Content>
     </SectionPageLayout>

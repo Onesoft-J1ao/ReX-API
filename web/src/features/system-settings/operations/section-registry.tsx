@@ -184,7 +184,20 @@ const OPERATIONS_SECTIONS = [
   {
     id: 'price-sentinel',
     titleKey: 'Upstream Price Sentinel',
-    build: () => <PriceSentinelSection />,
+    build: (settings: OperationsSettings) => (
+      <PriceSentinelSection
+        defaultValues={{
+          'price_sentinel_setting.enabled':
+            settings['price_sentinel_setting.enabled'] ?? true,
+          'price_sentinel_setting.interval_minutes':
+            settings['price_sentinel_setting.interval_minutes'] ?? 60,
+          'price_sentinel_setting.send_time':
+            settings['price_sentinel_setting.send_time'] ?? '',
+          'price_sentinel_setting.report_email':
+            settings['price_sentinel_setting.report_email'] ?? '',
+        }}
+      />
+    ),
   },
   {
     id: 'update-checker',
