@@ -147,6 +147,7 @@ export function Pricing() {
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
+          sortBy={sortBy}
           pageSize={appearance.modelSquareCardPageSize}
         />
       )

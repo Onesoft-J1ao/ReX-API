@@ -6,12 +6,16 @@ import (
 	"strings"
 )
 
-// upstreamBaseURLs are the roots one upstream publishes. A channel pointed at
-// any of them retries the others when that root fails, so one host being down
-// or rate-limiting does not fail the request.
+// upstreamBaseURLs are the roots one upstream publishes, in preference order.
+// A channel pointed at any of them retries the others when that root fails, so
+// one host being down or rate-limiting does not fail the request.
+//
+// The bare https://api.furry.vg root is deliberately absent: inference paths
+// live under /v1 there, so a fallback that keeps only the client path returns
+// 404. That 404 is not a failover-worthy status, so listing it here would make
+// the first fallback attempt an immediate dead end instead of the next host.
 var upstreamBaseURLs = []string{
 	"https://api.furry.vg/v1",
-	"https://api.furry.vg",
 	"https://gs.mfawa.top/v1",
 }
 

@@ -264,6 +264,16 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
+	// The day's signup cap is checked before any other work, and the same gate
+	// runs on the OAuth and WeChat signup paths.
+	if err := model.CheckRegisterDailyLimit(); err != nil {
+		if errors.Is(err, model.ErrRegisterDailyLimitReached) {
+			common.ApiErrorI18n(c, i18n.MsgRegisterDailyLimitReached)
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
 	var user model.User
 	err := common.DecodeJson(c.Request.Body, &user)
 	if err != nil {

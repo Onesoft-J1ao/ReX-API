@@ -79,6 +79,7 @@ func InitOptionMap() {
 	common.OptionMap["NoticePopupOnDashboardEnabled"] = strconv.FormatBool(common.NoticePopupOnDashboardEnabled)
 	common.OptionMap["NoticeHeaderButtonMode"] = common.NoticeHeaderButtonMode
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
+	common.OptionMap["RegisterDailyLimit"] = strconv.Itoa(common.RegisterDailyLimit)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["ChannelAutoStatusEmailEnabled"] = strconv.FormatBool(common.ChannelAutoStatusEmailEnabled)
@@ -895,6 +896,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaRemindEnabled = value == "true"
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
+	case "RegisterDailyLimit":
+		common.RegisterDailyLimit, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":
 		common.PreConsumedQuota, _ = strconv.Atoi(value)
 	case "ModelRequestRateLimitCount":

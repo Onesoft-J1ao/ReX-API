@@ -397,6 +397,8 @@ func handleOAuthLogin(c *gin.Context, provider oauth.Provider, oauthUser *oauth.
 			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
 		case *OAuthRegistrationDisabledError:
 			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+		case *OAuthRegisterDailyLimitError:
+			common.ApiErrorI18n(c, i18n.MsgRegisterDailyLimitReached)
 		case *OAuthEmailAlreadyTakenError:
 			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
 		case *OAuthLegacyBindingNotConfirmedError:
@@ -588,6 +590,13 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	if !common.RegisterEnabled {
 		return nil, nil, &OAuthRegistrationDisabledError{}
 	}
+	// The daily cap gates every public signup path, not just the password form.
+	if err := model.CheckRegisterDailyLimit(); err != nil {
+		if errors.Is(err, model.ErrRegisterDailyLimitReached) {
+			return nil, nil, &OAuthRegisterDailyLimitError{}
+		}
+		return nil, nil, err
+	}
 
 	// Set up new user
 	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
@@ -714,6 +723,14 @@ type OAuthRegistrationDisabledError struct{}
 
 func (e *OAuthRegistrationDisabledError) Error() string {
 	return "registration is disabled"
+}
+
+// OAuthRegisterDailyLimitError reports that the day's signup cap is used up, so
+// this new-user request was refused even though registration itself is enabled.
+type OAuthRegisterDailyLimitError struct{}
+
+func (e *OAuthRegisterDailyLimitError) Error() string {
+	return "register daily limit reached"
 }
 
 type OAuthEmailAlreadyTakenError struct{}
