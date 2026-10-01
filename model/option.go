@@ -49,6 +49,7 @@ func InitOptionMap() {
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
 	common.OptionMap["PhantomCheckEnabled"] = strconv.FormatBool(common.PhantomCheckEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
+	common.OptionMap["RegisterDailyLimit"] = strconv.Itoa(common.RegisterDailyLimit)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
@@ -441,6 +442,9 @@ func updateOptionMap(key string, value string) (err error) {
 	case "SMTPPort":
 		intValue, _ := strconv.Atoi(value)
 		common.SMTPPort = intValue
+	case "RegisterDailyLimit":
+		intValue, _ := strconv.Atoi(value)
+		common.RegisterDailyLimit = intValue
 	case "SMTPAccount":
 		common.SMTPAccount = value
 	case "SMTPFrom":

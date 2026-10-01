@@ -26,6 +26,8 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
 	service.RegisterSystemTaskHandler(channelStatusSyncHandler{})
+	service.RegisterSystemTaskHandler(channelStatusSyncHandler{})
+	service.RegisterSystemTaskHandler(priceSentinelHandler{})
 	service.RegisterSystemTaskHandler(registrarRunHandler{})
 	service.RegisterSystemTaskHandler(registrarReplenishHandler{})
 }

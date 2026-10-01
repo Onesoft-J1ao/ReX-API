@@ -23,6 +23,7 @@ const (
 	SystemTaskTypeAsyncTaskPoll      = "async_task_poll"
 	SystemTaskTypeGroupHealthProbe   = "group_health_probe"
 	SystemTaskTypeChannelStatusSync  = "channel_status_sync"
+	SystemTaskTypePriceSentinel      = "price_sentinel"
 	SystemTaskTypeRegistrarRun       = "registrar_run"
 	SystemTaskTypeRegistrarReplenish = "registrar_replenish"
 )

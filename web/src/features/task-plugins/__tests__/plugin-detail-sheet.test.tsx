@@ -190,6 +190,16 @@ describe('PluginDetailSheet host protocol endpoints', () => {
     expect(screen.queryByText('background')).toBeNull()
   })
 
+  test('given a claim whose name differs in case or spacing, the endpoints still render', async () => {
+    renderSheet({ protocols: ['  OpenAI_Video  '] })
+
+    // The claim comes from a third-party manifest, so the lookup normalises it
+    // first; matching the key verbatim rendered an empty endpoint list here.
+    expect(await screen.findByText('/v1/videos')).toBeInTheDocument()
+    expect(screen.getByText('/v1/videos/{task_id}')).toBeInTheDocument()
+    expect(screen.getByText('/v1/videos/{task_id}/content')).toBeInTheDocument()
+  })
+
   test('given a claim narrowing the protocol to a model subset, the subset is marked without printing the model list', async () => {
     renderSheet({
       models: ['kling-v1', 'kling-v2-master'],
