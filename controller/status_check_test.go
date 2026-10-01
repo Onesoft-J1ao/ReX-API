@@ -103,3 +103,23 @@ func TestProbeGroupsForKeepsFreeGroupForAnyModel(t *testing.T) {
 	assert.Equal(t, []string{"free-group"},
 		probeGroupsFor([]string{"free-group"}, "expensive-model"))
 }
+
+// The status page reads probe rows and passive metrics, and both of those
+// outlive a model being taken off its channel: the plaza stops listing it while
+// the health rows linger. The page therefore filters on the same ability table
+// the plaza reads, keeping the admin exclusion list as an override.
+func TestModelIsAdvertisedFollowsThePlazaAndTheExclusionList(t *testing.T) {
+	served := map[string]bool{"served-model": true, "excluded-model": true}
+	excluded := map[string]struct{}{"excluded-model": {}}
+
+	assert.True(t, modelIsAdvertised(served, "served-model", nil))
+
+	assert.False(t, modelIsAdvertised(served, "retired-model", nil),
+		"a model no enabled channel serves is not on the plaza, so the page drops it")
+
+	assert.False(t, modelIsAdvertised(served, "excluded-model", excluded),
+		"the admin exclusion list still hides a model that is served")
+
+	assert.True(t, modelIsAdvertised(nil, "retired-model", nil),
+		"an empty ability set is unknown rather than a verdict, so nothing is dropped")
+}
