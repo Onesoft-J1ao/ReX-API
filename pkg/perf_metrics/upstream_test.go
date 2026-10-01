@@ -114,3 +114,46 @@ func TestMergeUpstreamModelsRespectsDisabledSetting(t *testing.T) {
 	require.Len(t, merged, 1)
 	assert.Equal(t, "ours", merged[0].ModelName)
 }
+
+// The mirror lists every model its own instance serves, which is not the set
+// this instance advertises. Merging it unfiltered puts a retired model back on
+// the perf pages after the model square has already dropped it.
+func TestMergeUpstreamModelsSkipsModelsThePlazaNoLongerServes(t *testing.T) {
+	server := upstreamServer(t, `{"success":true,"data":{"models":[
+		{"model_name":"still-served","avg_latency_ms":10,"success_rate":90,"avg_tps":1},
+		{"model_name":"retired-model","avg_latency_ms":20,"success_rate":90,"avg_tps":1}
+	]}}`)
+	withUpstreamSetting(t, server.URL)
+
+	merged := mergeUpstreamModelsServedBy(
+		[]ModelSummary{{ModelName: "local-only", RequestCount: 5}},
+		24,
+		map[string]struct{}{"still-served": {}, "local-only": {}},
+	)
+
+	names := make([]string, 0, len(merged))
+	for _, model := range merged {
+		names = append(names, model.ModelName)
+	}
+	assert.Contains(t, names, "still-served",
+		"a model the group still serves keeps its mirrored row")
+	assert.Contains(t, names, "local-only",
+		"our own traffic is never filtered out")
+	assert.NotContains(t, names, "retired-model",
+		"a model the plaza dropped must not come back through the mirror")
+}
+
+// A nil served set means the ability lookup came back empty. That is an unknown
+// rather than a verdict, so the merge keeps its previous behaviour instead of
+// blanking every mirrored model.
+func TestMergeUpstreamModelsKeepsMirrorWhenServedSetIsUnknown(t *testing.T) {
+	server := upstreamServer(t, `{"success":true,"data":{"models":[
+		{"model_name":"mirrored","avg_latency_ms":10,"success_rate":90,"avg_tps":1}
+	]}}`)
+	withUpstreamSetting(t, server.URL)
+
+	merged := mergeUpstreamModelsServedBy(nil, 24, nil)
+
+	require.Len(t, merged, 1)
+	assert.Equal(t, "mirrored", merged[0].ModelName)
+}
