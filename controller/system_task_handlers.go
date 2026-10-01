@@ -9,7 +9,9 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/registrar"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/registrar_setting"
 )
 
 // RegisterScheduledSystemTasks wires the periodic channel test, upstream model
@@ -24,6 +26,8 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
 	service.RegisterSystemTaskHandler(channelStatusSyncHandler{})
+	service.RegisterSystemTaskHandler(registrarRunHandler{})
+	service.RegisterSystemTaskHandler(registrarReplenishHandler{})
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and
@@ -162,4 +166,132 @@ func finishSystemTaskHandler(task *model.SystemTask, runnerID string, status mod
 	if err := model.FinishSystemTask(task.TaskID, runnerID, status, result, errorMessage); err != nil {
 		common.SysLog(fmt.Sprintf("system task %s failed to persist result: %v", task.TaskID, err))
 	}
+}
+
+// registrarRunHandler executes one registration run requested from the admin
+// console. The payload names the provider and the account count; the count is
+// clamped to the provider's MaxBatch so an API caller cannot ask for an
+// unbounded registration burst.
+type registrarRunHandler struct{}
+
+func (registrarRunHandler) Type() string { return model.SystemTaskTypeRegistrarRun }
+
+type registrarRunPayload struct {
+	ProviderID string `json:"provider_id"`
+	Count      int    `json:"count"`
+}
+
+func (registrarRunHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	payload := registrarRunPayload{}
+	if err := task.DecodePayload(&payload); err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	provider, ok := registrar_setting.GetProvider(payload.ProviderID)
+	if !ok {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, fmt.Errorf("unknown registrar provider %q", payload.ProviderID))
+		return
+	}
+	count := payload.Count
+	if provider.MaxBatch > 0 && (count <= 0 || count > provider.MaxBatch) {
+		count = provider.MaxBatch
+	}
+	if count <= 0 {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, fmt.Errorf("provider %s has no positive run size", provider.ID))
+		return
+	}
+	result, err := registrar.RunProvider(ctx, provider, count, service.NewSystemTaskProgressReporter(task, runnerID))
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, result, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, result, nil)
+}
+
+// registrarReplenishHandler tops up any provider whose channel has fallen below
+// its usable-key floor. Enabled() folds that check in, so an idle system
+// schedules no row and the history stays quiet.
+type registrarReplenishHandler struct{}
+
+func (registrarReplenishHandler) Type() string { return model.SystemTaskTypeRegistrarReplenish }
+
+func (registrarReplenishHandler) Enabled() bool {
+	setting := registrar_setting.GetSetting()
+	if !setting.Enabled {
+		return false
+	}
+	for _, provider := range setting.Providers {
+		if !provider.Enabled || provider.ChannelID <= 0 {
+			continue
+		}
+		channel, err := model.GetChannelById(provider.ChannelID, true)
+		if err != nil || channel == nil {
+			continue
+		}
+		if provider.MissingFor(registrar.UsableKeyCount(channel)) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (registrarReplenishHandler) Interval() time.Duration { return registrar_setting.GetInterval() }
+
+func (registrarReplenishHandler) NewPayload() any { return nil }
+
+func (registrarReplenishHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary := runRegistrarReplenish(ctx, service.NewSystemTaskProgressReporter(task, runnerID))
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
+}
+
+// registrarReplenishSummary records one entry per provider per run so the admin
+// page and the task history show why a provider did or did not register.
+type registrarReplenishSummary struct {
+	Providers []registrarProviderReplenish `json:"providers"`
+}
+
+type registrarProviderReplenish struct {
+	ProviderID string `json:"provider_id"`
+	UsableKeys int    `json:"usable_keys"`
+	Requested  int    `json:"requested"`
+	Added      int    `json:"added"`
+	Error      string `json:"error,omitempty"`
+}
+
+// runRegistrarReplenish tops providers up in turn. One provider failing is
+// recorded in its own entry rather than failing the whole pass, so a broken site
+// does not stop the others from being replenished.
+func runRegistrarReplenish(ctx context.Context, progress func(processed, total int)) registrarReplenishSummary {
+	var summary registrarReplenishSummary
+	setting := registrar_setting.GetSetting()
+	if !setting.Enabled {
+		return summary
+	}
+	for _, provider := range setting.Providers {
+		if !provider.Enabled || provider.ChannelID <= 0 {
+			continue
+		}
+		if ctx.Err() != nil {
+			return summary
+		}
+		entry := registrarProviderReplenish{ProviderID: provider.ID}
+		channel, err := model.GetChannelById(provider.ChannelID, true)
+		if err != nil || channel == nil {
+			entry.Error = fmt.Sprintf("channel %d is not available", provider.ChannelID)
+			summary.Providers = append(summary.Providers, entry)
+			continue
+		}
+		entry.UsableKeys = registrar.UsableKeyCount(channel)
+		missing := provider.MissingFor(entry.UsableKeys)
+		entry.Requested = missing
+		if missing > 0 {
+			result, runErr := registrar.RunProvider(ctx, provider, missing, progress)
+			entry.Added = result.Added
+			if runErr != nil {
+				entry.Error = runErr.Error()
+			}
+		}
+		summary.Providers = append(summary.Providers, entry)
+	}
+	return summary
 }

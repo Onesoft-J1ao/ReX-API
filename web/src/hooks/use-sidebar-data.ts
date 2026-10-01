@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   Ticket,
   User,
+  UserPlus,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -184,6 +185,11 @@ export function useSidebarData(): SidebarData {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
+          },
+          {
+            title: t('Registrar'),
+            url: '/registrar',
+            icon: UserPlus,
           },
           {
             title: t('Users'),

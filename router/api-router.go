@@ -239,6 +239,18 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		apiRouter.POST("/subscription/epay/return", anonymousRequestBodyLimit, controller.SubscriptionEpayReturn)
+		// Registrar. The account archive holds upstream login secrets
+		// (fingerprints) and live API keys, so every route is root-only.
+		registrarRoute := apiRouter.Group("/registrar")
+		registrarRoute.Use(middleware.RootAuth())
+		{
+			registrarRoute.GET("/providers", controller.GetRegistrarProviders)
+			registrarRoute.PUT("/providers", controller.UpdateRegistrarProviders)
+			registrarRoute.POST("/providers/:id/run", controller.RunRegistrarProvider)
+			registrarRoute.GET("/accounts", controller.ListRegistrarAccounts)
+			registrarRoute.GET("/accounts/export", controller.ExportRegistrarAccounts)
+			registrarRoute.POST("/accounts/import", controller.ImportRegistrarAccounts)
+		}
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{
