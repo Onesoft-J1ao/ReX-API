@@ -183,10 +183,28 @@ function selectComboboxOption(
   trigger: HTMLButtonElement,
   optionDescription: string
 ): void {
+  const beforeOpen = new Set(
+    document.querySelectorAll('[data-slot="command-item"]')
+  )
   fireEvent.click(trigger)
-  const option = [
+  const opened = [
     ...document.querySelectorAll<HTMLElement>('[data-slot="command-item"]'),
-  ].find((candidate) => candidate.textContent?.includes(optionDescription))
+  ].filter((candidate) => !beforeOpen.has(candidate))
+  // The drawer keeps the Auto order editor's own group picker mounted, and it
+  // offers the same group labels, so a document-wide search can click the wrong
+  // list. Prefer the items this trigger just opened, and fall back to the whole
+  // document when the list was already on screen.
+  const pool =
+    opened.length > 0
+      ? opened
+      : [
+          ...document.querySelectorAll<HTMLElement>(
+            '[data-slot="command-item"]'
+          ),
+        ]
+  const option = pool.find((candidate) =>
+    candidate.textContent?.includes(optionDescription)
+  )
   if (!option) {
     throw new Error(`Expected option containing "${optionDescription}"`)
   }
