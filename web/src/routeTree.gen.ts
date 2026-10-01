@@ -48,6 +48,7 @@ import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedRefundsIndexRouteImport } from './routes/_authenticated/refunds/index'
+import { Route as AuthenticatedRegistrarIndexRouteImport } from './routes/_authenticated/registrar/index'
 import { Route as AuthenticatedSecurityIndexRouteImport } from './routes/_authenticated/security/index'
 import { Route as AuthenticatedStatusIndexRouteImport } from './routes/_authenticated/status/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
@@ -282,6 +283,12 @@ const AuthenticatedRefundsIndexRoute =
     path: '/refunds/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRegistrarIndexRoute =
+  AuthenticatedRegistrarIndexRouteImport.update({
+    id: '/registrar/',
+    path: '/registrar/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSecurityIndexRoute =
   AuthenticatedSecurityIndexRouteImport.update({
     id: '/security/',
@@ -488,6 +495,7 @@ export interface FileRoutesByFullPath {
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/refunds/': typeof AuthenticatedRefundsIndexRoute
+  '/registrar/': typeof AuthenticatedRegistrarIndexRoute
   '/security/': typeof AuthenticatedSecurityIndexRoute
   '/status/': typeof AuthenticatedStatusIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
@@ -554,6 +562,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
   '/refunds': typeof AuthenticatedRefundsIndexRoute
+  '/registrar': typeof AuthenticatedRegistrarIndexRoute
   '/security': typeof AuthenticatedSecurityIndexRoute
   '/status': typeof AuthenticatedStatusIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
@@ -624,6 +633,7 @@ export interface FileRoutesById {
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/_authenticated/refunds/': typeof AuthenticatedRefundsIndexRoute
+  '/_authenticated/registrar/': typeof AuthenticatedRegistrarIndexRoute
   '/_authenticated/security/': typeof AuthenticatedSecurityIndexRoute
   '/_authenticated/status/': typeof AuthenticatedStatusIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
@@ -693,6 +703,7 @@ export interface FileRouteTypes {
     | '/profile/'
     | '/redemption-codes/'
     | '/refunds/'
+    | '/registrar/'
     | '/security/'
     | '/status/'
     | '/subscriptions/'
@@ -759,6 +770,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/redemption-codes'
     | '/refunds'
+    | '/registrar'
     | '/security'
     | '/status'
     | '/subscriptions'
@@ -828,6 +840,7 @@ export interface FileRouteTypes {
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
     | '/_authenticated/refunds/'
+    | '/_authenticated/registrar/'
     | '/_authenticated/security/'
     | '/_authenticated/status/'
     | '/_authenticated/subscriptions/'
@@ -1150,6 +1163,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRefundsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/registrar/': {
+      id: '/_authenticated/registrar/'
+      path: '/registrar'
+      fullPath: '/registrar/'
+      preLoaderRoute: typeof AuthenticatedRegistrarIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/security/': {
       id: '/_authenticated/security/'
       path: '/security'
@@ -1451,6 +1471,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
   AuthenticatedRefundsIndexRoute: typeof AuthenticatedRefundsIndexRoute
+  AuthenticatedRegistrarIndexRoute: typeof AuthenticatedRegistrarIndexRoute
   AuthenticatedSecurityIndexRoute: typeof AuthenticatedSecurityIndexRoute
   AuthenticatedStatusIndexRoute: typeof AuthenticatedStatusIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
@@ -1483,6 +1504,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,
   AuthenticatedRefundsIndexRoute: AuthenticatedRefundsIndexRoute,
+  AuthenticatedRegistrarIndexRoute: AuthenticatedRegistrarIndexRoute,
   AuthenticatedSecurityIndexRoute: AuthenticatedSecurityIndexRoute,
   AuthenticatedStatusIndexRoute: AuthenticatedStatusIndexRoute,
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,

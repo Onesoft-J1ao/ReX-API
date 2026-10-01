@@ -132,6 +132,13 @@ export type SystemTaskListResponse = {
   data?: SystemTask[]
 }
 
+export type SystemTaskFilters = {
+  type?: string
+  status?: SystemTaskStatus | ''
+  scope?: 'active' | 'history'
+  offset?: number
+}
+
 export type SiteSettings = {
   Notice: string
   SystemName: string
