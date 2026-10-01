@@ -113,6 +113,29 @@ function getModelPrice(model: PricingModel): number {
 }
 
 /**
+ * Vendor families, in the order the model square should lead with. A model is
+ * matched on its own name because the same family arrives under different
+ * vendor prefixes (`opencode/gpt-5.5`, `go/gpt-5.5`, `gpt-5.5`).
+ */
+const FAMILY_ORDER = [
+  'claude',
+  'gpt',
+  'grok',
+  'deepseek',
+  'kimi',
+  'glm',
+  'gemini',
+  'qwen',
+]
+
+/** Rank of the family a model belongs to; unlisted families sort last. */
+export function modelFamilyRank(modelName: string | undefined): number {
+  const name = (modelName ?? '').toLowerCase()
+  const index = FAMILY_ORDER.findIndex((family) => name.includes(family))
+  return index === -1 ? FAMILY_ORDER.length : index
+}
+
+/**
  * Sort models by specified option
  */
 export function sortModels(
@@ -122,6 +145,16 @@ export function sortModels(
   const sorted = [...models]
 
   switch (sortBy) {
+    case SORT_OPTIONS.RECOMMENDED:
+      // Family first, then name, so the order is stable before the card grid
+      // refines it with live availability.
+      sorted.sort((a, b) => {
+        const family =
+          modelFamilyRank(a.model_name) - modelFamilyRank(b.model_name)
+        if (family !== 0) return family
+        return (a.model_name || '').localeCompare(b.model_name || '')
+      })
+      break
     case SORT_OPTIONS.NAME:
       sorted.sort((a, b) =>
         (a.model_name || '').localeCompare(b.model_name || '')
