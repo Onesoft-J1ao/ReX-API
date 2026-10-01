@@ -28,6 +28,8 @@ const (
 	SystemTaskTypeMoneroAddressAudit   = "monero_address_audit"
 	SystemTaskTypeChannelStatusSync    = "channel_status_sync"
 	SystemTaskTypePriceSentinel        = "price_sentinel"
+	SystemTaskTypeRegistrarRun         = "registrar_run"
+	SystemTaskTypeRegistrarReplenish   = "registrar_replenish"
 )
 
 var ErrSystemTaskLockLost = errors.New("system task lock lost")

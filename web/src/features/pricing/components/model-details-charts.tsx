@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
 import type { PerfMetricsBucketTime } from '@/stores/system-config-store'
 
-import { formatPerfBucketLabel } from '../lib/bucket-label'
+import { formatTimeAxisValue, timeAxisDomain } from '../lib/chart-time-axis'
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 
 function getChartThemeTokens(resolvedTheme: string) {
@@ -66,10 +66,6 @@ function getUptimeAxisMin(values: number[]): number {
   return Math.max(0, Math.floor((minValue - 5) / 10) * 10)
 }
 
-function stripUptimePointSuffix(value: string): string {
-  return value.replace(/__(start|end)$/, '')
-}
-
 // ---------------------------------------------------------------------------
 // Latency trend chart (24h, multi-group point-line chart)
 // ---------------------------------------------------------------------------
@@ -86,15 +82,20 @@ export function LatencyTrendChart(props: {
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
-    const data = props.series.map((point) => ({
-      time: formatPerfBucketLabel(Date.parse(point.timestamp), props.bucket),
-      group: point.group,
-      ttft: point.ttft_ms,
-    }))
+    const data = props.series
+      .map((point) => ({
+        ts: Date.parse(point.timestamp),
+        group: point.group,
+        ttft: point.ttft_ms,
+      }))
+      .filter((point) => Number.isFinite(point.ts))
+      .sort((a, b) => a.ts - b.ts)
+    const domain = timeAxisDomain(data.map((point) => point.ts))
+    const spanMs = domain.max - domain.min
     return {
       type: 'line' as const,
       data: [{ id: 'latency', values: data }],
-      xField: 'time',
+      xField: 'ts',
       yField: 'ttft',
       seriesField: 'group',
       smooth: true,
@@ -108,7 +109,7 @@ export function LatencyTrendChart(props: {
       legends: { visible: false },
       tooltip: {
         mark: {
-          title: { value: (d: { time: string }) => d.time },
+          title: { value: (d: { ts: number }) => formatTimeAxisValue(d.ts, props.bucket, spanMs) },
           content: [
             {
               key: props.valueLabel ?? t('Average TTFT'),
@@ -120,7 +121,11 @@ export function LatencyTrendChart(props: {
       axes: [
         {
           orient: 'bottom',
+          type: 'linear' as const,
+          min: domain.min,
+          max: domain.max,
           label: {
+            formatMethod: (val: unknown) => formatTimeAxisValue(val, props.bucket, spanMs),
             style: { fill: textColor, fontSize: 10 },
             autoLimit: true,
           },
@@ -187,25 +192,23 @@ export function UptimeTrendChart(props: {
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
 
-    const rawData = props.series.map((point) => ({
-      date: formatPerfBucketLabel(Date.parse(point.date), props.bucket),
-      uptime: toUptimeChartValue(point.uptime_pct),
-      incidents: point.incidents,
-      outage: point.outage_minutes,
-    }))
-    const data =
-      rawData.length === 1
-        ? [
-            { ...rawData[0], date: `${rawData[0].date}__start` },
-            { ...rawData[0], date: `${rawData[0].date}__end` },
-          ]
-        : rawData
-    const axisMin = getUptimeAxisMin(rawData.map((point) => point.uptime))
+    const data = props.series
+      .map((point) => ({
+        ts: Date.parse(point.date),
+        uptime: toUptimeChartValue(point.uptime_pct),
+        incidents: point.incidents,
+        outage: point.outage_minutes,
+      }))
+      .filter((point) => Number.isFinite(point.ts))
+      .sort((a, b) => a.ts - b.ts)
+    const axisMin = getUptimeAxisMin(data.map((point) => point.uptime))
+    const domain = timeAxisDomain(data.map((point) => point.ts))
+    const spanMs = domain.max - domain.min
 
     return {
       type: 'line' as const,
       data: [{ id: 'uptime', values: data }],
-      xField: 'date',
+      xField: 'ts',
       yField: 'uptime',
       smooth: true,
       line: {
@@ -224,7 +227,7 @@ export function UptimeTrendChart(props: {
       tooltip: {
         mark: {
           title: {
-            value: (d: { date: string }) => stripUptimePointSuffix(d.date),
+            value: (d: { ts: number }) => formatTimeAxisValue(d.ts, props.bucket, spanMs),
           },
           content: [
             {
@@ -245,9 +248,11 @@ export function UptimeTrendChart(props: {
       axes: [
         {
           orient: 'bottom',
+          type: 'linear' as const,
+          min: domain.min,
+          max: domain.max,
           label: {
-            formatMethod: (val: number | string) =>
-              stripUptimePointSuffix(String(val)),
+            formatMethod: (val: unknown) => formatTimeAxisValue(val, props.bucket, spanMs),
             style: { fill: textColor, fontSize: 10 },
             autoLimit: true,
           },

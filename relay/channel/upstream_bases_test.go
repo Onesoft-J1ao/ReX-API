@@ -16,11 +16,16 @@ func TestUpstreamFailoverDoesNotReplayAResponseAlreadyReceived(t *testing.T) {
 }
 
 func TestAlternateUpstreamURLsKeepsThePathAndSkipsOtherHosts(t *testing.T) {
-	alts := alternateUpstreamURLs("https://api.furry.vg/v1/chat/completions")
+	// A channel on the primary root falls back to the mirror, keeping the path
+	// under /v1 intact.
 	assert.Equal(t, []string{
-		"https://api.furry.vg/chat/completions",
 		"https://gs.mfawa.top/v1/chat/completions",
-	}, alts)
+	}, alternateUpstreamURLs("https://api.furry.vg/v1/chat/completions"))
+
+	// A channel on the mirror prefers the primary root.
+	assert.Equal(t, []string{
+		"https://api.furry.vg/v1/chat/completions",
+	}, alternateUpstreamURLs("https://gs.mfawa.top/v1/chat/completions"))
 
 	assert.Empty(t, alternateUpstreamURLs("https://api.openai.com/v1/chat/completions"))
 }

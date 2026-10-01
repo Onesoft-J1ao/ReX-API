@@ -479,6 +479,19 @@ func SetApiRouter(router *gin.Engine) {
 			// operator does not have to write dozens of rows by hand.
 			priceSentinelEditRoute.POST("/sync", middleware.RootAuth(), controller.SyncPriceSentinelPrices)
 		}
+		// Registrar. The account archive holds upstream login secrets
+		// (fingerprints) and live API keys, so every route is root-only, and the
+		// routes that return a credential in the clear are audited.
+		registrarRoute := apiRouter.Group("/registrar")
+		registrarRoute.Use(middleware.RootAuth())
+		{
+			registrarRoute.GET("/providers", controller.GetRegistrarProviders)
+			registrarRoute.PUT("/providers", controller.UpdateRegistrarProviders)
+			registrarRoute.POST("/providers/:id/run", controller.RunRegistrarProvider)
+			registrarRoute.GET("/accounts", controller.ListRegistrarAccounts)
+			registrarRoute.GET("/accounts/export", controller.ExportRegistrarAccounts)
+			registrarRoute.POST("/accounts/import", controller.ImportRegistrarAccounts)
+		}
 		systemInfoRoute := apiRouter.Group("/system-info")
 		systemInfoRoute.Use(middleware.RootAuth())
 		{

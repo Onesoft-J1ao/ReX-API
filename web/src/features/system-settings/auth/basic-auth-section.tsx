@@ -31,6 +31,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -50,6 +51,7 @@ const basicAuthSchema = z.object({
   PasswordRegisterEnabled: z.boolean(),
   EmailVerificationEnabled: z.boolean(),
   RegisterEnabled: z.boolean(),
+  RegisterDailyLimit: z.number().int().min(0).max(100000),
   EmailDomainRestrictionEnabled: z.boolean(),
   EmailAliasRestrictionEnabled: z.boolean(),
   EmailDomainWhitelist: z.string(),
@@ -84,7 +86,7 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
   useResetForm(form, formDefaults)
 
   const onSubmit = async (data: BasicAuthFormValues) => {
-    const updates: Array<{ key: string; value: string | boolean }> = []
+    const updates: Array<{ key: string; value: string | boolean | number }> = []
 
     Object.entries(data).forEach(([key, value]) => {
       if (key === 'EmailDomainWhitelist') {
@@ -199,6 +201,33 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
                   />
                 </FormControl>
               </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='RegisterDailyLimit'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Daily registration limit')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    max={100000}
+                    value={field.value}
+                    onChange={(event) =>
+                      field.onChange(event.target.valueAsNumber)
+                    }
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Maximum accounts created per day across every signup path. 0 disables the limit.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
             )}
           />
 

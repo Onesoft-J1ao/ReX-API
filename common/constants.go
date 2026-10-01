@@ -82,6 +82,12 @@ var TurnstileCheckEnabled = false
 var PhantomCheckEnabled = false
 var RegisterEnabled = true
 
+// RegisterDailyLimit caps how many accounts may be created in one local day.
+// It bounds signup abuse rather than traffic, so it counts every account created
+// that day (including ones later removed) and zero means unlimited. It is
+// separate from RegisterRateLimit, which is a short-window burst limiter.
+var RegisterDailyLimit = 60
+
 var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
 var EmailAliasRestrictionEnabled = false  // 是否启用邮箱别名限制
 var EmailDomainWhitelist = []string{

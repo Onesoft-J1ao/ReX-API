@@ -39,6 +39,7 @@ import {
   ShieldCheck,
   Ticket,
   User,
+  UserPlus,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -209,6 +210,12 @@ export function useSidebarData(): SidebarData {
             title: t('Upstream price sentinel'),
             url: '/status/sentinel',
             icon: Tags,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('Registrar'),
+            url: '/registrar',
+            icon: UserPlus,
             requiredRole: ROLE.ADMIN,
           },
           {

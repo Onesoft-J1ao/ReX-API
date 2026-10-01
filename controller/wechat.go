@@ -93,6 +93,13 @@ func WeChatAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
+			if err := model.CheckRegisterDailyLimit(); err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "今日注册名额已满，请明天再试",
+				})
+				return
+			}
 			user.Username = "wechat_" + strconv.Itoa(model.GetMaxUserId()+1)
 			user.DisplayName = "WeChat User"
 			user.Role = common.RoleCommonUser
