@@ -47,6 +47,10 @@ func InitOptionMap() {
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
+	common.OptionMap["HCaptchaEnabled"] = strconv.FormatBool(common.HCaptchaEnabled)
+	common.OptionMap["CapEnabled"] = strconv.FormatBool(common.CapEnabled)
+	common.OptionMap["ForceCheckinCaptcha"] = strconv.FormatBool(common.ForceCheckinCaptcha)
+	common.OptionMap["ForceRedemptionCaptcha"] = strconv.FormatBool(common.ForceRedemptionCaptcha)
 	common.OptionMap["PhantomCheckEnabled"] = strconv.FormatBool(common.PhantomCheckEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
 	common.OptionMap["RegisterDailyLimit"] = strconv.Itoa(common.RegisterDailyLimit)
@@ -143,6 +147,17 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAccountQRCodeImageURL"] = ""
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
+	common.OptionMap["HCaptchaSiteKey"] = common.HCaptchaSiteKey
+	common.OptionMap["HCaptchaSecretKey"] = common.HCaptchaSecretKey
+	common.OptionMap["CapServerURL"] = common.CapServerURL
+	common.OptionMap["CapAdminAPIKey"] = common.CapAdminAPIKey
+	common.OptionMap["CapSiteKey"] = common.CapSiteKey
+	common.OptionMap["CapSecretKey"] = common.CapSecretKey
+	common.OptionMap["CapCheckinSiteKey"] = common.CapCheckinSiteKey
+	common.OptionMap["CapCheckinSecretKey"] = common.CapCheckinSecretKey
+	common.OptionMap["CaptchaType"] = common.CaptchaType
+	common.OptionMap["LoginCaptchaDifficulty"] = strconv.Itoa(common.LoginCaptchaDifficulty)
+	common.OptionMap["CheckinCaptchaDifficulty"] = strconv.Itoa(common.CheckinCaptchaDifficulty)
 	common.OptionMap["PhantomServiceURL"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
@@ -356,6 +371,14 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TelegramOAuthEnabled = boolValue
 		case "TurnstileCheckEnabled":
 			common.TurnstileCheckEnabled = boolValue
+		case "HCaptchaEnabled":
+			common.HCaptchaEnabled = boolValue
+		case "CapEnabled":
+			common.CapEnabled = boolValue
+		case "ForceCheckinCaptcha":
+			common.ForceCheckinCaptcha = boolValue
+		case "ForceRedemptionCaptcha":
+			common.ForceRedemptionCaptcha = boolValue
 		case "PhantomCheckEnabled":
 			common.PhantomCheckEnabled = boolValue
 		case "RegisterEnabled":
@@ -575,6 +598,28 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
 		common.TurnstileSecretKey = value
+	case "HCaptchaSiteKey":
+		common.HCaptchaSiteKey = value
+	case "HCaptchaSecretKey":
+		common.HCaptchaSecretKey = value
+	case "CapServerURL":
+		common.CapServerURL = value
+	case "CapAdminAPIKey":
+		common.CapAdminAPIKey = value
+	case "CapSiteKey":
+		common.CapSiteKey = value
+	case "CapSecretKey":
+		common.CapSecretKey = value
+	case "CapCheckinSiteKey":
+		common.CapCheckinSiteKey = value
+	case "CapCheckinSecretKey":
+		common.CapCheckinSecretKey = value
+	case "CaptchaType":
+		common.CaptchaType = value
+	case "LoginCaptchaDifficulty":
+		common.LoginCaptchaDifficulty, _ = strconv.Atoi(value)
+	case "CheckinCaptchaDifficulty":
+		common.CheckinCaptchaDifficulty, _ = strconv.Atoi(value)
 	case "PhantomServiceURL":
 		common.PhantomServiceURL = value
 	case "QuotaForNewUser":

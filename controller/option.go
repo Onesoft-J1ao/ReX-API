@@ -180,6 +180,52 @@ func writePasskeyDomainSettingsError(c *gin.Context, err error) {
 	common.ApiError(c, err)
 }
 
+func syncCapDifficultyForOption(c *gin.Context, key, value string) error {
+	switch key {
+	case "CapServerURL", "CapAdminAPIKey", "CapSiteKey", "CapCheckinSiteKey", "LoginCaptchaDifficulty", "CheckinCaptchaDifficulty":
+	default:
+		return nil
+	}
+
+	serverURL := common.CapServerURL
+	apiKey := common.CapAdminAPIKey
+	loginSiteKey := common.CapSiteKey
+	checkinSiteKey := common.CapCheckinSiteKey
+	loginDifficulty := common.LoginCaptchaDifficulty
+	checkinDifficulty := common.CheckinCaptchaDifficulty
+
+	switch key {
+	case "CapServerURL":
+		serverURL = strings.TrimRight(strings.TrimSpace(value), "/")
+	case "CapAdminAPIKey":
+		apiKey = value
+	case "CapSiteKey":
+		loginSiteKey = value
+	case "CapCheckinSiteKey":
+		checkinSiteKey = value
+	case "LoginCaptchaDifficulty":
+		loginDifficulty, _ = strconv.Atoi(value)
+	case "CheckinCaptchaDifficulty":
+		checkinDifficulty, _ = strconv.Atoi(value)
+	}
+
+	if loginSiteKey != "" && loginSiteKey == checkinSiteKey && loginDifficulty != checkinDifficulty {
+		return fmt.Errorf("login and check-in require different Cap site keys when their difficulties differ")
+	}
+
+	switch key {
+	case "CapCheckinSiteKey", "CheckinCaptchaDifficulty":
+		return service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, checkinSiteKey, checkinDifficulty)
+	case "CapSiteKey", "LoginCaptchaDifficulty":
+		return service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, loginSiteKey, loginDifficulty)
+	default:
+		if err := service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, loginSiteKey, loginDifficulty); err != nil {
+			return err
+		}
+		return service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, checkinSiteKey, checkinDifficulty)
+	}
+}
+
 func UpdateOption(c *gin.Context) {
 	var option OptionUpdateRequest
 	err := common.DecodeJson(c.Request.Body, &option)
@@ -490,6 +536,10 @@ func UpdateOption(c *gin.Context) {
 		}
 		recordPasskeyDomainAudit(c, change, false, nil)
 		common.ApiSuccess(c, change)
+		return
+	}
+	if err = syncCapDifficultyForOption(c, option.Key, option.Value.(string)); err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
