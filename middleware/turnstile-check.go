@@ -13,7 +13,16 @@ type turnstileCheckResponse struct {
 }
 
 func TurnstileCheck() gin.HandlerFunc {
+	return turnstileCheck(true)
+}
+
+func TurnstileCheckFresh() gin.HandlerFunc {
+	return turnstileCheck(false)
+}
+
+func turnstileCheck(cacheSession bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		_ = cacheSession
 		if common.TurnstileCheckEnabled {
 			response := c.Query("turnstile")
 			if response == "" {

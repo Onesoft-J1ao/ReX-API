@@ -149,6 +149,21 @@ export type SiteSettings = {
 }
 
 export type AuthSettings = {
+  CaptchaType: 'turnstile' | 'hcaptcha' | 'cap'
+  HCaptchaEnabled: boolean
+  HCaptchaSiteKey: string
+  HCaptchaSecretKey: string
+  CapEnabled: boolean
+  CapServerURL: string
+  CapAdminAPIKey: string
+  CapSiteKey: string
+  CapSecretKey: string
+  CapCheckinSiteKey: string
+  CapCheckinSecretKey: string
+  LoginCaptchaDifficulty: number
+  CheckinCaptchaDifficulty: number
+  ForceCheckinCaptcha: boolean
+  ForceRedemptionCaptcha: boolean
   PasswordLoginEnabled: boolean
   PasswordRegisterEnabled: boolean
   EmailVerificationEnabled: boolean

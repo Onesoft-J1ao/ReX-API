@@ -126,6 +126,29 @@ var WeChatAccountQRCodeImageURL = ""
 
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""
+
+var HCaptchaEnabled = false
+var HCaptchaSiteKey = ""
+var HCaptchaSecretKey = ""
+
+// Fork additions - Cap CAPTCHA (PoW) and unified captcha settings.
+var CapEnabled = false
+var CapServerURL = ""
+var CapAdminAPIKey = ""
+var CapSiteKey = ""
+var CapSecretKey = ""
+var CapCheckinSiteKey = ""
+var CapCheckinSecretKey = ""
+var ForceCheckinCaptcha = false
+var ForceRedemptionCaptcha = false
+
+// CaptchaType selects the active captcha provider: "turnstile", "hcaptcha", or "cap".
+var CaptchaType = "turnstile"
+
+// Difficulty values are synchronized to the corresponding Cap Standalone keys.
+var LoginCaptchaDifficulty = 4
+
+var CheckinCaptchaDifficulty = 4
 var PhantomServiceURL = ""
 
 var TelegramBotToken = ""
