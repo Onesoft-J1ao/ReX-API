@@ -49,5 +49,14 @@
   "The provider returned no video": "The provider returned no video",
   "Describe the 3D model you want to generate": "Describe the 3D model you want to generate",
   "Reuse a completed draft task to add textures.": "Reuse a completed draft task to add textures.",
-  "The provider returned no 3D model": "The provider returned no 3D model"
+  "The provider returned no 3D model": "The provider returned no 3D model",
+  "Version resolved from the upstream release channel.": "Version resolved from the upstream release channel.",
+  "Live version lookup failed, showing the pinned version {{version}}.": "Live version lookup failed, showing the pinned version {{version}}.",
+  "Resolving the latest version…": "Resolving the latest version…",
+  "Live checksums are unavailable from this browser. Showing the snapshot from {{date}}.": "Live checksums are unavailable from this browser. Showing the snapshot from {{date}}.",
+  "Your system could not be detected. Choose your platform to highlight the matching downloads.": "Your system could not be detected. Choose your platform to highlight the matching downloads.",
+  "Switch between multiple Claude Code and Codex provider configurations from a desktop tray app.": "Switch between multiple Claude Code and Codex provider configurations from a desktop tray app.",
+  "Claude desktop build for Windows and macOS, published as a Microsoft Store package.": "Claude desktop build for Windows and macOS, published as a Microsoft Store package.",
+  "Network is unstable. Please refresh the page and try again.": "Network is unstable. Please refresh the page and try again.",
+  "Failed to update {{count}} API key(s)": "Failed to update {{count}} API key(s)"
 }
