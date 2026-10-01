@@ -23,6 +23,16 @@ import (
 // few hundred KB; anything far past that is not the response we expect.
 const upstreamMaxBytes = 16 << 20
 
+// placeholderModelRatio is the ratio the reference site returns for a model it
+// does not price. It is only a placeholder alongside a completion ratio of 1.
+const placeholderModelRatio = 37.5
+
+// nearlyEqualRatio compares two published ratios, tolerating the float noise a
+// JSON round trip through the reference site can leave behind.
+func nearlyEqualRatio(a, b float64) bool {
+	return math.Abs(a-b) < 1e-9
+}
+
 // priceFields are the dimensions compared, in report order. model_ratio is the
 // token price, model_price the per-request price; the rest are the multipliers
 // that ride along with them.
@@ -269,6 +279,16 @@ func fetchUpstreamPricing(ctx context.Context, url string, timeout time.Duration
 	for _, item := range decoded.Data {
 		name := strings.TrimSpace(item.ModelName)
 		if name == "" {
+			continue
+		}
+		// The reference site answers a model it does not price with a
+		// placeholder ratio rather than by omitting it. Ratio sync already
+		// treats that pair as untrusted; without the same rule here the sentinel
+		// reports the placeholder as a real difference, and applying it prices a
+		// free model at 37.5, which the square renders as $75 per million. The
+		// completion ratio has to be 1 as well, because 37.5 is also a
+		// legitimately published ratio (gpt-4.5-preview).
+		if nearlyEqualRatio(item.ModelRatio, placeholderModelRatio) && nearlyEqualRatio(item.CompletionRatio, 1) {
 			continue
 		}
 		out[name] = upstreamPrice{
