@@ -23,6 +23,7 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
+import { PriceSentinelSection } from './price-sentinel-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
@@ -140,6 +141,24 @@ const OPERATIONS_SECTIONS = [
             settings['performance_setting.monitor_memory_threshold'] ?? 90,
           'performance_setting.monitor_disk_threshold':
             settings['performance_setting.monitor_disk_threshold'] ?? 95,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'price-sentinel',
+    titleKey: 'Upstream Price Sentinel',
+    build: (settings: OperationsSettings) => (
+      <PriceSentinelSection
+        defaultValues={{
+          'price_sentinel_setting.enabled':
+            settings['price_sentinel_setting.enabled'] ?? true,
+          'price_sentinel_setting.interval_minutes':
+            settings['price_sentinel_setting.interval_minutes'] ?? 60,
+          'price_sentinel_setting.send_time':
+            settings['price_sentinel_setting.send_time'] ?? '',
+          'price_sentinel_setting.report_email':
+            settings['price_sentinel_setting.report_email'] ?? '',
         }}
       />
     ),
