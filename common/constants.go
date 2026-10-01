@@ -11,6 +11,12 @@ import (
 )
 
 var StartTime = time.Now().Unix() // unit: second
+
+// RegisterDailyLimit caps how many accounts may be created in one local day.
+// It bounds signup abuse rather than traffic, so it counts every account created
+// that day (including ones later removed) and zero means unlimited. It is
+// separate from RegisterRateLimit, which is a short-window burst limiter.
+var RegisterDailyLimit = 60
 var Version = "v0.0.0"            // this hard coding will be replaced automatically when building, no need to manually change
 var SystemName = "ReX API"
 var Footer = ""

@@ -466,6 +466,13 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	if !common.RegisterEnabled {
 		return nil, &OAuthRegistrationDisabledError{}
 	}
+	// The daily cap gates every public signup path, not just the password form.
+	if err := model.CheckRegisterDailyLimit(); err != nil {
+		if errors.Is(err, model.ErrRegisterDailyLimitReached) {
+			return nil, &OAuthRegisterDailyLimitError{}
+		}
+		return nil, err
+	}
 
 	// Set up new user
 	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
@@ -570,6 +577,14 @@ type OAuthUserDeletedError struct{}
 
 func (e *OAuthUserDeletedError) Error() string {
 	return "user has been deleted"
+}
+
+// OAuthRegisterDailyLimitError reports that the day's signup cap is used up,
+// so the OAuth path can answer with the same message as the password form.
+type OAuthRegisterDailyLimitError struct{}
+
+func (e *OAuthRegisterDailyLimitError) Error() string {
+	return "register daily limit reached"
 }
 
 type OAuthRegistrationDisabledError struct{}
