@@ -38,6 +38,8 @@ import {
 import { CachedPriceCell } from '../components/cached-price-cell'
 import { ModelCard } from '../components/model-card'
 import { ModelCardGrid } from '../components/model-card-grid'
+import { SORT_OPTIONS } from '../constants'
+import { sortModels } from '../lib/filters'
 import type { PricingModel } from '../types'
 
 function pricingModel(overrides: Partial<PricingModel> = {}): PricingModel {
@@ -469,6 +471,75 @@ describe('model cards', () => {
     expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Previous page' }))
     expect(screen.getByRole('heading', { name: 'model-1' })).toBeVisible()
+  })
+
+  it('orders recommended cards by preferred family, then by availability within one', () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: {
+        models: [
+          { model_name: 'claude-opus-5', success_rate: 70, avg_latency_ms: 1, avg_tps: 1 },
+          { model_name: 'claude-sonnet-5', success_rate: 98, avg_latency_ms: 1, avg_tps: 1 },
+          { model_name: 'gemini-3-flash', success_rate: 99, avg_latency_ms: 1, avg_tps: 1 },
+        ],
+      },
+    })
+    const models = [
+      pricingModel({ id: 1, model_name: 'gemini-3-flash' }),
+      pricingModel({ id: 2, model_name: 'claude-opus-5' }),
+      pricingModel({ id: 3, model_name: 'grok-4.7' }),
+      pricingModel({ id: 4, model_name: 'claude-sonnet-5' }),
+    ]
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={models}
+          onModelClick={vi.fn()}
+          sortBy='recommended'
+        />
+      </QueryClientProvider>
+    )
+
+    // Claude leads, and inside it the more available model goes first. The
+    // later-family model keeps its place even though its rate is the highest.
+    expect(
+      screen
+        .getAllByRole('heading', { level: 3 })
+        .map((node) => node.textContent)
+    ).toEqual([
+      'claude-sonnet-5',
+      'claude-opus-5',
+      'grok-4.7',
+      'gemini-3-flash',
+    ])
+  })
+
+  it('ranks the preferred families ahead of the rest in the recommended order', () => {
+    const models = [
+      'qwen3.8-max',
+      'gemini-3-flash',
+      'glm-5.3',
+      'kimi-k3',
+      'deepseek-v4-pro',
+      'grok-4.7',
+      'gpt-5.5',
+      'claude-sonnet-5',
+      'mystery-model',
+    ].map((model_name, index) => pricingModel({ id: index + 1, model_name }))
+
+    expect(
+      sortModels(models, SORT_OPTIONS.RECOMMENDED).map((m) => m.model_name)
+    ).toEqual([
+      'claude-sonnet-5',
+      'gpt-5.5',
+      'grok-4.7',
+      'deepseek-v4-pro',
+      'kimi-k3',
+      'glm-5.3',
+      'gemini-3-flash',
+      'qwen3.8-max',
+      'mystery-model',
+    ])
   })
 
   it('switches the card grid to three columns at the xl breakpoint instead of 2xl', () => {

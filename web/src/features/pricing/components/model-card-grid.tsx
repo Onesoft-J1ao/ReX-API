@@ -25,7 +25,12 @@ import { Button } from '@/components/ui/button'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
+import {
+  DEFAULT_PRICING_PAGE_SIZE,
+  DEFAULT_TOKEN_UNIT,
+  SORT_OPTIONS,
+} from '../constants'
+import { modelFamilyRank } from '../lib/filters'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
 import type { ModelPerfBadgeData } from './model-perf-badge'
@@ -38,6 +43,7 @@ export interface ModelCardGridProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  sortBy?: string
   pageSize?: number
 }
 
@@ -46,8 +52,6 @@ export function ModelCardGrid(props: ModelCardGridProps) {
   const [page, setPage] = useState(1)
   const pageSize = props.pageSize ?? DEFAULT_PRICING_PAGE_SIZE
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
-  const totalPages = Math.max(1, Math.ceil(props.models.length / pageSize))
-  const currentPage = Math.min(page, totalPages)
 
   const perfQuery = useQuery({
     queryKey: ['perf-metrics-summary', 24],
@@ -55,11 +59,6 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     staleTime: 60 * 1000,
     retry: false,
   })
-
-  const pagedModels = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    return props.models.slice(start, start + pageSize)
-  }, [currentPage, pageSize, props.models])
 
   const perfMap = useMemo(() => {
     const map = new Map<string, ModelPerfBadgeData>()
@@ -72,6 +71,30 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     }
     return map
   }, [perfQuery.data])
+
+  const orderedModels = useMemo(() => {
+    if (props.sortBy !== SORT_OPTIONS.RECOMMENDED) return props.models
+    // Family first so a healthy model of a later family cannot jump the queue,
+    // then availability. The comparison falls back to zero for a model with no
+    // sample, and the sort is stable, so those keep their incoming order.
+    return [...props.models].sort((a, b) => {
+      const family =
+        modelFamilyRank(a.model_name) - modelFamilyRank(b.model_name)
+      if (family !== 0) return family
+      return (
+        (perfMap.get(b.model_name || '')?.success_rate ?? 0) -
+        (perfMap.get(a.model_name || '')?.success_rate ?? 0)
+      )
+    })
+  }, [props.models, props.sortBy, perfMap])
+
+  const totalPages = Math.max(1, Math.ceil(orderedModels.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+
+  const pagedModels = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return orderedModels.slice(start, start + pageSize)
+  }, [currentPage, pageSize, orderedModels])
 
   if (props.models.length === 0) {
     return null
