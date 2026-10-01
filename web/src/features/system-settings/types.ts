@@ -160,6 +160,7 @@ export type AuthSettings = {
   PasswordRegisterEnabled: boolean
   EmailVerificationEnabled: boolean
   RegisterEnabled: boolean
+  RegisterDailyLimit: number
   EmailDomainRestrictionEnabled: boolean
   EmailAliasRestrictionEnabled: boolean
   EmailDomainWhitelist: string
@@ -387,6 +388,10 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  'price_sentinel_setting.enabled': boolean
+  'price_sentinel_setting.interval_minutes': number
+  'price_sentinel_setting.send_time': string
+  'price_sentinel_setting.report_email': string
   QuotaRemindThreshold: string
   SMTPServer: string
   SMTPPort: string
