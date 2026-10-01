@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"time"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
@@ -413,6 +414,38 @@ func GetMaxUserId() int {
 	var user User
 	DB.Unscoped().Last(&user)
 	return user.Id
+}
+
+// ErrRegisterDailyLimitReached reports that the day's public signup cap is used
+// up. Callers map it to a user-facing message.
+var ErrRegisterDailyLimitReached = errors.New("register daily limit reached")
+
+// CountUsersCreatedSince counts accounts created at or after since. It uses
+// Unscoped deliberately: an account created and then removed still consumed a
+// signup slot, so counting only live rows would let a deleted account reset the
+// cap it was meant to enforce.
+func CountUsersCreatedSince(since int64) (int64, error) {
+	var count int64
+	err := DB.Unscoped().Model(&User{}).Where("created_at >= ?", since).Count(&count).Error
+	return count, err
+}
+
+// CheckRegisterDailyLimit rejects a public signup once the day's cap is used.
+// The window starts at local midnight and a limit of zero or less disables it.
+func CheckRegisterDailyLimit() error {
+	if common.RegisterDailyLimit <= 0 {
+		return nil
+	}
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	count, err := CountUsersCreatedSince(startOfDay.Unix())
+	if err != nil {
+		return err
+	}
+	if count >= int64(common.RegisterDailyLimit) {
+		return ErrRegisterDailyLimitReached
+	}
+	return nil
 }
 
 func GetAllUsers(pageInfo *common.PageInfo, sortOptions ...UserSortOptions) (users []*User, total int64, err error) {
