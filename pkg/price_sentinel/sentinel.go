@@ -84,6 +84,11 @@ func RunOnce(ctx context.Context) (*Comparison, error) {
 	ours := localPrices()
 	ignored := ignoredSet(price_sentinel_setting.GetIgnoredModels())
 	threshold := price_sentinel_setting.GetMinChangePercent()
+	// The apply path writes upstream * (1 + margin), so that is what a
+	// correctly-synced model looks like here. Comparing against the raw upstream
+	// number instead made every synced price read as a -16.67% difference
+	// (1/1.2 - 1), and applying the report then stripped the margin back off.
+	margin := price_sentinel_setting.GetMarginPercent()
 
 	shared := make([]string, 0, len(upstream))
 	for name := range upstream {
@@ -98,7 +103,7 @@ func RunOnce(ctx context.Context) (*Comparison, error) {
 		if _, skip := ignored[name]; skip {
 			continue
 		}
-		changes = append(changes, compareModel(name, ours[name], upstream[name], threshold)...)
+		changes = append(changes, compareModel(name, ours[name], upstream[name], threshold, margin)...)
 	}
 
 	// Largest relative move first: the top of the report is what needs a
@@ -156,7 +161,12 @@ func localPrices() map[string]localPrice {
 }
 
 // compareModel returns one PriceChange per field that differs beyond threshold.
-func compareModel(name string, ours localPrice, upstream upstreamPrice, threshold float64) []model.PriceChange {
+//
+// `margin` is the markup the apply path charges, so a model already synced to
+// upstream * (1 + margin) compares equal and stays out of the report. The
+// reported Percent stays relative to our own price, so the number still answers
+// "how far off are we" rather than "how far off is the expectation".
+func compareModel(name string, ours localPrice, upstream upstreamPrice, threshold, margin float64) []model.PriceChange {
 	theirs := upstream.values()
 	changes := make([]model.PriceChange, 0, 2)
 	for _, field := range priceFields {
@@ -165,9 +175,19 @@ func compareModel(name string, ours localPrice, upstream upstreamPrice, threshol
 		if !haveOurs && !haveTheirs {
 			continue
 		}
-		// A field only one side carries is a real difference: it means one site
-		// charges for a dimension the other does not.
+		// A field only one side carries is a difference worth reporting, because
+		// it means one site charges for a dimension the other does not — but only
+		// when the side that has it actually charges for it. A zero is the
+		// loader's way of saying "not configured", so 0 against an absent field
+		// is two ways of writing the same thing and produced most of the report.
 		if !haveOurs || !haveTheirs {
+			present := theirValue
+			if haveOurs {
+				present = ourValue
+			}
+			if present == nil || *present == 0 {
+				continue
+			}
 			changes = append(changes, model.PriceChange{
 				ModelName: name,
 				Field:     field,
@@ -178,7 +198,12 @@ func compareModel(name string, ours localPrice, upstream upstreamPrice, threshol
 			})
 			continue
 		}
-		percent := percentChange(*ourValue, *theirValue)
+		// Compare against what a correctly-synced price would be, not the raw
+		// upstream number, so a healthy markup is not reported as drift. The
+		// report used to flag every synced model at -16.67% (1/1.2 - 1), and
+		// applying it wrote the margin back off.
+		expected := *theirValue * (1 + margin)
+		percent := percentChange(*ourValue, expected)
 		if math.Abs(percent) < threshold {
 			continue
 		}
@@ -195,14 +220,17 @@ func compareModel(name string, ours localPrice, upstream upstreamPrice, threshol
 }
 
 // percentChange reports how far theirs sits from ours, as a signed percentage.
-// A move away from zero from a zero base has no meaningful percentage, so it
-// reports 100 rather than dividing by zero.
+//
+// A zero on either side has no meaningful percentage. Reporting one as 100% was
+// the bulk of the report: `ours` is 0 whenever a dimension is unconfigured here
+// (the loader only stores the dimensions a model actually prices), so every
+// model that does not bill cache read against a model that also does not
+// produced a "100% difference" row — 140 of 213 rows in one report. The caller
+// decides whether a one-sided field is worth reporting; this function only
+// answers the arithmetic.
 func percentChange(ours, theirs float64) float64 {
-	if ours == 0 {
-		if theirs == 0 {
-			return 0
-		}
-		return 100
+	if ours == 0 || theirs == 0 {
+		return 0
 	}
 	return (theirs - ours) / math.Abs(ours) * 100
 }
