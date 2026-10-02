@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
@@ -38,7 +38,6 @@ export function NoticePopup(props: NoticePopupProps) {
   const markNoticeRead = useNotificationStore((state) => state.markNoticeRead)
   const lastReadNotice = useNotificationStore((state) => state.lastReadNotice)
   const [open, setOpen] = useState(false)
-  const hasOpenedRef = useRef(false)
   const popupEnabled = Boolean(status?.notice_popup_enabled)
   const popupMode =
     status?.notice_popup_mode ||
@@ -53,33 +52,33 @@ export function NoticePopup(props: NoticePopupProps) {
   })
   const notice = data?.success ? (data.data || '').trim() : ''
 
+  // Open once per unread notice. Marking it read here — before the user had
+  // dismissed it — flipped `lastReadNotice` on the same render, so the guard
+  // below returned null and unmounted the dialog while `open` was already true.
+  // That left the Close button dead. The marker is written on dismissal instead.
+  const shouldShow = enabled && Boolean(notice) && lastReadNotice !== notice
   useEffect(() => {
-    if (
-      !enabled ||
-      !notice ||
-      lastReadNotice === notice ||
-      hasOpenedRef.current
-    )
-      {return}
+    if (shouldShow) setOpen(true)
+  }, [shouldShow])
 
-    hasOpenedRef.current = true
-    markNoticeRead(notice)
-    setOpen(true)
-  }, [enabled, lastReadNotice, markNoticeRead, notice])
+  if (!shouldShow) return null
 
-  if (!enabled || !notice || lastReadNotice === notice) return null
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) markNoticeRead(notice)
+  }
 
   const isHtml = isLikelyHtml(notice)
 
   return (
     <Dialog
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
       title={t('System Notice')}
       contentClassName='sm:max-w-3xl'
       contentHeight='min(65vh, 36rem)'
       footer={
-        <Button type='button' variant='outline' onClick={() => setOpen(false)}>
+        <Button type='button' variant='outline' onClick={() => handleOpenChange(false)}>
           {t('Close')}
         </Button>
       }
