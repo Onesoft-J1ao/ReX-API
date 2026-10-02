@@ -69,16 +69,30 @@ const loaded = new Set<string>(['en'])
 function loadLocale(language: string): Promise<void> {
   const loader = localeLoaders[language]
   if (!loader || loaded.has(language)) return Promise.resolve()
+  // Marked before awaiting so a second call for the same language — the
+  // detector resolving and the user clicking can both land here — joins this
+  // request instead of starting a duplicate one.
   loaded.add(language)
-  return loader().then((module) => {
-    i18n.addResourceBundle(language, 'translation', module.default, true, true)
-    // The detector may resolve after init (it reads localStorage), and init
-    // itself does not emit languageChanged, so the first non-English bundle is
-    // requested here as well as on every later switch.
-    if (i18n.language === language) {
-      i18n.changeLanguage(language)
-    }
-  })
+  return loader()
+    .then((module) => {
+      // The locale files wrap their strings in a `translation` object, which is
+      // what i18next unwraps from a static import. addResourceBundle expects the
+      // contents of that namespace directly, so handing it the whole module
+      // would nest every string one level too deep and silently fall back to
+      // English.
+      const bundle = (module.default as { translation?: object }).translation
+      if (!bundle) return
+      i18n.addResourceBundle(language, 'translation', bundle, true, true)
+      if (i18n.language === language) {
+        i18n.changeLanguage(language)
+      }
+    })
+    .catch((error: unknown) => {
+      // Clear the mark so a transient network failure does not pin the language
+      // to English for the rest of the session.
+      loaded.delete(language)
+      console.error(`failed to load locale ${language}`, error)
+    })
 }
 
 i18n.on('languageChanged', (language: string) => {
