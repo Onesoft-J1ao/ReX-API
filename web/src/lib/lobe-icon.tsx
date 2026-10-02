@@ -25,12 +25,35 @@ For commercial licensing, please contact support@quantumnous.com
  * - Chained properties: "OpenAI.Avatar.type={'platform'}"
  * - Size parameter: getLobeIcon("OpenAI", 20)
  */
-import * as LobeIcons from '@lobehub/icons'
 import type React from 'react'
 
 import sglangLogo from '@/assets/brand-icons/sglang.svg'
 import { IconSub2api } from '@/assets/custom/icon-sub2api'
 import { IconWan } from '@/assets/custom/icon-wan'
+import { IconFallbackBadge } from './icon-fallback-badge'
+import type { LobeIconComponent } from './lobe-icon-registry'
+import * as LobeIconLoader from './lobe-icon-loader'
+import * as testRegistry from './lobe-icon-registry'
+
+type Registry = typeof import('./lobe-icon-registry')
+
+// The registry is ~5 MB of SVG path data. Holding it in a module variable rather
+// than importing it statically keeps it out of the first paint; main.tsx calls
+// preloadLobeIcons() during idle time, so by the time a page renders a provider
+// badge the lookup below is already synchronous and the icon never flashes.
+//
+// Tests get the statically imported registry so a badge renders its glyph on the
+// first try — an awaited dynamic import would leave every icon assertion looking
+// at the placeholder. The production build tree-shakes that static import away,
+// because the branch that reads it is not reachable there.
+// vite's ImportMetaEnv types MODE as the rsbuild modes only, but vitest
+// sets it to "test".
+const isTest = (import.meta.env.MODE as string) === 'test'
+
+function registry(): Registry | null {
+  if (isTest) return testRegistry
+  return LobeIconLoader.loaded
+}
 
 const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   SGLang: (props) => (
@@ -98,24 +121,14 @@ export function getLobeIcon(
 ): React.ReactNode {
   if (!iconName || typeof iconName !== 'string') {
     return (
-      <div
-        className='bg-muted text-muted-foreground flex items-center justify-center rounded-full text-xs font-medium'
-        style={{ width: size, height: size }}
-      >
-        ?
-      </div>
+      <IconFallbackBadge label='?' size={size} />
     )
   }
 
   const trimmedName = iconName.trim()
   if (!trimmedName) {
     return (
-      <div
-        className='bg-muted text-muted-foreground flex items-center justify-center rounded-full text-xs font-medium'
-        style={{ width: size, height: size }}
-      >
-        ?
-      </div>
+      <IconFallbackBadge label='?' size={size} />
     )
   }
 
@@ -126,9 +139,19 @@ export function getLobeIcon(
   if (CustomIcon) {
     return <CustomIcon size={size} />
   }
-  const BaseIcon = (LobeIcons as Record<string, unknown>)[baseKey] as
-    | Record<string, unknown>
-    | undefined
+  const loaded = registry()
+  if (!loaded) {
+    // The idle preload has not landed yet. Ask for it and show the initial for
+    // this render; the real glyph draws on the next render. Preloading means
+    // this only happens when an icon appears before the browser got a spare
+    // moment to fetch it.
+    LobeIconLoader.preloadLobeIcons()
+    return <IconFallbackBadge
+      label={trimmedName.charAt(0).toUpperCase()}
+      size={size}
+    />
+  }
+  const BaseIcon = loaded.resolveLobeIcon(baseKey)
 
   let IconComponent: React.ComponentType<Record<string, unknown>> | undefined
   let propStartIndex: number
@@ -139,8 +162,8 @@ export function getLobeIcon(
     >
     propStartIndex = 2
   } else {
-    IconComponent = (LobeIcons as Record<string, unknown>)[baseKey] as
-      | React.ComponentType<Record<string, unknown>>
+    IconComponent = loaded.lobeIconRegistry[baseKey] as
+      | LobeIconComponent
       | undefined
     propStartIndex = segments.length > 1 && /^[A-Z]/.test(segments[1]) ? 2 : 1
   }
@@ -150,15 +173,10 @@ export function getLobeIcon(
     !IconComponent ||
     (typeof IconComponent !== 'function' && typeof IconComponent !== 'object')
   ) {
-    const firstLetter = trimmedName.charAt(0).toUpperCase()
-    return (
-      <div
-        className='bg-muted text-muted-foreground flex items-center justify-center rounded-full text-xs font-medium'
-        style={{ width: size, height: size }}
-      >
-        {firstLetter}
-      </div>
-    )
+    return <IconFallbackBadge
+      label={trimmedName.charAt(0).toUpperCase()}
+      size={size}
+    />
   }
 
   // Parse chained properties (e.g., "type={'platform'}", "shape='square'")
@@ -189,8 +207,7 @@ export function getLobeIcon(
 
 // The selector uses the same installed icon registry as the renderer.
 export function getLobeIconNames(): string[] {
-  const names = LobeIcons.toc.flatMap((icon) =>
-    icon.param.hasColor ? [icon.id, `${icon.id}.Color`] : [icon.id]
-  )
+  const loaded = registry()
+  const names = loaded ? loaded.lobeIconNames() : []
   return [...new Set([...names, ...Object.keys(CUSTOM_ICONS)])].sort()
 }

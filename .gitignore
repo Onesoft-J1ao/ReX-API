@@ -50,3 +50,6 @@ go.work.sum
 # Local session handoff notes and Python bytecode.
 HANDOFF.md
 __pycache__/
+
+# Local credentials (never commit).
+.secrets/

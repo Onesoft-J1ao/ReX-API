@@ -41,6 +41,8 @@ export function LobeIconField(props: {
         label: name,
         icon: getLobeIcon(name, 18),
       })),
+    // The registry is preloaded during idle time (see main.tsx); the selector
+    // only mounts on a settings page, which is well after that has landed.
     []
   )
   const effectiveIcon = props.value || props.inheritedIcon

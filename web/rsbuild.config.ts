@@ -63,6 +63,17 @@ export default defineConfig(({ envMode }) => {
           priority: 0,
           enforce: true,
         },
+        // 332 icon components behind one namespace import, ~5.5 MB of SVG path
+        // data. Every page can reach them through a badge, so they get their own
+        // long-lived chunk: the browser still downloads it on the first paint,
+        // but it is cached separately and never re-downloaded on a deploy.
+        'vendor-lobe-icons': {
+          test: /node_modules[\\/]@lobehub[\\/]icons/,
+          name: 'vendor-lobe-icons',
+          chunks: 'all',
+          priority: 10,
+          enforce: true,
+        },
       },
     },
     source: {

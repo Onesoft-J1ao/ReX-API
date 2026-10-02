@@ -27,6 +27,7 @@ import '@/lib/dayjs'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
 import { createAppQueryClient } from '@/lib/query-client'
 import { readCachedStatus, statusQueryOptions } from '@/lib/status-query'
+import { preloadLobeIcons } from '@/lib/lobe-icon-loader'
 
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
@@ -115,4 +116,14 @@ if (!rootElement.innerHTML) {
       </QueryClientProvider>
     </StrictMode>
   )
+
+  // The provider-badge icon registry is ~5 MB. Fetching it during idle time
+  // keeps it out of the first paint while still having it ready before any page
+  // renders a badge, so the icon never flashes a placeholder.
+  const idle =
+    window.requestIdleCallback?.bind(window) ??
+    ((callback: IdleRequestCallback) => {
+      globalThis.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 1)
+    })
+  idle(preloadLobeIcons)
 }
