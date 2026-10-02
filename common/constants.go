@@ -138,7 +138,6 @@ var WeChatAccountQRCodeImageURL = ""
 
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""
-var PhantomServiceURL = ""
 
 var HCaptchaEnabled = false
 var HCaptchaSiteKey = ""
@@ -162,6 +161,7 @@ var CaptchaType = "turnstile"
 var LoginCaptchaDifficulty = 4
 
 var CheckinCaptchaDifficulty = 4
+var PhantomServiceURL = ""
 
 // PaymentAnnouncement is optional markdown text shown on the topup page below payment methods
 var PaymentAnnouncement = ""

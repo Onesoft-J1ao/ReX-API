@@ -898,6 +898,10 @@ func UpdateOption(c *gin.Context) {
 		common.ApiSuccess(c, change)
 		return
 	}
+	if err = syncCapDifficultyForOption(c, option.Key, option.Value.(string)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {
 		if errors.Is(err, system_setting.ErrPasskeyRPIDInvalid) {

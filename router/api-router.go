@@ -87,7 +87,12 @@ func SetApiRouter(router *gin.Engine) {
 			// they dispatch to whichever captcha provider is configured, where
 			// TurnstileCheck only knew one. The ticket route stays ours — it is
 			// the anti-abuse handshake the register form performs first.
-			userRoute.POST("/register", middleware.RegisterRateLimit(), anonymousRequestBodyLimit, middleware.CaptchaCheckRegister(), controller.Register)
+			// Signup carries three guards: RegisterRateLimit buckets registration apart
+			// from other critical traffic, CaptchaCheckRegister dispatches to whichever
+			// captcha provider is configured, and RegisterThrottle enforces the
+			// IP-bound ticket plus the global rolling count that a rotated proxy pool
+			// cannot escape.
+			userRoute.POST("/register", middleware.RegisterRateLimit(), anonymousRequestBodyLimit, middleware.CaptchaCheckRegister(), middleware.RegisterThrottle(), controller.Register)
 			userRoute.GET("/register_ticket", middleware.RegisterTicket(), controller.RegisterTicket)
 			userRoute.GET("/login/encryption-key", middleware.DisableCache(), controller.GetPasswordEncryptionKey)
 			userRoute.POST("/login", middleware.LoginRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, middleware.CaptchaCheck(), controller.Login)
