@@ -6205,6 +6205,7 @@
     "User groups that can access channels with this tag": "Groupes d'utilisateurs pouvant accéder aux canaux avec cette balise",
     "User groups that can access this channel. ": "Groupes d'utilisateurs qui peuvent accéder à ce canal. ",
     "User ID": "ID utilisateur",
+    "Exclude User IDs": "Exclure des ID utilisateur",
     "User ID Field": "Champ ID utilisateur",
     "User ID:": "ID utilisateur :",
     "User Info Endpoint": "Point de terminaison des informations utilisateur",

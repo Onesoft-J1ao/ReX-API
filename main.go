@@ -198,6 +198,9 @@ func main() {
 	}))
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
+	// Runs before anything reads ClientIP so Cloudflare Tunnel traffic records
+	// the visitor rather than the tunnel's origin address.
+	server.Use(middleware.ResolveClientIP())
 	server.Use(middleware.RequestId())
 	server.Use(middleware.Version())
 	server.Use(middleware.I18n())

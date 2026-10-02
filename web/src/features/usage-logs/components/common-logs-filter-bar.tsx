@@ -43,6 +43,7 @@ import {
 import { getGroups } from '@/features/users/api'
 import { useMediaQuery } from '@/hooks'
 import { getUserGroups } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { exportLogsCsv } from '../api'
@@ -164,6 +165,8 @@ export function CommonLogsFilterBar<TData>(
       token: searchParams.token,
       group: searchParams.group,
       username: searchParams.username,
+      userId: searchParams.userId,
+      excludeUserId: searchParams.excludeUserId,
       requestId: searchParams.requestId,
       upstreamRequestId: searchParams.upstreamRequestId,
       type: searchParams.type,
@@ -178,6 +181,8 @@ export function CommonLogsFilterBar<TData>(
       token: searchParams.token || undefined,
       group: searchParams.group || undefined,
       username: searchParams.username || undefined,
+      userId: searchParams.userId || undefined,
+      excludeUserId: searchParams.excludeUserId || undefined,
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
     }
@@ -194,6 +199,8 @@ export function CommonLogsFilterBar<TData>(
     searchParams.token,
     searchParams.group,
     searchParams.username,
+    searchParams.userId,
+    searchParams.excludeUserId,
     searchParams.requestId,
     searchParams.upstreamRequestId,
     searchParams.type,
@@ -498,17 +505,39 @@ export function CommonLogsFilterBar<TData>(
     </LogsFilterField>
   )
   // Per-user log filtering is a primary question when triaging an incident, so it
-  // sits in the always-visible row rather than behind the expander.
+  // sits in the always-visible row rather than behind the expander. The id field
+  // is the exact-account filter; the name field stays for substring search.
   const usernameFilter = isAdmin ? (
-    <LogsFilterField>
-      <LogsFilterInput
-        placeholder={t('Username')}
-        className={sensitiveInputClass}
-        value={filters.username || ''}
-        onChange={(e) => handleChange('username', e.target.value)}
-        onKeyDown={handleKeyDown}
-      />
-    </LogsFilterField>
+    <>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('Username')}
+          className={sensitiveInputClass}
+          value={filters.username || ''}
+          onChange={(e) => handleChange('username', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+      <LogsFilterField>
+        <LogsFilterInput
+          inputMode='numeric'
+          placeholder={t('User ID')}
+          className={cn(sensitiveInputClass, 'w-28')}
+          value={filters.userId || ''}
+          onChange={(e) => handleChange('userId', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('Exclude User IDs')}
+          className={cn(sensitiveInputClass, 'w-40')}
+          value={filters.excludeUserId || ''}
+          onChange={(e) => handleChange('excludeUserId', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+    </>
   ) : null
 
   const advancedFilters = (

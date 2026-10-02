@@ -6205,6 +6205,7 @@
     "User groups that can access channels with this tag": "可以存取帶有此標籤的渠道的用戶分組",
     "User groups that can access this channel. ": "可以存取此渠道的用戶組。",
     "User ID": "用戶 ID",
+    "Exclude User IDs": "排除使用者 ID",
     "User ID Field": "用戶ID欄位",
     "User ID:": "用戶 ID：",
     "User Info Endpoint": "用戶資訊端點",

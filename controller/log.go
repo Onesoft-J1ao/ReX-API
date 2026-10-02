@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -26,7 +27,13 @@ func GetAllLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId)
+	// A user id filter narrows to one account even when several share a display
+	// name; the username filter stays for substring search.
+	filterUserId, _ := strconv.Atoi(c.Query("user_id"))
+	// exclude_user_id takes a comma-separated list, so an operator can hide a
+	// few noisy accounts (their own probes, internal jobs) and read the rest.
+	excludeUserIds := parseExcludedUserIds(c.Query("exclude_user_id"))
+	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, filterUserId, excludeUserIds)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -205,4 +212,25 @@ func GetLogsSelfStat(c *gin.Context) {
 		},
 	})
 	return
+}
+
+// parseExcludedUserIds reads a comma-separated list of account ids, ignoring
+// blanks and non-numeric entries so a malformed value narrows nothing rather
+// than failing the whole query.
+func parseExcludedUserIds(raw string) []int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	ids := make([]int, 0, 4)
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if id, err := strconv.Atoi(part); err == nil && id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }

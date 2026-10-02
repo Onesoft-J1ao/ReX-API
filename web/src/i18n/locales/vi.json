@@ -6205,6 +6205,7 @@
     "User groups that can access channels with this tag": "Nhóm người dùng có thể truy cập các kênh với thẻ này",
     "User groups that can access this channel. ": "Các nhóm người dùng có thể truy cập kênh này.",
     "User ID": "ID người dùng",
+    "Exclude User IDs": "Loại trừ ID người dùng",
     "User ID Field": "Trường ID Người dùng",
     "User ID:": "ID người dùng:",
     "User Info Endpoint": "Điểm cuối Thông tin Người dùng",

@@ -6205,6 +6205,7 @@
     "User groups that can access channels with this tag": "Группы пользователей, которые могут получить доступ к каналам с этим тегом",
     "User groups that can access this channel. ": "Группы пользователей, которые могут получить доступ к этому каналу. ",
     "User ID": "ID пользователя",
+    "Exclude User IDs": "Исключить ID пользователей",
     "User ID Field": "Поле ID пользователя",
     "User ID:": "ID пользователя:",
     "User Info Endpoint": "Конечная точка информации о пользователе",

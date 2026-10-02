@@ -193,6 +193,14 @@ export function buildApiParams(config: {
     ...(isAdmin && searchParams.username
       ? { username: String(searchParams.username) }
       : {}),
+    // An exact account id, so one account can be isolated even when a display
+    // name matches several.
+    ...(isAdmin && searchParams.userId
+      ? { user_id: Number(searchParams.userId) || 0 }
+      : {}),
+    ...(isAdmin && searchParams.excludeUserId
+      ? { exclude_user_id: String(searchParams.excludeUserId) }
+      : {}),
     ...(searchParams.requestId
       ? { request_id: String(searchParams.requestId) }
       : {}),

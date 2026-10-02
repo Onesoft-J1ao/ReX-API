@@ -6205,6 +6205,7 @@
     "User groups that can access channels with this tag": "このタグを持つチャネルにアクセスできるユーザーグループ",
     "User groups that can access this channel. ": "このチャネルにアクセスできるユーザグループ。",
     "User ID": "ユーザー ID",
+    "Exclude User IDs": "除外するユーザー ID",
     "User ID Field": "ユーザーIDフィールド",
     "User ID:": "ユーザーID:",
     "User Info Endpoint": "ユーザー情報エンドポイント",

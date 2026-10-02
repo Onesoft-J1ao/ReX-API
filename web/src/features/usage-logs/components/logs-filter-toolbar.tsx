@@ -243,7 +243,10 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   return (
     <div
       className={cn(
-        'bg-card/50 rounded-xl border p-2.5 sm:p-3',
+        // shrink-0 keeps the filter row at its natural height so the log table
+        // below takes the remaining space and scrolls, instead of the two sharing
+        // a squeeze that leaves only a few rows visible.
+        'bg-card/50 shrink-0 rounded-xl border p-2.5 sm:p-3',
         props.className
       )}
     >

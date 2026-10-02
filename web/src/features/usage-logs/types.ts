@@ -53,6 +53,10 @@ export interface CommonLogFilters extends CommonFilters {
   token?: string
   group?: string
   username?: string
+  /** Exact account id; unlike username this cannot match several accounts. */
+  userId?: string
+  /** Comma-separated account ids to hide, so the rest can be read on their own. */
+  excludeUserId?: string
   requestId?: string
   upstreamRequestId?: string
 }

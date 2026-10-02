@@ -510,10 +510,13 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func buildLogsQuery(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string) (*gorm.DB, error) {
+func buildLogsQuery(userId int, excludeUserIds []int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string) (*gorm.DB, error) {
 	tx := LOG_DB.Model(&Log{})
 	if userId > 0 {
 		tx = tx.Where("logs.user_id = ?", userId)
+	}
+	if len(excludeUserIds) > 0 {
+		tx = tx.Where("logs.user_id NOT IN ?", excludeUserIds)
 	}
 	if logType != LogTypeUnknown {
 		tx = tx.Where("logs.type = ?", logType)
@@ -571,7 +574,7 @@ func WriteLogsCSV(writer io.Writer, userId int, logType int, startTimestamp int6
 		channel = 0
 		upstreamRequestId = ""
 	}
-	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+	tx, err := buildLogsQuery(userId, nil, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
 	if err != nil {
 		return err
 	}
@@ -639,8 +642,8 @@ func WriteLogsCSV(writer io.Writer, userId int, logType int, startTimestamp int6
 	return csvWriter.Error()
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	tx, err := buildLogsQuery(0, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, filterUserId int, excludeUserIds []int) (logs []*Log, total int64, err error) {
+	tx, err := buildLogsQuery(filterUserId, excludeUserIds, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -708,7 +711,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 const logSearchCountLimit = 10000
 
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, "", tokenName, 0, group, requestId, upstreamRequestId)
+	tx, err := buildLogsQuery(userId, nil, logType, startTimestamp, endTimestamp, modelName, "", tokenName, 0, group, requestId, upstreamRequestId)
 	if err != nil {
 		return nil, 0, err
 	}
