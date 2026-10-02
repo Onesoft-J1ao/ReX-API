@@ -238,7 +238,7 @@ function getTableSizing<TData>(props: DataTableViewProps<TData>): {
 
   return {
     colgroup: <DataTableColgroup table={props.table} />,
-    style: getTableSizeStyle(props.table),
+    style: getTableSizeStyle(props.table, props.tableLayout),
   }
 }
 

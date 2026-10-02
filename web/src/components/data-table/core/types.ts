@@ -56,6 +56,13 @@ export type DataTableViewProps<TData> = {
   getColumnClassName?: DataTableColumnClassName
   pinnedColumns?: DataTablePinnedColumn[]
   applyHeaderSize?: boolean
+  /**
+   * `auto` lets the browser re-fit columns to their content, which overrides the
+   * colgroup widths; `fixed` honours them, so the header and body stay aligned
+   * on tables with many columns. Opt in per table rather than globally — most
+   * tables are better off letting content decide.
+   */
+  tableLayout?: 'auto' | 'fixed'
   tableClassName?: string
   tableHeaderClassName?: string
   tableHeaderRowClassName?: string

@@ -289,9 +289,10 @@ export function CommonLogsFilterBar<TData>(
     [handleApply]
   )
 
+  // username moved to the primary row, so it no longer counts toward the
+  // expander's active-filter badge.
   const hasExpandedFilters =
     !!filters.token ||
-    !!filters.username ||
     !!filters.channel ||
     !!filters.requestId ||
     !!filters.upstreamRequestId
@@ -302,7 +303,6 @@ export function CommonLogsFilterBar<TData>(
 
   const expandedFilterCount = [
     filters.token,
-    isAdmin ? filters.username : undefined,
     isAdmin ? filters.channel : undefined,
     filters.requestId,
     filters.upstreamRequestId,
@@ -497,6 +497,20 @@ export function CommonLogsFilterBar<TData>(
       </Select>
     </LogsFilterField>
   )
+  // Per-user log filtering is a primary question when triaging an incident, so it
+  // sits in the always-visible row rather than behind the expander.
+  const usernameFilter = isAdmin ? (
+    <LogsFilterField>
+      <LogsFilterInput
+        placeholder={t('Username')}
+        className={sensitiveInputClass}
+        value={filters.username || ''}
+        onChange={(e) => handleChange('username', e.target.value)}
+        onKeyDown={handleKeyDown}
+      />
+    </LogsFilterField>
+  ) : null
+
   const advancedFilters = (
     <>
       <LogsFilterField>
@@ -508,17 +522,6 @@ export function CommonLogsFilterBar<TData>(
           onKeyDown={handleKeyDown}
         />
       </LogsFilterField>
-      {isAdmin && (
-        <LogsFilterField>
-          <LogsFilterInput
-            placeholder={t('Username')}
-            className={sensitiveInputClass}
-            value={filters.username || ''}
-            onChange={(e) => handleChange('username', e.target.value)}
-            onKeyDown={handleKeyDown}
-          />
-        </LogsFilterField>
-      )}
       {isAdmin && (
         <LogsFilterField>
           <LogsFilterInput
@@ -566,6 +569,7 @@ export function CommonLogsFilterBar<TData>(
             {modelFilter}
             {groupFilter}
             {typeFilter}
+            {usernameFilter}
           </>
         }
         advancedFilters={advancedFilters}

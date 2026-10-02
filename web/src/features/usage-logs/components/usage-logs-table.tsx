@@ -264,8 +264,13 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       )}
       skeletonKeyPrefix='usage-log-skeleton'
       applyHeaderSize
+      // This table carries more columns than fit a laptop viewport. With the
+      // default `auto` layout the browser re-fits columns to their content and
+      // ignores the widths below, which leaves the header drifting out of line
+      // with the body; `fixed` honours them and the table scrolls sideways.
+      tableLayout='fixed'
       tableClassName={cn(
-        '[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
+        '[&_[data-slot=table]]:text-sm [&_[data-slot=table]_td]:text-sm [&_[data-slot=table]_td_*]:text-sm [&_[data-slot=table]_th]:text-sm [&_[data-slot=table]_th_*]:text-sm'
       )}
       mobile={
         <UsageLogsMobileList

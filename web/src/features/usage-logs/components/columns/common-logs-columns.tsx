@@ -381,6 +381,7 @@ export function useCommonLogsColumns(
     columns.push(
       {
         id: 'channel',
+        size: 200,
         header: t('Channel'),
         accessorFn: (row) => row.channel,
         cell: function ChannelCell({ row }) {
@@ -538,6 +539,7 @@ export function useCommonLogsColumns(
       },
       {
         id: 'user',
+        size: 160,
         header: t('User'),
         accessorFn: (row) => row.username,
         cell: function UserCell({ row }) {
@@ -659,6 +661,7 @@ export function useCommonLogsColumns(
     {
       accessorKey: 'model_name',
       header: t('Model'),
+      size: 240,
       cell: function ModelCell({ row }) {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
@@ -682,6 +685,7 @@ export function useCommonLogsColumns(
     {
       accessorKey: 'is_stream',
       header: t('Stream'),
+      size: 80,
       cell: ({ row }) => {
         const log = row.original
         if (!isTimingLogType(log.type)) return null
@@ -708,6 +712,7 @@ export function useCommonLogsColumns(
     {
       accessorKey: 'prompt_tokens',
       header: 'Tokens',
+      size: 150,
       cell: ({ row }) => {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
@@ -755,6 +760,7 @@ export function useCommonLogsColumns(
     {
       accessorKey: 'quota',
       header: t('Cost'),
+      size: 130,
       cell: ({ row }) => {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
@@ -774,6 +780,7 @@ export function useCommonLogsColumns(
     {
       accessorKey: 'use_time',
       header: t('Timing'),
+      size: 110,
       cell: ({ row }) => {
         const log = row.original
         if (!isTimingLogType(log.type)) return null
