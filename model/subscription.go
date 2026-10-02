@@ -318,9 +318,13 @@ type SubscriptionPlan struct {
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
 
-	// Additional independent usage caps. A zero value disables the cap. The
-	// 5-hour cap runs alongside TotalAmount rather than replacing it, so a plan
-	// can grant a large total allowance while still smoothing burst usage.
+	// Additional independent usage caps, snapshotted onto each subscription at
+	// purchase so a later plan edit cannot retroactively change a live
+	// subscription's limit. A zero value disables that cap: the 5-hour cap runs
+	// alongside TotalAmount rather than replacing it, so a plan can grant a
+	// large total allowance while still smoothing burst usage, and a plan can
+	// bound a burst (12 units per 5 hours) while still metering a longer
+	// allowance (60 per week) out of the same total quota.
 	FiveHourLimit int64 `json:"five_hour_limit" gorm:"type:bigint;not null;default:0"`
 	WeeklyLimit   int64 `json:"weekly_limit" gorm:"type:bigint;not null;default:0"`
 	MonthlyLimit  int64 `json:"monthly_limit" gorm:"type:bigint;not null;default:0"`
@@ -513,7 +517,8 @@ type UserSubscription struct {
 	NextResetTime int64 `json:"next_reset_time" gorm:"type:bigint;default:0;index"`
 
 	// Independent subscription usage caps are snapshotted from the plan so
-	// changing a plan only affects subscriptions created after the change.
+	// changing a plan only affects subscriptions created after the change. Each
+	// window is anchored by its own reset pair and advances lazily.
 	//
 	// The rolling 5-hour cap keeps both timestamps at 0 until the first
 	// consumption anchors the window at that moment; anchoring at purchase time
@@ -630,16 +635,46 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 		return 0
 	}
 	period := NormalizeResetPeriod(plan.QuotaResetPeriod)
-	return calcSubscriptionResetTime(base, period, plan.QuotaResetCustomSeconds, endUnix)
+	if period == SubscriptionResetNever {
+		return 0
+	}
+	var next time.Time
+	switch period {
+	case SubscriptionResetDaily:
+		next = time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, base.Location()).
+			AddDate(0, 0, 1)
+	case SubscriptionResetWeekly:
+		// Align to next Monday 00:00
+		weekday := int(base.Weekday()) // Sunday=0
+		// Convert to Monday=1..Sunday=7
+		if weekday == 0 {
+			weekday = 7
+		}
+		daysUntil := 8 - weekday
+		next = time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, base.Location()).
+			AddDate(0, 0, daysUntil)
+	case SubscriptionResetMonthly:
+		// Align to first day of next month 00:00
+		next = time.Date(base.Year(), base.Month(), 1, 0, 0, 0, 0, base.Location()).
+			AddDate(0, 1, 0)
+	case SubscriptionResetCustom:
+		if plan.QuotaResetCustomSeconds <= 0 {
+			return 0
+		}
+		next = base.Add(time.Duration(plan.QuotaResetCustomSeconds) * time.Second)
+	default:
+		return 0
+	}
+	if endUnix > 0 && next.Unix() > endUnix {
+		return 0
+	}
+	return next.Unix()
 }
 
-// calcSubscriptionUsageLimitNextResetTime computes the next boundary of an
-// independent usage window (currently only the 5-hour cap), which has no
-// custom-seconds option of its own.
-func calcSubscriptionUsageLimitNextResetTime(base time.Time, period string, endUnix int64) int64 {
-	return calcSubscriptionResetTime(base, period, 0, endUnix)
-}
-
+// calcSubscriptionResetTime returns when a named usage window next resets, or 0
+// when it never does. Unlike calcNextResetTime it takes the period directly, so
+// it can also serve the independent caps, including the rolling 5-hour window
+// that advances by its own length instead of snapping to a calendar boundary.
 func calcSubscriptionResetTime(base time.Time, period string, customSeconds int64, endUnix int64) int64 {
 	if period == SubscriptionResetNever {
 		return 0
@@ -677,6 +712,13 @@ func calcSubscriptionResetTime(base time.Time, period string, customSeconds int6
 		return 0
 	}
 	return next.Unix()
+}
+
+// calcSubscriptionUsageLimitNextResetTime returns when an independent usage
+// window next resets, or 0 when it never does. Those windows never use a custom
+// period, so the custom-seconds argument is always zero.
+func calcSubscriptionUsageLimitNextResetTime(base time.Time, period string, endUnix int64) int64 {
+	return calcSubscriptionResetTime(base, period, 0, endUnix)
 }
 
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
@@ -847,16 +889,19 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		monthlyNextResetTime = calcSubscriptionUsageLimitNextResetTime(now, SubscriptionResetMonthly, endUnix)
 	}
 	sub := &UserSubscription{
-		UserId:                userId,
-		PlanId:                plan.Id,
-		AmountTotal:           plan.TotalAmount,
-		AmountUsed:            0,
-		StartTime:             now.Unix(),
-		EndTime:               endUnix,
-		Status:                "active",
-		Source:                source,
-		LastResetTime:         lastReset,
-		NextResetTime:         nextReset,
+		UserId:        userId,
+		PlanId:        plan.Id,
+		AmountTotal:   plan.TotalAmount,
+		AmountUsed:    0,
+		StartTime:     now.Unix(),
+		EndTime:       endUnix,
+		Status:        "active",
+		Source:        source,
+		LastResetTime: lastReset,
+		NextResetTime: nextReset,
+		// The caps are snapshotted rather than read live from the plan, so a
+		// later plan edit cannot change the limits a live subscription was sold
+		// under. Each window anchors itself at its first consumption.
 		FiveHourLimit:         plan.FiveHourLimit,
 		FiveHourUsed:          0,
 		FiveHourLastResetTime: fiveHourLastResetTime,
@@ -1470,10 +1515,6 @@ func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *Subscript
 		} else {
 			sub.LastResetTime = 0
 		}
-		if sub.FiveHourLimit > 0 {
-			sub.FiveHourLastResetTime = now
-			sub.FiveHourNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetFiveHour, sub.EndTime)
-		}
 	}
 	if advanceResetTime && options.ResetFiveHour && sub.FiveHourLimit > 0 {
 		sub.FiveHourLastResetTime = now
@@ -1800,6 +1841,10 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		return errors.New("invalid reset args")
 	}
 
+	// Each usage window is independent: the 5-hour cap must roll even while the
+	// weekly total still has time left on it. Resetting only the total (and
+	// returning early) would leave a burst window stuck shut for the rest of the
+	// week, so every window is evaluated here.
 	changed := false
 	if sub.NextResetTime <= now && NormalizeResetPeriod(plan.QuotaResetPeriod) != SubscriptionResetNever {
 		baseUnix := sub.LastResetTime
@@ -2012,20 +2057,13 @@ func preConsumeUserSubscriptionForGroup(requestId string, userId int, modelName 
 			}
 			usedBefore := sub.AmountUsed
 			fiveHourUsedBefore := sub.FiveHourUsed
+			// Every cap is checked before anything is written, so a rejected
+			// attempt leaves no trace and a later subscription in this loop may
+			// still cover the request.
 			if err := sub.applyUsageDelta(amount); err != nil {
 				limitErr = err
 				continue
 			}
-			initializeSubscriptionUsageWindow(
-				fiveHourUsedBefore,
-				sub.FiveHourUsed,
-				&sub.FiveHourLastResetTime,
-				&sub.FiveHourNextResetTime,
-				sub.FiveHourLimit,
-				SubscriptionResetFiveHour,
-				sub.EndTime,
-				now,
-			)
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,
 				UserId:             userId,
@@ -2050,6 +2088,12 @@ func preConsumeUserSubscriptionForGroup(requestId string, userId int, modelName 
 			}
 			// applyUsageDelta already moved AmountUsed, FiveHourUsed and the
 			// other independent window counters.
+			// A 5-hour window starts at its first consumption, not at purchase,
+			// so an idle subscription's clock does not run down unused. The
+			// anchor is saved by the same write below.
+			initializeSubscriptionUsageWindow(fiveHourUsedBefore, sub.FiveHourUsed,
+				&sub.FiveHourLastResetTime, &sub.FiveHourNextResetTime,
+				sub.FiveHourLimit, SubscriptionResetFiveHour, sub.EndTime, now)
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}

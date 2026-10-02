@@ -23,10 +23,10 @@ const (
 )
 
 type LinkedService struct {
-	ID          int64  `json:"id"           gorm:"primaryKey;autoIncrement"`
-	Name        string `json:"name"         gorm:"type:varchar(64);uniqueIndex;not null"`
-	Adapter     string `json:"adapter"      gorm:"type:varchar(32);not null"`
-	AdminURL    string `json:"admin_url"    gorm:"type:varchar(512)"`
+	ID       int64  `json:"id"           gorm:"primaryKey;autoIncrement"`
+	Name     string `json:"name"         gorm:"type:varchar(64);uniqueIndex;not null"`
+	Adapter  string `json:"adapter"      gorm:"type:varchar(32);not null"`
+	AdminURL string `json:"admin_url"    gorm:"type:varchar(512)"`
 	// SyncToken is an HMAC-SHA256 hex token that the sync worker sends to the
 	// target service when applying the credential update. It is NOT the admin
 	// password. Stored hashed in this column.
@@ -92,11 +92,11 @@ func MarkLinkedServiceSynced(id int64, revision int64) error {
 	return DB.Model(&LinkedService{}).
 		Where("id = ?", id).
 		Updates(map[string]any{
-			"sync_status": LinkedServiceStatusOK,
-			"sync_error":  "",
-			"revision":    revision,
+			"sync_status":  LinkedServiceStatusOK,
+			"sync_error":   "",
+			"revision":     revision,
 			"last_sync_at": common.GetTimestamp(),
-			"updated_at":  common.GetTimestamp(),
+			"updated_at":   common.GetTimestamp(),
 		}).Error
 }
 

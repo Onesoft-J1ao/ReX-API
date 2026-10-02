@@ -112,12 +112,6 @@ func GetPassiveWindowHours() int {
 	return statusCheckSetting.PassiveWindowHours
 }
 
-// ShouldProbeOnlyFreeModels reports whether paid groups are skipped during a
-// probe cycle.
-func ShouldProbeOnlyFreeModels() bool {
-	return statusCheckSetting.ProbeFreeModelsOnly
-}
-
 // FlexibleProbingEnabled reports whether the automatic probe should wait for a
 // group to go quiet instead of probing on every interval.
 func FlexibleProbingEnabled() bool { return statusCheckSetting.FlexibleProbingEnabled }
@@ -142,4 +136,10 @@ func GetFlexibleMaxConsecutiveProbes() int {
 		return DefaultFlexibleMaxConsecutiveProbes
 	}
 	return probes
+}
+
+// ShouldProbeOnlyFreeModels reports whether paid groups are skipped during a
+// probe cycle.
+func ShouldProbeOnlyFreeModels() bool {
+	return statusCheckSetting.ProbeFreeModelsOnly
 }

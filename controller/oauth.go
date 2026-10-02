@@ -719,18 +719,18 @@ func (e *OAuthUserDeletedError) Error() string {
 	return "user has been deleted"
 }
 
-type OAuthRegistrationDisabledError struct{}
-
-func (e *OAuthRegistrationDisabledError) Error() string {
-	return "registration is disabled"
-}
-
-// OAuthRegisterDailyLimitError reports that the day's signup cap is used up, so
-// this new-user request was refused even though registration itself is enabled.
+// OAuthRegisterDailyLimitError reports that the day's signup cap is used up,
+// so the OAuth path can answer with the same message as the password form.
 type OAuthRegisterDailyLimitError struct{}
 
 func (e *OAuthRegisterDailyLimitError) Error() string {
 	return "register daily limit reached"
+}
+
+type OAuthRegistrationDisabledError struct{}
+
+func (e *OAuthRegistrationDisabledError) Error() string {
+	return "registration is disabled"
 }
 
 type OAuthEmailAlreadyTakenError struct{}

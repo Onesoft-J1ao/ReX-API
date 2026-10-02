@@ -66,3 +66,4 @@ export function getHostProtocolEndpoints(
 ): HostProtocolEndpoint[] {
   return HOST_PROTOCOL_ENDPOINTS[protocolName.trim().toLowerCase()] ?? []
 }
+

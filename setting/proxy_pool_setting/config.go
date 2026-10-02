@@ -11,13 +11,13 @@ import (
 // and compatible implementations); its answers are untrusted, so every value
 // here is either a bound on what we accept or a switch an operator can turn off.
 type ProxyPoolSetting struct {
-	Enabled             bool   `json:"enabled"`
-	PoolURL             string `json:"pool_url"`               // e.g. http://139.224.75.133:5555
-	ProxyType           string `json:"proxy_type"`             // optional ?type= forwarded to the pool (https/http/socks5)
-	RequestTimeoutSeconds int  `json:"request_timeout_seconds"` // per-request timeout against the pool
-	CacheTTLSeconds     int    `json:"cache_ttl_seconds"`      // how long one drawn proxy stays usable for auto-assignment
-	AutoAssignChannels  bool   `json:"auto_assign_channels"`   // give channels with no explicit proxy a pool proxy at relay time
-	MaxAssignBatch      int    `json:"max_assign_batch"`       // upper bound on channels one assign request may touch
+	Enabled               bool   `json:"enabled"`
+	PoolURL               string `json:"pool_url"`                // e.g. http://139.224.75.133:5555
+	ProxyType             string `json:"proxy_type"`              // optional ?type= forwarded to the pool (https/http/socks5)
+	RequestTimeoutSeconds int    `json:"request_timeout_seconds"` // per-request timeout against the pool
+	CacheTTLSeconds       int    `json:"cache_ttl_seconds"`       // how long one drawn proxy stays usable for auto-assignment
+	AutoAssignChannels    bool   `json:"auto_assign_channels"`    // give channels with no explicit proxy a pool proxy at relay time
+	MaxAssignBatch        int    `json:"max_assign_batch"`        // upper bound on channels one assign request may touch
 }
 
 var proxyPoolSetting = ProxyPoolSetting{

@@ -283,6 +283,46 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		apiRouter.POST("/subscription/epay/return", anonymousRequestBodyLimit, controller.SubscriptionEpayReturn)
+		// Upstream price sentinel. The report and the manual run are root-only;
+		// the edit page is reached with the token mailed with the report, so a
+		// buyer of the link still needs the admin access token to write.
+		priceSentinelRoute := apiRouter.Group("/price-sentinel")
+		priceSentinelRoute.Use(middleware.RootAuth())
+		{
+			priceSentinelRoute.GET("/report", controller.GetPriceSentinelReport)
+			priceSentinelRoute.POST("/run", controller.RunPriceSentinelNow)
+		}
+		// Neither route carries the shared critical limiter. Its budget is 20
+		// requests per 20 minutes across every critical operation, and applying a
+		// digest legitimately means writing many prices in one sitting - the page
+		// exists to be used repeatedly, so that budget only locks the operator out
+		// of their own report. The authorization that matters is unchanged: every
+		// write needs a root session *and* a mailed link token, and each one is
+		// audited.
+		priceSentinelEditRoute := apiRouter.Group("/price-sentinel/edit")
+		{
+			// Checking the link needs only the mailed token, so the page can show
+			// the report before the operator authenticates.
+			priceSentinelEditRoute.POST("/validate", controller.ValidatePriceSentinelToken)
+			// Writing a price needs the mailed token *and* a root session, so a
+			// leaked or forwarded link is not on its own enough to change billing.
+			priceSentinelEditRoute.POST("/apply", middleware.RootAuth(), controller.ApplyPriceSentinelEdit)
+			// Applying a whole report at once, marked up by a margin, so the
+			// operator does not have to write dozens of rows by hand.
+			priceSentinelEditRoute.POST("/sync", middleware.RootAuth(), controller.SyncPriceSentinelPrices)
+		}
+		// Registrar. The account archive holds upstream login secrets
+		// (fingerprints) and live API keys, so every route is root-only.
+		registrarRoute := apiRouter.Group("/registrar")
+		registrarRoute.Use(middleware.RootAuth())
+		{
+			registrarRoute.GET("/providers", controller.GetRegistrarProviders)
+			registrarRoute.PUT("/providers", controller.UpdateRegistrarProviders)
+			registrarRoute.POST("/providers/:id/run", controller.RunRegistrarProvider)
+			registrarRoute.GET("/accounts", controller.ListRegistrarAccounts)
+			registrarRoute.GET("/accounts/export", controller.ExportRegistrarAccounts)
+			registrarRoute.POST("/accounts/import", controller.ImportRegistrarAccounts)
+		}
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{
@@ -450,47 +490,6 @@ func SetApiRouter(router *gin.Engine) {
 			systemTaskRoute.DELETE("/history", controller.DeleteSystemTaskHistory)
 			systemTaskRoute.GET("/current", controller.GetCurrentSystemTask)
 			systemTaskRoute.GET("/:task_id", controller.GetSystemTask)
-		}
-		// Upstream price sentinel. The report and the manual run are root-only;
-		// the edit page is reached with the token mailed with the report, so a
-		// buyer of the link still needs the admin access token to write.
-		priceSentinelRoute := apiRouter.Group("/price-sentinel")
-		priceSentinelRoute.Use(middleware.RootAuth())
-		{
-			priceSentinelRoute.GET("/report", controller.GetPriceSentinelReport)
-			priceSentinelRoute.POST("/run", controller.RunPriceSentinelNow)
-		}
-		// Neither route carries the shared critical limiter. Its budget is 20
-		// requests per 20 minutes across every critical operation, and applying a
-		// digest legitimately means writing many prices in one sitting - the page
-		// exists to be used repeatedly, so that budget only locks the operator out
-		// of their own report. The authorization that matters is unchanged: every
-		// write needs a root session *and* a mailed link token, and each one is
-		// audited.
-		priceSentinelEditRoute := apiRouter.Group("/price-sentinel/edit")
-		{
-			// Checking the link needs only the mailed token, so the page can show
-			// the report before the operator authenticates.
-			priceSentinelEditRoute.POST("/validate", controller.ValidatePriceSentinelToken)
-			// Writing a price needs the mailed token *and* a root session, so a
-			// leaked or forwarded link is not on its own enough to change billing.
-			priceSentinelEditRoute.POST("/apply", middleware.RootAuth(), controller.ApplyPriceSentinelEdit)
-			// Applying a whole report at once, marked up by a margin, so the
-			// operator does not have to write dozens of rows by hand.
-			priceSentinelEditRoute.POST("/sync", middleware.RootAuth(), controller.SyncPriceSentinelPrices)
-		}
-		// Registrar. The account archive holds upstream login secrets
-		// (fingerprints) and live API keys, so every route is root-only, and the
-		// routes that return a credential in the clear are audited.
-		registrarRoute := apiRouter.Group("/registrar")
-		registrarRoute.Use(middleware.RootAuth())
-		{
-			registrarRoute.GET("/providers", controller.GetRegistrarProviders)
-			registrarRoute.PUT("/providers", controller.UpdateRegistrarProviders)
-			registrarRoute.POST("/providers/:id/run", controller.RunRegistrarProvider)
-			registrarRoute.GET("/accounts", controller.ListRegistrarAccounts)
-			registrarRoute.GET("/accounts/export", controller.ExportRegistrarAccounts)
-			registrarRoute.POST("/accounts/import", controller.ImportRegistrarAccounts)
 		}
 		systemInfoRoute := apiRouter.Group("/system-info")
 		systemInfoRoute.Use(middleware.RootAuth())

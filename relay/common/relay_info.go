@@ -99,10 +99,10 @@ type RelayInfo struct {
 	// PlaygroundFreeTier marks a playground request the free allowance covers:
 	// it is served without touching the wallet and settled from the allowance.
 	PlaygroundFreeTier bool
-	UsePrice               bool
-	RelayMode              int
-	OriginModelName        string
-	ResponseModel          *ResponseModel
+	UsePrice           bool
+	RelayMode          int
+	OriginModelName    string
+	ResponseModel      *ResponseModel
 
 	// BillingModelName is the pricing identity for this request. It is kept
 	// separate from OriginModelName and UpstreamModelName so virtual pricing
@@ -998,8 +998,8 @@ type OriginTaskRef struct {
 }
 
 type TaskRelayInfo struct {
-	Action               string
-	OriginTaskID         string
+	Action       string
+	OriginTaskID string
 	// OriginUpstreamTaskID is the upstream id of the task this request was
 	// derived from, read when a 3D texture is generated from an earlier task.
 	OriginUpstreamTaskID string

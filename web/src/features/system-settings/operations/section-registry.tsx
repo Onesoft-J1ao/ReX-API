@@ -23,10 +23,10 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
+import { PriceSentinelSection } from './price-sentinel-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ErrorRewriteSection } from './error-rewrite-section'
-import { PriceSentinelSection } from './price-sentinel-section'
 import { SupportSettingsSection } from './support-settings-section'
 
 const OPERATIONS_SECTIONS = [

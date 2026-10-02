@@ -331,5 +331,6 @@
   "Each provider refills its channel when usable keys fall below the floor, up to the batch cap per run.": "Each provider refills its channel when usable keys fall below the floor, up to the batch cap per run.",
   "No registration providers configured.": "No registration providers configured.",
   "Daily registration limit": "Daily registration limit",
-  "Maximum accounts created per day across every signup path. 0 disables the limit.": "Maximum accounts created per day across every signup path. 0 disables the limit."
+  "Maximum accounts created per day across every signup path. 0 disables the limit.": "Maximum accounts created per day across every signup path. 0 disables the limit.",
+  "Zhipu GLM": "Zhipu GLM"
 }

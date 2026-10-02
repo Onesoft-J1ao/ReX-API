@@ -2549,7 +2549,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "出于安全考虑，现有访问令牌无法再次显示。仅在需要新令牌时重新生成。",
@@ -7907,6 +7907,7 @@
     "Each provider refills its channel when usable keys fall below the floor, up to the batch cap per run.": "当可用 Key 低于下限时，各来源会自动为其渠道补号，单轮不超过上限。",
     "No registration providers configured.": "还没有配置注册来源。",
     "Daily registration limit": "每日注册上限",
-    "Maximum accounts created per day across every signup path. 0 disables the limit.": "每天所有注册途径合计可创建的账号数。0 表示不限制。"
+    "Maximum accounts created per day across every signup path. 0 disables the limit.": "每天所有注册途径合计可创建的账号数。0 表示不限制。",
+    "Connect to model services from another New API instance": "接入另一个 New API 实例提供的模型服务"
   }
 }

@@ -2549,7 +2549,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "В целях безопасности существующие токены доступа нельзя просмотреть повторно. Создавайте новый токен только при необходимости.",
@@ -7907,6 +7907,7 @@
     "Each provider refills its channel when usable keys fall below the floor, up to the batch cap per run.": "Each provider refills its channel when usable keys fall below the floor, up to the batch cap per run.",
     "No registration providers configured.": "No registration providers configured.",
     "Daily registration limit": "Daily registration limit",
-    "Maximum accounts created per day across every signup path. 0 disables the limit.": "Maximum accounts created per day across every signup path. 0 disables the limit."
+    "Maximum accounts created per day across every signup path. 0 disables the limit.": "Maximum accounts created per day across every signup path. 0 disables the limit.",
+    "Connect to model services from another New API instance": "Подключение к моделям другого экземпляра New API"
   }
 }

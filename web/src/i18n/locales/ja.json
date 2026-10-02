@@ -2549,7 +2549,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "セキュリティ上、既存のアクセストークンは再表示できません。新しいトークンが必要な場合のみ再生成してください。",
@@ -7907,6 +7907,7 @@
     "Each provider refills its channel when usable keys fall below the floor, up to the batch cap per run.": "Each provider refills its channel when usable keys fall below the floor, up to the batch cap per run.",
     "No registration providers configured.": "No registration providers configured.",
     "Daily registration limit": "Daily registration limit",
-    "Maximum accounts created per day across every signup path. 0 disables the limit.": "Maximum accounts created per day across every signup path. 0 disables the limit."
+    "Maximum accounts created per day across every signup path. 0 disables the limit.": "Maximum accounts created per day across every signup path. 0 disables the limit.",
+    "Connect to model services from another New API instance": "別の New API インスタンスのモデルサービスに接続"
   }
 }

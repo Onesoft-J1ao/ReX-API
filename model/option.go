@@ -648,6 +648,9 @@ func updateOptionMap(key string, value string) (err error) {
 	case "SMTPPort":
 		intValue, _ := strconv.Atoi(value)
 		common.SMTPPort = intValue
+	case "RegisterDailyLimit":
+		intValue, _ := strconv.Atoi(value)
+		common.RegisterDailyLimit = intValue
 	case "SMTPAccount":
 		common.SMTPAccount = value
 	case "SMTPFrom":
@@ -896,8 +899,6 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaRemindEnabled = value == "true"
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
-	case "RegisterDailyLimit":
-		common.RegisterDailyLimit, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":
 		common.PreConsumedQuota, _ = strconv.Atoi(value)
 	case "ModelRequestRateLimitCount":
