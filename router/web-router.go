@@ -125,7 +125,13 @@ func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.Han
 	router.NoRoute(
 		pluginDispatcher,
 		middleware.RouteTag("web"),
-		gzip.Gzip(gzip.DefaultCompression),
+		// Fonts are already compressed; gzipping them costs CPU and saves no
+		// bytes. The library's default list only covers raster images.
+		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedExtensions([]string{
+			".png", ".gif", ".jpeg", ".jpg",
+			".woff", ".woff2", ".ttf", ".otf", ".eot",
+			".ico", ".svg", ".zip", ".gz", ".br", ".mp4", ".webp",
+		})),
 		middleware.AccessTokenAudit(),
 		middleware.GlobalWebRateLimit(),
 		func(c *gin.Context) {
