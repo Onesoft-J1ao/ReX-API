@@ -39,3 +39,21 @@ export interface ApiResponse<T = unknown> {
   message?: string
   data?: T
 }
+
+/** What a Wallpaper Engine (Steam Workshop) link resolves to. */
+export interface WallpaperResolveResult {
+  item_id: string
+  /** The item's own title, shown so the user can confirm the right one. */
+  title: string
+  /** Preview image of the item, ready for the wallpaper address field. */
+  image_url: string
+  app_id: number
+  /** False for a Workshop item that is not a Wallpaper Engine wallpaper. */
+  wallpaper_engine: boolean
+  /**
+   * The item is a video wallpaper. Steam publishes no video for one — only the
+   * still in `image_url` — so the console says so rather than quietly handing
+   * back a picture.
+   */
+  is_video: boolean
+}

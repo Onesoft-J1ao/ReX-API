@@ -209,6 +209,273 @@ export function resolveLiquidMode(
 }
 
 /**
+ * How the wallpaper is cropped into the viewport.
+ *
+ * The address the user buys is only a URL, so "cropping" is a property of the
+ * painting, not of the image: which point of the picture sits at the centre of
+ * the screen, and how far in the zoom is. Kept out of the paid record on
+ * purpose — reframing must stay free, and it is a per-browser preference like
+ * the other appearance axes.
+ */
+export type WallpaperFraming = {
+  /** 1 shows exactly what `cover` shows; above that crops in. */
+  zoom: number
+  /** Point of the image pinned to the centre, as a percentage of its size. */
+  focusX: number
+  focusY: number
+  /**
+   * `cover` fills the viewport and crops whatever does not fit; `contain` shows
+   * the whole picture and leaves the rest of the screen to the theme. A wide
+   * picture that cannot be seen in full at `cover` is the reason this exists.
+   */
+  fit: WallpaperFit
+}
+
+export type WallpaperFit = 'cover' | 'contain'
+
+export const WALLPAPER_FIT_VALUES: ReadonlySet<WallpaperFit> = new Set([
+  'cover',
+  'contain',
+])
+
+export const WALLPAPER_ZOOM_MIN = 1
+export const WALLPAPER_ZOOM_MAX = 4
+
+export const DEFAULT_WALLPAPER_FRAMING: WallpaperFraming = {
+  zoom: WALLPAPER_ZOOM_MIN,
+  focusX: 50,
+  focusY: 50,
+  fit: 'cover',
+}
+
+/**
+ * How much of the wallpaper the console's surfaces let through, 0-100. At 0 the
+ * surfaces are opaque and the wallpaper is hidden; at 100 they are clear. It
+ * exists because "readable" and "visible" pull against each other and only the
+ * user can say where the balance belongs for the picture they chose.
+ */
+export const WALLPAPER_VISIBILITY_DEFAULT = 45
+export const WALLPAPER_VISIBILITY_MIN = 0
+export const WALLPAPER_VISIBILITY_MAX = 90
+
+export const THEME_WALLPAPER_COOKIE_KEYS = {
+  framing: 'theme_wallpaper_framing',
+  accent: 'theme_wallpaper_accent',
+  visibility: 'theme_wallpaper_visibility',
+} as const
+
+/** Set on <body> when the wallpaper's own colour is driving the accent. */
+export const THEME_WALLPAPER_ACCENT_ATTRIBUTE = 'data-theme-wallpaper-accent'
+export const THEME_WALLPAPER_ACCENT_VALUE = 'derived'
+export const THEME_WALLPAPER_ACCENT_VARIABLES = {
+  accent: '--wallpaper-accent',
+  foreground: '--wallpaper-accent-foreground',
+} as const
+
+/** Where the crop reads from, and how large the image is painted. */
+export const THEME_WALLPAPER_POSITION_VARIABLE = '--wallpaper-position'
+export const THEME_WALLPAPER_SIZE_VARIABLE = '--wallpaper-size'
+/** Numeric zoom, for media that is scaled rather than sized (the video layer). */
+export const THEME_WALLPAPER_ZOOM_VARIABLE = '--wallpaper-zoom'
+/**
+ * Complete colours for the console's frosted surfaces, written by the provider
+ * from the visibility setting. Whole colours rather than a percentage, because a
+ * `color-mix()` percentage written as `var()` is resolved away by the CSS
+ * minifier and the surface comes back opaque.
+ */
+export const THEME_WALLPAPER_SURFACE_BG_VARIABLE = '--wallpaper-surface-bg'
+export const THEME_WALLPAPER_HEADER_BG_VARIABLE = '--wallpaper-header-bg'
+
+/** Marks a wallpaper whose address is a video rather than a picture. */
+export const THEME_WALLPAPER_MEDIA_ATTRIBUTE = 'data-theme-wallpaper-media'
+export const THEME_WALLPAPER_MEDIA_VIDEO = 'video'
+/** Slot of the <video> layer the provider mounts for a video wallpaper. */
+export const THEME_WALLPAPER_VIDEO_SLOT = 'wallpaper-video'
+/** How the picture is fitted, so the video layer can match the CSS layer. */
+export const THEME_WALLPAPER_FIT_ATTRIBUTE = 'data-theme-wallpaper-fit'
+/** Slot of the drag-to-frame overlay while the user is placing the picture. */
+export const THEME_WALLPAPER_FRAMING_SLOT = 'wallpaper-framing-overlay'
+
+/** Containers a wallpaper address may point at. */
+export const WALLPAPER_VIDEO_EXTENSIONS = [
+  '.mp4',
+  '.webm',
+  '.ogv',
+  '.mov',
+  '.m4v',
+] as const
+
+/**
+ * Whether the address is a video rather than a picture.
+ *
+ * The field takes any address and nothing reports its content type before the
+ * browser fetches it, so the extension is the signal. Query and fragment are
+ * ignored, since a CDN address usually carries them.
+ */
+export function isVideoWallpaperUrl(raw: string): boolean {
+  if (raw === '') return false
+  let path: string
+  try {
+    path = new URL(raw).pathname
+  } catch {
+    return false
+  }
+  const lower = path.toLowerCase()
+  return WALLPAPER_VIDEO_EXTENSIONS.some((extension) => lower.endsWith(extension))
+}
+
+/** The only value the accent cookie stores when the user turns it on. */
+export const WALLPAPER_ACCENT_ENABLED = 'on'
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value))
+}
+
+export function normalizeWallpaperFraming(
+  framing: WallpaperFraming
+): WallpaperFraming {
+  return {
+    zoom: clamp(
+      Number.isFinite(framing.zoom) ? framing.zoom : WALLPAPER_ZOOM_MIN,
+      WALLPAPER_ZOOM_MIN,
+      WALLPAPER_ZOOM_MAX
+    ),
+    focusX: clamp(
+      Number.isFinite(framing.focusX) ? framing.focusX : 50,
+      0,
+      100
+    ),
+    focusY: clamp(
+      Number.isFinite(framing.focusY) ? framing.focusY : 50,
+      0,
+      100
+    ),
+    fit: WALLPAPER_FIT_VALUES.has(framing.fit)
+      ? framing.fit
+      : DEFAULT_WALLPAPER_FRAMING.fit,
+  }
+}
+
+export function isDefaultWallpaperFraming(framing: WallpaperFraming): boolean {
+  const normalized = normalizeWallpaperFraming(framing)
+  return (
+    normalized.zoom === DEFAULT_WALLPAPER_FRAMING.zoom &&
+    normalized.focusX === DEFAULT_WALLPAPER_FRAMING.focusX &&
+    normalized.focusY === DEFAULT_WALLPAPER_FRAMING.focusY &&
+    normalized.fit === DEFAULT_WALLPAPER_FRAMING.fit
+  )
+}
+
+/**
+ * `zoom,focusX,focusY[,fit]`.
+ *
+ * The fit is optional so a cookie written before it existed still reads: its
+ * absence simply means `cover`, which is what those sessions were showing.
+ */
+export function parseWallpaperFraming(
+  raw: string | null | undefined
+): WallpaperFraming {
+  if (!raw) return DEFAULT_WALLPAPER_FRAMING
+  const parts = raw.split(',')
+  if (parts.length !== 3 && parts.length !== 4) {
+    return DEFAULT_WALLPAPER_FRAMING
+  }
+  const [zoom, focusX, focusY] = parts.map((part) => Number(part.trim()))
+  if (
+    !Number.isFinite(zoom) ||
+    !Number.isFinite(focusX) ||
+    !Number.isFinite(focusY)
+  ) {
+    return DEFAULT_WALLPAPER_FRAMING
+  }
+  return normalizeWallpaperFraming({
+    zoom,
+    focusX,
+    focusY,
+    fit: (parts[3]?.trim() as WallpaperFit) ?? DEFAULT_WALLPAPER_FRAMING.fit,
+  })
+}
+
+export function serializeWallpaperFraming(framing: WallpaperFraming): string {
+  const normalized = normalizeWallpaperFraming(framing)
+  return [
+    normalized.zoom.toFixed(2),
+    Math.round(normalized.focusX),
+    Math.round(normalized.focusY),
+    normalized.fit,
+  ].join(',')
+}
+
+export function clampWallpaperVisibility(value: number): number {
+  return clamp(
+    Number.isFinite(value) ? value : WALLPAPER_VISIBILITY_DEFAULT,
+    WALLPAPER_VISIBILITY_MIN,
+    WALLPAPER_VISIBILITY_MAX
+  )
+}
+
+export function parseWallpaperVisibility(
+  raw: string | null | undefined
+): number {
+  if (!raw) return WALLPAPER_VISIBILITY_DEFAULT
+  const parsed = Number(raw.trim())
+  return Number.isFinite(parsed)
+    ? clampWallpaperVisibility(parsed)
+    : WALLPAPER_VISIBILITY_DEFAULT
+}
+
+/** The percentage the surfaces keep, i.e. the inverse of what shows through. */
+export function wallpaperSurfaceOpacity(visibility: number): number {
+  return 100 - clampWallpaperVisibility(visibility)
+}
+
+/**
+ * The translucent surface colour for a given visibility.
+ *
+ * The header is a little denser than the rest: it is sticky, so content keeps
+ * sliding under it and its controls have to stay readable.
+ */
+export function wallpaperSurfaceColor(
+  visibility: number,
+  purpose: 'surface' | 'header' = 'surface'
+): string {
+  const strength = clampWallpaperVisibility(visibility)
+  const opacity = clamp(
+    100 - strength - (purpose === 'header' ? 8 : 0),
+    0,
+    100
+  )
+  return `color-mix(in oklab, var(--background) ${opacity.toFixed(0)}%, transparent)`
+}
+
+/**
+ * The `background-size` the wallpaper layer should use.
+ *
+ * At 1x this is `cover` or `contain` verbatim. Above 1x the size has to be
+ * spelled out, because `background-size` has no "cover times N" form: `cover`
+ * scales up whichever axis is short and `contain` whichever is long, so that is
+ * the axis to multiply and knowing it needs the image's aspect ratio. While the
+ * ratio is unknown the answer stays the plain keyword, so the layer is never
+ * painted smaller than `cover` would have painted it.
+ */
+export function wallpaperBackgroundSize(
+  zoom: number,
+  imageAspect: number | null,
+  viewportAspect: number | null,
+  fit: WallpaperFit = 'cover'
+): string {
+  if (!(zoom > WALLPAPER_ZOOM_MIN)) return fit
+  if (!imageAspect || !(imageAspect > 0)) return fit
+  if (!viewportAspect || !(viewportAspect > 0)) return fit
+  const z = clamp(zoom, WALLPAPER_ZOOM_MIN, WALLPAPER_ZOOM_MAX)
+  const imageIsWider = imageAspect > viewportAspect
+  // `cover` fits the short axis (an image wider than the viewport is
+  // height-constrained); `contain` fits the long one, the other way round.
+  const fitHeight = fit === 'cover' ? imageIsWider : !imageIsWider
+  return fitHeight ? `auto calc(100% * ${z})` : `calc(100% * ${z}) auto`
+}
+
+/**
  * Preset → default font mapping. Used by the provider to resolve the user's
  * `font: 'default'` preference against the active preset.
  *

@@ -193,9 +193,9 @@ function buildCcSwitchTool(
   }
 }
 
-function buildClaudeTool(): ToolDownload {
+function buildClaudeDesktopTool(): ToolDownload {
   return {
-    id: 'claude',
+    id: 'claude-desktop',
     name: 'Claude',
     descriptionKey:
       'Claude desktop build for Windows and macOS, published as a Microsoft Store package.',
@@ -242,7 +242,7 @@ export function buildDownloadCatalog(
 ): ToolDownload[] {
   return [
     buildCcSwitchTool(release, options.resolving ?? false),
-    buildClaudeTool(),
+buildClaudeDesktopTool(),
     buildChatGptTool(),
   ]
 }

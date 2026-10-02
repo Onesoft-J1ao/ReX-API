@@ -270,21 +270,6 @@ export type AuthSettings = {
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string
-  CaptchaType: 'turnstile' | 'hcaptcha' | 'cap'
-  HCaptchaEnabled: boolean
-  HCaptchaSiteKey: string
-  HCaptchaSecretKey: string
-  CapEnabled: boolean
-  CapServerURL: string
-  CapAdminAPIKey: string
-  CapSiteKey: string
-  CapSecretKey: string
-  CapCheckinSiteKey: string
-  CapCheckinSecretKey: string
-  LoginCaptchaDifficulty: number
-  CheckinCaptchaDifficulty: number
-  ForceCheckinCaptcha: boolean
-  ForceRedemptionCaptcha: boolean
   PhantomCheckEnabled: boolean
   PhantomServiceURL: string
   'passkey.enabled': boolean
@@ -316,8 +301,9 @@ export type ContentSettings = {
   'console_setting.upstream_status_url': string
   'console_setting.upstream_status_name': string
   'console_setting.upstream_status_enabled': boolean
-  'console_setting.support_qq_url': string
+'console_setting.support_qq_url': string
   'console_setting.support_qq_enabled': boolean
+  'console_setting.hide_models_without_enabled_channel': boolean
   DataExportEnabled: boolean
   DataExportDefaultTime: string
   DataExportInterval: number

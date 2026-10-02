@@ -25,6 +25,7 @@ const (
 	uptimeKeySuffix  = "_24"
 	apiStatusPath    = "/api/status-page/"
 	apiHeartbeatPath = "/api/status-page/heartbeat/"
+
 	// heartbeatLimit caps how many recent beats are carried into the response.
 	// Kuma returns up to 100 per monitor; the console draws a short history, so
 	// the older ones would be dead weight on every dashboard load.

@@ -54,6 +54,27 @@ func GetEnabledModels() []string {
 	return models
 }
 
+// GetGroupsWithEnabledChannel returns the groups that at least one enabled
+// channel can serve.
+//
+// The abilities table mirrors channel state, so a group whose channels are all
+// disabled is simply absent -- which is what lets the model square drop a group
+// that cannot serve anything instead of listing models nobody can call.
+func GetGroupsWithEnabledChannel() (map[string]struct{}, error) {
+	var groups []string
+	if err := DB.Table("abilities").
+		Where("enabled = ?", true).
+		Distinct(commonGroupCol).
+		Pluck(commonGroupCol, &groups).Error; err != nil {
+		return nil, err
+	}
+	available := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		available[group] = struct{}{}
+	}
+	return available, nil
+}
+
 func GetAllEnableAbilities() []Ability {
 	var abilities []Ability
 	DB.Find(&abilities, "enabled = ?", true)

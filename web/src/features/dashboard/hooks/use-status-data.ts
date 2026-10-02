@@ -71,7 +71,7 @@ export function useDashboardContentVisibility() {
     faq: hasStatus && status?.faq_enabled !== false,
     uptimeKuma: hasStatus && status?.uptime_kuma_enabled !== false,
     upstreamStatus: hasStatus && status?.upstream_status_enabled !== false,
-    // The server sends the link only when an operator configured one, so a
+// The server sends the link only when an operator configured one, so a
     // non-empty URL is the real gate here.
     support:
       hasStatus &&

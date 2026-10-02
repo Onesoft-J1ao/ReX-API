@@ -2,6 +2,7 @@ package controller
 
 import (
 	"maps"
+	"slices"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -63,11 +64,40 @@ func GetPricing(c *gin.Context) {
 	}
 	usableGroup = service.GetUserUsableGroupsForUser(userID, group)
 	visibleGroups := console_setting.GetModelSquareVisibleGroups()
+	visibleDescriptions := console_setting.GetModelSquareVisibleGroupDescriptions()
+
+	// A group whose channels are all disabled cannot serve anything, so drop it
+	// from both the picker and the model list rather than advertising a group
+	// that will always fail. Fails open on a query error: an empty model square
+	// is worse than briefly showing a disabled group.
+	if console_setting.GetConsoleSetting().HideModelsWithoutEnabledChannel {
+		served, err := model.GetGroupsWithEnabledChannel()
+		if err != nil {
+			common.SysError("failed to load groups with enabled channels: " + err.Error())
+		} else {
+			for name := range usableGroup {
+				if _, ok := served[name]; !ok {
+					delete(usableGroup, name)
+				}
+			}
+			// The visible list is what the picker renders, so a group pruned
+			// from usable_group must not survive there either.
+			visibleGroups = slices.DeleteFunc(visibleGroups, func(name string) bool {
+				_, ok := served[name]
+				return !ok
+			})
+			for name := range visibleDescriptions {
+				if _, ok := served[name]; !ok {
+					delete(visibleDescriptions, name)
+				}
+			}
+		}
+	}
+
 	pricingGroups := make(map[string]string, len(usableGroup)+len(visibleGroups))
 	for groupName, description := range usableGroup {
 		pricingGroups[groupName] = description
 	}
-	visibleDescriptions := console_setting.GetModelSquareVisibleGroupDescriptions()
 	for _, groupName := range visibleGroups {
 		if _, exists := pricingGroups[groupName]; !exists {
 			if description, ok := visibleDescriptions[groupName]; ok && description != "" {

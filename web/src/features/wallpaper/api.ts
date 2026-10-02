@@ -19,7 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import type { ApiResponse, WallpaperStatus } from './types'
+import type {
+  ApiResponse,
+  WallpaperResolveResult,
+  WallpaperStatus,
+} from './types'
 
 /** Reads the caller's wallpaper, the price, and this month's remaining changes. */
 export async function getWallpaper(): Promise<ApiResponse<WallpaperStatus>> {
@@ -43,5 +47,21 @@ export async function updateWallpaper(
 /** Clears the caller's wallpaper. Free, and does not return a change. */
 export async function clearWallpaper(): Promise<ApiResponse> {
   const response = await api.delete<ApiResponse>('/api/user/wallpaper')
+  return requireServerSuccess(response.data)
+}
+
+/**
+ * Resolves a Wallpaper Engine Workshop link into its preview image.
+ *
+ * Server-side because Steam sends no CORS headers: the console cannot read that
+ * API itself. Resolving is free; setting the result still costs a change.
+ */
+export async function resolveWallpaperSource(
+  url: string
+): Promise<ApiResponse<WallpaperResolveResult>> {
+  const response = await api.post<ApiResponse<WallpaperResolveResult>>(
+    '/api/user/wallpaper/resolve',
+    { url }
+  )
   return requireServerSuccess(response.data)
 }

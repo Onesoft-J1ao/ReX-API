@@ -27,6 +27,7 @@ import { CustomTabsSection } from './custom-tabs-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
 import { FAQSection } from './faq-section'
+import { ModelSquareSection } from './model-square-section'
 import { StatusCheckSection } from './status-check-section'
 import { SupportSection } from './support-section'
 import { UptimeKumaSection } from './uptime-kuma-section'
@@ -130,6 +131,17 @@ const CONTENT_SECTIONS = [
         enabled={settings['console_setting.upstream_status_enabled']}
         url={settings['console_setting.upstream_status_url']}
         name={settings['console_setting.upstream_status_name']}
+      />
+    ),
+  },
+  {
+    id: 'model-square',
+    titleKey: 'Model Square',
+    build: (settings: ContentSettings) => (
+      <ModelSquareSection
+        hideWithoutEnabledChannel={
+          settings['console_setting.hide_models_without_enabled_channel']
+        }
       />
     ),
   },

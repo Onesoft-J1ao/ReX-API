@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { getStatusCheck } from '@/features/status/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import {
@@ -60,9 +61,43 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     retry: false,
   })
 
+  // Active probe health. The endpoint already merges the passive rollups, so it
+  // is the one source that has a reading for both kinds of traffic: a model with
+  // real requests but no recent probe, and a probe that found an idle model up.
+  const healthQuery = useQuery({
+    queryKey: ['status-check'],
+    queryFn: async () => requireServerSuccess(await getStatusCheck()),
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+
   const perfMap = useMemo(() => {
     const map = new Map<string, ModelPerfBadgeData>()
+    for (const group of healthQuery.data?.data?.groups ?? []) {
+      for (const model of group.models ?? []) {
+        if (!model.model || !model.has_active) continue
+        const existing = map.get(model.model)
+        // A model can be served by several groups; keep the healthiest reading
+        // instead of letting whichever group is listed last win.
+        if (existing && existing.success_rate >= model.availability) continue
+        map.set(model.model, {
+          success_rate: model.availability,
+          avg_latency_ms: model.latency_ms,
+          // The probe does not measure throughput, so keep whatever the passive
+          // rollup had rather than reporting a made-up zero.
+          avg_tps: existing?.avg_tps ?? 0,
+          recent_success_series:
+            model.series?.map((bucket) => ({
+              ts: bucket.ts,
+              success_rate: bucket.ok_pct,
+            })) ?? existing?.recent_success_series,
+        })
+      }
+    }
+    // Traffic with no probe result yet still deserves a reading. The probe is
+    // the fresher signal, so a model it already reported keeps that reading.
     for (const model of perfQuery.data?.data?.models ?? []) {
+      if (!model.model_name || map.has(model.model_name)) continue
       map.set(model.model_name, {
         ...model,
         window_start: perfQuery.data?.data.window_start,
@@ -70,7 +105,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
       })
     }
     return map
-  }, [perfQuery.data])
+  }, [perfQuery.data, healthQuery.data])
 
   const orderedModels = useMemo(() => {
     if (props.sortBy !== SORT_OPTIONS.RECOMMENDED) return props.models

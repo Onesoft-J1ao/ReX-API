@@ -176,6 +176,9 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/wallpaper", controller.GetUserWallpaper)
 				selfRoute.PUT("/wallpaper", middleware.CriticalRateLimit(), controller.UpdateUserWallpaper)
 				selfRoute.DELETE("/wallpaper", controller.DeleteUserWallpaper)
+				// Resolving a Wallpaper Engine link makes an outbound request, so
+				// it shares the paid path's rate limit.
+				selfRoute.POST("/wallpaper/resolve", middleware.CriticalRateLimit(), controller.ResolveWallpaperSource)
 
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)

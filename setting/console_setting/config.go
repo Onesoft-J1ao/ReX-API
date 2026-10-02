@@ -46,6 +46,13 @@ type ConsoleSetting struct {
 	SPAMetaOGDescription     string `json:"spa_meta_og_description"`
 	HideUpstreamRequestID    bool   `json:"hide_upstream_request_id"`
 
+	// HideModelsWithoutEnabledChannel drops a group from the model square when
+	// none of its channels can serve it, so the picker and the list never
+	// advertise a group that is entirely disabled. On by default: a disabled
+	// group is a configuration state, not something a visitor should have to
+	// interpret.
+	HideModelsWithoutEnabledChannel bool `json:"hide_models_without_enabled_channel"`
+
 	// UpstreamStatusUrl mirrors an upstream provider's public status page into
 	// the console, next to our own monitors. It holds a complete status page URL
 	// rather than a base URL plus slug because operators copy it straight out of
@@ -67,40 +74,40 @@ type ConsoleSetting struct {
 
 // 默认配置
 var defaultConsoleSetting = ConsoleSetting{
-	ApiInfo:                  "",
-	UptimeKumaGroups:         "",
-	Announcements:            "",
-	FAQ:                      "",
-	ApiInfoEnabled:           true,
-	UptimeKumaEnabled:        true,
-	AnnouncementsEnabled:     true,
-	FAQEnabled:               true,
-	BackgroundBlurOpacity:    40,
-	LegalBackgroundEnabled:   true,
-	DefaultTheme:             "system",
-	DefaultThemeOverride:     "none",
-	DefaultThemePreset:       "default",
-	DefaultThemeFont:         "default",
-	DefaultThemeRadius:       "default",
-	DefaultThemeScale:        "default",
-	DefaultSidebarVariant:    "inset",
-	DefaultSidebarLayout:     "expanded",
-	DefaultContentLayout:     "full",
-	DefaultDirection:         "ltr",
-	ModelSquareDefaultView:   "card",
-	ModelSquareCardPageSize:  18,
-	ModelSquareTablePageSize: 20,
-	ModelSquareVisibleGroups: "[]",
-	GroupAccessRules:         "[]",
-	HomepageStyle:            "default",
-	HomepagePresetTitleMode:  "i18n",
-	HomepagePresetSLAEnabled: true,
-	HomepagePresetSLAText:    "99% SLA guarantee",
-	SPAMetaDescription:       "Unified AI API gateway and admin dashboard.",
-	SPAMetaOGType:            "website",
-	SPAMetaOGDescription:     "Unified AI API gateway and admin dashboard.",
-	HideUpstreamRequestID:    false,
-
+	ApiInfo:                         "",
+	UptimeKumaGroups:                "",
+	Announcements:                   "",
+	FAQ:                             "",
+	ApiInfoEnabled:                  true,
+	UptimeKumaEnabled:               true,
+	AnnouncementsEnabled:            true,
+	FAQEnabled:                      true,
+	BackgroundBlurOpacity:           40,
+	LegalBackgroundEnabled:          true,
+	DefaultTheme:                    "system",
+	DefaultThemeOverride:            "none",
+	DefaultThemePreset:              "default",
+	DefaultThemeFont:                "default",
+	DefaultThemeRadius:              "default",
+	DefaultThemeScale:               "default",
+	DefaultSidebarVariant:           "inset",
+	DefaultSidebarLayout:            "expanded",
+	DefaultContentLayout:            "full",
+	DefaultDirection:                "ltr",
+	ModelSquareDefaultView:          "card",
+	ModelSquareCardPageSize:         18,
+	ModelSquareTablePageSize:        20,
+	ModelSquareVisibleGroups:        "[]",
+	GroupAccessRules:                "[]",
+	HomepageStyle:                   "default",
+	HomepagePresetTitleMode:         "i18n",
+	HomepagePresetSLAEnabled:        true,
+	HomepagePresetSLAText:           "99% SLA guarantee",
+	SPAMetaDescription:              "Unified AI API gateway and admin dashboard.",
+	SPAMetaOGType:                   "website",
+	SPAMetaOGDescription:            "Unified AI API gateway and admin dashboard.",
+	HideUpstreamRequestID:           false,
+	HideModelsWithoutEnabledChannel: true,
 	// 默认镜像上游 S3AI 的公开状态页
 	UpstreamStatusUrl:     "https://status.s3.fan/status/s3ai-api",
 	UpstreamStatusName:    "上游状态",

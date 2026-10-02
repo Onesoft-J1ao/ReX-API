@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Move } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -25,10 +26,12 @@ import { SectionTitle } from '@/components/section-title'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { WALLPAPER_ERROR_MESSAGES } from '@/features/wallpaper/constants'
 import {
   useClearWallpaper,
+  useResolveWallpaperSource,
   useUpdateWallpaper,
   useWallpaper,
 } from '@/features/wallpaper/hooks/use-wallpaper'
@@ -40,7 +43,14 @@ import {
 } from '@/features/wallpaper/lib/wallpaper'
 import { useStatus } from '@/hooks/use-status'
 import { handleServerError } from '@/lib/handle-server-error'
+import {
+  WALLPAPER_VISIBILITY_MAX,
+  WALLPAPER_VISIBILITY_MIN,
+} from '@/lib/theme-customization'
 import { useAuthStore } from '@/stores/auth-store'
+
+import { FramingSlider } from './framing-slider'
+import { WallpaperFraming } from './wallpaper-framing'
 
 /**
  * Wallpaper section of the appearance drawer. The image itself is painted by
@@ -50,14 +60,30 @@ import { useAuthStore } from '@/stores/auth-store'
  */
 export function WallpaperConfig() {
   const { t } = useTranslation()
-  const { wallpaperUrl } = useThemeCustomization()
+  const {
+    wallpaperUrl,
+    wallpaperFraming,
+    wallpaperAccentEnabled,
+    wallpaperVisibility,
+    setWallpaperFraming,
+    setWallpaperAccentEnabled,
+    setWallpaperVisibility,
+    setWallpaperFramingMode,
+  } = useThemeCustomization()
   const { data: wallpaper } = useWallpaper()
   const { status: systemStatus } = useStatus()
   const balance = useAuthStore((state) => state.auth.user?.quota)
   const saveWallpaper = useUpdateWallpaper()
   const removeWallpaper = useClearWallpaper()
+  const resolveSource = useResolveWallpaperSource()
 
   const [draft, setDraft] = useState('')
+  const [sourceDraft, setSourceDraft] = useState('')
+  // Set when the resolved item is a video: Steam publishes no video for one, so
+  // the console says why the address it filled in is only a still.
+  const [resolvedVideoTitle, setResolvedVideoTitle] = useState<string | null>(
+    null
+  )
   const [confirmingSave, setConfirmingSave] = useState(false)
   const [confirmingRemove, setConfirmingRemove] = useState(false)
 
@@ -113,20 +139,115 @@ export function WallpaperConfig() {
     })
   }
 
+  // Resolving only fills the address field: the change itself still goes through
+  // the paid confirmation below.
+  const handleResolve = () => {
+    resolveSource.mutate(sourceDraft.trim(), {
+      onSuccess: (response) => {
+        const result = response.data
+        if (!result) {
+          toast.error(t('Failed to resolve the link'))
+          return
+        }
+        setDraft(result.image_url)
+        setResolvedVideoTitle(result.is_video ? result.title : null)
+        toast.success(
+          result.wallpaper_engine
+            ? t('Resolved "{{title}}". Press Change wallpaper to use it.', {
+                title: result.title,
+              })
+            : t('Resolved "{{title}}". It is not a Wallpaper Engine item.', {
+                title: result.title,
+              })
+        )
+      },
+      onError: (error) => {
+        reportFailure(error, t('Failed to resolve the link'))
+      },
+    })
+  }
+
   return (
     <div>
       <SectionTitle title={t('Custom wallpaper')} />
 
       {wallpaperUrl !== '' && (
-        <div className='mb-3'>
-          <img
-            src={wallpaperUrl}
-            alt={t('Current wallpaper')}
-            referrerPolicy='no-referrer'
-            loading='lazy'
-            className='ring-border h-24 w-full rounded-md object-cover ring-[1px]'
-          />
-        </div>
+        <>
+          <WallpaperFraming url={wallpaperUrl} />
+
+          <div className='mb-3 space-y-2'>
+            <Button
+              size='sm'
+              variant='outline'
+              className='h-7 px-2 text-xs'
+              onClick={() => setWallpaperFramingMode(true)}
+            >
+              <Move className='mr-1.5 size-3' aria-hidden='true' />
+              {t('Drag on the page to frame')}
+            </Button>
+
+            <div className='flex items-center gap-2'>
+              <span className='text-muted-foreground w-14 shrink-0 text-xs'>
+                {t('Size')}
+              </span>
+              <Button
+                size='sm'
+                variant={wallpaperFraming.fit === 'cover' ? 'secondary' : 'ghost'}
+                className='h-7 px-2 text-xs'
+                onClick={() =>
+                  setWallpaperFraming({ ...wallpaperFraming, fit: 'cover' })
+                }
+              >
+                {t('Fill the screen')}
+              </Button>
+              <Button
+                size='sm'
+                variant={
+                  wallpaperFraming.fit === 'contain' ? 'secondary' : 'ghost'
+                }
+                className='h-7 px-2 text-xs'
+                onClick={() =>
+                  setWallpaperFraming({ ...wallpaperFraming, fit: 'contain' })
+                }
+              >
+                {t('Show the whole picture')}
+              </Button>
+            </div>
+
+            <FramingSlider
+              label={t('Visibility')}
+              value={wallpaperVisibility}
+              min={WALLPAPER_VISIBILITY_MIN}
+              max={WALLPAPER_VISIBILITY_MAX}
+              step={5}
+              format={(value) => `${Math.round(value)}%`}
+              onChange={setWallpaperVisibility}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.'
+              )}
+            </p>
+          </div>
+
+          <div className='mb-3 flex items-start justify-between gap-3 rounded-md border p-3'>
+            <div className='space-y-0.5'>
+              <Label htmlFor='wallpaper-accent' className='text-xs'>
+                {t('Match the theme colour to the wallpaper')}
+              </Label>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  "Takes the accent colour from the picture's dominant colour. If the host does not allow the picture to be read, the preset's own accent stays."
+                )}
+              </p>
+            </div>
+            <Switch
+              id='wallpaper-accent'
+              checked={wallpaperAccentEnabled}
+              onCheckedChange={setWallpaperAccentEnabled}
+            />
+          </div>
+        </>
       )}
 
       <div className='text-muted-foreground mb-3 space-y-1 text-xs'>
@@ -143,6 +264,46 @@ export function WallpaperConfig() {
                 limit: wallpaper.monthly_limit,
               })}
         </p>
+      </div>
+
+      <div className='mb-3'>
+        <Label htmlFor='wallpaper-source' className='mb-1 block text-xs'>
+          {t('Wallpaper Engine link')}
+        </Label>
+        <div className='flex items-center gap-2'>
+          <Input
+            id='wallpaper-source'
+            value={sourceDraft}
+            onChange={(event) => setSourceDraft(event.target.value)}
+            placeholder='https://steamcommunity.com/sharedfiles/filedetails/?id=3778060647'
+            aria-describedby='wallpaper-source-description'
+          />
+          <Button
+            size='sm'
+            variant='outline'
+            className='shrink-0'
+            onClick={handleResolve}
+            disabled={sourceDraft.trim() === '' || resolveSource.isPending}
+          >
+            {resolveSource.isPending ? t('Resolving...') : t('Resolve')}
+          </Button>
+        </div>
+        <p
+          id='wallpaper-source-description'
+          className='text-muted-foreground mt-1 text-xs'
+        >
+          {t(
+            'Paste a Steam Workshop link and its preview image fills the address below.'
+          )}
+        </p>
+        {resolvedVideoTitle !== null && (
+          <p role='status' className='text-muted-foreground mt-1 text-xs'>
+            {t(
+              '“{{title}}” is a video wallpaper, so Steam publishes only a still preview. Paste a video address (.mp4 / .webm) if you want motion.',
+              { title: resolvedVideoTitle }
+            )}
+          </p>
+        )}
       </div>
 
       <Label htmlFor='wallpaper-url' className='mb-1 block text-xs'>
@@ -163,7 +324,8 @@ export function WallpaperConfig() {
       >
         {t(
           'Paste an absolute http(s) link to an image. Your console loads it from that address.'
-        )}
+        )}{' '}
+        {t('Video addresses (.mp4 / .webm) play as an animated background.')}
       </p>
 
       {normalizedDraft !== null && (

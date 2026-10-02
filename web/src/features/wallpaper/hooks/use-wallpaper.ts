@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { clearWallpaper, getWallpaper, updateWallpaper } from '../api'
+import { clearWallpaper, getWallpaper, resolveWallpaperSource, updateWallpaper } from '../api'
 
 /**
  * One query key covers everything the console needs to render the wallpaper
@@ -62,5 +62,16 @@ export function useClearWallpaper() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: wallpaperQueryKey })
     },
+  })
+}
+
+/**
+ * Resolving a Wallpaper Engine link changes nothing on the server, so there is
+ * no cache to touch: the caller only needs the image address it returns.
+ */
+export function useResolveWallpaperSource() {
+  return useMutation({
+    mutationFn: resolveWallpaperSource,
+    meta: { errorToast: false },
   })
 }

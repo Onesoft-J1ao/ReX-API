@@ -743,22 +743,80 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* ── Custom wallpaper ─────────────────────────────────────────────────── */
 /* Painted by the wallpaper axis of ThemeCustomizationProvider, which sets
- * `--wallpaper-image` and `data-theme-wallpaper="custom"` on <body> when the
- * signed-in user owns one. The console's inset panel is normally opaque
- * `bg-background`; with a wallpaper active it drops to a translucent surface
- * so the image reads through the workspace instead of hiding behind it. */
+ * `--wallpaper-image`, `--wallpaper-position` and `--wallpaper-size` on <body>
+ * when the signed-in user owns one. The crop is those last two: position picks
+ * the point of the picture that sits at the centre, and an explicit size
+ * provides the zoom, because CSS has no "cover times N". */
 body[data-theme-wallpaper='custom'] {
   background-image: var(--wallpaper-image);
-  background-position: center;
+  background-position: var(--wallpaper-position, center);
   background-repeat: no-repeat;
-  background-size: cover;
+  background-size: var(--wallpaper-size, cover);
 }
 
-body[data-theme-wallpaper='custom'] [data-slot='sidebar-inset'] {
-  background-color: color-mix(in oklab, var(--background) 82%, transparent);
-  backdrop-filter: blur(14px);
+/* A video wallpaper paints a <video> layer instead, because a CSS background
+ * cannot hold one. The layer sits at the back of the body's stacking order, so
+ * the body has to give up its own background for the video to be visible at
+ * all; the surfaces the wallpaper already frosts are what let it read through
+ * the console. */
+body[data-theme-wallpaper-media='video'] {
+  background-image: none;
+  background-color: transparent;
 }
 
+body[data-theme-wallpaper-media='video'] [data-slot='wallpaper-video'] {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--wallpaper-position, center);
+  /* The crop's zoom is a size for a picture and a scale for a video. */
+  transform: scale(var(--wallpaper-zoom, 1));
+  transform-origin: var(--wallpaper-position, center);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* The video layer mirrors the CSS layer's fit, so the two agree when a wide
+ * picture is shown whole instead of filling the screen. */
+body[data-theme-wallpaper-fit='contain'] [data-slot='wallpaper-video'] {
+  object-fit: contain;
+}
+
+/* Frosted surfaces. With a picture behind them these read as glass over it
+ * instead of covering it with an opaque slab, which is the point of letting a
+ * wallpaper show through at all. Scoped to the wallpaper, so a console without
+ * one keeps exactly its old flat surfaces.
+ *
+ * How much they keep is the user's call. The whole `color-mix()` comes in as a
+ * variable rather than the percentage alone: a percentage written as `var()` is
+ * not something the CSS minifier will pass through -- it resolves the mix to its
+ * first colour, which is how these surfaces ended up opaque. Keeping the literal
+ * percentages in the value the provider writes leaves CSS nothing to normalise. */
+body[data-theme-wallpaper='custom'] [data-slot='sidebar-inset'],
+body[data-theme-wallpaper='custom'] [data-slot='app-header'],
+body[data-theme-wallpaper='custom'] [data-slot='panel'],
+body[data-theme-wallpaper='custom'] [data-slot='card'] {
+  background-color: var(--wallpaper-surface-bg, var(--background));
+  backdrop-filter: blur(14px) saturate(1.2);
+}
+
+/* The header is sticky, so content keeps sliding under it -- a denser pane
+ * keeps the controls legible against whatever is passing beneath. */
+body[data-theme-wallpaper='custom'] [data-slot='app-header'] {
+  background-color: var(--wallpaper-header-bg, var(--background));
+}
+
+/* The wallpaper's own colour, when the user asked for it. Two attributes so
+ * this outranks the preset palettes (`.dark [data-theme-preset='...']`) no
+ * matter which preset or colour scheme is active. `--accent` needs no override:
+ * it is derived from `--primary` in theme.css. */
+body[data-theme-wallpaper='custom'][data-theme-wallpaper-accent='derived'] {
+  --primary: var(--wallpaper-accent);
+  --primary-foreground: var(--wallpaper-accent-foreground);
+  --ring: var(--wallpaper-accent);
+}
 
 /* ── Liquid Glass ─────────────────────────────────────────────────────── */
 /*

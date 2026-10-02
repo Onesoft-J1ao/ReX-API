@@ -17,6 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+/**
+ * Shape of the landing page's data.
+ *
+ * Deliberately carries no shipped content: the hook fills it from the
+ * `LandingModels` option and from what the site actually serves, so there is
+ * nothing here to go stale.
+ */
 export type RouteKind = 'priority' | 'free' | 'value'
 
 export type RouteGroup = {
@@ -37,84 +44,4 @@ export type CoverageRow = {
 export type LandingModelsConfig = {
   serviceRoutes: RouteGroup[]
   coverage: CoverageRow[]
-}
-
-/**
- * Default model configuration for the landing page.
- *
- * Admins can override this via the `LandingModels` option (JSON with the same
- * shape) in system settings; the frontend falls back to this shape when the
- * option is empty or unparseable.
- */
-export const DEFAULT_LANDING_MODELS: LandingModelsConfig = {
-  serviceRoutes: [
-    {
-      id: 'priority',
-      kind: 'priority',
-      group: 'default',
-      description:
-        'Green groups receive priority maintenance and are usually more stable.',
-      models: ['CodexPro', 'ClaudeKiro', 'Claude', 'ClaudeCursor'],
-    },
-    {
-      id: 'free',
-      kind: 'free',
-      group: 'free',
-      description:
-        'Open-source resources for exploration and lighter workloads.',
-      models: ['Kimi-K2.6', 'bge-m3', 'fal.ai'],
-    },
-    {
-      id: 'value',
-      kind: 'value',
-      group: 'value',
-      description:
-        'Low pricing is an extra benefit, not an SLA. Caching, latency, and upstream pools can vary.',
-      models: ['Gemini', 'NIM', 'PayPerReq', 'Codex2', 'ClaudeKiro2', 'Grok'],
-    },
-  ],
-  coverage: [
-    {
-      mark: 'Claude',
-      family: 'Claude',
-      description: 'Reasoning / coding / agents',
-      routeType: 'Kiro · Web · Max 20x · Cursor',
-    },
-    {
-      mark: 'Codex',
-      family: 'Codex',
-      description: 'Coding / tool calls',
-      routeType: 'Pro · Plus · K12 account pool',
-    },
-    {
-      mark: 'Gemini',
-      family: 'Gemini',
-      description: 'Multimodal / long context',
-      routeType: 'AI Studio · proxy',
-    },
-    {
-      mark: 'Grok',
-      family: 'Grok',
-      description: 'Real-time interaction / reasoning',
-      routeType: 'Super · proxy',
-    },
-    {
-      mark: 'N',
-      family: 'NIM',
-      description: 'NVIDIA models / low multiplier',
-      routeType: '0.0005 per request · account pool',
-    },
-    {
-      mark: 'Zhipu',
-      family: 'DeepSeek / Zhipu',
-      description: 'Dedicated GPU instances',
-      routeType: 'Mostly FP8 · FP4 at peak',
-    },
-    {
-      mark: 'I',
-      family: 'Image models',
-      description: 'Image generation / editing',
-      routeType: 'Free · routed aggregation',
-    },
-  ],
 }
