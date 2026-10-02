@@ -42,6 +42,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/meshy"
 	taskunrealspeech "github.com/QuantumNous/new-api/relay/channel/task/unrealspeech"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
+	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	"github.com/QuantumNous/new-api/relay/channel/typesafe"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
@@ -132,6 +133,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &newapi.Adaptor{}
 	case constant.APITypeTypeSafe:
 		return &typesafe.Adaptor{}
+	case constant.APITypeOpenCode:
+		return &opencode.Adaptor{}
 	}
 	return nil
 }

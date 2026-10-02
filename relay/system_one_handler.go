@@ -7,7 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/relay/channel/typesafe"
+	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -26,11 +26,11 @@ func SystemOneHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIE
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
-	adaptor, ok := GetAdaptor(info.ApiType).(*typesafe.Adaptor)
+	adaptor, ok := GetAdaptor(info.ApiType).(channel.SystemOneAdaptor)
 	if !ok || adaptor == nil {
-		return types.NewErrorWithStatusCode(errors.New("selected channel does not support TypeSafe System One"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		return types.NewErrorWithStatusCode(errors.New("selected channel does not support System One"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
-	converted, err := adaptor.ConvertSystemOneRequest(info, request)
+	converted, err := adaptor.ConvertSystemOneRequest(c, info, request)
 	if err != nil {
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
@@ -51,7 +51,7 @@ func SystemOneHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIE
 	}
 	resp, ok := respAny.(*http.Response)
 	if !ok || resp == nil || resp.Body == nil {
-		return types.NewOpenAIError(errors.New("invalid HTTP response from TypeSafe"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+		return types.NewOpenAIError(errors.New("invalid HTTP response from System One upstream"), types.ErrorCodeBadResponse, http.StatusBadGateway)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

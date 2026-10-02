@@ -53,6 +53,14 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		}
 	case constant.ChannelTypeTypeSafe:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeSystemOne}
+	case constant.ChannelTypeOpenCode:
+		// An OpenCode pool fronts OpenAI and Anthropic traffic as well as the
+		// Jev decision endpoint, so all three route shapes are accepted.
+		endpointTypes = []constant.EndpointType{
+			constant.EndpointTypeOpenAI,
+			constant.EndpointTypeAnthropic,
+			constant.EndpointTypeSystemOne,
+		}
 	default:
 		if IsOpenAIResponseOnlyModel(modelName) {
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIResponse}

@@ -27,6 +27,7 @@ import {
   CHANNEL_TYPE_SUB2API,
   CHANNEL_TYPE_TASK_PLUGIN,
   CHANNEL_TYPE_TYPESAFE,
+  CHANNEL_TYPE_OPENCODE,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPES,
   MULTI_KEY_STATUS_CONFIG,
@@ -64,6 +65,7 @@ export function getChannelTypeIcon(type: number): string {
     [CHANNEL_TYPE_VLLM]: 'Vllm', // vLLM
     [CHANNEL_TYPE_SGLANG]: 'SGLang', // SGLang
 	[CHANNEL_TYPE_TYPESAFE]: 'OpenAI',
+    [CHANNEL_TYPE_OPENCODE]: 'OpenAI',
     3: 'Azure', // Azure
 
     // Anthropic

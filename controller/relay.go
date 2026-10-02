@@ -58,6 +58,20 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 	return err
 }
 
+// channelSupportsRelayMode guards the System One endpoint against channels that
+// cannot serve it, and keeps TypeSafe channels off ordinary traffic. A TypeSafe
+// or OpenCode channel serves System One; an OpenCode channel also fronts normal
+// OpenAI and Anthropic requests; every other channel type serves those normally.
+func channelSupportsRelayMode(channelType, relayMode int) bool {
+	isSystemOne := relayMode == relayconstant.RelayModeSystemOne
+	isTypeSafe := channelType == constant.ChannelTypeTypeSafe
+	isOpenCode := channelType == constant.ChannelTypeOpenCode
+	if isSystemOne {
+		return isTypeSafe || isOpenCode
+	}
+	return !isTypeSafe
+}
+
 func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	var err *types.NewAPIError
 	if strings.Contains(c.Request.URL.Path, "embed") {
@@ -192,8 +206,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		service.AppendUsedChannel(c, channel.Id)
 		channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
-		if (channelType == constant.ChannelTypeTypeSafe) != (relayInfo.RelayMode == relayconstant.RelayModeSystemOne) {
-			newAPIError = types.NewErrorWithStatusCode(errors.New("TypeSafe channels support only /v1/systemone; /v1/systemone requires a TypeSafe channel"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		if !channelSupportsRelayMode(channelType, relayInfo.RelayMode) {
+			newAPIError = types.NewErrorWithStatusCode(errors.New("this channel cannot serve the requested relay mode; /v1/systemone requires a TypeSafe or OpenCode channel"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			break
 		}
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {

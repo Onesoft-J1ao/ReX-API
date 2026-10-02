@@ -39,6 +39,8 @@ export const CHANNEL_TYPE_SGLANG = 66
 
 export const CHANNEL_TYPE_TYPESAFE = 67
 
+export const CHANNEL_TYPE_OPENCODE = 68
+
 export const CHANNEL_TYPES = {
   0: 'Unknown',
   1: 'OpenAI',
@@ -104,6 +106,7 @@ export const CHANNEL_TYPES = {
   65: 'vLLM',
   66: 'SGLang',
   [CHANNEL_TYPE_TYPESAFE]: 'TypeSafe',
+  [CHANNEL_TYPE_OPENCODE]: 'OpenCode',
 } as const
 
 export type ChannelProviderPresentation = {
@@ -197,6 +200,10 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
   [CHANNEL_TYPE_TYPESAFE]: {
     descriptionKey: 'Connect to TypeSafe decision models through OpenCode Zen',
   },
+  [CHANNEL_TYPE_OPENCODE]: {
+    descriptionKey:
+      'Connect to an OpenCode pool serving chat, Anthropic messages and Jev decision models',
+  },
 } satisfies Record<
   Exclude<keyof typeof CHANNEL_TYPES, 0 | typeof CHANNEL_TYPE_TASK_PLUGIN>,
   ChannelProviderPresentation
@@ -208,6 +215,7 @@ const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   5, 36, 50, 51, 52, 53, 54, 55, 56, 60, 61, 63, 64, CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_TYPESAFE,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_OPENCODE,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -593,6 +601,7 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   [CHANNEL_TYPE_VLLM]: 'vLLM API key, or EMPTY if authentication is disabled',
   [CHANNEL_TYPE_SGLANG]: 'SGLang API key, or EMPTY if authentication is disabled',
   [CHANNEL_TYPE_TYPESAFE]: 'OpenCode Zen API key',
+  [CHANNEL_TYPE_OPENCODE]: 'OpenCode pool API key',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {

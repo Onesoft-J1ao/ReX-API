@@ -33,6 +33,14 @@ type Adaptor interface {
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
+// SystemOneAdaptor is an Adaptor that can also serve Jev's structured-decision
+// endpoint. TypeSafe channels implement it for the Zen gateway; OpenCode pools
+// implement it for the root /v1/systemone path.
+type SystemOneAdaptor interface {
+	Adaptor
+	ConvertSystemOneRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.SystemOneRequest) (*dto.SystemOneRequest, error)
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 
