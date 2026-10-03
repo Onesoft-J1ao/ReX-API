@@ -243,15 +243,15 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   return (
     <div
       className={cn(
-        // shrink-0 keeps the filter row at its natural height so the log table
-        // below takes the remaining space and scrolls, instead of the two sharing
-        // a squeeze that leaves only a few rows visible.
-        'bg-card/50 shrink-0 rounded-xl border p-2.5 sm:p-3',
+        // w-full so the panel spans the page instead of hugging its content,
+        // and shrink-0 so it keeps its natural height while the log table below
+        // takes the remainder and scrolls.
+        'bg-card/50 w-full shrink-0 rounded-xl border p-2.5 sm:p-3',
         props.className
       )}
     >
-      <div className='flex flex-wrap items-start gap-2'>
-        <div className='grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]'>
+      <div className='flex w-full flex-wrap items-start gap-2'>
+        <div className='grid w-full min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]'>
           {props.primaryFilters}
         </div>
         {advancedToggle && (
@@ -262,7 +262,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
       </div>
 
       {advancedOpen && props.advancedFilters && (
-        <div className='mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]'>
+        <div className='mt-2 grid w-full grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]'>
           {props.advancedFilters}
         </div>
       )}

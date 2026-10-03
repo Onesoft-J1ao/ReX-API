@@ -123,6 +123,7 @@ export function useTaskLogsColumns(
       createChannelColumn<TaskLog>({ headerLabel: t('Channel') }),
       {
         id: 'user',
+        size: 160,
         header: t('User'),
         accessorFn: (row) => row.username || row.user_id,
         cell: function UserCell({ row }) {
@@ -165,6 +166,7 @@ export function useTaskLogsColumns(
       },
       {
         id: 'plugin',
+        size: 180,
         header: t('Plugin'),
         accessorFn: (row) => row.admin_info?.task_plugin?.key ?? '',
         cell: ({ row }) => {
@@ -198,6 +200,7 @@ export function useTaskLogsColumns(
   columns.push(
     {
       accessorKey: 'task_id',
+      size: 220,
       header: t('Task ID'),
       cell: ({ row }) => {
         const log = row.original
@@ -253,7 +256,7 @@ export function useTaskLogsColumns(
       cell: ({ row }) => (
         <TaskArtifactsCell key={row.original.task_id} log={row.original} />
       ),
-      size: 120,
+      size: 160,
       maxSize: 140,
     },
     {

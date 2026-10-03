@@ -669,7 +669,7 @@ export function useCommonLogsColumns(
         const modelInfo = formatModelName(log)
 
         return (
-          <div className='flex w-fit flex-col gap-0.5'>
+          <div className='flex w-full min-w-0 flex-col gap-0.5'>
               <ModelBadge
                 modelName={modelInfo.name}
                 actualModel={modelInfo.actualModel}

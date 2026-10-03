@@ -48,7 +48,6 @@ import { useColumnsByCategory } from '../lib/columns'
 import { parseLogOther } from '../lib/format'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
-import { CommonLogsExportButton } from './common-logs-export-button'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
@@ -280,20 +279,11 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         />
       }
       toolbar={
-        <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2'>
-          {isCommon ? (
-            <CommonLogsFilterBar table={table} />
-          ) : (
-            <TaskLogsFilterBar table={table} logCategory={logCategory} />
-          )}
-          <CommonLogsExportButton
-            table={table}
-            logCategory={logCategory}
-            isAdmin={isAdmin}
-            searchParams={searchParams}
-            columnFilters={columnFilters}
-          />
-        </div>
+        isCommon ? (
+          <CommonLogsFilterBar table={table} />
+        ) : (
+          <TaskLogsFilterBar table={table} logCategory={logCategory} />
+        )
       }
       renderRow={(row) => {
         const logType = (row.original as Record<string, unknown>).type as

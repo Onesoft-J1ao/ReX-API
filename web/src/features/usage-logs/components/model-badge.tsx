@@ -73,18 +73,19 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
       showDot={!displayIcon}
       autoColor={!displayIcon ? props.modelName : undefined}
       className={cn(
-        'border-border/60 bg-muted/30 h-6 max-w-none gap-1.5 rounded-md border px-2 [font-family:var(--font-body)]',
+        // The badge has to be allowed to shrink: without a width cap a long
+        // model name pushed the neighbouring cells' text into two lines and
+        // spilled past the table edge.
+        // w-full overrides StatusBadge's own w-fit: the badge hugs its content by
+        // default, so a long model name overflows the cell and lands on the
+        // neighbouring column instead of truncating.
+        'border-border/60 bg-muted/30 h-6 w-full max-w-full gap-1.5 rounded-md border px-2 [font-family:var(--font-body)]',
         displayIcon && 'text-foreground',
-        props.wrapText && 'h-auto min-h-6 max-w-full py-0.5 whitespace-normal',
+        props.wrapText && 'h-auto min-h-6 py-0.5 whitespace-normal',
         props.className
       )}
     >
-      <span
-        className={cn(
-          'flex items-center gap-1.5',
-          props.wrapText ? 'max-w-full min-w-0' : 'max-w-none'
-        )}
-      >
+      <span className='flex min-w-0 max-w-full items-center gap-1.5'>
         {displayIcon && (
           <span
             className='flex h-[18px] w-[18px] shrink-0 items-center justify-center'
@@ -95,11 +96,11 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
           </span>
         )}
         <span
-          className={
-            props.wrapText
-              ? 'line-clamp-2 [overflow-wrap:anywhere]'
-              : 'whitespace-nowrap'
-          }
+          className={cn(
+            'min-w-0 truncate',
+            props.wrapText && 'line-clamp-2 [overflow-wrap:anywhere] whitespace-normal'
+          )}
+          title={props.modelName}
         >
           {props.modelName}
         </span>
