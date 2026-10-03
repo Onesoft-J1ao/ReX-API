@@ -52,9 +52,12 @@ import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const quotaSchema = z.object({
-  QuotaForNewUser: z.coerce.number().min(0),
-  QuotaForInviter: z.coerce.number().min(0),
-  QuotaForInvitee: z.coerce.number().min(0),
+  // Raw quota counts, not currency. A decimal used to pass the form and then
+  // fail the backend's integer parse, which silently granted nothing; the
+  // sibling check-in section already pins its quota fields to whole numbers.
+  QuotaForNewUser: z.coerce.number().int().min(0),
+  QuotaForInviter: z.coerce.number().int().min(0),
+  QuotaForInvitee: z.coerce.number().int().min(0),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),

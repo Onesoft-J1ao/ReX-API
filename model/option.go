@@ -386,6 +386,17 @@ func validateOptionValue(key string, value string) error {
 	if key == "EmailVerificationTemplate" {
 		return common.ValidateEmailVerificationTemplate(value)
 	}
+	// These three hold a raw quota count, not a currency amount. The form used to
+	// accept decimals, and strconv.Atoi fails on them; the failure was discarded,
+	// so saving 0.05 stored the string but left the in-memory grant at 0 and new
+	// users were credited nothing. Reject anything that is not a whole,
+	// non-negative number so the save fails loudly instead.
+	if key == "QuotaForNewUser" || key == "QuotaForInviter" || key == "QuotaForInvitee" {
+		quota, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || quota < 0 {
+			return errors.New(key + " must be a non-negative whole number of quota units, not a decimal")
+		}
+	}
 	return nil
 }
 
@@ -505,6 +516,19 @@ func UpdateOptionsBulk(values map[string]string) error {
 		requestPolicySnapshot.Store(policySnapshot)
 	}
 	return nil
+}
+
+// applyQuotaOption assigns a raw quota option, keeping the current value when the
+// stored string is not a whole non-negative number. The settings form once
+// accepted decimals; loading such a value must not silently reset the grant to
+// zero, which is what discarding strconv.Atoi's error used to do.
+func applyQuotaOption(target *int, value string) {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed < 0 {
+		common.SysLog("ignoring invalid quota option value: " + value)
+		return
+	}
+	*target = parsed
 }
 
 func updateOptionMap(key string, value string) (err error) {
@@ -905,11 +929,11 @@ func updateOptionMap(key string, value string) (err error) {
 	case "PlaygroundSettings":
 		err = playground_setting.UpdateByJSONString(value)
 	case "QuotaForNewUser":
-		common.QuotaForNewUser, _ = strconv.Atoi(value)
+		applyQuotaOption(&common.QuotaForNewUser, value)
 	case "QuotaForInviter":
-		common.QuotaForInviter, _ = strconv.Atoi(value)
+		applyQuotaOption(&common.QuotaForInviter, value)
 	case "QuotaForInvitee":
-		common.QuotaForInvitee, _ = strconv.Atoi(value)
+		applyQuotaOption(&common.QuotaForInvitee, value)
 	case "QuotaRemindEnabled":
 		common.QuotaRemindEnabled = value == "true"
 	case "QuotaRemindThreshold":

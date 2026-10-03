@@ -7934,7 +7934,9 @@
     "Fill the screen": "铺满屏幕",
     "Show the whole picture": "完整显示图片",
     "Visibility": "壁纸可见度",
-    "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "壁纸透过控制台面板的程度。数值越高壁纸越清楚，面板越花。"
+    "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "壁纸透过控制台面板的程度。数值越高壁纸越清楚，面板越花。",
+    "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.": "当钱包余额和受限 API 密钥余额都超过此金额时跳过预扣费。设为 0 则始终预扣费。订阅和异步任务始终预留配额。",
+    "Reserve the estimated input cost multiplied by this value, without estimating output tokens. Defaults to 1; positive decimals such as 0.5 and 1.5 are supported. Final charges use actual usage. Per-request and task prices are unaffected.": "按此倍数预留预估输入成本，不预估输出 token。默认 1，支持 0.5、1.5 等正小数。最终按实际用量计费。按次计费和任务计费不受影响。"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
