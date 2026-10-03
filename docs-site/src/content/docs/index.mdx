@@ -1,0 +1,49 @@
+---
+title: "快速开始"
+---
+
+ReX API 同时提供语言模型、语音合成与 3D 生成能力。所有请求均需要 API Key。不要将 API Key 写入代码、文档或 Git 仓库。
+
+ReX API 的默认服务域名为：
+
+```text
+https://ai.j1ao.vip
+```
+
+你通常需要准备：
+
+- API Key：用于请求鉴权。
+- Base URL：指向 ReX API。
+- Model：选择需要调用的模型或能力。
+
+## 基础请求格式
+
+大多数兼容 OpenAI 风格的客户端可以按下面的方式配置：
+
+```bash
+export OPENAI_API_KEY="sk-your-rex-key"
+export OPENAI_BASE_URL="https://ai.j1ao.vip/v1"
+```
+
+如果客户端使用 `baseURL`、`apiBase`、`api_base` 等字段，请填入同一个地址。
+
+## 接入步骤
+
+1. [配置环境变量](/reference/env)：设置 API Key 与 OpenAI 兼容 Base URL。
+2. 在[模型广场](https://ai.j1ao.vip/pricing)查看模型、能力与价格，再[查询模型列表](/reference/model-list)获取当前 API Key 可用的语言模型 ID。
+3. [调用语言模型](/api/chat-completions)：使用 Chat Completions 完成普通或流式对话。
+4. [调用 Jev](/api/system-one)：使用 System One 协议完成分类、评分或二元判断。
+5. [调用 Speech API](/api/speech)：使用 `azure-tts` 或 `unreal-speech-v8` 将文本合成为音频文件。
+6. [调用 3D 生成](/api/text-to-3d)：提交异步任务、查询状态并下载 GLB 结果。
+
+## 按使用场景阅读
+
+- 需要了解所有端点和通用鉴权规则：查看 [API 概览](/api/overview)。
+- 需要选择模型：查看[模型与能力](/reference/models)。
+- 使用 Codex：查看 [Codex 配置](/clients/codex)。
+- 使用 OpenCode：查看 [OpenCode 配置](/clients/opencode)。
+- 使用 Claude Code：查看 [Claude Code 配置](/clients/claude-code)。
+
+## 问题反馈
+
+如果您在阅读本文档时遇到问题，或者发现错误，请及时联系本站管理员修正。

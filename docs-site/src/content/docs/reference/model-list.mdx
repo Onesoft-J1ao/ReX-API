@@ -1,0 +1,35 @@
+---
+title: "查询模型列表"
+---
+
+使用 `GET /v1/models` 查询当前 API Key 可调用的语言模型。选型、能力与价格请查看[模型广场](https://ai.j1ao.vip/pricing)；模型列表与账户权限关联，因此请将接口响应作为请求中模型 ID 的唯一来源。
+
+```bash
+curl -sS https://ai.j1ao.vip/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+典型的 OpenAI 兼容响应如下：
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "<model-id>",
+      "object": "model"
+    }
+  ]
+}
+```
+
+在调用语言模型时，将 `data[].id` 中的一个值原样填入 `model` 字段。不要自行拼接提供商名、版本号或别名。
+
+如果返回的是 Jev / TypeSafe 模型（例如 `jev-1.13-free`），请使用 [`POST /v1/systemone`](/api/system-one)，而不是 `/v1/chat/completions`。后台渠道名称（例如 `oc-proxy_jev`）通常不是可调用的模型 ID。
+
+## 常见问题
+
+- 返回 `401`：检查 `Authorization: Bearer` 头和 API Key。
+- 返回 `403`：该 Key 没有模型列表或目标模型的访问权限。
+- 返回空的 `data`：当前 Key 尚未获授权使用语言模型，请联系管理员确认权限。
+- 某模型调用失败：重新查询模型列表，确认该 ID 仍在返回结果中，并检查模型是否支持当前请求参数。

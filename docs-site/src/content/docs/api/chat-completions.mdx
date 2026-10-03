@@ -1,0 +1,92 @@
+---
+title: "语言模型 API"
+---
+
+语言模型使用 OpenAI Chat Completions 兼容接口。先在[模型广场](https://ai.j1ao.vip/pricing)选择适合的模型，再通过[查询模型列表](/reference/model-list)获取当前 API Key 可用的模型 ID。
+
+## API Path
+
+```http
+POST https://ai.j1ao.vip/v1/chat/completions
+```
+
+## 基础对话
+
+```bash
+curl -sS https://ai.j1ao.vip/v1/chat/completions \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "<model-id>",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是一个简洁、准确的助手。"
+      },
+      {
+        "role": "user",
+        "content": "解释什么是对象存储。"
+      }
+    ]
+  }'
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `model` | string | 是 | 从 `GET /v1/models` 返回的 `data[].id` 中选择。 |
+| `messages` | array | 是 | 对话消息列表，按顺序传入。 |
+| `messages[].role` | string | 是 | 常用值为 `system`、`user`、`assistant`。 |
+| `messages[].content` | string | 是 | 消息文本。 |
+| `stream` | boolean | 否 | 设为 `true` 时以 SSE 返回增量内容。 |
+| `temperature` | number | 否 | 若模型支持，用于控制输出随机性。 |
+| `max_tokens` | integer | 否 | 若模型支持，用于限制生成长度。 |
+
+## 响应
+
+非流式请求通常从 `choices[0].message.content` 读取回复：
+
+```json
+{
+  "id": "chatcmpl_example",
+  "object": "chat.completion",
+  "model": "<model-id>",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "对象存储以对象而非文件层级或块设备的方式保存数据。"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
+
+响应可能还包含 `usage` 字段，用于表示本次请求的 token 使用量。字段是否返回及具体含义以服务端响应为准。
+
+## 流式输出
+
+在请求体中加入 `"stream": true`，并使用支持 Server-Sent Events 的客户端读取响应：
+
+```bash
+curl -N https://ai.j1ao.vip/v1/chat/completions \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "<model-id>",
+    "stream": true,
+    "messages": [
+      { "role": "user", "content": "写一句欢迎语。" }
+    ]
+  }'
+```
+
+流式响应由多个 `data:` 事件组成。客户端应逐段读取 `choices[0].delta.content` 并拼接；收到结束事件后关闭流。
+
+## 调用建议
+
+- 每次调用前或在模型调用失败后，重新查询 `/v1/models` 确认模型 ID。
+- 将多轮对话的历史按顺序保存在 `messages` 中，并自行控制历史长度。
+- 并非每个模型都支持 `temperature`、`max_tokens`、视觉输入、工具调用或流式输出。遇到 `400` 时，先移除可选参数并用最小文本请求验证。
+- 认证、限流与服务端错误的处理方式见[错误码](/reference/errors)。

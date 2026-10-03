@@ -1,0 +1,161 @@
+---
+title: "IndexTTS2 语音生成"
+---
+
+使用 `model: "indextts-2"`，以参考音频的音色合成文本。可以同步接收 WAV，也可以提交异步任务后通过 ReX API 代理 URL 获取音频。本文对应 ComfyUI provider 的语音工作流，核对日期为 **2026-10-03**。
+
+`voice` 在这个模型中是参考音频 URL，不是 Azure 的音色名或 OpenAI 预置音色名称。请使用已获授权、能被上游直接下载的参考素材。
+
+## 接口
+
+| 操作 | 方法与路径 | 返回 |
+| --- | --- | --- |
+| 同步合成 | `POST /v1/audio/speech` | WAV 二进制 |
+| 提交异步任务 | `POST /v1/audio/speech/tasks` | JSON 任务对象 |
+| 查询任务 | `GET /v1/audio/speech/tasks/{id}` | 状态、完成后的代理内容地址 |
+| 下载音频 | `GET /v1/audio/speech/tasks/{id}/content` | WAV 二进制 |
+| 查询响应头 | `HEAD /v1/audio/speech/tasks/{id}/content` | 文件响应头 |
+
+根地址为 `https://ai.j1ao.vip`，使用 `Authorization: Bearer <REX_API_KEY>`。上游密钥保留在服务端，客户端不需要其他供应商密钥。
+
+## 基础参数
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `model` | string | 是 | `indextts-2`。 |
+| `input` | string | 是 | 待合成文本，1–2,048 个字符。建议使用普通字符串。 |
+| `voice` | string | 是 | 公网 HTTP(S) 参考音频 URL，建议使用 MP3 或 WAV。 |
+| `response_format` | string | 否 | 只能为 `wav`，省略也返回 WAV。 |
+| `speed` | number | 否 | 只能省略或传 `1`；工作流没有可配置语速。 |
+| `instructions` | object | 否 | 情绪控制对象，不能使用自然语言字符串。 |
+| `extra_body` | object | 否 | 情绪参数或原生参考音频字段。使用 SDK 时也可通过 SDK 的 `extra_body` 扩展。 |
+
+原生兼容字段：`prompt_text` 可替代 `input`；`prompt_simple` 或 `extra_body.prompt_simple` 可指定音色参考音频。也接受 `extra_body.voice`。推荐优先使用标准的 `input` 和 `voice`。
+
+音色参考音频优先级：顶层 `prompt_simple` → `extra_body.prompt_simple` → `extra_body.voice` → 顶层 `voice`。引用音频需要在任务排队和运行期间保持可下载，不支持上传本地文件或 Base64。
+
+## 同步合成
+
+以下命令假设已配置 `REX_API_KEY`，并将素材 URL 替换成实际可下载的音频：
+
+```bash
+curl --fail-with-body https://ai.j1ao.vip/v1/audio/speech \
+  -H "Authorization: Bearer $REX_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "indextts-2",
+    "input": "你好，欢迎使用语音生成接口。",
+    "voice": "https://media.example.com/reference.wav",
+    "response_format": "wav"
+  }' \
+  --output speech.wav
+```
+
+同步接口会等待异步工作流完成，再由网关代理输出 WAV。连接超时或客户端断开不等于任务取消，服务端可能继续生成和计费；不要未经确认重复提交。需要稳定获取任务 ID 时，优先使用以下异步接口。
+
+## 异步合成、轮询和代理下载
+
+请求体与同步接口相同，改用 `POST /v1/audio/speech/tasks`：
+
+```bash
+curl --fail-with-body https://ai.j1ao.vip/v1/audio/speech/tasks \
+  -H "Authorization: Bearer $REX_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "indextts-2",
+    "input": "你好，这是异步语音生成示例。",
+    "voice": "https://media.example.com/reference.wav"
+  }'
+```
+
+创建响应示例：
+
+```json
+{
+  "id": "task_example",
+  "object": "audio.speech",
+  "created_at": 1790969442,
+  "status": "queued",
+  "model": "indextts-2",
+  "progress": 0
+}
+```
+
+保存 `id`，每 3–5 秒查询一次：
+
+```bash
+curl --fail-with-body https://ai.j1ao.vip/v1/audio/speech/tasks/task_example \
+  -H "Authorization: Bearer $REX_API_KEY"
+```
+
+`queued`、`in_progress` 继续等待，`completed` 后下载，`failed` 时检查错误。完成响应中的 `content_url` 是 ReX API 代理地址，可能带产物访问签名；它不是上游音频 URL。建议直接使用响应值，或者使用固定的鉴权内容路径：
+
+```bash
+curl --fail-with-body https://ai.j1ao.vip/v1/audio/speech/tasks/task_example/content \
+  -H "Authorization: Bearer $REX_API_KEY" \
+  --output speech.wav
+```
+
+网关代理下载支持 HEAD 和 Range。带签名的产物 URL 具有访问能力，请像分享文件链接一样妥善保管；不要删改签名，也不要把本站 API Key 发往第三方域名。上游产物有有效期，完成后应及时保存。
+
+## 情绪控制
+
+情绪控制字段可以放在 `instructions`、`extra_body` 或顶层；同一情绪字段按顶层 → `extra_body` → `instructions` 的优先级取值。为了请求清晰，建议统一使用 `instructions`。
+
+| 字段 | 默认值 | 允许值 / 说明 |
+| --- | --- | --- |
+| `emo_control_method` | `与音色参考音频相同` | 还可选 `使用情感参考音频`、`使用情感向量控制`。 |
+| `emo_ref_audio` | 音色参考音频 URL | 独立情感参考音频，使用公网 MP3 / WAV URL。 |
+| `emo_happy` | 0 | 开心，数字 0–1。 |
+| `emo_angry` | 0 | 愤怒，数字 0–1。 |
+| `emo_sad` | 0 | 悲伤，数字 0–1。 |
+| `emo_afraid` | 0 | 恐惧，数字 0–1。 |
+| `emo_disgusted` | 0 | 厌恶，数字 0–1。 |
+| `emo_melancholic` | 0 | 低落，数字 0–1。 |
+| `emo_calm` | 0 | 平静，数字 0–1。 |
+| `emo_surprised` | 0 | 当前上游工作流固定为 0。客户端可传 `0` 或 `"0"`，插件转换为上游要求的字符串枚举。 |
+| `emo_random` | false | 布尔值，控制随机情绪。 |
+
+部分上游数值字段公开上限为 1.4，但当前网关接口沿用原插件的 **0–1** 范围，超过 1 会拒绝。情绪效果还受所选控制模式和参考素材影响。
+
+### 情绪向量
+
+```json
+{
+  "model": "indextts-2",
+  "input": "今天终于完成了这个项目，真让人开心！",
+  "voice": "https://media.example.com/reference.wav",
+  "instructions": {
+    "emo_control_method": "使用情感向量控制",
+    "emo_happy": 0.8,
+    "emo_calm": 0.2,
+    "emo_random": false
+  }
+}
+```
+
+### 独立情感参考音频
+
+```json
+{
+  "model": "indextts-2",
+  "input": "请使用目标音色，参考另一段音频的情绪表达。",
+  "voice": "https://media.example.com/voice-reference.wav",
+  "instructions": {
+    "emo_control_method": "使用情感参考音频",
+    "emo_ref_audio": "https://media.example.com/emotion-reference.wav"
+  }
+}
+```
+
+`emo_ref_audio` 的查找顺序为顶层 → `extra_body` → `instructions`，没有指定时回退到音色参考音频。
+
+## 计费与限制
+
+本次接入保留站内既有 IndexTTS2 计费：**每次 0.015 + 每秒 0.002**，再乘适用分组倍率。这是相加公式，不是 `max(最低价, 秒数费用)`；与上游最低收费规则不同。
+
+提交时根据待合成文本预估秒数：汉字、日文假名、韩文字每字计 0.25 秒，其他字符每字计 1/16 秒，加总后向上取整，最少 1 秒。完成时上游或网关提供有效 `duration_seconds`，按其修正；没有这个字段才保留文本预估值。任务 `duration` 是运行耗时，不能当音频时长使用。2026-10-03 的本站实测已观察到按完成时媒体时长修正预扣金额。
+
+最终计费秒数和金额以任务结算日志为准；缺少媒体时长、回退到文本预估值时，可能与下载音频的实际长度不同。失败任务按网关退款流程处理。
+
+当前不支持 MP3 输出、语速调节、WebSocket 实时流、字幕或时间戳文件，也没有音色目录接口。需要这些功能时请查看其他模型的 [Speech API](/api/speech)，不要将 UnrealSpeech 的专用字段或端点用于 IndexTTS2。

@@ -1,0 +1,63 @@
+---
+title: "模型与能力"
+---
+
+ReX API 同时提供语言模型、TTS、视频与 3D 模型。请在[模型广场](https://ai.j1ao.vip/pricing)查看模型能力、价格和服务状态；可用模型 ID 会随账户权限和服务端策略变化，应通过[查询模型列表](/reference/model-list)获取当前 API Key 的实时清单。固定模型的调用方式见下表。
+
+## 模型广场
+
+[打开模型广场](https://ai.j1ao.vip/pricing)查看可选模型、能力说明和价格。模型广场用于选型和了解服务；实际请求时仍应通过 `GET /v1/models` 确认当前 API Key 可使用的语言模型 ID。
+
+## 语言模型
+
+| 能力 | 调用方式 | 获取模型 ID |
+| --- | --- | --- |
+| 多轮对话 | [语言模型 API](/api/chat-completions) | [查询模型列表](/reference/model-list) |
+| 流式输出 | [语言模型 API](/api/chat-completions#流式输出) | 使用同一语言模型 ID |
+| Jev 分类、评分与决策 | [Jev / System One API](/api/system-one) | 使用返回的 Jev 模型 ID，例如 `jev-1.13-free` |
+| 客户端接入 | [Codex](/clients/codex)、[OpenCode](/clients/opencode) 或 [Claude Code](/clients/claude-code) | 在客户端配置中选择返回的模型 ID |
+
+语言模型的模型 ID 会随账户权限变化。查询方法、响应格式与异常处理见[查询模型列表](/reference/model-list)；普通对话的请求、响应与流式示例见[语言模型 API](/api/chat-completions)。Jev 模型不接受 `messages`，必须使用专用的 [`/v1/systemone`](/api/system-one) 接口。
+
+## TTS 模型
+
+| 模型 ID | 输入 | 输出 | 调用方式 |
+| --- | --- | --- | --- |
+| `azure-tts` | 文本 | 语音文件 | [Speech API](/api/speech) |
+| `indextts-2` | 文本 + 参考音频 URL | WAV、异步任务代理 URL | [IndexTTS2 API](/api/indextts2) |
+
+`azure-tts` 使用 Azure TTS 音色名称，例如 `zh-CN-XiaoxiaoNeural`。请求参数和 MP3 输出示例见[Speech API](/api/speech)。
+
+## 视频模型
+
+| 模型 ID | 输入 | 输出 | 调用方式 |
+| --- | --- | --- | --- |
+| `minimax-h3`（规范名称 `MiniMax-H3`） | 提示词，可选 1–6 张图和 1–3 段音频 | 1–15 秒 MP4，网关代理 URL | [MiniMax H3 视频生成](/api/video-generation) |
+
+本文视频参数和 480p / 768p / 1088p / 1440p 价格对应 ComfyUI provider。不同供应商可能使用不同参数和价格，不能只根据共享模型名判断能力。
+
+## 3D 模型
+
+| 模型 ID | 输入 | 输出 | 用途 |
+| --- | --- | --- | --- |
+| `meshy-6` | 文本或图片 | 带贴图的 GLB | 直接生成完整模型。 |
+| `meshy-6-draft` | 文本或图片 | 无贴图 draft | 更快获得草稿模型，后续可补 texture。 |
+| `meshy-6-texture` | 已完成 draft 的内部任务 ID | 带贴图的 GLB | 为 `meshy-6-draft` 结果生成贴图。 |
+| `meshy-5.3` | 文本或图片 | 带贴图的 GLB | 使用 Meshy 5.3 生成完整模型。 |
+| `meshy-5.3-draft` | 文本或图片 | 无贴图 draft | 生成 Meshy 5.3 草稿模型。 |
+| `meshy-5.3-texture` | 已完成 draft 的内部任务 ID | 带贴图的 GLB | 为 `meshy-5.3-draft` 结果生成贴图。 |
+
+`*-texture` 模型需要使用 draft 完成响应中的内部 `data.task_id`，而不是外层任务 ID。参数说明和完整示例见[3D 生成 API](/api/text-to-3d#draft-补-texture)。
+
+## 选择建议
+
+- 需要一次性得到可下载模型时，使用 `meshy-6` 或 `meshy-5.3`。
+- 需要先检查几何结果时，先用对应的 `*-draft`，确认后再调用 `*-texture`。
+- 需要将文本转换为语音时，使用 `azure-tts` 并选择与文本语言匹配的 Azure TTS 音色。
+- 需要让 Jev 完成结构化分类、评分或二元判断时，使用 [System One API](/api/system-one)，不要调用 `/v1/chat/completions`。
+- 文生与图生 3D 的请求字段见[3D 生成 API](/api/text-to-3d#请求体参数)。
+- 语言模型的模型 ID 不要猜测或写死；先[查询当前 Key 可用的模型](/reference/model-list)。
+
+## 维护说明
+
+新增或下线固定模型时，请同步更新本页、对应 API 页面和任何客户端默认配置。语言模型的实时可用性由 `/v1/models` 返回结果反映；本页记录当前已确认的 TTS、3D 模型和稳定调用约定。

@@ -1,0 +1,255 @@
+---
+title: "3D 生成 API"
+---
+
+ReX API 的 3D 生成接口支持文生 3D、图生 3D 和 draft 补 texture。接口会先返回异步任务，客户端需要轮询任务状态，并在任务完成后从响应中取得 GLB 下载地址。
+
+## API Path
+
+提交生成任务：
+
+```http
+POST https://ai.j1ao.vip/v1/3d
+```
+
+轮询任务状态：
+
+```http
+GET https://ai.j1ao.vip/v1/3d/{task_id}
+```
+
+下载已完成的 GLB：
+
+```http
+GET https://ai.j1ao.vip/v1/3d/{task_id}/content
+```
+
+## 请求体参数
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `model` | string | 是 | 模型名 |
+| `prompt` | string | 条件必填 | 文生 3D 时必填；texture 模式可选，用于补充材质描述。 |
+| `input_reference` | string | 条件必填 | 图生 3D 时必填，支持 Data URL 或裸 Base64，不支持 HTTP URL。 |
+| `source_task_id` | string | texture 模式必填 | draft 补 texture 时使用的公开任务 ID。传入已完成 draft 响应里的 `id`。 |
+| `metadata` | object | 否 | 额外参数。 |
+| `metadata.art_style` | string | 否 | 生成风格，默认 `realistic`。 |
+
+### 模型列表
+
+| model 值 | 说明 |
+| --- | --- |
+| `meshy-6` | Meshy 6，生成带贴图的模型 |
+| `meshy-6-draft` | Meshy 6，仅生成 draft 无贴图模型 |
+| `meshy-6-texture` | Meshy 6，对已有 draft 生成贴图 |
+| `meshy-5.3` | Meshy 5.3，生成带贴图的模型 |
+| `meshy-5.3-draft` | Meshy 5.3，仅生成 draft 无贴图模型 |
+| `meshy-5.3-texture` | Meshy 5.3，对已有 draft 生成贴图 |
+| `meshy-5.1` | Meshy 5.1，生成带贴图的模型 |
+| `meshy-5.1-draft` | Meshy 5.1，仅生成 draft 无贴图模型 |
+| `meshy-5.1-texture` | Meshy 5.1，对已有 draft 生成贴图 |
+| `meshy-5` | Meshy 5，生成带贴图的模型 |
+| `meshy-5-draft` | Meshy 5，仅生成 draft 无贴图模型 |
+| `meshy-5-texture` | Meshy 5，对已有 draft 生成贴图 |
+| `meshy-4` | Meshy 4，生成带贴图的模型 |
+| `meshy-4-draft` | Meshy 4，仅生成 draft 无贴图模型 |
+| `meshy-4-texture` | Meshy 4，对已有 draft 生成贴图 |
+
+### art_style 可选值
+
+| 值 | 说明 |
+| --- | --- |
+| `realistic` | 写实风格（默认） |
+| `cartoon` | 卡通风格 |
+| `sculpture` | 雕塑风格 |
+| `pbr` | PBR 材质风格 |
+
+### input_reference 支持格式
+
+- Data URL：`"data:image/png;base64,iVBORw0KGgo..."`
+- 裸 Base64：`"iVBORw0KGgo..."`
+
+`input_reference` 不支持 `http://` 或 `https://` 图片地址。请先读取图片内容并编码为 Base64，再以 Data URL 或裸 Base64 传入。
+
+## 提交请求
+
+请求需要携带 API Key：
+
+```http
+Authorization: Bearer sk-your-rex-key
+Content-Type: application/json
+```
+
+### 文生 3D
+
+```bash
+curl -s https://ai.j1ao.vip/v1/3d \
+  -H "Authorization: Bearer sk-your-rex-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "meshy-6",
+    "prompt": "a medieval wooden treasure chest with iron bands",
+    "metadata": {
+      "art_style": "cartoon"
+    }
+  }'
+```
+
+### 图生 3D
+
+```bash
+curl -s https://ai.j1ao.vip/v1/3d \
+  -H "Authorization: Bearer sk-your-rex-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "meshy-6",
+    "input_reference": "data:image/png;base64,iVBORw0KGgo...",
+    "metadata": {
+      "art_style": "realistic"
+    }
+  }'
+```
+
+### 提交响应
+
+提交成功后会返回公开任务 ID，后续轮询、下载以及 draft 补 texture 都使用这个 ID。
+
+```json
+{
+  "id": "task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp",
+  "object": "3d",
+  "model": "meshy-6",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1783495163
+}
+```
+
+## 轮询状态
+
+使用提交响应里的 `id` 轮询状态：
+
+```bash
+curl -s https://ai.j1ao.vip/v1/3d/task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp \
+  -H "Authorization: Bearer sk-your-rex-key"
+```
+
+处理中响应：
+
+```json
+{
+  "created_at": 1783495163,
+  "id": "task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp",
+  "model": "meshy-6",
+  "object": "3d",
+  "progress": 45,
+  "status": "in_progress"
+}
+```
+
+完成响应：
+
+```json
+{
+  "completed_at": 1783495245,
+  "created_at": 1783495163,
+  "data": {
+    "format": "glb",
+    "url": "https://ai.j1ao.vip/v1/3d/task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp/content"
+  },
+  "id": "task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp",
+  "model": "meshy-6",
+  "object": "3d",
+  "progress": 100,
+  "status": "completed"
+}
+```
+
+常见状态：
+
+| status | 说明 |
+| --- | --- |
+| `queued` | 任务已入队。 |
+| `in_progress` | 任务处理中，可根据 `progress` 展示进度。 |
+| `completed` | 任务完成，可以下载结果。 |
+| `failed` | 任务失败，检查错误信息或重试。 |
+
+### 轮询建议
+
+提交成功后，请使用提交响应中的 `id` 查询状态。建议每 2 到 5 秒轮询一次，并在客户端设置总等待时间，避免无限轮询。
+
+- `queued` 和 `in_progress`：继续轮询，不要重复提交相同任务。
+- `completed`：读取 `data.url` 下载结果。
+- `failed`：记录公开任务 ID、响应内容和请求时间；修正输入后再提交新任务。
+- 网络超时：优先用已有公开任务 ID 继续查询，而不是立即新建任务。
+
+以下 Shell 示例最多轮询 60 次，每次间隔 3 秒：
+
+```bash
+task_id="task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp"
+
+for attempt in $(seq 1 60); do
+  response=$(curl -sS "https://ai.j1ao.vip/v1/3d/$task_id" \
+    -H "Authorization: Bearer $OPENAI_API_KEY")
+  printf '%s\n' "$response"
+
+  case "$response" in
+    *'"status":"completed"'*|*'"status": "completed"'*) break ;;
+    *'"status":"failed"'*|*'"status": "failed"'*) exit 1 ;;
+  esac
+
+  sleep 3
+done
+```
+
+## 下载结果
+
+当 `status` 为 `completed` 时，读取 `data.url` 下载生成的 GLB 文件。
+
+```bash
+curl -L "https://ai.j1ao.vip/v1/3d/task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp/content" \
+  -H "Authorization: Bearer sk-your-rex-key" \
+  -o result.glb
+```
+
+完成响应里的字段含义：
+
+| 字段 | 说明 |
+| --- | --- |
+| `data.url` | 经过 ReX API 鉴权的 GLB 下载地址。请求时需要携带 API Key。 |
+| `data.format` | 输出文件格式，当前示例为 `glb`。 |
+| `id` | 公开任务 ID，用于状态轮询、下载以及 draft 补 texture。 |
+
+## Draft 补 Texture
+
+如果先使用带 `-draft` 后缀的模型生成 draft，后续补 texture 时直接使用 draft 响应里的公开 `id`：
+
+```json
+{
+  "data": {
+    "format": "glb",
+    "url": "https://ai.j1ao.vip/v1/3d/task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp/content"
+  },
+  "id": "task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp",
+  "object": "3d",
+  "model": "meshy-6-draft",
+  "status": "completed"
+}
+```
+
+然后把这个公开 `id` 放到下一次请求的顶层 `source_task_id`：
+
+```bash
+curl -s https://ai.j1ao.vip/v1/3d \
+  -H "Authorization: Bearer sk-your-rex-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "meshy-6-texture",
+    "source_task_id": "task_TGMd3VfQ3TxvBe050uoiNNVYrFGhExlp",
+    "metadata": {
+      "art_style": "pbr"
+    }
+  }'
+```
+
+`source_task_id` 必须属于当前 API Key 对应的用户，并且来源任务必须已经完成、使用同一 Meshy 基础模型且为 draft 模式。ReX API 会在服务端解析上游任务信息，客户端不需要接触任何内部任务 ID。

@@ -1,0 +1,67 @@
+---
+title: "OpenCode 配置"
+---
+
+如有需要，请创建 OpenCode 配置文件。API 密钥可以直接保存在配置中，也可以使用 `/connect` 命令配置。
+
+默认模型为 `openai/gpt-5.6-sol`。
+
+## 配置文件路径
+
+```text
+~/.config/opencode/opencode.json
+```
+
+## opencode.json
+
+将 `sk-your-rex-key` 替换为你的 API Key：
+
+```json
+{
+  "model": "openai/gpt-5.6-sol",
+  "provider": {
+    "openai": {
+      "options": {
+        "baseURL": "https://ai.j1ao.vip/v1",
+        "apiKey": "sk-your-rex-key"
+      },
+      "models": {
+        "gpt-5.6-sol": {
+          "name": "gpt-5.6-sol",
+          "options": {
+            "store": false
+          },
+          "variants": {
+            "low": {},
+            "medium": {},
+            "high": {},
+            "xhigh": {},
+            "max": {}
+          }
+        }
+      }
+    }
+  },
+  "agent": {
+    "build": {
+      "options": {
+        "store": false
+      }
+    },
+    "plan": {
+      "options": {
+        "store": false
+      }
+    }
+  },
+  "$schema": "https://opencode.ai/config.json"
+}
+```
+
+其他模型可按 `gpt-5.6-sol` 的结构继续添加，省略为 `...`。
+
+## 注意事项
+
+- `baseURL` 必须包含 `/v1`。
+- 如果使用 `/connect` 保存密钥，请删除配置中的 `apiKey` 字段，避免保留两份凭据。
+- 不要将包含真实 API Key 的 `opencode.json` 提交到 Git 仓库。

@@ -1,0 +1,235 @@
+---
+title: "MiniMax H3 视频生成"
+---
+
+通过 `POST /v1/videos` 创建视频任务，轮询状态后从 ReX API 代理地址下载 MP4。本文对应 ComfyUI provider，接口核对日期为 **2026-10-03**。
+
+客户端统一填写 `model: "minimax-h3"`。站点会将大小写规范化为 `MiniMax-H3`，因此响应和模型列表可能使用这个名称。无需指定工作流，也无需提供其他供应商密钥。
+
+## 接口和鉴权
+
+| 操作 | 方法与路径 |
+| --- | --- |
+| 创建视频 | `POST /v1/videos` |
+| 查询任务 | `GET /v1/videos/{id}` |
+| 下载 MP4 | `GET /v1/videos/{id}/content` |
+| 查询文件响应头 | `HEAD /v1/videos/{id}/content` |
+
+根地址为 `https://ai.j1ao.vip`。请求使用自己的 ReX API Key：
+
+```http
+Authorization: Bearer <REX_API_KEY>
+Content-Type: application/json
+```
+
+`{id}` 必须使用创建响应里的公开任务 ID。内容接口需要鉴权，支持 `Range` 分段下载。视频由网关代理传输，不向客户端返回上游临时 CDN 地址。
+
+## 根据输入自动选择工作流
+
+| 输入 | 自动选择 | 能力 |
+| --- | --- | --- |
+| 只有提示词 | 文本工作流 | 文生视频 |
+| 提示词和 1–6 张图片 | 多图工作流 | 多图参考生视频 |
+| 提示词、1–6 张图片和 1–3 段音频 | 图加音频工作流 | 图像与音频参考融合生成 |
+
+三个工作流都支持 1–15 秒。参考图用于指导内容一致性，不能将两张普通参考图理解为严格的首尾帧约束。音频参考必须同时提供至少一张图片；仅音频输入会返回参数错误。
+
+## 请求参数
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `model` | string | 是 | `minimax-h3`，也接受规范名称 `MiniMax-H3`。 |
+| `prompt` | string | 是 | 1–10,000 个字符，描述主体、动作、场景、声音和镜头。 |
+| `seconds` | integer / 数字字符串 | 否 | 1–15，默认 5。也可使用 `duration`；同时传入时必须相同。 |
+| `resolution` | string | 否 | `480p`、`768p`、`1088p`、`1440p`，默认 `768p`。 |
+| `aspect_ratio` | string | 否 | `9:16` 或 `16:9`，默认竖屏 `9:16`。 |
+| `size` | string | 否 | 下表中的 `宽x高`，可代替 `resolution` 和 `aspect_ratio`。重复设置必须一致。 |
+| `seed` | integer / 数字字符串 | 否 | 1–999999999999999；未填写时使用上游工作流默认值，不保证每次自动随机。 |
+| `reference_images` | string[] | 否 | 最多 6 个公网图片 URL。 |
+| `input_reference` | string | 否 | 单张图片 URL，等价于只有一个元素的 `reference_images`。 |
+| `reference_audios` | string[] | 否 | 最多 3 个公网音频 URL，需要配合图片。 |
+
+媒体必须能被上游直接通过 HTTP(S) 下载，不能要求额外 Authorization、Cookie 或交互登录。图片建议 JPEG、PNG 或 WebP；音频建议 MP3、WAV 或 FLAC。URL 应在排队和生成期间保持有效。
+
+还支持以下参数形式：
+
+- `images` 是 `reference_images` 的别名；`audios` 是 `reference_audios` 的别名。
+- 原生图片字段 `ref_image_0` 到 `ref_image_5`，音频字段 `ref_audio_0` 到 `ref_audio_2`；索引必须从 0 开始连续填写。
+- 这些控制字段可以放在顶层、`metadata` 或 `extra_body` 中。OpenAI Python SDK 的 `extra_body` 会将字段合并到顶层，也可直接使用。
+- 同一字段或同一类素材的多个表示法必须一致，否则返回 400。建议每类素材只使用一种表示法。
+- `multipart/form-data` 可以携带 URL 文本字段；数组字段使用 JSON 字符串。当前不接受二进制文件上传、Base64 或 Data URL。
+
+未知参数会被拒绝。不要传入 `n`、`fps`、`negative_prompt`、`video_url`、`first_frame`、`last_frame` 或工作流覆盖字段；这些功能没有接入当前三个工作流。
+
+### 分辨率与尺寸
+
+| 档位 | 文生视频：横屏 / 竖屏 | 图片、图加音频：横屏 / 竖屏 |
+| --- | --- | --- |
+| `480p` | `864x480` / `480x864` | `864x480` / `480x864` |
+| `768p` | `1344x768` / `768x1344` | `1376x768` / `768x1376` |
+| `1088p` | `1920x1088` / `1088x1920` | `1920x1088` / `1088x1920` |
+| `1440p` | `2560x1440` / `1440x2560` | `2560x1440` / `1440x2560` |
+
+这些尺寸对应工作流的选项标签。`1080p`、`1920x1080`、`1080x1920` 会按 **1088p 档位**生成和计费，不保证输出恰好为 1080 行。768p 的两组尺寸会按实际选中的工作流转换。建议优先使用 `resolution` + `aspect_ratio`。
+
+## 调用示例
+
+以下示例假设已在本地配置 `REX_API_KEY`。示例素材地址需要替换成自己可公开下载的素材。
+
+### 文生视频
+
+```bash
+curl --fail-with-body https://ai.j1ao.vip/v1/videos \
+  -H "Authorization: Bearer $REX_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "minimax-h3",
+    "prompt": "一只红狐狸穿过阳光下的草地，镜头缓慢跟随，动作自然，画面中没有文字。",
+    "seconds": 5,
+    "resolution": "768p",
+    "aspect_ratio": "16:9",
+    "seed": 123456
+  }'
+```
+
+### 单图或多图生视频
+
+```json
+{
+  "model": "minimax-h3",
+  "prompt": "参考图片中的角色在公园里慢慢转身，保持服装和外观一致。",
+  "seconds": 5,
+  "resolution": "768p",
+  "reference_images": [
+    "https://media.example.com/character-front.png",
+    "https://media.example.com/character-side.png"
+  ]
+}
+```
+
+单图请求可改用 `"input_reference": "https://media.example.com/character.png"`。
+
+### 图片和音频生视频
+
+```json
+{
+  "model": "minimax-h3",
+  "prompt": "参考图中的角色面向镜头讲话，结合参考音频，保持自然的表情和轻微身体动作。",
+  "seconds": 8,
+  "resolution": "1088p",
+  "aspect_ratio": "16:9",
+  "reference_images": ["https://media.example.com/character.png"],
+  "reference_audios": ["https://media.example.com/dialogue.wav"]
+}
+```
+
+这里的音频属于生成参考，不保证逐字逐帧复现；当前接口没有接入专用对口型工作流。
+
+## 查询任务与下载
+
+提交后立即返回任务对象：
+
+```json
+{
+  "id": "task_example",
+  "object": "video",
+  "model": "MiniMax-H3",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1790969245
+}
+```
+
+每 3–5 秒调用一次 `GET /v1/videos/{id}`。`queued` 和 `in_progress` 继续等待，`completed` 表示可下载，`failed` 表示失败。进度可能停留在一个值较长时间，不代表任务没有继续执行。
+
+成功时响应包含使用 `PUBLIC_SITE_URL` 拼接的网关绝对内容地址，例如：
+
+```json
+{
+  "id": "task_example",
+  "object": "video",
+  "model": "MiniMax-H3",
+  "status": "completed",
+  "progress": 100,
+  "url": "https://ai.j1ao.vip/v1/videos/task_example/content",
+  "content_url": "https://ai.j1ao.vip/v1/videos/task_example/content"
+}
+```
+
+客户端应使用实际响应值；也可以始终使用鉴权内容端点下载：
+
+```bash
+task_id='task_example'
+curl --fail-with-body "https://ai.j1ao.vip/v1/videos/$task_id/content" \
+  -H "Authorization: Bearer $REX_API_KEY" \
+  --output result.mp4
+```
+
+当前视频响应中的内容地址需要携带本站 API Key。不要把上游临时链接当作永久存储，建议完成后及时下载保存。
+
+### Python 完整流程
+
+```python
+import os
+import time
+import requests
+
+base = "https://ai.j1ao.vip"
+headers = {"Authorization": "Bearer " + os.environ["REX_API_KEY"]}
+response = requests.post(base + "/v1/videos", headers=headers, json={
+    "model": "minimax-h3",
+    "prompt": "A fox walking across a sunlit meadow, steady camera.",
+    "seconds": 5,
+    "resolution": "480p",
+    "aspect_ratio": "16:9",
+}, timeout=60)
+response.raise_for_status()
+task = response.json()
+task_id = task["id"]  # 保存此 ID；网络中断后可以恢复轮询
+deadline = time.monotonic() + 1800
+
+while task["status"] not in ("completed", "failed"):
+    if time.monotonic() >= deadline:
+        raise TimeoutError(f"Task still running; resume polling {task_id}")
+    time.sleep(5)
+    response = requests.get(base + "/v1/videos/" + task_id,
+                            headers=headers, timeout=30)
+    response.raise_for_status()
+    task = response.json()
+
+if task["status"] == "failed":
+    raise RuntimeError(task.get("error", task))
+
+# 固定使用网关的鉴权内容端点，不向第三方地址转发 API Key。
+with requests.get(base + f"/v1/videos/{task_id}/content", headers=headers,
+                  stream=True, timeout=120, allow_redirects=False) as media:
+    media.raise_for_status()
+    if media.status_code != 200:
+        raise RuntimeError(f"Unexpected content status: {media.status_code}")
+    with open("result.mp4", "wb") as file:
+        for chunk in media.iter_content(1024 * 1024):
+            file.write(chunk)
+```
+
+提交成功后只轮询已有 ID，不要因生成时间较长重复提交。提交请求发生网络超时时，先在站点任务记录确认是否已创建，避免重复扣费。
+
+## 计费
+
+ComfyUI provider 的站内基础单价如下，不区分高峰和低峰。价格单位为本站余额单位，适用分组倍率为 1 时：
+
+| 分辨率 | 每秒单价 | 5 秒示例 |
+| --- | --- | --- |
+| 480p | 0.055 | 0.275 |
+| 768p | 0.075 | 0.375 |
+| 1088p | 0.085 | 0.425 |
+| 1440p | 0.095 | 0.475 |
+
+预扣金额 = 生成秒数 × 对应分辨率单价 × 适用分组倍率。三种输入类型使用同一套价格；参考图片数量和音频数量不另外增加本插件的计费项。价格在提交时冻结，后续修改价格不影响已提交任务。
+
+上游查询响应里的 `duration` 是推理耗时，不用于计费。上游没有明确提供有效 `duration_seconds` 时，按请求的生成秒数结算；明确返回的有效媒体时长会覆盖预估值。终态失败走网关退款流程，HTTP 提交错误和本地参数错误不会作为成功视频收费。实际配置和分组倍率以站点价格页面、用量记录为准。
+
+## 当前限制
+
+当前不支持严格首尾帧约束、第 7–9 张参考图、参考视频、视频编辑或续写、超过 15 秒、超过 3 段音频、批量多成片、1:1 画幅、任意尺寸、负面提示词和自定义帧率。
+
+参考音频用于指导生成，不保证逐字逐帧对口型。不要将其他 provider 或其他工作流的同名字段直接传入当前模型。

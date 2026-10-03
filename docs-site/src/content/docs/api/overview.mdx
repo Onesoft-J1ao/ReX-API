@@ -1,0 +1,45 @@
+---
+title: "API 概览"
+---
+
+所有接口均使用 HTTPS，并通过 `Authorization: Bearer <API_KEY>` 鉴权。根地址为 `https://ai.j1ao.vip`。
+
+## 已记录端点
+
+| 用途 | 方法与路径 | Base URL | 说明 |
+| --- | --- | --- | --- |
+| 查询模型 | `GET /v1/models` | `https://ai.j1ao.vip` | 返回当前 API Key 可用的模型列表。 |
+| 语言模型对话 | `POST /v1/chat/completions` | `https://ai.j1ao.vip` | OpenAI Chat Completions 兼容接口。 |
+| Jev 决策模型 | `POST /v1/systemone` | `https://ai.j1ao.vip` | TypeSafe System One 专用接口，使用 `state` + `questions` 请求体。 |
+| 文本转语音 | `POST /v1/audio/speech` | `https://ai.j1ao.vip` | 使用 `azure-tts`、`unreal-speech-v8` 或 `indextts-2` 同步返回音频。 |
+| 提交异步语音任务 | `POST /v1/audio/speech/tasks` | `https://ai.j1ao.vip` | 提交 UnrealSpeech 或 IndexTTS2 语音任务，文本限制按模型区分。 |
+| 查询异步语音任务 | `GET /v1/audio/speech/tasks/{task_id}` | `https://ai.j1ao.vip` | 查询语音任务状态和网关内容地址。 |
+| 下载异步语音 | `GET /v1/audio/speech/tasks/{task_id}/content` | `https://ai.j1ao.vip` | 通过网关代理下载任务音频。 |
+| 下载语音时间戳 | `GET /v1/audio/speech/tasks/{task_id}/timestamps` | `https://ai.j1ao.vip` | 通过网关代理下载词级或句级时间戳 JSON。 |
+| WebSocket 语音流 | `GET /v1/audio/speech/websocket?model=unreal-speech-v8` | `wss://ai.j1ao.vip` | 转发 UnrealSpeech 音频分块和时间戳帧。 |
+| 提交 3D 任务 | `POST /v1/3d` | `https://ai.j1ao.vip` | 创建文生 3D、图生 3D 或 texture 任务。 |
+| 查询 3D 任务 | `GET /v1/3d/{task_id}` | `https://ai.j1ao.vip` | 读取异步任务状态与完成结果。 |
+| 提交视频任务 | `POST /v1/videos` | `https://ai.j1ao.vip` | 使用 `minimax-h3` 生成视频，自动选择文本、图片或图加音频工作流。 |
+| 查询视频任务 | `GET /v1/videos/{id}` | `https://ai.j1ao.vip` | 查询视频生成状态。 |
+| 下载视频 | `GET /v1/videos/{id}/content` | `https://ai.j1ao.vip` | 通过网关代理下载 MP4，支持 HEAD 和 Range。 |
+
+语言模型接口见[语言模型 API](/api/chat-completions)，Jev 决策模型见[Jev / System One API](/api/system-one)，模型 ID 的获取方式见[查询模型列表](/reference/model-list)。文本转语音见[Speech API](/api/speech)，参考音频克隆和情绪控制见[IndexTTS2 API](/api/indextts2)。视频输入、分辨率计费和代理下载见[MiniMax H3 视频生成](/api/video-generation)。3D 接口的完整字段、状态流转和下载流程见[3D 生成 API](/api/text-to-3d)。
+
+## 请求约定
+
+```http
+Authorization: Bearer sk-your-rex-key
+Content-Type: application/json
+```
+
+- 请求体使用 UTF-8 JSON。
+- 同步 Speech API 和异步语音内容接口成功时直接返回音频二进制内容，客户端需要将响应保存为文件。
+- 成功创建的异步任务会返回外层 `id` 或 `task_id`，用于后续轮询。
+- 异步语音任务的 `status` 为 `completed` 后，通过 `content_url` 下载结果；`failed` 表示任务未成功完成。
+- HTTP 错误的处理建议见[错误码](/reference/errors)。
+
+## 协议兼容性
+
+`OPENAI_BASE_URL` 的默认值为 `https://ai.j1ao.vip/v1`。普通语言模型可使用 OpenAI Chat Completions 兼容接口，文本转语音可使用 OpenAI Speech 兼容接口。Jev 属于 TypeSafe 决策模型，只能调用 `/v1/systemone`，不能使用 Chat Completions 的 `messages` 格式。不同账户能访问的模型、上下文长度、视觉、工具调用和流式输出能力以 `GET /v1/models` 的实际返回以及服务端策略为准。
+
+Responses 与 Anthropic Messages 是否可用，取决于网关当前对账户和模型开放的能力；在有明确端点与请求示例前，请不要假设这些协议可用。

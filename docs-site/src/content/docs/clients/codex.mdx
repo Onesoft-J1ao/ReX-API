@@ -1,0 +1,58 @@
+---
+title: "Codex 配置"
+---
+
+将 API 密钥配置到 Codex。默认模型为 `gpt-5.6-sol`，代码审查模型为 `codex-auto-review`。
+
+## 配置文件路径
+
+| 系统 | `config.toml` 路径 |
+| --- | --- |
+| macOS / Linux | `~/.codex/config.toml` |
+| Windows | `%USERPROFILE%\.codex\config.toml` |
+
+如果文件中已有这些字段，请谨慎合并，避免覆盖其他自定义配置。
+
+## config.toml
+
+```toml
+model_provider = "newapi"
+model = "gpt-5.6-sol"
+review_model = "codex-auto-review"
+model_reasoning_effort = "xhigh"
+disable_response_storage = true
+windows_wsl_setup_acknowledged = true
+
+[model_providers.newapi]
+name = "New API"
+base_url = "https://ai.j1ao.vip/v1"
+wire_api = "responses"
+requires_openai_auth = true
+
+[sandbox_workspace_write]
+network_access = true
+
+[features]
+goals = true
+```
+
+## API 密钥
+
+如果 `auth.json` 不存在，请创建该文件并妥善保管。
+
+| 系统 | `auth.json` 路径 |
+| --- | --- |
+| macOS / Linux | `~/.codex/auth.json` |
+| Windows | `%USERPROFILE%\.codex\auth.json` |
+
+```json
+{
+  "OPENAI_API_KEY": "sk-your-rex-key"
+}
+```
+
+## 注意事项
+
+- `model_providers` 属于用户级配置，请写入用户目录下的 `config.toml`，不要写入项目内的 `.codex/config.toml`。
+- `base_url` 必须包含 `/v1`，`wire_api` 使用 `responses`。
+- 不要将 `auth.json` 或真实 API Key 提交到 Git 仓库。
