@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relay"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -60,18 +61,27 @@ var endpointFallbackMarkers = []string{
 // this model", the only failure worth retrying elsewhere. A missing model on one
 // endpoint says nothing about the next, but an auth, quota or network failure
 // repeats on every endpoint and retrying it would only multiply upstream calls.
+//
+// The decision rests on the upstream status, never on localErr: testChannel
+// wraps every failure in a localErr, so gating on it would stop the walk on the
+// very failures the walk exists for.
 func canRetryOnAnotherEndpoint(result testResult) bool {
-	if result.localErr != nil || result.newAPIError == nil {
+	if result.newAPIError == nil {
 		return false
 	}
-	status := result.newAPIError.StatusCode
-	if status != http.StatusBadRequest && status != http.StatusNotFound {
-		return false
-	}
-	message := strings.ToLower(result.newAPIError.Error())
-	for _, marker := range endpointFallbackMarkers {
-		if strings.Contains(message, marker) {
-			return true
+	switch result.newAPIError.StatusCode {
+	case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented, http.StatusBadGateway:
+		// The endpoint is missing, or the pool could not route the model through
+		// it. Another declared endpoint may still serve the model.
+		return true
+	case http.StatusBadRequest:
+		// A 400 is usually about the request rather than the endpoint, so only a
+		// refusal that names the model or the endpoint counts.
+		message := strings.ToLower(result.newAPIError.Error())
+		for _, marker := range endpointFallbackMarkers {
+			if strings.Contains(message, marker) {
+				return true
+			}
 		}
 	}
 	return false
@@ -91,18 +101,24 @@ func testChannelAcrossEndpoints(ctx context.Context, channel *model.Channel, tes
 		return testChannel(ctx, channel, testUserID, testModel, endpointType, isStream)
 	}
 
-	var last testResult
-	for _, candidate := range candidates {
-		last = testChannel(ctx, channel, testUserID, testModel, string(candidate), isStream)
-		if last.localErr == nil && last.newAPIError == nil {
-			return last
+	var first testResult
+	for i, candidate := range candidates {
+		result := testChannel(ctx, channel, testUserID, testModel, string(candidate), isStream)
+		if result.localErr == nil && result.newAPIError == nil {
+			return result
 		}
-		if !canRetryOnAnotherEndpoint(last) {
-			return last
+		if i == 0 {
+			first = result
+		}
+		if !canRetryOnAnotherEndpoint(result) {
+			return result
 		}
 		common.SysLog(fmt.Sprintf("channel test for model %s fell through from endpoint %s", testModel, candidate))
 	}
-	return last
+	// Every declared endpoint failed. Report the first, the endpoint the model is
+	// normally reached on, so the error does not depend on how many endpoints the
+	// channel happens to declare.
+	return first
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
@@ -253,6 +269,8 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 			relayFormat = types.RelayFormatOpenAIImage
 		case constant.EndpointTypeEmbeddings:
 			relayFormat = types.RelayFormatEmbedding
+		case constant.EndpointTypeSystemOne:
+			relayFormat = types.RelayFormatSystemOne
 		default:
 			relayFormat = types.RelayFormatOpenAI
 		}
@@ -426,6 +444,24 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
+	case relayconstant.RelayModeSystemOne:
+		systemOneReq, ok := request.(*dto.SystemOneRequest)
+		if !ok {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid system one request type"),
+				newAPIError: types.NewError(errors.New("invalid system one request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+		systemOneAdaptor, ok := adaptor.(relaychannel.SystemOneAdaptor)
+		if !ok {
+			return testResult{
+				context:     c,
+				localErr:    fmt.Errorf("api type %d does not support System One", apiType),
+				newAPIError: types.NewError(fmt.Errorf("unsupported api type: %d", apiType), types.ErrorCodeInvalidApiType),
+			}
+		}
+		convertedRequest, err = systemOneAdaptor.ConvertSystemOneRequest(c, info, systemOneReq)
 	default:
 		switch req := request.(type) {
 		case *dto.GeneralOpenAIRequest:
@@ -835,6 +871,20 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 			}
 			return req
+		case constant.EndpointTypeSystemOne:
+			// A System One decision probe: one free-form question over a small
+			// state. The shape must satisfy SystemOneRequest.Validate(), because
+			// the upstream rejects anything else before it can answer.
+			return &dto.SystemOneRequest{
+				Model: model,
+				State: json.RawMessage(`{"probe":true}`),
+				Questions: map[string]dto.SystemOneQuestion{
+					"probe": {
+						Type:         "noul",
+						Instructions: json.RawMessage(`"Answer briefly."`),
+					},
+				},
+			}
 		}
 	}
 

@@ -570,7 +570,11 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 				report(processed, totalUnits)
 			}
 			tik := time.Now()
-			result := testChannel(ctx, ch, testUserID, modelName, "", false)
+			// Walk the endpoints the channel declares for this model. A model may
+			// be served on only one of them — a System One decision model on an
+			// OpenCode pool answers only /v1/systemone — so probing the first
+			// endpoint alone would report it unhealthy forever.
+			result := testChannelAcrossEndpoints(ctx, ch, testUserID, modelName, "", false)
 			latMs := time.Since(tik).Milliseconds()
 
 			ok := result.localErr == nil && result.newAPIError == nil

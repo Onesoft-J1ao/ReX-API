@@ -5,10 +5,24 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestBuildTestRequestForSystemOne(t *testing.T) {
+	request := buildTestRequest("opencode/jev-1.13-free", string(constant.EndpointTypeSystemOne), nil, false)
+
+	systemOne, ok := request.(*dto.SystemOneRequest)
+	require.Truef(t, ok, "the System One endpoint must build a SystemOneRequest, got %T", request)
+	assert.Equal(t, "opencode/jev-1.13-free", systemOne.Model)
+	// The upstream rejects anything that does not validate, so a probe built
+	// here must satisfy the same contract a real caller does.
+	require.NoError(t, systemOne.Validate())
+}
 
 func TestCanRetryOnAnotherEndpoint(t *testing.T) {
 	// Types of upstream answers that say nothing about the endpoint, only that
@@ -61,6 +75,25 @@ func TestCanRetryOnAnotherEndpoint(t *testing.T) {
 			name:   "a channel-side failure is never retried elsewhere",
 			result: testResult{localErr: errors.New("model not found")},
 			want:   false,
+		},
+		{
+			// testChannel wraps every failure in a localErr, so a localErr must
+			// not by itself stop the walk; the upstream status decides.
+			name:   "an upstream refusal still walks although it carries a local error",
+			result: testResult{localErr: errors.New("bad response status code 404"), newAPIError: types.NewErrorWithStatusCode(errors.New("no such model"), types.ErrorCodeBadResponseStatusCode, http.StatusNotFound)},
+			want:   true,
+		},
+		{
+			name:   "an endpoint that cannot route the model",
+			result: endpointMissing(http.StatusMethodNotAllowed, "method not allowed on this path"),
+			want:   true,
+		},
+		{
+			// An OpenCode pool answers a System One model on the chat endpoint
+			// with 502 and "SystemOneRequired"; the decision endpoint serves it.
+			name:   "a pool that cannot route the model on this endpoint",
+			result: endpointMissing(http.StatusBadGateway, "HTTP -1 SystemOneRequired: jev is a structured decision model"),
+			want:   true,
 		},
 	}
 
