@@ -24,7 +24,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from 'lucide-react'
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -53,6 +53,14 @@ const LEVEL_RANK: Record<HealthLevel, number> = {
 
 /** Hours of history the strip keeps; the gateway buckets traffic hourly. */
 const STRIP_BUCKETS = 24
+
+/**
+ * How many model rows a group card shows before collapsing. A group can route
+ * dozens of models, and rendering them all makes the page one long scroll, so
+ * the card lists the first few and offers the rest behind a toggle. Failing
+ * models sort first, so the ones worth seeing are inside the preview.
+ */
+const MODEL_PREVIEW_COUNT = 6
 
 /**
  * Per-model history strip: one hairline bar per observed hour, newest on the
@@ -153,6 +161,11 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
   const rate = Math.round(group.availability * 100) / 100
   const models = useMemo(() => sortModels(group.models), [group.models])
   const failed = group.models.filter((model) => !model.ok).length
+  const [showAllModels, setShowAllModels] = useState(false)
+  const hiddenModelCount = models.length - MODEL_PREVIEW_COUNT
+  const visibleModels = showAllModels
+    ? models
+    : models.slice(0, MODEL_PREVIEW_COUNT)
 
   return (
     <div className='bg-card overflow-hidden rounded-xl border shadow-xs'>
@@ -209,7 +222,7 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
             {t('No models reported')}
           </div>
         ) : (
-          models.map((model) => (
+          visibleModels.map((model) => (
             <ModelRow
               key={`${model.model}-${model.channel_id ?? ''}`}
               model={model}
@@ -217,6 +230,18 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
           ))
         )}
       </div>
+      {hiddenModelCount > 0 && (
+        <button
+          type='button'
+          className='text-muted-foreground hover:text-foreground focus-visible:outline-primary w-full border-t px-4 py-2.5 text-sm transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 sm:px-5'
+          onClick={() => setShowAllModels((shown) => !shown)}
+          aria-expanded={showAllModels}
+        >
+          {showAllModels
+            ? t('Show fewer models')
+            : t('Show {{count}} more models', { count: hiddenModelCount })}
+        </button>
+      )}
     </div>
   )
 }
@@ -357,9 +382,11 @@ export function StatusPanel() {
     }
     return (
       <div className='space-y-4'>
-        {groupList.map((group, idx) => (
-          <GroupCard key={group.group} group={group} index={idx} />
-        ))}
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'>
+          {groupList.map((group, idx) => (
+            <GroupCard key={group.group} group={group} index={idx} />
+          ))}
+        </div>
         {groupList.every((g) => g.models.length === 0) && (
           <div className='text-muted-foreground flex items-start gap-2 rounded-xl border border-dashed px-4 py-3 text-xs leading-6'>
             <Info className='mt-0.5 size-3.5 shrink-0' />

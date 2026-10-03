@@ -5174,6 +5174,8 @@
     "Share your link and earn rewards": "リンクを共有して報酬を獲得",
     "Shared configuration for all payment gateways": "すべての決済ゲートウェイの共有設定",
     "Shorten": "短縮",
+    "Show fewer models": "モデルを折りたたむ",
+    "Show {{count}} more models": "残り {{count}} 件のモデルを表示",
     "Show": "表示",
     "Show All": "すべて表示",
     "Show all providers including unbound": "未バインドを含むすべてのプロバイダーを表示",
