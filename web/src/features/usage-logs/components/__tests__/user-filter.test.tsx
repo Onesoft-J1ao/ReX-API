@@ -50,8 +50,16 @@ function FilterFixture() {
 
 async function renderFilter() {
   vi.spyOn(api, 'get').mockImplementation(async (url) => {
-    if (url === '/api/user/self/groups' || url === '/api/group/') {
-      return { data: { success: true, data: { default: {} } } }
+    // The admin branch reads the group list straight off `/api/group/` and calls
+    // .filter() on it, so it has to be an array here; `/api/user/self/groups`
+    // returns the personal map instead.
+    if (url === '/api/group/') {
+      return { data: { success: true, data: ['default'] } }
+    }
+    if (url === '/api/user/self/groups') {
+      return {
+        data: { success: true, data: { default: { desc: '', ratio: 1 } } },
+      }
     }
     return { data: { success: true, data: { quota: 0, rpm: 0, tpm: 0 } } }
   })
@@ -75,6 +83,11 @@ async function renderFilter() {
       <RouterProvider router={router} />
     </QueryClientProvider>
   )
+  // RouterProvider mounts asynchronously: without waiting for the filter bar to
+  // appear the assertions below run against an empty body and every
+  // queryByPlaceholderText returns null, so the negative assertions pass for the
+  // wrong reason.
+  await screen.findByRole('button', { name: /^Search/ })
   return router
 }
 
