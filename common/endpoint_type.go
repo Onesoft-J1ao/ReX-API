@@ -68,6 +68,12 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 		}
 	}
+	if IsRerankModel(modelName) {
+		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeJinaRerank}, endpointTypes...)
+	}
+	if IsEmbeddingModel(modelName) {
+		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeEmbeddings}, endpointTypes...)
+	}
 	if IsImageGenerationModel(modelName) {
 		// add to first
 		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeImageGeneration}, endpointTypes...)

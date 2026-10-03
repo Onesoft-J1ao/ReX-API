@@ -26,3 +26,32 @@ func TestWanEndpointsDistinguishImagesFromVideos(t *testing.T) {
 		})
 	}
 }
+
+func TestEmbeddingAndRerankEndpointsComeFirst(t *testing.T) {
+	// A chat endpoint declared ahead of the endpoint a model actually speaks
+	// makes the channel test probe the wrong path and report the model red.
+	for _, name := range []string{
+		"nvidia/embed-qa-4", "nvidia/nemotron-3-embed-1b", "snowflake/arctic-embed-l",
+		"text-embedding-3-large", "BAAI/bge-m3", "m3e-base",
+	} {
+		t.Run(name, func(t *testing.T) {
+			endpoints := common.GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, name)
+			assert.NotEmpty(t, endpoints)
+			assert.Equal(t, constant.EndpointTypeEmbeddings, endpoints[0])
+		})
+	}
+
+	for _, name := range []string{"bge-reranker-v2-m3", "jina-reranker-v2", "Qwen3-Reranker-8B"} {
+		t.Run(name, func(t *testing.T) {
+			endpoints := common.GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, name)
+			assert.NotEmpty(t, endpoints)
+			assert.Equal(t, constant.EndpointTypeJinaRerank, endpoints[0])
+		})
+	}
+
+	// "bge-reranker" carries the bge embedding marker, so the rerank check must
+	// win; otherwise it is probed as an embedding model.
+	assert.False(t, common.IsEmbeddingModel("bge-reranker-v2-m3"))
+	assert.True(t, common.IsRerankModel("bge-reranker-v2-m3"))
+	assert.True(t, common.IsEmbeddingModel("BAAI/bge-m3"))
+}

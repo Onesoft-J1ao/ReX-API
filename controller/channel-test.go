@@ -300,7 +300,7 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 		}
 	}
 
-	request := buildTestRequest(testModel, endpointType, channel, isStream)
+	request := buildTestRequest(testModel, endpointType, channel.Type, isStream)
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -794,7 +794,7 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
-func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
+func buildTestRequest(model string, endpointType string, channelType int, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
 	// 根据端点类型构建不同的测试请求
@@ -889,32 +889,24 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	// 自动检测逻辑（保持原有行为）
-	if strings.Contains(strings.ToLower(model), "rerank") {
+	switch classifyChannelTestModel(channelType, model) {
+	case channelTestModelRerank:
 		return &dto.RerankRequest{
 			Model:     model,
 			Query:     "What is Deep Learning?",
 			Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
 			TopN:      lo.ToPtr(2),
 		}
-	}
-
-	// 先判断是否为 Embedding 模型
-	if strings.Contains(strings.ToLower(model), "embedding") ||
-		strings.HasPrefix(model, "m3e") ||
-		strings.Contains(model, "bge-") {
-		// 返回 EmbeddingRequest
+	case channelTestModelEmbedding:
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
 		}
-	}
-
-	// 图片生成模型（OpenAI gpt-image/dall-e、flux、seedream、cogview、wanx 等）
-	if isImageGenerationTestModel(model) {
+	case channelTestModelImage:
+		// 图片生成模型（OpenAI gpt-image/dall-e、flux、seedream、cogview、wanx 等）
 		return buildImageGenerationTestRequest(model)
-	}
-	// Responses-only models (e.g. codex series)
-	if strings.Contains(strings.ToLower(model), "codex") {
+	case channelTestModelResponses:
+		// Responses-only models (e.g. codex series)
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
 			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
@@ -952,35 +944,21 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	return testRequest
 }
 
-// autoDetectChannelTestRequestPath 根据渠道类型与模型名自动推断测试请求路径，
-// 与 buildTestRequest 的判断保持一致。
+// autoDetectChannelTestRequestPath 根据渠道类型与模型名自动推断测试请求路径。
+// 与 buildTestRequest 共用 classifyChannelTestModel，两者不会再有分歧。
 func autoDetectChannelTestRequestPath(channelType int, model string) string {
-	requestPath := "/v1/chat/completions"
-
-	if strings.Contains(strings.ToLower(model), "rerank") {
-		requestPath = "/v1/rerank"
+	switch classifyChannelTestModel(channelType, model) {
+	case channelTestModelRerank:
+		return "/v1/rerank"
+	case channelTestModelEmbedding:
+		return "/v1/embeddings"
+	case channelTestModelImage:
+		// 图片生成模型统一走 /v1/images/generations（含 VolcEngine seedream 等各厂商模型）
+		return "/v1/images/generations"
+	case channelTestModelResponses:
+		return "/v1/responses"
 	}
-
-	// 先判断是否为 Embedding 模型
-	if strings.Contains(strings.ToLower(model), "embedding") ||
-		strings.HasPrefix(model, "m3e") || // m3e 系列模型
-		strings.Contains(model, "bge-") || // bge 系列模型
-		strings.Contains(model, "embed") ||
-		channelType == constant.ChannelTypeMokaAI { // 其他 embedding 模型
-		requestPath = "/v1/embeddings"
-	}
-
-	// 图片生成模型统一走 /v1/images/generations（含 VolcEngine seedream 等各厂商模型）
-	if isImageGenerationTestModel(model) {
-		requestPath = "/v1/images/generations"
-	}
-
-	// responses-only models
-	if strings.Contains(strings.ToLower(model), "codex") {
-		requestPath = "/v1/responses"
-	}
-
-	return requestPath
+	return "/v1/chat/completions"
 }
 
 // isImageGenerationTestModel 判断渠道测试是否应把该模型当作图片生成模型处理。
@@ -998,6 +976,41 @@ func isImageGenerationTestModel(model string) bool {
 		}
 	}
 	return false
+}
+
+// channelTestModelKind classifies a model for the channel test. The request path
+// and the request body must both come from this one classification.
+//
+// They used to be decided separately and disagreed. The path helper matched
+// "embed" while the body helper matched only "embedding", so nvidia/embed-qa-4
+// was posted to /v1/embeddings with a chat body and the test failed with
+// "invalid embedding request type". The path helper also let its embedding
+// branch overwrite the rerank path, sending bge-reranker-v2-m3 to /v1/embeddings
+// with a rerank body.
+type channelTestModelKind int
+
+const (
+	channelTestModelChat channelTestModelKind = iota
+	channelTestModelRerank
+	channelTestModelEmbedding
+	channelTestModelImage
+	channelTestModelResponses
+)
+
+func classifyChannelTestModel(channelType int, modelName string) channelTestModelKind {
+	lower := strings.ToLower(modelName)
+	switch {
+	case common.IsRerankModel(modelName):
+		return channelTestModelRerank
+	case common.IsEmbeddingModel(modelName),
+		channelType == constant.ChannelTypeMokaAI:
+		return channelTestModelEmbedding
+	case isImageGenerationTestModel(modelName):
+		return channelTestModelImage
+	case strings.Contains(lower, "codex"):
+		return channelTestModelResponses
+	}
+	return channelTestModelChat
 }
 
 // buildImageGenerationTestRequest 构造图片生成连通性测试请求，n 固定为 1 且

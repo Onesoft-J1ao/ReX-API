@@ -65,6 +65,24 @@ func IsImageGenerationModel(modelName string) bool {
 	return false
 }
 
+// IsEmbeddingModel reports whether a model name denotes an embedding model. The
+// rerank check comes first because "bge-reranker" also carries the "bge-"
+// embedding marker.
+func IsEmbeddingModel(modelName string) bool {
+	lower := strings.ToLower(modelName)
+	if strings.Contains(lower, "rerank") {
+		return false
+	}
+	return strings.Contains(lower, "embed") ||
+		strings.Contains(lower, "bge-") ||
+		strings.HasPrefix(lower, "m3e")
+}
+
+// IsRerankModel reports whether a model name denotes a rerank model.
+func IsRerankModel(modelName string) bool {
+	return strings.Contains(strings.ToLower(modelName), "rerank")
+}
+
 func IsOpenAITextModel(modelName string) bool {
 	modelName = strings.ToLower(modelName)
 	for _, m := range OpenAITextModels {

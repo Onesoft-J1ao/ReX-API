@@ -14,7 +14,7 @@ import (
 )
 
 func TestBuildTestRequestForSystemOne(t *testing.T) {
-	request := buildTestRequest("opencode/jev-1.13-free", string(constant.EndpointTypeSystemOne), nil, false)
+	request := buildTestRequest("opencode/jev-1.13-free", string(constant.EndpointTypeSystemOne), 0, false)
 
 	systemOne, ok := request.(*dto.SystemOneRequest)
 	require.Truef(t, ok, "the System One endpoint must build a SystemOneRequest, got %T", request)
@@ -22,6 +22,34 @@ func TestBuildTestRequestForSystemOne(t *testing.T) {
 	// The upstream rejects anything that does not validate, so a probe built
 	// here must satisfy the same contract a real caller does.
 	require.NoError(t, systemOne.Validate())
+}
+
+func TestChannelTestPathAndBodyAgree(t *testing.T) {
+	// The auto-detected path and the auto-detected body must classify a model
+	// the same way. They used to be decided separately: a name matching "embed"
+	// but not "embedding" went to /v1/embeddings with a chat body, and a
+	// "bge-reranker" went to /v1/embeddings with a rerank body.
+	tests := []struct {
+		name     string
+		model    string
+		wantPath string
+		wantBody any
+	}{
+		{name: "nvidia embedding", model: "nvidia/embed-qa-4", wantPath: "/v1/embeddings", wantBody: &dto.EmbeddingRequest{}},
+		{name: "openai embedding", model: "text-embedding-3-large", wantPath: "/v1/embeddings", wantBody: &dto.EmbeddingRequest{}},
+		{name: "bge embedding", model: "BAAI/bge-m3", wantPath: "/v1/embeddings", wantBody: &dto.EmbeddingRequest{}},
+		{name: "bge reranker stays rerank", model: "bge-reranker-v2-m3", wantPath: "/v1/rerank", wantBody: &dto.RerankRequest{}},
+		{name: "image generation", model: "gpt-image-1", wantPath: "/v1/images/generations", wantBody: &dto.ImageRequest{}},
+		{name: "responses only", model: "gpt-5.3-codex", wantPath: "/v1/responses", wantBody: &dto.OpenAIResponsesRequest{}},
+		{name: "plain chat", model: "gpt-6-astra", wantPath: "/v1/chat/completions", wantBody: &dto.GeneralOpenAIRequest{}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.wantPath, autoDetectChannelTestRequestPath(constant.ChannelTypeOpenAI, tc.model))
+			assert.IsType(t, tc.wantBody, buildTestRequest(tc.model, "", constant.ChannelTypeOpenAI, false))
+		})
+	}
 }
 
 func TestCanRetryOnAnotherEndpoint(t *testing.T) {
