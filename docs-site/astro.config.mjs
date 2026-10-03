@@ -8,6 +8,16 @@ export default defineConfig({
     starlight({
       title: 'ReX API',
       description: 'ReX API 用户使用文档：语言模型、语音合成与 3D 生成能力接入指南。',
+      // The logo is the REX wordmark, so it already carries the site name and
+      // the text title next to it would only repeat it. The brand blue
+      // (#0030b0) only reaches 1.47:1 against the dark header, so dark mode
+      // gets the same wordmark in a lighter tint of the same hue (5.06:1).
+      logo: {
+        light: './src/assets/logo.png',
+        dark: './src/assets/logo-dark.png',
+        alt: 'ReX API',
+        replacesTitle: true,
+      },
       defaultLocale: 'root',
       locales: {
         root: { label: '简体中文', lang: 'zh-CN' },
