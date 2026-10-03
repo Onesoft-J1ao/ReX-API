@@ -44,6 +44,8 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { RichContent } from '@/components/rich-content'
+import { isLikelyHtml } from '@/lib/content-format'
 import { readFileAsDataUrl } from '@/lib/file-to-data-url'
 
 import {
@@ -61,6 +63,36 @@ import { useUpdateOption } from '../hooks/use-update-option'
  * The cap keeps a banner-sized image comfortably inside the option.
  */
 const NOTICE_IMAGE_MAX_BYTES = 1024 * 1024
+
+/**
+ * Render the notice body as the visitor will see it.
+ *
+ * An inserted image is a data URL sitting in the middle of the textarea, so the
+ * only way to check what a banner looks like — or that the markup around it is
+ * right — is to render it. The same component the popup uses, so the preview
+ * cannot drift from the real thing.
+ */
+function NoticePreview(props: { content: string }) {
+  const { t } = useTranslation()
+  const content = props.content.trim()
+  if (!content) return null
+  const isHtml = isLikelyHtml(content)
+
+  return (
+    <div className='space-y-2'>
+      <div className='text-sm font-medium'>{t('Preview')}</div>
+      <div className='bg-muted/30 max-h-80 overflow-auto rounded-md border px-4 py-3'>
+        <RichContent
+          content={content}
+          mode={isHtml ? 'html' : 'markdown'}
+          htmlVariant={isHtml ? 'isolated' : undefined}
+          breaks={!isHtml}
+          className='min-w-0'
+        />
+      </div>
+    </div>
+  )
+}
 
 const noticeSchema = z.object({
   Notice: z.string().optional(),
@@ -128,6 +160,7 @@ export function NoticeSection({ defaultValues }: NoticeSectionProps) {
   }
 
   const popupEnabled = form.watch('NoticePopupEnabled')
+  const noticeValue = form.watch('Notice') ?? ''
 
   const noticeFieldRef = useRef<HTMLTextAreaElement | null>(null)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
@@ -218,6 +251,7 @@ export function NoticeSection({ defaultValues }: NoticeSectionProps) {
               if (file) void insertNoticeImage(file)
             }}
           />
+          <NoticePreview content={noticeValue} />
 
           <FormField
             control={form.control}
