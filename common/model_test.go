@@ -55,3 +55,24 @@ func TestEmbeddingAndRerankEndpointsComeFirst(t *testing.T) {
 	assert.True(t, common.IsRerankModel("bge-reranker-v2-m3"))
 	assert.True(t, common.IsEmbeddingModel("BAAI/bge-m3"))
 }
+
+func TestImageModelsDeclareImageGeneration(t *testing.T) {
+	// These families carry the image capability in their name but were never
+	// listed, so they were advertised as chat endpoints and the playground
+	// offered them in the chat tab.
+	for _, name := range []string{
+		"gemini-2.5-flash-image", "gemini-3-pro-image", "gemini-3.1-flash-image",
+		"agnes-image-2.0-flash", "agnes-image-2.5-flash",
+		"grok-imagine-image", "grok-imagine-image-2.0", "kolors", "gpt-image-2",
+	} {
+		t.Run(name, func(t *testing.T) {
+			endpoints := common.GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, name)
+			assert.NotEmpty(t, endpoints)
+			assert.Equal(t, constant.EndpointTypeImageGeneration, endpoints[0])
+		})
+	}
+
+	// A chat model must not pick up the marker.
+	assert.False(t, common.IsImageGenerationModel("Kimi-K3"))
+	assert.False(t, common.IsImageGenerationModel("agnes-2.0-flash"))
+}

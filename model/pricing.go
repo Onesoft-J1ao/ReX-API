@@ -140,11 +140,15 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 }
 
 func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCustomConfigs map[int]*dto.AdvancedCustomConfig) []constant.EndpointType {
-	if ability.ChannelType != constant.ChannelTypeAdvancedCustom {
-		return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
-	}
-	if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
-		return config.SupportedEndpointTypesForModel(ability.Model)
+	if ability.ChannelType == constant.ChannelTypeAdvancedCustom {
+		if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
+			// The route list says what the channel forwards, not what the model
+			// is, so the model's own capability still decides which endpoint
+			// leads. Without this an image model on a custom channel was
+			// advertised as a chat endpoint.
+			return common.WithModelCapabilityEndpoints(
+				config.SupportedEndpointTypesForModel(ability.Model), ability.Model)
+		}
 	}
 	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 }

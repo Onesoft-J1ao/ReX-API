@@ -10,6 +10,12 @@ var (
 		"o4-mini-deep-research",
 	}
 	ImageGenerationModels = []string{
+		// Substring match on "image" covers the "-image" families the gateway
+		// serves as image models but never named here: gemini-*-image,
+		// agnes-image-*, grok-imagine-image. Every model this instance routes
+		// whose name contains "image" is one.
+		"image",
+		"kolors",
 		"dall-e-3",
 		"dall-e-2",
 		"prefix:dall-e", // Deprecated upstream models; retained for compatible routes.

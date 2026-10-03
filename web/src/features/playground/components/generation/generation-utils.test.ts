@@ -183,6 +183,36 @@ describe('generation model filtering', () => {
     expect(values(result)).toEqual(['mystery-a', 'mystery-b'])
   })
 
+  // Most channels publish no output modality, so a chat model and an image model
+  // both arrive with outputs []. The declared endpoints are what separates them.
+  test('drops a chat model whose outputs are unstated from the image picker', () => {
+    const meta = metaFor({
+      'agnes-image-2.0-flash': {
+        endpoints: ['image-generation', 'openai'],
+        outputs: [],
+      },
+      'Kimi-K3': { endpoints: ['openai', 'anthropic'], outputs: [] },
+    })
+    const result = filterModelsForGeneration(
+      options('agnes-image-2.0-flash', 'Kimi-K3'),
+      meta,
+      'image'
+    )
+    expect(values(result)).toEqual(['agnes-image-2.0-flash'])
+  })
+
+  test('keeps a model whose endpoints are unstated in the image picker', () => {
+    const meta = metaFor({
+      'mystery-a': { endpoints: [], outputs: [] },
+    })
+    const result = filterModelsForGeneration(
+      options('mystery-a'),
+      meta,
+      'image'
+    )
+    expect(values(result)).toEqual(['mystery-a'])
+  })
+
   test('an operator-configured list wins over the capability filter', () => {
     const meta = metaFor({
       'Kimi-K3': { endpoints: ['openai'], outputs: ['text'] },

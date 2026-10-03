@@ -68,15 +68,40 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 		}
 	}
-	if IsRerankModel(modelName) {
-		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeJinaRerank}, endpointTypes...)
+	return WithModelCapabilityEndpoints(endpointTypes, modelName)
+}
+
+// WithModelCapabilityEndpoints prepends the endpoint a model's own capability
+// implies, ahead of whatever the channel serves by default.
+//
+// Callers that derive the endpoint list from channel configuration alone must
+// apply this too. The Advanced Custom pricing path did not, so its image models
+// were advertised as chat endpoints, and the playground offered them — and chat
+// models — in the wrong tabs.
+func WithModelCapabilityEndpoints(endpointTypes []constant.EndpointType, modelName string) []constant.EndpointType {
+	implied := make([]constant.EndpointType, 0, 3)
+	if IsImageGenerationModel(modelName) {
+		implied = append(implied, constant.EndpointTypeImageGeneration)
 	}
 	if IsEmbeddingModel(modelName) {
-		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeEmbeddings}, endpointTypes...)
+		implied = append(implied, constant.EndpointTypeEmbeddings)
 	}
-	if IsImageGenerationModel(modelName) {
-		// add to first
-		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeImageGeneration}, endpointTypes...)
+	if IsRerankModel(modelName) {
+		implied = append(implied, constant.EndpointTypeJinaRerank)
 	}
-	return endpointTypes
+	if len(implied) == 0 {
+		return endpointTypes
+	}
+	// A channel route may already declare the same endpoint; keep the first
+	// occurrence so the list stays a set.
+	seen := make(map[constant.EndpointType]struct{}, len(implied)+len(endpointTypes))
+	merged := make([]constant.EndpointType, 0, len(implied)+len(endpointTypes))
+	for _, endpointType := range append(implied, endpointTypes...) {
+		if _, duplicate := seen[endpointType]; duplicate {
+			continue
+		}
+		seen[endpointType] = struct{}{}
+		merged = append(merged, endpointType)
+	}
+	return merged
 }

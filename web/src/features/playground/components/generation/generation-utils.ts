@@ -185,11 +185,16 @@ const GENERATION_MARKERS: Record<
  *
  * The pickers drew from every model the account can reach, so a chat model was
  * selectable in the image and video tabs even though neither can generate with
- * it. A model the payload calls text-only is dropped.
+ * it.
  *
- * A model the payload does not describe is kept: "no metadata" is not evidence
- * of being text-only. The site's video models publish none, and hiding them
- * would break the picker they belong in.
+ * A model the payload does not describe at all is kept: "no metadata" is not
+ * evidence of being text-only. For a model it does describe, a declared marker
+ * keeps it and a declared output of another kind drops it. The remaining case is
+ * a model with outputs unstated — common, because most channels publish none.
+ * There the endpoints decide: a model that declares endpoints, none of them this
+ * kind's, is dropped. That is the case chat models were arriving through, since
+ * they declare the chat endpoints and nothing else. A kind with no endpoint
+ * marker (video) has nothing left to test and keeps the model.
  */
 export function filterModelsForGeneration(
   models: ModelOption[],
@@ -201,8 +206,10 @@ export function filterModelsForGeneration(
     const info = meta.get(model.value)
     if (!info) return true
     if (marker.endpoint && info.endpoints.includes(marker.endpoint)) return true
-    if (info.outputs.length === 0) return true
-    return info.outputs.includes(marker.output)
+    if (info.outputs.includes(marker.output)) return true
+    if (info.outputs.length > 0) return false
+    if (!marker.endpoint) return true
+    return info.endpoints.length === 0
   })
 }
 
