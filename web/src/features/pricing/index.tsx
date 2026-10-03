@@ -221,7 +221,11 @@ export function Pricing() {
             />
           </header>
 
-          <div className='grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]'>
+          {/* 360px keeps two group chips per row. The widest chip ("CodexTeam2
+              x0.075") needs ~151px, and a column is (sidebar - border - padding
+              - scrollbar - gap) / 2, so the earlier 280px left only 119px and
+              most chips fell back to spanning the full row. */}
+          <div className='grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]'>
             <PricingSidebar
               quotaTypeFilter={quotaTypeFilter}
               endpointTypeFilter={endpointTypeFilter}
