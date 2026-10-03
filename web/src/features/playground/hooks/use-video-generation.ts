@@ -27,7 +27,7 @@ import {
   TASK_POLL_INTERVAL_MS,
   VIDEO_MAX_REFERENCE_IMAGES,
 } from '../constants'
-import { readFileAsDataUrl } from '../lib/media/file-to-data-url'
+import { readFileAsDataUrl } from '@/lib/file-to-data-url'
 import type {
   VideoTask,
   VideoWorkbenchConfig,

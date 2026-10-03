@@ -17,11 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
+import { ImagePlus } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import * as z from 'zod'
 
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -41,6 +44,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { readFileAsDataUrl } from '@/lib/file-to-data-url'
 
 import {
   SettingsForm,
@@ -50,6 +54,13 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+
+/**
+ * A picked image is embedded in the notice as a data URL, and the notice is
+ * served to every visitor, so a large one would be paid for on every page load.
+ * The cap keeps a banner-sized image comfortably inside the option.
+ */
+const NOTICE_IMAGE_MAX_BYTES = 1024 * 1024
 
 const noticeSchema = z.object({
   Notice: z.string().optional(),
@@ -118,6 +129,35 @@ export function NoticeSection({ defaultValues }: NoticeSectionProps) {
 
   const popupEnabled = form.watch('NoticePopupEnabled')
 
+  const noticeFieldRef = useRef<HTMLTextAreaElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+
+  const insertNoticeImage = async (file: File) => {
+    if (file.size > NOTICE_IMAGE_MAX_BYTES) {
+      toast.error(
+        t('The image is larger than {{limit}} and was not inserted.', {
+          limit: '1 MB',
+        })
+      )
+      return
+    }
+    const dataUrl = await readFileAsDataUrl(file)
+    if (!dataUrl) return
+    // Insert where the caret is so the operator can place a banner between two
+    // paragraphs; the notice renders HTML, so the tag is written as HTML.
+    const notice = form.getValues('Notice') ?? ''
+    const at = noticeFieldRef.current?.selectionStart ?? notice.length
+    const tag = `<img src="${dataUrl}" alt="" />`
+    form.setValue('Notice', notice.slice(0, at) + tag + notice.slice(at), {
+      shouldDirty: true,
+    })
+    const caret = at + tag.length
+    requestAnimationFrame(() => {
+      noticeFieldRef.current?.focus()
+      noticeFieldRef.current?.setSelectionRange(caret, caret)
+    })
+  }
+
   return (
     <SettingsSection title={t('System Notice')}>
       <Form {...form}>
@@ -132,7 +172,18 @@ export function NoticeSection({ defaultValues }: NoticeSectionProps) {
             name='Notice'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Announcement content')}</FormLabel>
+                <div className='flex flex-wrap items-center justify-between gap-3'>
+                  <FormLabel>{t('Announcement content')}</FormLabel>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => imageInputRef.current?.click()}
+                  >
+                    <ImagePlus />
+                    {t('Insert image')}
+                  </Button>
+                </div>
                 <FormControl>
                   <Textarea
                     rows={8}
@@ -140,11 +191,32 @@ export function NoticeSection({ defaultValues }: NoticeSectionProps) {
                       'Planned maintenance on Friday at 22:00 UTC...'
                     )}
                     {...field}
+                    ref={(element) => {
+                      field.ref(element)
+                      noticeFieldRef.current = element
+                    }}
                   />
                 </FormControl>
+                <FormDescription>
+                  {t(
+                    'An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.'
+                  )}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
+          />
+          <input
+            ref={imageInputRef}
+            type='file'
+            accept='image/*'
+            className='hidden'
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              // Clear so picking the same file twice fires change again.
+              event.target.value = ''
+              if (file) void insertNoticeImage(file)
+            }}
           />
 
           <FormField

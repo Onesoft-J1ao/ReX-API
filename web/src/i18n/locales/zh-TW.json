@@ -7915,6 +7915,7 @@
     "Hide groups with no usable channel": "隱藏沒有可用渠道的分組",
     "Save model square settings": "儲存模型廣場設定",
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "當某個分組下的渠道全部被停用時，該分組會從分組選擇器與模型列表中移除，避免訪客選到無法提供服務的分組。",
+    "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "插入的圖片會隨公告本身下發，每個訪客都會下載它。建議用小圖，或改為連結到你自己託管的圖片。",
     "Drag to frame": "拖曳取景",
     "Horizontal": "橫向",
     "Vertical": "縱向",
@@ -7934,7 +7935,9 @@
     "Drag on the page to frame": "在頁面上拖曳取景",
     "Drag anywhere to reposition the wallpaper": "在任意位置拖曳可移動壁紙",
     "Fill the screen": "鋪滿螢幕",
+    "Insert image": "插入圖片",
     "Show the whole picture": "完整顯示圖片",
+    "The image is larger than {{limit}} and was not inserted.": "圖片大於 {{limit}}，未插入。",
     "Visibility": "壁紙可見度",
     "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "壁紙透過控制台面板的程度。數值越高壁紙越清楚，面板越花。"
   },

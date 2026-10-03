@@ -7915,6 +7915,7 @@
     "Hide groups with no usable channel": "Hide groups with no usable channel",
     "Save model square settings": "Save model square settings",
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.",
+    "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.",
     "Drag to frame": "Drag to frame",
     "Horizontal": "Horizontal",
     "Vertical": "Vertical",
@@ -7937,7 +7938,9 @@
     "Show the whole picture": "Show the whole picture",
     "Visibility": "Visibility",
     "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.",
+    "Insert image": "Insert image",
     "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.": "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.",
+    "The image is larger than {{limit}} and was not inserted.": "The image is larger than {{limit}} and was not inserted.",
     "Reserve the estimated input cost multiplied by this value, without estimating output tokens. Defaults to 1; positive decimals such as 0.5 and 1.5 are supported. Final charges use actual usage. Per-request and task prices are unaffected.": "Reserve the estimated input cost multiplied by this value, without estimating output tokens. Defaults to 1; positive decimals such as 0.5 and 1.5 are supported. Final charges use actual usage. Per-request and task prices are unaffected."
   },
   "Time range": "Time range",

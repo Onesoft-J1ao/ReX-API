@@ -7915,6 +7915,7 @@
     "Hide groups with no usable channel": "Masquer les groupes sans canal utilisable",
     "Save model square settings": "Enregistrer les paramètres de la place des modèles",
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "Lorsque tous les canaux d'un groupe sont désactivés, le groupe est retiré du sélecteur et de la liste des modèles, afin de ne pas proposer un groupe qui ne peut rien servir.",
+    "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "Une image insérée voyage dans la notice elle-même : chaque visiteur la télécharge. Préférez un petit fichier, ou un lien vers une image que vous hébergez.",
     "Drag to frame": "Glisser pour cadrer",
     "Horizontal": "Horizontal",
     "Vertical": "Vertical",
@@ -7934,7 +7935,9 @@
     "Drag on the page to frame": "Cadrer en glissant sur la page",
     "Drag anywhere to reposition the wallpaper": "Glissez n'importe où pour déplacer le fond d'écran",
     "Fill the screen": "Remplir l'écran",
+    "Insert image": "Insérer une image",
     "Show the whole picture": "Afficher l'image entière",
+    "The image is larger than {{limit}} and was not inserted.": "L'image dépasse {{limit}} et n'a pas été insérée.",
     "Visibility": "Visibilité",
     "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "Quelle part du fond d'écran transparaît à travers les panneaux. Plus haut : image plus nette, panneaux plus chargés."
   },

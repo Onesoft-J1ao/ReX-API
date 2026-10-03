@@ -7915,6 +7915,7 @@
     "Hide groups with no usable channel": "利用可能なチャネルがないグループを非表示",
     "Save model square settings": "モデル広場の設定を保存",
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "グループ内のチャネルがすべて無効な場合、そのグループはグループ選択とモデル一覧から除外され、利用できないグループが表示されません。",
+    "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "挿入した画像はお知らせ自体に含まれるため、すべての訪問者がダウンロードします。小さいファイルか、自前でホストした画像へのリンクを推奨します。",
     "Drag to frame": "ドラッグして構図を調整",
     "Horizontal": "横位置",
     "Vertical": "縦位置",
@@ -7934,7 +7935,9 @@
     "Drag on the page to frame": "ページ上でドラッグして構図を調整",
     "Drag anywhere to reposition the wallpaper": "どこでもドラッグして壁紙を移動できます",
     "Fill the screen": "画面いっぱいに表示",
+    "Insert image": "画像を挿入",
     "Show the whole picture": "画像全体を表示",
+    "The image is larger than {{limit}} and was not inserted.": "画像が {{limit}} を超えているため挿入しませんでした。",
     "Visibility": "壁紙の見え方",
     "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "壁紙がコンソールのパネル越しにどれだけ見えるか。高いほど壁紙は鮮明で、パネルは賑やかになります。"
   },

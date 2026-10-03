@@ -7915,6 +7915,7 @@
     "Hide groups with no usable channel": "Ẩn các nhóm không có kênh khả dụng",
     "Save model square settings": "Lưu cài đặt chợ mô hình",
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "Khi mọi kênh của một nhóm bị vô hiệu hóa, nhóm đó sẽ bị loại khỏi bộ chọn nhóm và danh sách mô hình để người dùng không chọn phải nhóm không thể phục vụ.",
+    "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "Ảnh được chèn nằm trong chính thông báo nên mọi khách truy cập đều tải về. Nên dùng ảnh nhỏ, hoặc dẫn liên kết tới ảnh bạn tự lưu trữ.",
     "Drag to frame": "Kéo để chọn khung",
     "Horizontal": "Ngang",
     "Vertical": "Dọc",
@@ -7934,7 +7935,9 @@
     "Drag on the page to frame": "Kéo trên trang để chọn khung",
     "Drag anywhere to reposition the wallpaper": "Kéo ở bất kỳ đâu để di chuyển hình nền",
     "Fill the screen": "Phủ kín màn hình",
+    "Insert image": "Chèn hình ảnh",
     "Show the whole picture": "Hiển thị toàn bộ ảnh",
+    "The image is larger than {{limit}} and was not inserted.": "Ảnh lớn hơn {{limit}} nên không được chèn.",
     "Visibility": "Độ hiện",
     "How much of the wallpaper shows through the console panels. Higher means a clearer picture and busier panels.": "Mức hình nền hiện xuyên qua các bảng của bảng điều khiển. Càng cao hình càng rõ, bảng càng rối."
   },

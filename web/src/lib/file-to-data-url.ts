@@ -16,8 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// The task adaptors reject plain HTTP references and only rewrite base64
-// payloads, so picked images are converted to data URLs before submission.
+
+/**
+ * Read a picked file as a data URL.
+ *
+ * The gateway has no general-purpose upload endpoint, so an image the console
+ * lets an operator or a user attach travels inside the payload that carries it:
+ * the playground's task adaptors reject plain HTTP references and only rewrite
+ * base64 payloads, and the site notice is stored as the same kind of string.
+ */
 export function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

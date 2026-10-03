@@ -27,7 +27,7 @@ import {
   TASK_POLL_INTERVAL_MS,
   THREE_D_TEXTURE_MODEL_SUFFIX,
 } from '../constants'
-import { readFileAsDataUrl } from '../lib/media/file-to-data-url'
+import { readFileAsDataUrl } from '@/lib/file-to-data-url'
 import type { ThreeDTask, ThreeDWorkbenchConfig } from '../types'
 
 // Meshy reports lower case task states on both submit and fetch.
