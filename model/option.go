@@ -397,7 +397,7 @@ func validateOptionValue(key string, value string) error {
 			return errors.New(key + " must be a non-negative whole number of quota units, not a decimal")
 		}
 	}
-	return nil
+	return validateNumericOption(key, value)
 }
 
 func normalizeOptionValue(key, value string) (string, error) {
@@ -549,16 +549,20 @@ func updateOptionMap(key string, value string) (err error) {
 
 	// 处理传统配置项...
 	if strings.HasSuffix(key, "Permission") {
-		intValue, _ := strconv.Atoi(value)
-		switch key {
-		case "FileUploadPermission":
-			common.FileUploadPermission = intValue
-		case "FileDownloadPermission":
-			common.FileDownloadPermission = intValue
-		case "ImageUploadPermission":
-			common.ImageUploadPermission = intValue
-		case "ImageDownloadPermission":
-			common.ImageDownloadPermission = intValue
+		intValue, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			common.SysLog("ignoring invalid permission option " + key + "=" + value)
+		} else {
+			switch key {
+			case "FileUploadPermission":
+				common.FileUploadPermission = intValue
+			case "FileDownloadPermission":
+				common.FileDownloadPermission = intValue
+			case "ImageUploadPermission":
+				common.ImageUploadPermission = intValue
+			case "ImageDownloadPermission":
+				common.ImageDownloadPermission = intValue
+			}
 		}
 	}
 	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" || key == "CapEnabled" || key == "ForceCheckinCaptcha" || key == "ForceRedemptionCaptcha" {
@@ -685,11 +689,9 @@ func updateOptionMap(key string, value string) (err error) {
 	case "SMTPServer":
 		common.SMTPServer = value
 	case "SMTPPort":
-		intValue, _ := strconv.Atoi(value)
-		common.SMTPPort = intValue
+		assignIntOption(&common.SMTPPort, "SMTPPort", value)
 	case "RegisterDailyLimit":
-		intValue, _ := strconv.Atoi(value)
-		common.RegisterDailyLimit = intValue
+		assignIntOption(&common.RegisterDailyLimit, "RegisterDailyLimit", value)
 	case "SMTPAccount":
 		common.SMTPAccount = value
 	case "SMTPFrom":
@@ -723,7 +725,7 @@ func updateOptionMap(key string, value string) (err error) {
 	case "MaxTokenAutoGroups":
 		err = setting.UpdateMaxTokenAutoGroups(value)
 	case "SupportMessageLimit":
-		common.SupportMessageLimit, _ = strconv.Atoi(value)
+		assignIntOption(&common.SupportMessageLimit, "SupportMessageLimit", value)
 	case "CustomCallbackAddress":
 		operation_setting.CustomCallbackAddress = value
 	case "EpayId":
@@ -733,11 +735,11 @@ func updateOptionMap(key string, value string) (err error) {
 	case "EpayGateways":
 		err = operation_setting.UpdateEpayGatewaysByJsonString(value)
 	case "Price":
-		operation_setting.Price, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&operation_setting.Price, "Price", value)
 	case "USDExchangeRate":
-		operation_setting.USDExchangeRate, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&operation_setting.USDExchangeRate, "USDExchangeRate", value)
 	case "MinTopUp":
-		operation_setting.MinTopUp, _ = strconv.Atoi(value)
+		assignIntOption(&operation_setting.MinTopUp, "MinTopUp", value)
 	case "StripeApiSecret":
 		setting.StripeApiSecret = value
 	case "StripeWebhookSecret":
@@ -745,9 +747,9 @@ func updateOptionMap(key string, value string) (err error) {
 	case "StripePriceId":
 		setting.StripePriceId = value
 	case "StripeUnitPrice":
-		setting.StripeUnitPrice, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&setting.StripeUnitPrice, "StripeUnitPrice", value)
 	case "StripeMinTopUp":
-		setting.StripeMinTopUp, _ = strconv.Atoi(value)
+		assignIntOption(&setting.StripeMinTopUp, "StripeMinTopUp", value)
 	case "StripePromotionCodesEnabled":
 		setting.StripePromotionCodesEnabled = value == "true"
 	case "CreemApiKey":
@@ -785,9 +787,9 @@ func updateOptionMap(key string, value string) (err error) {
 	case "WaffoCurrency":
 		setting.WaffoCurrency = value
 	case "WaffoUnitPrice":
-		setting.WaffoUnitPrice, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&setting.WaffoUnitPrice, "WaffoUnitPrice", value)
 	case "WaffoMinTopUp":
-		setting.WaffoMinTopUp, _ = strconv.Atoi(value)
+		assignIntOption(&setting.WaffoMinTopUp, "WaffoMinTopUp", value)
 	case "WaffoPancakeMerchantID":
 		setting.WaffoPancakeMerchantID = value
 	case "WaffoPancakePrivateKey":
@@ -797,15 +799,15 @@ func updateOptionMap(key string, value string) (err error) {
 	case "WaffoPancakeUseConfiguredProductPrice":
 		setting.WaffoPancakeUseConfiguredProductPrice = value == "true"
 	case "WaffoPancakeUSDToCurrencyRate":
-		setting.WaffoPancakeUSDToCurrencyRate, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&setting.WaffoPancakeUSDToCurrencyRate, "WaffoPancakeUSDToCurrencyRate", value)
 	case "WaffoPancakeStoreID":
 		setting.WaffoPancakeStoreID = value
 	case "WaffoPancakeProductID":
 		setting.WaffoPancakeProductID = value
 	case "WaffoPancakeUnitPrice":
-		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&setting.WaffoPancakeUnitPrice, "WaffoPancakeUnitPrice", value)
 	case "WaffoPancakeMinTopUp":
-		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+		assignIntOption(&setting.WaffoPancakeMinTopUp, "WaffoPancakeMinTopUp", value)
 	case "MoneroEnabled":
 		setting.MoneroEnabled = value == "true"
 	case "MoneroWalletRPCURL":
@@ -817,11 +819,11 @@ func updateOptionMap(key string, value string) (err error) {
 	case "MoneroNetwork":
 		setting.MoneroNetwork = value
 	case "MoneroConfirmations":
-		setting.MoneroConfirmations, _ = strconv.Atoi(value)
+		assignIntOption(&setting.MoneroConfirmations, "MoneroConfirmations", value)
 	case "MoneroMaxSubaddresses":
-		setting.MoneroMaxSubaddresses, _ = strconv.Atoi(value)
+		assignIntOption(&setting.MoneroMaxSubaddresses, "MoneroMaxSubaddresses", value)
 	case "MoneroUSDToCurrencyRate":
-		setting.MoneroUSDToCurrencyRate, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&setting.MoneroUSDToCurrencyRate, "MoneroUSDToCurrencyRate", value)
 	case "NowPaymentsEnabled":
 		setting.NowPaymentsEnabled = value == "true"
 	case "NowPaymentsAPIKey":
@@ -833,11 +835,11 @@ func updateOptionMap(key string, value string) (err error) {
 	case "NowPaymentsPayCurrencies":
 		setting.NowPaymentsPayCurrencies = value
 	case "NowPaymentsMinTopUp":
-		setting.NowPaymentsMinTopUp, _ = strconv.Atoi(value)
+		assignIntOption(&setting.NowPaymentsMinTopUp, "NowPaymentsMinTopUp", value)
 	case "NowPaymentsUSDToCurrencyRate":
-		setting.NowPaymentsUSDToCurrencyRate, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&setting.NowPaymentsUSDToCurrencyRate, "NowPaymentsUSDToCurrencyRate", value)
 	case "NowPaymentsPaymentExpirationMins":
-		setting.NowPaymentsPaymentExpirationMins, _ = strconv.Atoi(value)
+		assignIntOption(&setting.NowPaymentsPaymentExpirationMins, "NowPaymentsPaymentExpirationMins", value)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":
@@ -851,7 +853,7 @@ func updateOptionMap(key string, value string) (err error) {
 	case "LinuxDOClientSecret":
 		common.LinuxDOClientSecret = value
 	case "LinuxDOMinimumTrustLevel":
-		common.LinuxDOMinimumTrustLevel, _ = strconv.Atoi(value)
+		assignIntOption(&common.LinuxDOMinimumTrustLevel, "LinuxDOMinimumTrustLevel", value)
 	case "Footer":
 		common.Footer = value
 	case "SystemName":
@@ -937,21 +939,21 @@ func updateOptionMap(key string, value string) (err error) {
 	case "QuotaRemindEnabled":
 		common.QuotaRemindEnabled = value == "true"
 	case "QuotaRemindThreshold":
-		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
+		assignIntOption(&common.QuotaRemindThreshold, "QuotaRemindThreshold", value)
 	case "PreConsumedQuota":
-		common.PreConsumedQuota, _ = strconv.Atoi(value)
+		assignIntOption(&common.PreConsumedQuota, "PreConsumedQuota", value)
 	case "ModelRequestRateLimitCount":
-		setting.ModelRequestRateLimitCount, _ = strconv.Atoi(value)
+		assignIntOption(&setting.ModelRequestRateLimitCount, "ModelRequestRateLimitCount", value)
 	case "ModelRequestRateLimitDurationMinutes":
-		setting.ModelRequestRateLimitDurationMinutes, _ = strconv.Atoi(value)
+		assignIntOption(&setting.ModelRequestRateLimitDurationMinutes, "ModelRequestRateLimitDurationMinutes", value)
 	case "ModelRequestRateLimitSuccessCount":
-		setting.ModelRequestRateLimitSuccessCount, _ = strconv.Atoi(value)
+		assignIntOption(&setting.ModelRequestRateLimitSuccessCount, "ModelRequestRateLimitSuccessCount", value)
 	case "ModelRequestRateLimitGroup":
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
 	case "RetryTimes":
-		common.RetryTimes, _ = strconv.Atoi(value)
+		assignIntOption(&common.RetryTimes, "RetryTimes", value)
 	case "DataExportInterval":
-		common.DataExportInterval, _ = strconv.Atoi(value)
+		assignIntOption(&common.DataExportInterval, "DataExportInterval", value)
 	case "DataExportDefaultTime":
 		common.DataExportDefaultTime = value
 	case "ModelRatio":
@@ -987,9 +989,9 @@ func updateOptionMap(key string, value string) (err error) {
 	//case "ChatLink2":
 	//	common.ChatLink2 = value
 	case "ChannelDisableThreshold":
-		common.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&common.ChannelDisableThreshold, "ChannelDisableThreshold", value)
 	case "QuotaPerUnit":
-		common.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
+		assignFloatOption(&common.QuotaPerUnit, "QuotaPerUnit", value)
 	case "SensitiveWords":
 		setting.SensitiveWordsFromString(value)
 	case "AutomaticDisableKeywords":
@@ -999,7 +1001,7 @@ func updateOptionMap(key string, value string) (err error) {
 	case "AutomaticRetryStatusCodes":
 		err = operation_setting.AutomaticRetryStatusCodesFromString(value)
 	case "StreamCacheQueueLength":
-		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
+		assignIntOption(&setting.StreamCacheQueueLength, "StreamCacheQueueLength", value)
 	case "PayMethods":
 		err = operation_setting.UpdatePayMethodsByJsonString(value)
 	case "WaffoPayMethods":

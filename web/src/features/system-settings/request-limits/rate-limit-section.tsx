@@ -69,9 +69,12 @@ const isValidJSON = (value: string | undefined) => {
 const createRateLimitSchema = (t: (key: string) => string) =>
   z.object({
     ModelRequestRateLimitEnabled: z.boolean(),
-    ModelRequestRateLimitDurationMinutes: z.number().min(0),
-    ModelRequestRateLimitCount: z.number().min(0).max(100000000),
-    ModelRequestRateLimitSuccessCount: z.number().min(1).max(100000000),
+    // The backend parses all three with strconv.Atoi. Without .int() a decimal
+    // saved fine here, and the running limit became 0 — which reads as
+    // "no limit", the opposite of what the page showed.
+    ModelRequestRateLimitDurationMinutes: z.number().int().min(0),
+    ModelRequestRateLimitCount: z.number().int().min(0).max(100000000),
+    ModelRequestRateLimitSuccessCount: z.number().int().min(1).max(100000000),
     ModelRequestRateLimitGroup: z
       .string()
       .optional()

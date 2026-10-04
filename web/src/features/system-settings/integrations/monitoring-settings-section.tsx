@@ -54,11 +54,16 @@ import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 
-const numericString = z.string().refine((value) => {
-  const trimmed = value.trim()
-  if (!trimmed) return true
-  return !Number.isNaN(Number(trimmed)) && Number(trimmed) >= 0
-}, 'Enter a non-negative number or leave empty')
+// The backend parses this with strconv.Atoi, so a decimal is not merely
+// unusual here — the save would be rejected and, before the backend grew a
+// check, would have left the reminder threshold at zero.
+const numericString = z
+  .string()
+  .refine((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return true
+    return !Number.isNaN(Number(trimmed)) && Number.isInteger(Number(trimmed)) && Number(trimmed) >= 0
+  }, 'Enter a non-negative whole number or leave empty')
 
 const perfMetricsBucketLabel = {
   minute: '1 minute',
