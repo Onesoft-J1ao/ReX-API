@@ -288,6 +288,64 @@ func TestInsertKeepsBlankPasswordForPasswordlessUser(t *testing.T) {
 	assert.Empty(t, stored.Password)
 }
 
+// Invite attribution must be recorded whenever a signup carries a valid
+// inviterId, including when the inviter reward is 0 and payment compliance is
+// unconfirmed. Gating the counter on money made every inviter read 0 invites.
+func TestInsertRecordsInviterCountWhenInviterRewardIsZero(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	oldQuotaForInviter := common.QuotaForInviter
+	oldQuotaForInvitee := common.QuotaForInvitee
+	common.QuotaForInviter = 0
+	common.QuotaForInvitee = 0
+	t.Cleanup(func() {
+		common.QuotaForInviter = oldQuotaForInviter
+		common.QuotaForInvitee = oldQuotaForInvitee
+	})
+
+	inviter := &User{
+		Username: "aff-inviter",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, inviter.Insert(0))
+
+	invitee := &User{
+		Username:  "aff-invitee",
+		Role:      common.RoleCommonUser,
+		Status:    common.UserStatusEnabled,
+		InviterId: inviter.Id,
+	}
+	require.NoError(t, invitee.Insert(inviter.Id))
+
+	var storedInviter User
+	require.NoError(t, DB.First(&storedInviter, inviter.Id).Error)
+	assert.Equal(t, 1, storedInviter.AffCount, "inviter count must increment even with a zero reward")
+	assert.Equal(t, 0, storedInviter.AffQuota)
+	assert.Equal(t, 0, storedInviter.AffHistoryQuota)
+}
+
+func TestInsertWithoutInviterLeavesCountUnchanged(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	inviter := &User{
+		Username: "solo-inviter",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, inviter.Insert(0))
+
+	require.NoError(t, (&User{
+		Username: "uninvited-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}).Insert(0))
+
+	var storedInviter User
+	require.NoError(t, DB.First(&storedInviter, inviter.Id).Error)
+	assert.Equal(t, 0, storedInviter.AffCount, "a signup with no inviter must not increment anyone's count")
+}
+
 func TestUpdateUserBindColumnOnlyTouchesTheBindingColumn(t *testing.T) {
 	truncateTables(t)
 
