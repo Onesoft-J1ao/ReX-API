@@ -7917,6 +7917,7 @@
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "グループ内のチャネルがすべて無効な場合、そのグループはグループ選択とモデル一覧から除外され、利用できないグループが表示されません。",
     "Add override": "オーバーライドを追加",
     "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "挿入した画像はお知らせ自体に含まれるため、すべての訪問者がダウンロードします。小さいファイルか、自前でホストした画像へのリンクを推奨します。",
+    "Billed per request in this group": "このグループではリクエスト単位の課金です",
     "Billing source": "課金方法",
     "Drag to frame": "ドラッグして構図を調整",
     "Horizontal": "横位置",

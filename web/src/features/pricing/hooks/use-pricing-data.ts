@@ -68,6 +68,9 @@ export function usePricingData(enabled = true) {
     models,
     vendors: data?.vendors ?? [],
     groupRatio: data?.group_ratio ?? {},
+    // Absent when the gateway publishes no per-group overrides, which is the
+    // common case; every group then falls back to each model's global mode.
+    groupBillingSource: data?.group_billing_source,
     modelSquareGroupDescriptions: data?.model_square_group_descriptions ?? {},
     usableGroup: Object.fromEntries(
       Object.entries(data?.usable_group ?? {}).map(([group, value]) => [

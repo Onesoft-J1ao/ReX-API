@@ -7917,6 +7917,7 @@
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "Lorsque tous les canaux d'un groupe sont désactivés, le groupe est retiré du sélecteur et de la liste des modèles, afin de ne pas proposer un groupe qui ne peut rien servir.",
     "Add override": "Ajouter un override",
     "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "Une image insérée voyage dans la notice elle-même : chaque visiteur la télécharge. Préférez un petit fichier, ou un lien vers une image que vous hébergez.",
+    "Billed per request in this group": "Facturé à la requête dans ce groupe",
     "Billing source": "Source de facturation",
     "Drag to frame": "Glisser pour cadrer",
     "Horizontal": "Horizontal",

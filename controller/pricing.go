@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -44,6 +45,14 @@ func GetPricing(c *gin.Context) {
 	usableGroup := map[string]string{}
 	groupRatio := map[string]float64{}
 	maps.Copy(groupRatio, ratio_setting.GetGroupRatioCopy())
+	// Which pricing source each group applies to each model. Without it the
+	// square can only multiply one global price by a group ratio, so a model
+	// billed per call in one group and per token in another shows the same
+	// figure in both.
+	groupBillingSource := filterGroupBillingSourceByGroups(
+		billing_setting.GetGroupPricingSourceCopy(),
+		ratio_setting.GetGroupRatioCopy(),
+	)
 	var group string
 	if exists {
 		user, err := model.GetUserCache(userId.(int))
@@ -112,6 +121,7 @@ func GetPricing(c *gin.Context) {
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := pricingGroups[group]; !ok {
 			delete(groupRatio, group)
+			delete(groupBillingSource, group)
 		}
 	}
 
@@ -120,6 +130,7 @@ func GetPricing(c *gin.Context) {
 		"data":                            pricing,
 		"vendors":                         model.GetVendors(),
 		"group_ratio":                     groupRatio,
+		"group_billing_source":            groupBillingSource,
 		"usable_group":                    usableGroup,
 		"model_square_groups":             visibleGroups,
 		"model_square_group_descriptions": visibleDescriptions,
@@ -127,6 +138,33 @@ func GetPricing(c *gin.Context) {
 		"auto_groups":                     service.GetUserAutoGroupForUser(userID, group),
 		"pricing_version":                 "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
+}
+
+// filterGroupBillingSourceByGroups drops overrides for groups that have no
+// group ratio. Such an override can never apply — the request would be priced
+// against a group that does not exist — so publishing it would offer the viewer
+// a price no request would ever get.
+func filterGroupBillingSourceByGroups(
+	sources map[string]map[string]string,
+	groupRatios map[string]float64,
+) map[string]map[string]string {
+	if len(sources) == 0 {
+		return nil
+	}
+	filtered := make(map[string]map[string]string, len(sources))
+	for group, byModel := range sources {
+		if _, active := groupRatios[group]; !active && group != "auto" {
+			continue
+		}
+		if len(byModel) == 0 {
+			continue
+		}
+		filtered[group] = byModel
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
 }
 
 func ResetModelRatio(c *gin.Context) {

@@ -84,6 +84,7 @@ import {
   isTokenBasedModel,
 } from '../lib/model-helpers'
 import { withPluginPricing } from '../lib/plugin-pricing'
+import { getGroupPricingForModel } from '../lib/group-pricing'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import {
   evaluateTaskUsageExamples,
@@ -987,6 +988,8 @@ function getDynamicFormattedPricesByTier(
 type GroupPricingSectionProps = {
   model: PricingModel
   groupRatio: Record<string, number>
+  /** Per-group pricing source overrides; absent when none are configured. */
+  groupBillingSource?: Record<string, Record<string, string>>
   usableGroup: Record<string, { desc: string; ratio: number }>
   modelSquareGroups: readonly string[]
   autoGroups: string[]
@@ -1321,6 +1324,12 @@ function ProviderGroupPricingSection(
         <div className='space-y-3'>
           {availableGroups.map((group) => {
             const ratio = getConfiguredGroupRatio(props.groupRatio, group)
+            const groupPricing = getGroupPricingForModel(
+              props.model,
+              group,
+              props.groupBillingSource,
+              ratio
+            )
             const formattedPricesByTier =
               formattedPricesByGroup.get(group) ??
               new Map<DynamicPricingTier, Map<string, string>>()
@@ -1329,8 +1338,24 @@ function ProviderGroupPricingSection(
               <div key={group} className='overflow-hidden rounded-xl border'>
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
                   <GroupBadge group={group} size='sm' />
-                  <span className='text-muted-foreground font-mono text-xs'>
-                    {ratio}x
+                  <span className='flex items-center gap-2'>
+                    {/* A group may bill this model by a different source than
+                        the model declares globally. Without saying so, the
+                        per-group table would show token prices for a group
+                        that is actually charged per request. */}
+                    {groupPricing.source === 'price' && !isTokenBased && (
+                      <span className='border-primary/40 text-primary rounded-full border px-2 py-0.5 text-xs'>
+                        {t('Per request')}
+                      </span>
+                    )}
+                    {isTokenBased && groupPricing.source === 'price' && (
+                      <span className='rounded-full border border-amber-500/40 px-2 py-0.5 text-xs text-amber-600 dark:text-amber-400'>
+                        {t('Billed per request in this group')}
+                      </span>
+                    )}
+                    <span className='text-muted-foreground font-mono text-xs'>
+                      {ratio}x
+                    </span>
                   </span>
                 </div>
                 <StaticDataTable
@@ -1529,6 +1554,35 @@ function ProviderGroupPricingSection(
             cell: (group) =>
               `${getConfiguredGroupRatio(props.groupRatio, group)}x`,
           },
+          {
+            // A group may bill this model per request while the model itself
+            // is token-priced, in which case the input/output columns below do
+            // not describe what that group charges.
+            id: 'source',
+            header: t('Billing'),
+            className: thClass,
+            cellClassName: 'py-2.5',
+            cell: (group) => {
+              const pricing = getGroupPricingForModel(
+                props.model,
+                group,
+                props.groupBillingSource,
+                1
+              )
+              if (pricing.source === 'price') {
+                return (
+                  <span className='text-xs'>
+                    {t('Per request')}
+                  </span>
+                )
+              }
+              return (
+                <span className='text-muted-foreground text-xs'>
+                  {t('Per token')}
+                </span>
+              )
+            },
+          },
           ...(isTokenBased
             ? [
                 {
@@ -1590,6 +1644,8 @@ const TAB_META: Record<
 export interface ModelDetailsContentProps {
   model: PricingModel
   groupRatio: Record<string, number>
+  /** Per-group pricing source overrides; absent when none are configured. */
+  groupBillingSource?: Record<string, Record<string, string>>
   usableGroup: Record<string, { desc: string; ratio: number }>
   modelSquareGroups: readonly string[]
   endpointMap: Record<string, { path?: string; method?: string }>
@@ -1670,6 +1726,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
             <GroupPricingSection
               model={props.model}
               groupRatio={props.groupRatio}
+              groupBillingSource={props.groupBillingSource}
               usableGroup={props.usableGroup}
               modelSquareGroups={props.modelSquareGroups}
               autoGroups={props.autoGroups}
@@ -1746,6 +1803,7 @@ export function ModelDetails() {
   const {
     models,
     groupRatio,
+    groupBillingSource,
     usableGroup,
     modelSquareGroups,
     endpointMap,
@@ -1824,6 +1882,7 @@ export function ModelDetails() {
         <ModelDetailsContent
           model={model}
           groupRatio={groupRatio || {}}
+          groupBillingSource={groupBillingSource}
           usableGroup={usableGroup || {}}
           modelSquareGroups={modelSquareGroups || []}
           autoGroups={autoGroups || []}

@@ -43,6 +43,7 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
+import { getGroupPricingForModel } from '../lib/group-pricing'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import { taskPriceLabel, taskUsageUnitLabel } from '../lib/task-price-display'
 import type { PricingModel, PriceType, TokenUnit } from '../types'
@@ -57,6 +58,8 @@ export interface ModelCardProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  /** Per-group pricing source overrides; absent when none are configured. */
+  groupBillingSource?: Record<string, Record<string, string>>
   perf?: ModelPerfBadgeData
 }
 
@@ -68,6 +71,21 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const showRechargePrice = props.showRechargePrice ?? false
   const isTokenBased = isTokenBasedModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
+
+  // A group may bill this model per request even though the model itself is
+  // token-priced. The token prices below would then describe a price nobody is
+  // charged, so the card asks which source actually applies in the group the
+  // viewer is looking at.
+  const effectiveSource = getGroupPricingForModel(
+    props.model,
+    props.selectedGroup ?? '',
+    props.groupBillingSource,
+    1
+  ).source
+  const pricedPerRequest =
+    effectiveSource === 'price' && (props.model.model_price ?? 0) > 0
+  const pricedPerToken =
+    effectiveSource !== 'price' && props.model.quota_type !== 1
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
   const endpoints = props.model.supported_endpoint_types || []
@@ -290,7 +308,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         {t('Usage-based billing · price not configured')}
       </span>
     )
-  } else if (isTokenBased) {
+  } else if (pricedPerToken) {
     const prices: { type: PriceType; label: string }[] = [
       { type: 'input', label: t('Input') },
       { type: 'output', label: t('Output') },
@@ -324,6 +342,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       </div>
     ))
   } else {
+    // Reached when the model bills per request, and also when a group pinned a
+    // token-priced model to per-request billing. formatRequestPrice reads the
+    // model's own per-call price, which is what such a group charges.
     priceSummary = (
       <div className='col-span-full flex min-w-0 flex-col gap-1'>
         <span className='font-mono text-sm font-semibold tabular-nums'>
@@ -339,6 +360,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             / {t('request')}
           </span>
         </span>
+        {pricedPerRequest && !isTokenBased && (
+          <span className='text-muted-foreground text-xs'>
+            {t('Billed per request in this group')}
+          </span>
+        )}
       </div>
     )
   }

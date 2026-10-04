@@ -7917,6 +7917,7 @@
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "Khi mọi kênh của một nhóm bị vô hiệu hóa, nhóm đó sẽ bị loại khỏi bộ chọn nhóm và danh sách mô hình để người dùng không chọn phải nhóm không thể phục vụ.",
     "Add override": "Thêm ghi đè",
     "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "Ảnh được chèn nằm trong chính thông báo nên mọi khách truy cập đều tải về. Nên dùng ảnh nhỏ, hoặc dẫn liên kết tới ảnh bạn tự lưu trữ.",
+    "Billed per request in this group": "Tính phí theo yêu cầu trong nhóm này",
     "Billing source": "Nguồn tính phí",
     "Drag to frame": "Kéo để chọn khung",
     "Horizontal": "Ngang",

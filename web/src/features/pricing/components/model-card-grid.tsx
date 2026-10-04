@@ -44,6 +44,8 @@ export interface ModelCardGridProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  /** Per-group pricing source overrides; absent when none are configured. */
+  groupBillingSource?: Record<string, Record<string, string>>
   sortBy?: string
   pageSize?: number
 }
@@ -147,6 +149,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             usdExchangeRate={props.usdExchangeRate}
             showRechargePrice={props.showRechargePrice}
             selectedGroup={props.selectedGroup}
+            groupBillingSource={props.groupBillingSource}
             perf={perfMap.get(model.model_name || '')}
             onClick={() => props.onModelClick(model.model_name || '')}
           />

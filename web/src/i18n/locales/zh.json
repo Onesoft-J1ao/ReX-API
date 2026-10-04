@@ -7917,6 +7917,7 @@
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "当某个分组下的渠道全部被禁用时，该分组会从分组选择器和模型列表中移除，避免访客选到无法提供服务的分组。",
     "Add override": "添加覆盖",
     "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "插入的图片会随公告本身下发，每个访客都会下载它。建议用小图，或改为链接到你自己托管的图片。",
+    "Billed per request in this group": "该分组按次计费",
     "Billing source": "计费方式",
     "Drag to frame": "拖动取景",
     "Horizontal": "横向",

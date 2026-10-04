@@ -129,6 +129,17 @@ export type PricingData = {
   data: PricingModel[]
   vendors: PricingVendor[]
   group_ratio: Record<string, number>
+  /**
+   * Which pricing source each group applies to each model, as
+   * `{group: {model: "ratio" | "price" | "tiered_expr"}}`. A group absent from
+   * this map leaves every model on its global billing mode, which is the same
+   * shape the backend option stores.
+   *
+   * The square needs it because a group ratio is only a multiplier: without the
+   * source, a model billed per call in one group and per token in another would
+   * show the same figure in both.
+   */
+  group_billing_source?: Record<string, Record<string, string>>
   usable_group: Record<string, { desc: string; ratio: number }>
   model_square_group_descriptions?: Record<string, string>
   supported_endpoint: Record<string, string>

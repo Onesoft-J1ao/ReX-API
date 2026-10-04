@@ -7917,6 +7917,7 @@
     "A group whose channels are all disabled is removed from the group picker and the model list, so visitors are not offered a group that cannot serve anything.": "Если все каналы группы отключены, группа убирается из списка выбора и каталога моделей, чтобы не предлагать недоступную группу.",
     "Add override": "Добавить переопределение",
     "An inserted image travels inside the notice itself, so every visitor downloads it. Prefer a small file, or link to one you host.": "Вставленное изображение передаётся внутри самого объявления, поэтому его скачивает каждый посетитель. Лучше небольшой файл или ссылка на изображение на вашем хостинге.",
+    "Billed per request in this group": "Тарифицируется за запрос в этой группе",
     "Billing source": "Источник тарификации",
     "Drag to frame": "Перетащите для кадрирования",
     "Horizontal": "По горизонтали",

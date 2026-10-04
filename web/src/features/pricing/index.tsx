@@ -48,6 +48,7 @@ export function Pricing() {
     models,
     vendors,
     groupRatio,
+    groupBillingSource,
     usableGroup,
     modelSquareGroupDescriptions,
     modelSquareGroups,
@@ -147,6 +148,7 @@ export function Pricing() {
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
+          groupBillingSource={groupBillingSource}
           sortBy={sortBy}
           pageSize={appearance.modelSquareCardPageSize}
         />
