@@ -123,7 +123,7 @@ func bangumiGet(path string) (string, error) {
 	request.Header.Set("User-Agent", bangumiUserAgent)
 	request.Header.Set("Accept", "application/json")
 
-	response, err := service.GetSSRFProtectedHTTPClient().Do(request)
+	response, err := service.GetBangumiHTTPClient().Do(request)
 	if err != nil {
 		return "", err
 	}
@@ -208,7 +208,7 @@ func GetBangumiSearch(c *gin.Context) {
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Accept", "application/json")
 
-		response, err := service.GetSSRFProtectedHTTPClient().Do(request)
+		response, err := service.GetBangumiHTTPClient().Do(request)
 		if err != nil {
 			return "", err
 		}
@@ -249,7 +249,7 @@ func ProxyBangumiImage(c *gin.Context) {
 	// The host checks this against the site it expects.
 	request.Header.Set("Referer", "https://bgm.tv/")
 
-	response, err := service.GetSSRFProtectedHTTPClient().Do(request)
+	response, err := service.GetBangumiHTTPClient().Do(request)
 	if err != nil {
 		c.Status(http.StatusBadGateway)
 		return
@@ -310,7 +310,7 @@ func animeUpstreamGet(ctx context.Context, target string, headers map[string]str
 		request.Header.Set(key, value)
 	}
 
-	response, err := service.GetSSRFProtectedHTTPClient().Do(request)
+	response, err := service.GetBangumiHTTPClient().Do(request)
 	if err != nil {
 		return nil, err
 	}
@@ -1083,7 +1083,7 @@ func animePathID(c *gin.Context, param, message string) (string, bool) {
 // from the page's existing data onto everything else: one subject id in, the
 // watchable episodes out.
 func GetBangumiEpisodes(c *gin.Context) {
-	subjectID, ok := animePathID(c, "subjectId", "invalid subject id")
+	subjectID, ok := animePathID(c, "id", "invalid subject id")
 	if !ok {
 		return
 	}
@@ -1219,15 +1219,19 @@ type dandanplayEpisode struct {
 
 // animeDanmakuPayload validates the comment response and returns it unchanged.
 func animeDanmakuPayload(body []byte) (string, error) {
+	// The comment endpoint is the one dandanplay resource that does not carry
+	// the `success` flag the others do: it answers with `count` and `comments`
+	// alone, so its shape is what gets checked. An episode with no comments is a
+	// legitimate empty list rather than a failure, and the viewer renders it as
+	// one.
 	var response struct {
-		Success  bool              `json:"success"`
 		Comments []json.RawMessage `json:"comments"`
 	}
 	if err := common.Unmarshal(body, &response); err != nil {
 		return "", err
 	}
-	if !response.Success {
-		return "", errAnimeUpstream("no comments for this episode")
+	if response.Comments == nil {
+		return "", errAnimeUpstream("malformed danmaku response")
 	}
 	return string(body), nil
 }

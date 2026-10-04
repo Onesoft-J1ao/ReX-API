@@ -80,10 +80,17 @@ export function BangumiWatchView(props: {
     episodes[0] ??
     null
 
+  // The release matched to an episode comes from the releases response, which is
+  // the one that consults Mikan; the episode list on its own carries no sources.
+  const matchedRelease = (releasesQuery.data?.episodes ?? []).find(
+    (episode) => episode.episodeId === activeEpisode?.episodeId
+  )?.release
+
+  // Deliberately no fallback to the first release: that would silently play the
+  // newest release when the viewer asked for episode 12.
   const activeRelease =
     releases.find((release) => release.topicId === releaseTopicId) ??
-    activeEpisode?.release ??
-    releases[0] ??
+    matchedRelease ??
     null
 
   const activeEpisodeId = activeEpisode?.episodeId
@@ -145,6 +152,14 @@ export function BangumiWatchView(props: {
                 {t('No sources found for this anime.')}
               </p>
             )}
+
+            {activeEpisode != null &&
+              activeRelease == null &&
+              releases.length > 0 && (
+                <p className='text-muted-foreground text-sm'>
+                  {t('No source matched this episode. Pick one below.')}
+                </p>
+              )}
 
             <Separator />
 

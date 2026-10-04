@@ -8003,7 +8003,8 @@
     "No sources found for this anime.": "未找到该番剧的片源。",
     "Sources": "片源",
     "Unverified match": "未验证匹配",
-    "Watch": "观看"
+    "Watch": "观看",
+    "No source matched this episode. Pick one below.": "没有匹配到该集的片源，请从下面选择一个。"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

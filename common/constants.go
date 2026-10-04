@@ -375,6 +375,15 @@ var (
 	SearchRateLimitDuration int64 = 60
 )
 
+// BangumiProxyURL routes the anime upstreams through a proxy.
+//
+// bgm.tv, dandanplay and Mikan are unreachable from some networks while the
+// rest of what this instance fetches is not, so these fetches take a proxy of
+// their own rather than the process-wide HTTP_PROXY: a process-wide one would
+// also drag the cover-image proxy and the download feature through it. Empty
+// means direct.
+var BangumiProxyURL = GetEnvOrDefaultString("BANGUMI_PROXY_URL", "")
+
 var RateLimitKeyExpirationDuration = 20 * time.Minute
 
 const (

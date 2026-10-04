@@ -66,9 +66,11 @@ func SetApiRouter(router *gin.Engine) {
 			// cannot fetch it itself; this same-origin hop is what lets
 			// WebTorrent load the torrent at all.
 			bangumiRoute.GET("/torrent/*path", controller.ProxyBangumiTorrent)
-			// Registered after /danmaku so the static segment is matched first;
-			// Gin's tree keeps the two apart either way.
-			bangumiRoute.GET("/subjects/:subjectId/episodes", controller.GetBangumiEpisodes)
+			// The segment is `:id`, not `:subjectId`: Gin's tree cannot carry two
+			// different wildcard names at the same position, and `/subjects/:id`
+			// is already registered above. A distinct name here panics at startup
+			// rather than failing the request.
+			bangumiRoute.GET("/subjects/:id/episodes", controller.GetBangumiEpisodes)
 		}
 		apiRouter.GET("/bangumi-image/*path", middleware.BangumiRateLimit(), controller.ProxyBangumiImage)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.CaptchaCheck(), controller.SendEmailVerification)

@@ -8003,7 +8003,8 @@
     "No sources found for this anime.": "このアニメのソースが見つかりませんでした。",
     "Sources": "ソース",
     "Unverified match": "未確認の一致",
-    "Watch": "視聴"
+    "Watch": "視聴",
+    "No source matched this episode. Pick one below.": "この話数に一致するソースがありません。以下から選択してください。"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

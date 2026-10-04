@@ -269,3 +269,28 @@ func TestApplyAnimeTitleAttributesNoChineseSubtitles(t *testing.T) {
 	assert.Empty(t, release.SubtitleKind)
 	assert.Equal(t, "1080P", release.Resolution)
 }
+
+// TestAnimeDanmakuPayloadAcceptsMissingSuccessFlag pins the shape of the comment
+// endpoint. It is the one dandanplay resource that answers without the `success`
+// flag the others carry -- it returns count and comments alone -- so a parser
+// that requires that flag rejects every episode that actually has comments.
+func TestAnimeDanmakuPayloadAcceptsMissingSuccessFlag(t *testing.T) {
+	body := []byte(`{"count":2,"comments":[{"cid":1,"p":"2.5,1,16777215,ab","m":"hi"}]}`)
+
+	payload, err := animeDanmakuPayload(body)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(body), payload)
+}
+
+func TestAnimeDanmakuPayloadAcceptsAnEpisodeWithNoComments(t *testing.T) {
+	body := []byte(`{"count":0,"comments":[]}`)
+
+	payload, err := animeDanmakuPayload(body)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(body), payload)
+}
+
+func TestAnimeDanmakuPayloadRejectsAResponseWithNoCommentList(t *testing.T) {
+	_, err := animeDanmakuPayload([]byte(`{"count":0}`))
+	require.Error(t, err)
+}

@@ -141,6 +141,7 @@ func InitHttpClient() {
 	httpClient = newDirectHTTPClient(policy, nil)
 	proxyClients.store(clientCacheKey("", policy), httpClient)
 	ssrfProtectedHTTPClient = newProtectedFetchHTTPClient()
+	bangumiHTTPClient = newBangumiHTTPClient()
 }
 
 // GetHttpClient returns the general outbound client used by relay/provider
@@ -161,6 +162,64 @@ func GetSSRFProtectedHTTPClient() *http.Client {
 		return GetHttpClient()
 	}
 	return ssrfProtectedHTTPClient
+}
+
+// bangumiHTTPClient is the client the anime upstreams are fetched with. Built
+// once by InitHttpClient; nil before that.
+var bangumiHTTPClient *http.Client
+
+// GetBangumiHTTPClient returns the client used to reach bgm.tv, dandanplay and
+// Mikan.
+//
+// A direct client with an optional proxy, deliberately not the SSRF-protected
+// one. Every host it contacts is a compile-time constant, and the only part a
+// caller supplies is a path that cannot change the host, so there is no
+// server-side-request-forgery vector to guard -- the project's own rule puts
+// operator-managed targets on the direct client. The SSRF check would also
+// resolve the hostname locally before the request is sent, which is the wrong
+// question once a proxy is in front: the proxy is what resolves the name, and
+// on a network whose resolver is poisoned the local answer is not the address
+// that would be connected to.
+func GetBangumiHTTPClient() *http.Client {
+	if bangumiHTTPClient == nil {
+		return GetSSRFProtectedHTTPClient()
+	}
+	return bangumiHTTPClient
+}
+
+func newBangumiHTTPClient() *http.Client {
+	transport := newRelayHTTPTransport()
+	transport.Proxy = bangumiProxyFunc()
+	// The anime upstreams answer slowly and every caller sets its own deadline;
+	// the relay's response-header timeout would cut a slow but live upstream off.
+	transport.ResponseHeaderTimeout = 0
+	return &http.Client{
+		Transport:     transport,
+		CheckRedirect: checkRedirect,
+	}
+}
+
+// bangumiProxyFunc resolves the proxy the anime upstreams are fetched through.
+//
+// BANGUMI_PROXY_URL rather than the process-wide HTTP_PROXY, so that the
+// cover-image proxy and the download feature stay direct.
+func bangumiProxyFunc() func(*http.Request) (*url.URL, error) {
+	// A function returning nil means "no proxy". Leaving Transport.Proxy nil
+	// would instead mean http.ProxyFromEnvironment, which is what this exists to
+	// avoid.
+	direct := func(*http.Request) (*url.URL, error) { return nil, nil }
+
+	raw := strings.TrimSpace(common.BangumiProxyURL)
+	if raw == "" {
+		return direct
+	}
+	parsed, _, err := common.ParseProxyURLRuntime(raw)
+	if err != nil || parsed == nil {
+		logger.LogError(context.Background(), fmt.Sprintf(
+			"BANGUMI_PROXY_URL is not a usable proxy URL, fetching anime sources directly: %v", err))
+		return direct
+	}
+	return http.ProxyURL(parsed)
 }
 
 func newProxyURLConfig(parsedURL *url.URL) *proxyURLConfig {
