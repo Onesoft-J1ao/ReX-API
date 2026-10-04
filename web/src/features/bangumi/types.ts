@@ -123,3 +123,71 @@ export type BangumiSubject = {
   locked?: boolean
   nsfw?: boolean
 }
+
+/**
+ * A BitTorrent release from Mikan Project, with the attributes parsed from its
+ * title.
+ *
+ * Mikan publishes torrents rather than video files, so a release is only ever
+ * played by the visitor's own browser joining the swarm. The attribute names
+ * follow Animeko's Topic vocabulary so the two agree on what a release is.
+ */
+export type BangumiRelease = {
+  topicId: string
+  title: string
+  /** The release group, taken from the bracketed title prefix. */
+  alliance: string
+  description: string
+  /** The .torrent URL, which is what the browser hands to WebTorrent. */
+  downloadLink: string
+  episodeLink?: string
+  /** Size in bytes; 0 when the feed did not state one. */
+  size: number
+  publishedAt: string
+  /** Unix milliseconds; 0 when the feed did not state a date. */
+  publishedTime: number
+  /** A resolution id such as 1080P, or an empty string when unstated. */
+  resolution: string
+  mediaOrigin?: string
+  /** Subtitle languages as CHS/CHT/CHC/JPN/ENG. */
+  subtitleLanguages: string[]
+  /** EMBEDDED, CLOSED or EXTERNAL_DISCOVER when the title states one. */
+  subtitleKind?: string
+  /** EXACT when Mikan's own page linked this subject, FUZZY otherwise. */
+  matchKind: string
+}
+
+/** One episode, with the release the server chose for it when one matched. */
+export type BangumiEpisode = {
+  episodeId: number
+  episodeTitle: string
+  episodeNumber: string
+  airDate?: string
+  release?: BangumiRelease
+}
+
+export type BangumiEpisodesResponse = {
+  animeId: number
+  animeTitle: string
+  episodes: BangumiEpisode[]
+}
+
+export type BangumiReleasesResponse = {
+  subjectId: number
+  matchKind: string
+  releases: BangumiRelease[]
+  episodes: BangumiEpisode[]
+}
+
+/** One bullet comment, exactly as dandanplay serves it. */
+export type BangumiDanmakuComment = {
+  cid: number
+  /** "timeSeconds,mode,color,userHash". */
+  p: string
+  m: string
+}
+
+export type BangumiDanmakuResponse = {
+  count: number
+  comments: BangumiDanmakuComment[]
+}

@@ -20,12 +20,8 @@ import { Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { bangumiCoverUrl } from './api'
+import { bangumiTitle } from './lib/title'
 import type { BangumiCalendarItem } from './types'
-
-/** The Chinese title when the subject has one, otherwise the original. */
-export function bangumiTitle(item: BangumiCalendarItem): string {
-  return item.name_cn?.trim() || item.name
-}
 
 export function BangumiCard(props: {
   item: BangumiCalendarItem

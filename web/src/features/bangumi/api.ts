@@ -20,6 +20,9 @@ import { api } from '@/lib/api'
 
 import type {
   BangumiCalendarResponse,
+  BangumiDanmakuResponse,
+  BangumiEpisodesResponse,
+  BangumiReleasesResponse,
   BangumiSearchResponse,
   BangumiSubject,
 } from './types'
@@ -72,4 +75,65 @@ export function bangumiCoverUrl(
 
   const path = raw.replace(/^https?:\/\/[^/]+/, '').replace(/^\/+/, '')
   return path ? `/api/bangumi-image/${path}` : null
+}
+
+/**
+ * Rewrite a Mikan torrent URL onto this instance's torrent proxy.
+ *
+ * The browser cannot fetch the .torrent itself: Mikan serves it without CORS
+ * headers, so the request is blocked before WebTorrent ever sees the bytes. The
+ * proxy accepts only Mikan's own /Download/ path, so the host is discarded and
+ * only that prefix is kept.
+ */
+export function bangumiTorrentUrl(downloadLink: string): string | null {
+  const path = downloadLink.replace(/^https?:\/\/[^/]+/, '').replace(/^\/+/, '')
+  return path.startsWith('Download/') ? `/api/bangumi/torrent/${path}` : null
+}
+
+/**
+ * The watchable episodes of a subject, from dandanplay.
+ *
+ * dandanplay indexes the same subject ids bgm.tv uses, so the id the page
+ * already holds is enough.
+ */
+export async function getBangumiEpisodes(
+  subjectId: number | string
+): Promise<BangumiEpisodesResponse> {
+  const res = await api.get<BangumiEpisodesResponse>(
+    `/api/bangumi/subjects/${subjectId}/episodes`
+  )
+  return res.data
+}
+
+/**
+ * The bullet comments for one episode.
+ *
+ * Each comment's `p` is left as dandanplay sends it; only the renderer can
+ * split "time,mode,color,userHash" meaningfully.
+ */
+export async function getBangumiDanmaku(
+  episodeId: number | string
+): Promise<BangumiDanmakuResponse> {
+  const res = await api.get<BangumiDanmakuResponse>(
+    `/api/bangumi/danmaku/${episodeId}`
+  )
+  return res.data
+}
+
+/**
+ * The Mikan releases for a subject.
+ *
+ * The keyword is required because Mikan has no subject-id lookup: the server
+ * searches by name and then confirms the match against Mikan's own page, so the
+ * title the page already holds is enough to resolve it.
+ */
+export async function getBangumiReleases(
+  subjectId: number | string,
+  keyword: string
+): Promise<BangumiReleasesResponse> {
+  const res = await api.get<BangumiReleasesResponse>(
+    `/api/bangumi/releases/${subjectId}`,
+    { params: { keyword } }
+  )
+  return res.data
 }

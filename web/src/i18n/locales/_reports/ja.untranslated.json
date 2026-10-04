@@ -332,5 +332,6 @@
   "No registration providers configured.": "No registration providers configured.",
   "Daily registration limit": "Daily registration limit",
   "Maximum accounts created per day across every signup path. 0 disables the limit.": "Maximum accounts created per day across every signup path. 0 disables the limit.",
-  "Zhipu GLM": "Zhipu GLM"
+  "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.": "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.",
+  "Reserve the estimated input cost multiplied by this value, without estimating output tokens. Defaults to 1; positive decimals such as 0.5 and 1.5 are supported. Final charges use actual usage. Per-request and task prices are unaffected.": "Reserve the estimated input cost multiplied by this value, without estimating output tokens. Defaults to 1; positive decimals such as 0.5 and 1.5 are supported. Final charges use actual usage. Per-request and task prices are unaffected."
 }

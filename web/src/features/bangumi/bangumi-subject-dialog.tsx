@@ -17,15 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { bangumiCoverUrl, getBangumiSubject } from './api'
-import { bangumiTitle } from './bangumi-card'
+import { bangumiTitle } from './lib/title'
+import { BangumiWatchView } from './components/bangumi-watch-view'
 import type { BangumiCalendarItem, BangumiSubject } from './types'
 
 /**
@@ -48,11 +51,15 @@ export function BangumiSubjectDialog(props: {
   onOpenChange: (open: boolean) => void
 }) {
   const { t } = useTranslation()
+  const [watching, setWatching] = useState(false)
   const id = props.subject?.id
 
   const detailQuery = useQuery({
     queryKey: ['bangumi', 'subject', id],
-    queryFn: () => getBangumiSubject(id!),
+    queryFn: () => {
+      if (id == null) throw new Error('no subject selected')
+      return getBangumiSubject(id)
+    },
     enabled: props.open && id != null,
     staleTime: 6 * 60 * 60 * 1000,
     retry: false,
@@ -61,21 +68,35 @@ export function BangumiSubjectDialog(props: {
   const detail = detailQuery.data?.data
   // The list entry already carries a title and a cover, so the dialog opens
   // populated and fills in the rest once the full record lands.
-  const title = detail
-    ? bangumiTitle(detail)
-    : props.subject
-      ? bangumiTitle(props.subject)
-      : ''
+  const titleSource = detail ?? props.subject
+  const title = titleSource ? bangumiTitle(titleSource) : ''
   const cover = bangumiCoverUrl(detail?.images ?? props.subject?.images, 'large')
 
   return (
-    <Dialog
-      open={props.open}
-      onOpenChange={props.onOpenChange}
-      title={title}
-      description={detail?.date ? t('Aired from {{date}}', { date: detail.date }) : undefined}
-      contentClassName='sm:max-w-3xl'
-    >
+    <>
+      <Dialog
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        title={title}
+        description={
+          detail?.date
+            ? t('Aired from {{date}}', { date: detail.date })
+            : undefined
+        }
+        contentClassName='sm:max-w-3xl'
+        footer={
+          id != null ? (
+            <Button
+              onClick={() => {
+                setWatching(true)
+                props.onOpenChange(false)
+              }}
+            >
+              {t('Watch')}
+            </Button>
+          ) : undefined
+        }
+      >
       {detailQuery.isLoading && (
         <div className='space-y-2'>
           <Skeleton className='h-4 w-2/3' />
@@ -157,7 +178,17 @@ export function BangumiSubjectDialog(props: {
           </div>
         </div>
       )}
-    </Dialog>
+      </Dialog>
+
+      {id != null && (
+        <BangumiWatchView
+          subjectId={id}
+          title={title}
+          open={watching}
+          onOpenChange={setWatching}
+        />
+      )}
+    </>
   )
 }
 

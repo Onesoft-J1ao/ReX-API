@@ -56,6 +56,19 @@ func SetApiRouter(router *gin.Engine) {
 			bangumiRoute.GET("/calendar", controller.GetBangumiCalendar)
 			bangumiRoute.GET("/search", controller.GetBangumiSearch)
 			bangumiRoute.GET("/subjects/:id", controller.GetBangumiSubject)
+			// Playback: the episode list comes from dandanplay's view of the same
+			// bgm.tv subject id, and the releases come from Mikan. Both share the
+			// bangumi module gate and rate limiter above, because both spend a
+			// third party's quota on the visitor's behalf.
+			bangumiRoute.GET("/danmaku/:episodeId", controller.GetBangumiDanmaku)
+			bangumiRoute.GET("/releases/:subjectId", controller.GetBangumiReleases)
+			// Mikan serves the .torrent with no CORS headers, so the browser
+			// cannot fetch it itself; this same-origin hop is what lets
+			// WebTorrent load the torrent at all.
+			bangumiRoute.GET("/torrent/*path", controller.ProxyBangumiTorrent)
+			// Registered after /danmaku so the static segment is matched first;
+			// Gin's tree keeps the two apart either way.
+			bangumiRoute.GET("/subjects/:subjectId/episodes", controller.GetBangumiEpisodes)
 		}
 		apiRouter.GET("/bangumi-image/*path", middleware.BangumiRateLimit(), controller.ProxyBangumiImage)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.CaptchaCheck(), controller.SendEmailVerification)
