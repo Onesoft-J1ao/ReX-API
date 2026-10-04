@@ -68,6 +68,7 @@ func InitOptionMap() {
 	common.OptionMap["CapCheckinSecretKey"] = common.CapCheckinSecretKey
 	common.OptionMap["ForceCheckinCaptcha"] = strconv.FormatBool(common.ForceCheckinCaptcha)
 	common.OptionMap["ForceRedemptionCaptcha"] = strconv.FormatBool(common.ForceRedemptionCaptcha)
+	common.OptionMap["ForceRecordIpLog"] = strconv.FormatBool(common.ForceRecordIpLog)
 	common.OptionMap["CaptchaType"] = common.CaptchaType
 	common.OptionMap["LoginCaptchaDifficulty"] = strconv.Itoa(common.LoginCaptchaDifficulty)
 	common.OptionMap["CheckinCaptchaDifficulty"] = strconv.Itoa(common.CheckinCaptchaDifficulty)
@@ -592,6 +593,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ForceCheckinCaptcha = boolValue
 		case "ForceRedemptionCaptcha":
 			common.ForceRedemptionCaptcha = boolValue
+		case "ForceRecordIpLog":
+			common.ForceRecordIpLog = boolValue
 		case "PhantomCheckEnabled":
 			common.PhantomCheckEnabled = boolValue
 		case "NoticePopupEnabled":

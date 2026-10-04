@@ -85,12 +85,14 @@ import type { LogCleanupTask } from '../types'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  ForceRecordIpLog: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  defaultForceRecordIpLog: boolean
 }
 
 type ServerLogInfo = {
@@ -146,6 +148,7 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
 
 export function LogSettingsSection({
   defaultEnabled,
+  defaultForceRecordIpLog,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -153,6 +156,7 @@ export function LogSettingsSection({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
+      ForceRecordIpLog: defaultForceRecordIpLog,
     },
   })
 
@@ -180,8 +184,11 @@ export function LogSettingsSection({
   }, [])
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({
+      LogConsumeEnabled: defaultEnabled,
+      ForceRecordIpLog: defaultForceRecordIpLog,
+    })
+  }, [defaultEnabled, defaultForceRecordIpLog, form])
 
   useEffect(() => {
     fetchServerLogInfo()
@@ -263,11 +270,21 @@ export function LogSettingsSection({
   }, [logCleanupActive, logCleanupTaskId, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    // Either toggle may have changed independently, so each is compared on its
+    // own and saved separately; returning early on the first match would drop
+    // the other one.
+    if (values.LogConsumeEnabled !== defaultEnabled) {
+      await updateOption.mutateAsync({
+        key: 'LogConsumeEnabled',
+        value: values.LogConsumeEnabled,
+      })
+    }
+    if (values.ForceRecordIpLog !== defaultForceRecordIpLog) {
+      await updateOption.mutateAsync({
+        key: 'ForceRecordIpLog',
+        value: values.ForceRecordIpLog,
+      })
+    }
   }
 
   const handleRequestCleanLogs = () => {
@@ -359,6 +376,30 @@ export function LogSettingsSection({
                   <FormDescription>
                     {t(
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ForceRecordIpLog'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Force record caller IP')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Record the caller IP address on every usage and error log, overriding each user’s own IP logging privacy choice. Use this to investigate a leaked or shared API key. Requests logged before this is enabled have no address and cannot be attributed retroactively.'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>

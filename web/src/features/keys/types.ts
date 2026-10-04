@@ -53,6 +53,31 @@ export const apiKeySchema = z.object({
 
 export type ApiKey = z.infer<typeof apiKeySchema>
 
+// One caller address behind a token. An empty ip means the address was never
+// recorded for that row, so it is reported as a single unknown bucket rather
+// than dropped.
+export interface ApiKeyIpUsage {
+  token_id: number
+  ip: string
+  prompt_tokens: number
+  completion_tokens: number
+  requests: number
+  quota: number
+  first_seen: number
+  last_seen: number
+}
+
+export interface ApiKeyIpStat {
+  token_id: number
+  total_ips: number
+  total_tokens: number
+  total_requests: number
+  unknown_tokens: number
+  unknown_requests: number
+  max_ips_per_token: number
+  ips: ApiKeyIpUsage[]
+}
+
 export type ApiKeyAutoRoutes = Record<string, string[]>
 
 export interface TokenAutoRoutesResponse {

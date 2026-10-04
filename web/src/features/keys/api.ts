@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 
 import type {
   ApiKey,
+  ApiKeyIpStat,
   ApiResponse,
   GetApiKeysParams,
   GetApiKeysResponse,
@@ -67,6 +68,17 @@ export async function getApiKeyRPMs(
   const queryParams = new URLSearchParams()
   for (const id of ids) queryParams.append('ids', String(id))
   const res = await api.get(`/api/token/rpm?${queryParams.toString()}`)
+  return res.data
+}
+
+// Get the caller-IP breakdown for the currently visible API keys. One batched
+// request covers the whole page, mirroring the RPM call above.
+export async function getApiKeyIpStats(
+  ids: number[]
+): Promise<ApiResponse<{ stats: ApiKeyIpStat[] }>> {
+  const queryParams = new URLSearchParams()
+  for (const id of ids) queryParams.append('ids', String(id))
+  const res = await api.get(`/api/token/ip-stats?${queryParams.toString()}`)
   return res.data
 }
 

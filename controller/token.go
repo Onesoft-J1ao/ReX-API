@@ -280,6 +280,47 @@ func GetTokenRPM(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"rpms": rpms})
 }
 
+// GetTokenIpStats returns, per requested token, the caller addresses behind it
+// and the tokens each address consumed. An admin or root may pass user_id to
+// inspect another account's keys; anyone else is forced onto their own account
+// so a regular user cannot read another account's IP breakdown.
+func GetTokenIpStats(c *gin.Context) {
+	ids, err := parseTokenRPMIDs(c.QueryArray("ids"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	scopeUserId := c.GetInt("id")
+	role := c.GetInt("role")
+	if role < common.RoleAdminUser {
+		// A non-admin asking about someone else must not widen the scope.
+		if requested, _ := strconv.Atoi(c.Query("user_id")); requested != 0 && requested != scopeUserId {
+			common.ApiError(c, fmt.Errorf("无权查看其他用户的令牌 IP 使用统计"))
+			return
+		}
+	} else if requested, _ := strconv.Atoi(c.Query("user_id")); requested > 0 {
+		scopeUserId = requested
+	}
+	if scopeUserId <= 0 {
+		common.ApiError(c, fmt.Errorf("用户 ID 无效"))
+		return
+	}
+	stats, err := model.GetUserTokenIpStats(scopeUserId, ids, model.MaxIpsPerToken)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// JSON object keys must be strings; a list keyed by id avoids that mapping
+	// and mirrors the rpms response shape already consumed by the table.
+	items := make([]*model.TokenIpStat, 0, len(ids))
+	for _, id := range ids {
+		if stat, ok := stats[id]; ok {
+			items = append(items, stat)
+		}
+	}
+	common.ApiSuccess(c, gin.H{"stats": items})
+}
+
 func parseTokenRPMIDs(values []string) ([]int, error) {
 	ids := make([]int, 0, len(values))
 	seen := make(map[int]struct{}, len(values))

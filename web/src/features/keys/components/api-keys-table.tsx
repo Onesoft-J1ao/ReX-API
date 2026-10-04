@@ -44,14 +44,19 @@ import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
-import { getApiKeyRPMs, getApiKeys, searchApiKeys } from '../api'
+import {
+  getApiKeyIpStats,
+  getApiKeyRPMs,
+  getApiKeys,
+  searchApiKeys,
+} from '../api'
 import {
   API_KEY_STATUS,
   API_KEY_STATUS_OPTIONS,
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
-import type { ApiKey } from '../types'
+import type { ApiKey, ApiKeyIpStat } from '../types'
 import { ApiKeyQuotaCell } from './api-key-quota-cell'
 import { ApiKeyActivityCell } from './api-key-timestamp-cell'
 import {
@@ -218,7 +223,6 @@ export function ApiKeysTable() {
   const { t } = useTranslation()
   const { refreshTrigger } = useApiKeys()
   const [now, setNow] = useState(() => Date.now())
-  const columns = useApiKeysColumns(now)
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -295,6 +299,7 @@ export function ApiKeysTable() {
 
       const items = result.data?.items || []
       let rpms: Record<string, number> = {}
+      const ipStats: ApiKeyIpStat[] = []
       if (items.length > 0) {
         try {
           const rpmResult = await getApiKeyRPMs(items.map((item) => item.id))
@@ -304,6 +309,14 @@ export function ApiKeysTable() {
         } catch {
           // RPM is supplemental; the API key list remains usable without it.
         }
+        try {
+          const ipResult = await getApiKeyIpStats(items.map((item) => item.id))
+          if (ipResult.success) {
+            ipStats.push(...(ipResult.data?.stats ?? []))
+          }
+        } catch {
+          // The IP breakdown is supplemental; the list stays usable without it.
+        }
       }
 
       return {
@@ -311,6 +324,9 @@ export function ApiKeysTable() {
           const rpm = rpms[String(item.id)]
           return rpm === undefined ? item : { ...item, rpm }
         }),
+        ipStatsByTokenId: Object.fromEntries(
+          ipStats.map((stat) => [String(stat.token_id), stat])
+        ),
         total: result.data?.total || 0,
       }
     },
@@ -318,6 +334,7 @@ export function ApiKeysTable() {
   })
 
   const apiKeys = data?.items || []
+  const columns = useApiKeysColumns(now, data?.ipStatsByTokenId)
 
   const { table } = useDataTable({
     data: apiKeys,

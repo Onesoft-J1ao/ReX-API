@@ -30,8 +30,9 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { API_KEY_STATUSES } from '../constants'
-import type { ApiKey } from '../types'
+import type { ApiKey, ApiKeyIpStat } from '../types'
 import { ApiKeyGroupCell } from './api-key-group-cell'
+import { ApiKeyIpCell } from './api-key-ip-cell'
 import { ApiKeyQuotaCell } from './api-key-quota-cell'
 import {
   ApiKeyActivityCell,
@@ -64,7 +65,10 @@ function useGroupRatios(): Record<string, number | string> {
   return data ?? {}
 }
 
-export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
+export function useApiKeysColumns(
+  now: number,
+  ipStats?: Record<string, ApiKeyIpStat>
+): ColumnDef<ApiKey>[] {
   const { t, i18n } = useTranslation()
   useSystemConfigStore((state) => state.config.currency)
   const { meta: currency } = getCurrencyDisplay()
@@ -140,6 +144,19 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       cell: ({ row }) => <ApiKeyQuotaCell apiKey={row.original} now={now} />,
       size: 260,
       minSize: 260,
+    },
+    {
+      id: 'ip_usage',
+      header: t('Caller IPs'),
+      cell: ({ row }) => (
+        <ApiKeyIpCell
+          apiKey={row.original}
+          stat={ipStats?.[String(row.original.id)]}
+        />
+      ),
+      enableSorting: false,
+      size: 220,
+      minSize: 200,
     },
     {
       id: 'rpm',

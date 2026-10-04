@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -132,6 +133,20 @@ func ensureLogRequestId(log *Log) {
 	if log != nil && log.RequestId == "" {
 		log.RequestId = common.NewRequestId()
 	}
+}
+
+// shouldRecordLogIp decides whether a log row carries the caller IP. The
+// instance-wide ForceRecordIpLog override wins over the user's own
+// record_ip_log privacy toggle so an operator can investigate a leaked key.
+// Both reads are served from caches, keeping the per-log cost off the database.
+func shouldRecordLogIp(userId int) bool {
+	if common.ForceRecordIpLog {
+		return true
+	}
+	if settingMap, err := GetUserSetting(userId, false); err == nil {
+		return settingMap.RecordIpLog
+	}
+	return false
 }
 
 // createLog persists one log row. When the async writer is running (see
@@ -331,13 +346,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	otherStr := other.JSONString()
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
-	}
+	needRecordIp := shouldRecordLogIp(userId)
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
@@ -395,13 +404,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
 	otherStr := params.Other.JSONString()
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
-	}
+	needRecordIp := shouldRecordLogIp(userId)
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
@@ -850,6 +853,141 @@ func GetUserTokenRPM(userID int, tokenIDs []int) (map[int]int, error) {
 		return nil, err
 	}
 	return GetTokenRPM(ownedTokenIDs)
+}
+
+// TokenIpUsage is one caller address behind a token, as consumed-token totals
+// rather than the operator's billing quota unit.
+type TokenIpUsage struct {
+	TokenID          int    `json:"token_id" gorm:"column:token_id"`
+	Ip               string `json:"ip" gorm:"column:ip"`
+	PromptTokens     int    `json:"prompt_tokens" gorm:"column:prompt_tokens"`
+	CompletionTokens int    `json:"completion_tokens" gorm:"column:completion_tokens"`
+	Requests         int64  `json:"requests" gorm:"column:requests"`
+	Quota            int    `json:"quota" gorm:"column:quota"`
+	FirstSeen        int64  `json:"first_seen" gorm:"column:first_seen"`
+	LastSeen         int64  `json:"last_seen" gorm:"column:last_seen"`
+}
+
+// TokenIpStat is the per-token roll-up the API keys table renders. Ips is
+// capped at MaxIpsPerToken; TotalIps counts every distinct address so the UI
+// can say "showing 20 of 340" instead of silently truncating. An empty Ip means
+// the address was never recorded, so all such rows collapse into one bucket
+// rather than vanishing and making the totals look clean.
+type TokenIpStat struct {
+	TotalIps       int            `json:"total_ips"`
+	TotalTokens    int            `json:"total_tokens"`
+	TotalRequests  int64          `json:"total_requests"`
+	UnknownTokens  int            `json:"unknown_tokens"`
+	UnknownRequest int64          `json:"unknown_requests"`
+	MaxIpsPerToken int            `json:"max_ips_per_token"`
+	Ips            []TokenIpUsage `json:"ips"`
+}
+
+// MaxIpsPerToken caps how many distinct addresses one token may return. A key
+// fronted by a rotating proxy pool can otherwise accumulate thousands of rows
+// and make both the query and the response unbounded.
+const MaxIpsPerToken = 20
+
+// GetUserTokenIpStats groups consume-log usage by caller IP for the given
+// tokens, in one query, mirroring GetUserTokenRPM. It is self-scoped: the token
+// ids are filtered against the caller's own tokens first, so a caller cannot
+// read another account's IP breakdown by passing foreign ids. Admins get the
+// same self-scoped read plus an explicit user scope, resolved by the controller.
+func GetUserTokenIpStats(userID int, tokenIDs []int, maxIpsPerToken int) (map[int]*TokenIpStat, error) {
+	result := make(map[int]*TokenIpStat, len(tokenIDs))
+	if userID <= 0 || len(tokenIDs) == 0 {
+		return result, nil
+	}
+	if DB == nil {
+		return result, errors.New("主数据库未初始化")
+	}
+	if maxIpsPerToken <= 0 {
+		maxIpsPerToken = MaxIpsPerToken
+	}
+	ownedTokenIDs := make([]int, 0, len(tokenIDs))
+	if err := DB.Model(&Token{}).
+		Where("user_id = ? AND id IN ?", userID, tokenIDs).
+		Pluck("id", &ownedTokenIDs).Error; err != nil {
+		return nil, err
+	}
+	for _, tokenID := range ownedTokenIDs {
+		result[tokenID] = &TokenIpStat{
+			MaxIpsPerToken: maxIpsPerToken,
+			Ips:            []TokenIpUsage{},
+		}
+	}
+	if len(ownedTokenIDs) == 0 {
+		return result, nil
+	}
+	if LOG_DB == nil {
+		return result, errors.New("日志数据库未初始化")
+	}
+	var rows []TokenIpUsage
+	err := LOG_DB.Table("logs").
+		Select("token_id, ip, COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens, COALESCE(SUM(completion_tokens), 0) AS completion_tokens, COUNT(*) AS requests, COALESCE(SUM(quota), 0) AS quota, MIN(created_at) AS first_seen, MAX(created_at) AS last_seen").
+		Where("type = ? AND token_id IN ?", LogTypeConsume, ownedTokenIDs).
+		Group("token_id, ip").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	// Bucket by token, keeping the unknown-IP row out of the ranked list but
+	// still counting it toward the token's totals.
+	byToken := make(map[int][]TokenIpUsage, len(ownedTokenIDs))
+	for _, row := range rows {
+		stat := result[row.TokenID]
+		if stat == nil {
+			continue
+		}
+		stat.TotalTokens += row.PromptTokens + row.CompletionTokens
+		stat.TotalRequests += row.Requests
+		if row.Ip == "" {
+			stat.UnknownTokens += row.PromptTokens + row.CompletionTokens
+			stat.UnknownRequest += row.Requests
+			// Still surface one unknown row so the UI can name the gap.
+			byToken[row.TokenID] = append(byToken[row.TokenID], row)
+			continue
+		}
+		byToken[row.TokenID] = append(byToken[row.TokenID], row)
+	}
+	for tokenID, tokenRows := range byToken {
+		stat := result[tokenID]
+		known := 0
+		for _, row := range tokenRows {
+			if row.Ip != "" {
+				known++
+			}
+		}
+		stat.TotalIps = known
+		ranked := make([]TokenIpUsage, 0, len(tokenRows))
+		var unknown *TokenIpUsage
+		for _, row := range tokenRows {
+			if row.Ip == "" {
+				entry := row
+				unknown = &entry
+				continue
+			}
+			ranked = append(ranked, row)
+		}
+		slices.SortStableFunc(ranked, func(a, b TokenIpUsage) int {
+			if diff := b.PromptTokens + b.CompletionTokens - (a.PromptTokens + a.CompletionTokens); diff != 0 {
+				return diff
+			}
+			if diff := b.Quota - a.Quota; diff != 0 {
+				return diff
+			}
+			return strings.Compare(a.Ip, b.Ip)
+		})
+		if len(ranked) > maxIpsPerToken {
+			ranked = ranked[:maxIpsPerToken]
+		}
+		if unknown != nil {
+			unknown.Ip = ""
+			ranked = append(ranked, *unknown)
+		}
+		stat.Ips = ranked
+	}
+	return result, nil
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
