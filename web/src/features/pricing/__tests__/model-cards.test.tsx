@@ -122,6 +122,71 @@ describe('model cards', () => {
     expect(screen.getByText('$0.01')).toBeVisible()
     expect(screen.queryByText('/ 1M')).not.toBeInTheDocument()
   })
+
+  // Someone scanning the square is answering "what does this cost" first, so
+  // the price has to come before the description rather than after it.
+  it('places the price before the description', () => {
+    const model = pricingModel({ description: 'A described model' })
+    const { container } = render(
+      <ModelCard model={model} onClick={vi.fn()} />
+    )
+    const price = screen.getByText('Input').closest('div')
+    const description = screen.getByText('A described model')
+    expect(price).not.toBeNull()
+    expect(
+      price!.compareDocumentPosition(description) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(container).toBeTruthy()
+  })
+
+  // The billing mode sits beside the price rather than in the metadata block:
+  // "0.012 / request" only means something next to how it is charged.
+  it('keeps the billing mode adjacent to the price', () => {
+    const model = pricingModel()
+    render(<ModelCard model={model} onClick={vi.fn()} />)
+    const inputPrice = screen.getByText('Input').closest('div')!
+    const mode = screen.getByText('Token-based')
+    expect(
+      inputPrice.compareDocumentPosition(mode) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  // A group that pins a token-priced model to per-request billing must not show
+  // input/output rates nobody is charged.
+  it('shows the per-request price when a group bills the model per request', () => {
+    const model = pricingModel({ model_price: 0.02, quota_type: 0 })
+    render(
+      <ModelCard
+        model={model}
+        onClick={vi.fn()}
+        selectedGroup='free2'
+        groupBillingSource={{ free2: { 'example-model': 'price' } }}
+      />
+    )
+    expect(screen.getByText('$0.02')).toBeVisible()
+    expect(screen.getByText('/ request')).toBeVisible()
+    expect(screen.queryByText('Input')).not.toBeInTheDocument()
+    // The card says so, because the mode badge still reads from the model.
+    expect(
+      screen.getByText('Billed per request in this group')
+    ).toBeVisible()
+  })
+
+  it('keeps token prices when no group overrides the model', () => {
+    const model = pricingModel({ model_price: 0.02, quota_type: 0 })
+    render(
+      <ModelCard
+        model={model}
+        onClick={vi.fn()}
+        selectedGroup='default'
+        groupBillingSource={{ other: { 'example-model': 'price' } }}
+      />
+    )
+    expect(screen.getByText('Input')).toBeVisible()
+    expect(screen.queryByText('/ request')).not.toBeInTheDocument()
+  })
   it('updates the current time tier at a minute boundary and after returning to the page', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T08:59:59+08:00'))

@@ -22,6 +22,7 @@ import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
+import { getGroupPricingForModel } from './group-pricing'
 import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
 
 export const FREE_REQUEST_PRICE_THRESHOLD_USD = 0.000002
@@ -245,9 +246,16 @@ export function formatFixedPrice(
   showWithRecharge = false,
   priceRate = 1,
   usdExchangeRate = 1,
-  groupRatio: Record<string, number>
+  groupRatio: Record<string, number>,
+  groupBillingSource?: Record<string, Record<string, string>>
 ): string {
-  if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
+  // A group may pin a token-priced model to per-request billing, and then this
+  // group is charged the model's per-call price.
+  const perCallSource =
+    model.quota_type === QUOTA_TYPE_VALUES.REQUEST ||
+    getGroupPricingForModel(model, group, groupBillingSource, 1).source ===
+      'price'
+  if (!perCallSource || !((model.model_price ?? 0) > 0)) {
     return '-'
   }
 
@@ -271,6 +279,11 @@ export function formatFixedPrice(
 
 /**
  * Format fixed price for pay-per-request models (minimum price from all groups)
+ *
+ * A group may pin a token-priced model to per-request billing. The gateway
+ * then charges that group's requests the model's per-call price, so the same
+ * figure has to be shown here; refusing on quota_type alone rendered a dash for
+ * a price the viewer is really charged.
  */
 export function formatRequestPrice(
   model: PricingModel,
@@ -278,9 +291,16 @@ export function formatRequestPrice(
   priceRate = 1,
   usdExchangeRate = 1,
   selectedGroup?: string,
-  showCurrencySymbol = true
+  showCurrencySymbol = true,
+  groupBillingSource?: Record<string, Record<string, string>>
 ): string {
-  if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
+  const perCallSource =
+    model.quota_type === QUOTA_TYPE_VALUES.REQUEST ||
+    getGroupPricingForModel(model, selectedGroup ?? '', groupBillingSource, 1)
+      .source === 'price'
+  // A pinned model with no per-call price configured has nothing to charge per
+  // request; the gateway rejects that pin rather than billing zero.
+  if (!perCallSource || !((model.model_price ?? 0) > 0)) {
     return '-'
   }
 

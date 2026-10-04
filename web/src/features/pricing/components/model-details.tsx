@@ -1525,7 +1525,8 @@ function ProviderGroupPricingSection(
       showRechargePrice,
       props.priceRate,
       props.usdExchangeRate,
-      props.groupRatio
+      props.groupRatio,
+      props.groupBillingSource
     )
 
   return (

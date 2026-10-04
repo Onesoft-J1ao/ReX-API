@@ -42,7 +42,6 @@ import {
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
 import { getGroupPricingForModel } from '../lib/group-pricing'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import { taskPriceLabel, taskUsageUnitLabel } from '../lib/task-price-display'
@@ -69,7 +68,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const priceRate = props.priceRate ?? 1
   const usdExchangeRate = props.usdExchangeRate ?? 1
   const showRechargePrice = props.showRechargePrice ?? false
-  const isTokenBased = isTokenBasedModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
 
   // A group may bill this model per request even though the model itself is
@@ -82,10 +80,14 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     props.groupBillingSource,
     1
   ).source
+  // The group pinned a token-priced model to per-request billing. The mode
+  // badge still reads from the model, so the card says which one wins here.
   const pricedPerRequest =
     effectiveSource === 'price' && (props.model.model_price ?? 0) > 0
   const pricedPerToken =
     effectiveSource !== 'price' && props.model.quota_type !== 1
+  const perRequestOverride =
+    pricedPerRequest && props.model.quota_type !== 1
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
   const endpoints = props.model.supported_endpoint_types || []
@@ -353,18 +355,16 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             showRechargePrice,
             priceRate,
             usdExchangeRate,
-            props.selectedGroup
+            props.selectedGroup,
+            undefined,
+            props.groupBillingSource
           )}
           <span className='text-muted-foreground text-xs font-normal'>
             {' '}
             / {t('request')}
           </span>
         </span>
-        {pricedPerRequest && !isTokenBased && (
-          <span className='text-muted-foreground text-xs'>
-            {t('Billed per request in this group')}
-          </span>
-        )}
+
       </div>
     )
   }
@@ -410,7 +410,43 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         />
       </CardHeader>
       <CardContent className='flex flex-1 flex-col gap-3'>
-        <div className='flex min-w-0 flex-col gap-1.5'>
+        {/* Price comes before the description. Someone scanning the square is
+            answering "what does this cost" first; the description and tags are
+            context for a decision already half-made, and reading them first
+            pushed the number to the middle of the card. */}
+        <div
+          role='group'
+          aria-label={t('Pricing')}
+          className='flex min-w-0 flex-col gap-1.5'
+        >
+          {dynamicSummary?.providerCount && (
+            <span className='text-muted-foreground text-xs break-words'>
+              {t('{{count}} providers', {
+                count: dynamicSummary.providerCount,
+              })}
+              {dynamicSummary.hasUnconfiguredProviders &&
+                ` · ${t('Not configured for some providers')}`}
+            </span>
+          )}
+          <div className='grid grid-cols-[repeat(3,minmax(0,1fr))] gap-x-3 gap-y-2'>
+            {priceSummary}
+          </div>
+          {/* How the price above is charged, beside it rather than in the
+              metadata block: "0.012 / request" only means something next to
+              "per request", and the mode a group overrides is part of the
+              price, not a footnote. */}
+          <div className='flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1'>
+            <ModelBillingModeBadge model={props.model} appearance='caption' />
+            {perRequestOverride && (
+              <span className='text-muted-foreground text-xs'>
+                {t('Billed per request in this group')}
+              </span>
+            )}
+          </div>
+        </div>
+        {/* The description and tags sink to the bottom so cards of differing
+            description length keep their price aligned across a grid row. */}
+        <div className='mt-auto flex min-w-0 flex-col gap-1.5'>
           <p className='text-muted-foreground line-clamp-2 text-sm leading-5 break-words'>
             {props.model.description || t('No description available.')}
           </p>
@@ -432,35 +468,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </div>
           )}
         </div>
-        <div
-          role='group'
-          aria-label={t('Pricing')}
-          className='mt-auto flex min-w-0 flex-col gap-1.5'
-        >
-          {dynamicSummary?.providerCount && (
-            <span className='text-muted-foreground text-xs break-words'>
-              {t('{{count}} providers', {
-                count: dynamicSummary.providerCount,
-              })}
-              {dynamicSummary.hasUnconfiguredProviders &&
-                ` · ${t('Not configured for some providers')}`}
-            </span>
-          )}
-          <div className='grid grid-cols-[repeat(3,minmax(0,1fr))] gap-x-3 gap-y-2'>
-            {priceSummary}
-          </div>
-        </div>
         <dl
           className={cn(
             'grid min-w-0 grid-cols-2 gap-3 text-xs',
             (groups.length === 0 || endpoints.length === 0) && 'grid-cols-1'
           )}
         >
-          <div className='flex min-w-0 items-baseline gap-1.5'>
-            <dd className='flex min-w-0 items-baseline gap-1'>
-              <ModelBillingModeBadge model={props.model} appearance='caption' />
-            </dd>
-          </div>
           {groups.length > 0 && (
             <div
               className={cn(
