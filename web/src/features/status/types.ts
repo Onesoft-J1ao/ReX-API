@@ -20,6 +20,13 @@ For commercial licensing, please contact support@quantumnous.com
 export type HealthLevel = 'excellent' | 'good' | 'warning' | 'critical'
 
 /**
+ * A model the group serves but that neither a probe nor traffic reached inside
+ * the window. It carries the same fields as an observed model so the card can
+ * render it in place, with the marker that nothing is known about it yet.
+ */
+export type UnknownHealthLevel = 'unknown'
+
+/**
  * One observed traffic bucket for a model. The gateway buckets passive traffic
  * hourly, so a 24h window yields up to 24 of these and the card renders them as
  * a per-model history strip.
@@ -36,7 +43,7 @@ export interface StatusModel {
   group: string
   availability: number
   latency_ms: number
-  level: HealthLevel
+  level: HealthLevel | UnknownHealthLevel
   channel_id?: number
   ok: boolean
   error_code?: number
@@ -45,6 +52,8 @@ export interface StatusModel {
   passive_requests?: number
   passive_success?: number
   series?: StatusBucket[]
+  /** False for a served model with no probe and no traffic in the window. */
+  has_data?: boolean
 }
 
 export interface StatusGroup {
@@ -55,6 +64,12 @@ export interface StatusGroup {
   ok_probes: number
   level: HealthLevel
   models: StatusModel[]
+  /**
+   * False when the group reported neither probes nor traffic. Its availability
+   * is still 100, but that figure is an assumption rather than a measurement,
+   * so the card renders it grey instead of green.
+   */
+  observed?: boolean
 }
 
 export interface StatusCheckData {

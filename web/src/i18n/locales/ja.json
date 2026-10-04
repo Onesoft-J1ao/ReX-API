@@ -7941,6 +7941,7 @@
     "Insert image": "画像を挿入",
     "No group overrides. Every model bills the same way everywhere.": "グループのオーバーライドはありません。すべてのモデルはどこでも同じ課金です。",
     "No group ratio — this override never applies": "グループ倍率がありません — このオーバーライドは適用されません",
+    "No probes or traffic in this window": "この時間枠にはプローブもトラフィックもありません",
     "Per request (model price)": "リクエスト単位（モデル価格）",
     "Per token (model ratio)": "トークン単位（モデル倍率）",
     "Per-group billing": "グループ別課金",

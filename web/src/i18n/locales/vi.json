@@ -7941,6 +7941,7 @@
     "Insert image": "Chèn hình ảnh",
     "No group overrides. Every model bills the same way everywhere.": "Không có ghi đè nhóm. Mọi mô hình đều được tính phí như nhau ở mọi nơi.",
     "No group ratio — this override never applies": "Không có hệ số nhóm — ghi đè này sẽ không bao giờ áp dụng",
+    "No probes or traffic in this window": "Không có probe hay lưu lượng trong khoảng thời gian này",
     "Per request (model price)": "Theo yêu cầu (giá mô hình)",
     "Per token (model ratio)": "Theo token (hệ số mô hình)",
     "Per-group billing": "Tính phí theo nhóm",

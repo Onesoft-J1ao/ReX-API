@@ -7941,6 +7941,7 @@
     "Insert image": "插入圖片",
     "No group overrides. Every model bills the same way everywhere.": "沒有分組覆寫。所有模型在任何地方計費方式都相同。",
     "No group ratio — this override never applies": "此分組沒有倍率 —— 這條覆寫不會生效",
+    "No probes or traffic in this window": "該時間視窗內沒有探針或流量資料",
     "Per request (model price)": "按次（模型單價）",
     "Per token (model ratio)": "按量（模型倍率）",
     "Per-group billing": "按分組計費",

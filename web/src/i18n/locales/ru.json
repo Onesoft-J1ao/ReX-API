@@ -7941,6 +7941,7 @@
     "Insert image": "Вставить изображение",
     "No group overrides. Every model bills the same way everywhere.": "Нет переопределений по группам. Каждая модель тарифицируется одинаково везде.",
     "No group ratio — this override never applies": "Нет коэффициента группы — это переопределение никогда не применится",
+    "No probes or traffic in this window": "Нет проб и трафика за это окно",
     "Per request (model price)": "За запрос (цена модели)",
     "Per token (model ratio)": "По токенам (ratio модели)",
     "Per-group billing": "Тарификация по группам",

@@ -44,11 +44,14 @@ import type {
   StatusModel,
 } from '../types'
 
-const LEVEL_RANK: Record<HealthLevel, number> = {
+// A model with no data yet ranks below every measured one: nothing is known
+// about it, so it must not push a failing model out of the preview.
+const LEVEL_RANK: Record<HealthLevel | 'unknown', number> = {
   critical: 0,
   warning: 1,
   good: 2,
   excellent: 3,
+  unknown: 4,
 }
 
 /** Hours of history the strip keeps; the gateway buckets traffic hourly. */
@@ -114,6 +117,10 @@ function ModelRow(props: { model: StatusModel }) {
   const { t } = useTranslation()
   const rate = Math.round(model.availability * 100) / 100
   const errorText = model.error_msg?.trim()
+  // A served model with no probe and no traffic in the window: it is listed so
+  // the group shows what it offers, but nothing is known about it yet. Showing
+  // it as a percentage would invent a measurement.
+  const hasData = model.has_data !== false
 
   return (
     <div className='hover:bg-muted/40 flex flex-col gap-1 px-4 py-2.5 transition-colors sm:px-5'>
@@ -121,31 +128,44 @@ function ModelRow(props: { model: StatusModel }) {
         <span
           className={cn(
             'size-2 shrink-0 rounded-full',
-            getSuccessRateDotClass(rate)
+            hasData ? getSuccessRateDotClass(rate) : 'bg-muted'
           )}
         />
-        <span className='text-foreground min-w-0 flex-1 truncate text-sm'>
-          {model.model}
-        </span>
-        <HealthStrip series={model.series} />
-        <span className='text-muted-foreground hidden shrink-0 font-mono text-xs tabular-nums sm:inline'>
-          {formatLatency(model.latency_ms)}
-        </span>
         <span
           className={cn(
-            'w-20 shrink-0 text-right font-mono text-sm font-semibold tabular-nums',
-            getSuccessRateTextClass(rate)
+            'min-w-0 flex-1 truncate text-sm',
+            hasData ? 'text-foreground' : 'text-muted-foreground'
           )}
         >
-          {Number.isFinite(rate) ? `${rate.toFixed(0)}%` : '—'}
+          {model.model}
         </span>
+        {hasData && <HealthStrip series={model.series} />}
+        {hasData ? (
+          <>
+            <span className='text-muted-foreground hidden shrink-0 font-mono text-xs tabular-nums sm:inline'>
+              {formatLatency(model.latency_ms)}
+            </span>
+            <span
+              className={cn(
+                'w-20 shrink-0 text-right font-mono text-sm font-semibold tabular-nums',
+                getSuccessRateTextClass(rate)
+              )}
+            >
+              {Number.isFinite(rate) ? `${rate.toFixed(0)}%` : '—'}
+            </span>
+          </>
+        ) : (
+          <span className='text-muted-foreground w-20 shrink-0 text-right font-mono text-xs'>
+            {t('No data')}
+          </span>
+        )}
       </div>
       {errorText && !model.ok && (
         <p className='text-destructive pl-5 font-mono text-xs leading-5'>
           {errorText}
         </p>
       )}
-      {!model.has_active && (model.passive_requests ?? 0) > 0 && (
+      {hasData && !model.has_active && (model.passive_requests ?? 0) > 0 && (
         <p className='text-muted-foreground pl-5 font-mono text-xs'>
           {t('Passive traffic only')} · {model.passive_success ?? 0}/
           {model.passive_requests}
@@ -159,8 +179,14 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
   const { group, index } = props
   const { t } = useTranslation()
   const rate = Math.round(group.availability * 100) / 100
+  // Absent means an older gateway that never reported it; treat that as observed
+  // so the page does not grey out every group after an upgrade.
+  const observed = group.observed !== false
   const models = useMemo(() => sortModels(group.models), [group.models])
-  const failed = group.models.filter((model) => !model.ok).length
+  // A model with no data is not a failing one, so it must not inflate the count.
+  const failed = group.models.filter(
+    (model) => !model.ok && model.has_data !== false
+  ).length
   const [showAllModels, setShowAllModels] = useState(false)
   const hiddenModelCount = models.length - MODEL_PREVIEW_COUNT
   const visibleModels = showAllModels
@@ -185,17 +211,29 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
             )}
           </div>
           <div className='flex shrink-0 items-center gap-3'>
+            {/* An unobserved group reports 100% because nothing contradicts it.
+                That is an assumption, not a measurement, so it is greyed to
+                keep it from reading as a verified all-green. */}
             <span
               className={cn(
                 'font-mono text-lg font-semibold tabular-nums',
-                getSuccessRateTextClass(rate)
+                observed
+                  ? getSuccessRateTextClass(rate)
+                  : 'text-muted-foreground'
               )}
+              title={observed ? undefined : t('No probes or traffic in this window')}
             >
               {Number.isFinite(rate) ? `${rate.toFixed(0)}%` : '—'}
             </span>
-            <span className='text-muted-foreground hidden font-mono text-xs tabular-nums md:inline'>
-              {formatLatency(group.avg_latency_ms)}
-            </span>
+            {observed ? (
+              <span className='text-muted-foreground hidden font-mono text-xs tabular-nums md:inline'>
+                {formatLatency(group.avg_latency_ms)}
+              </span>
+            ) : (
+              <span className='text-muted-foreground hidden font-mono text-xs md:inline'>
+                {t('No data')}
+              </span>
+            )}
           </div>
         </div>
         <div className='text-muted-foreground mt-1 flex items-center justify-between font-mono text-xs tabular-nums'>
@@ -267,10 +305,16 @@ export function StatusPanel() {
   const summary = useMemo(() => {
     const list = groups ?? []
     const models = list.flatMap((group) => group.models)
-    const failing = models.filter((model) => !model.ok).length
+    // Same rule as the per-group badge: an unobserved model is not failing.
+    const failing = models.filter(
+      (model) => !model.ok && model.has_data !== false
+    ).length
     const probes = list.reduce((sum, group) => sum + group.total_probes, 0)
     const okProbes = list.reduce((sum, group) => sum + group.ok_probes, 0)
+    // An unobserved group's 100% is an assumption; letting it into the worst-case
+    // figure would report the page's best-looking number as its floor.
     const worst = list.reduce<number | null>((min, group) => {
+      if (group.observed === false) return min
       if (!Number.isFinite(group.availability)) return min
       if (min === null) return group.availability
       return Math.min(min, group.availability)

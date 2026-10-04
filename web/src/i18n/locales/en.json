@@ -7944,6 +7944,7 @@
     "Insert image": "Insert image",
     "No group overrides. Every model bills the same way everywhere.": "No group overrides. Every model bills the same way everywhere.",
     "No group ratio — this override never applies": "No group ratio — this override never applies",
+    "No probes or traffic in this window": "No probes or traffic in this window",
     "Per request (model price)": "Per request (model price)",
     "Per token (model ratio)": "Per token (model ratio)",
     "Per-group billing": "Per-group billing",

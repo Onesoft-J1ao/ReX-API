@@ -7941,6 +7941,7 @@
     "Insert image": "Insérer une image",
     "No group overrides. Every model bills the same way everywhere.": "Aucun override de groupe. Chaque modèle est facturé de la même façon partout.",
     "No group ratio — this override never applies": "Aucun ratio de groupe — cet override ne s’applique jamais",
+    "No probes or traffic in this window": "Aucune sonde ni trafic sur cette fenêtre",
     "Per request (model price)": "À la requête (prix du modèle)",
     "Per token (model ratio)": "Au token (ratio du modèle)",
     "Per-group billing": "Facturation par groupe",

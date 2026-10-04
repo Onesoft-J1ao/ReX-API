@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -47,6 +48,11 @@ type modelHealthDTO struct {
 	PassiveRequests int64             `json:"passive_requests,omitempty"`
 	PassiveSuccess  int64             `json:"passive_success,omitempty"`
 	Series          []statusBucketDTO `json:"series,omitempty"`
+	// HasData is false for a model the group serves but that neither a probe nor
+	// any traffic has reached inside the window. The card shows it as "no data"
+	// rather than as a healthy model, and it contributes to no availability
+	// average — an unobserved model is not a working one.
+	HasData bool `json:"has_data"`
 }
 
 type groupHealthDTO struct {
@@ -57,6 +63,12 @@ type groupHealthDTO struct {
 	OkProbes     int              `json:"ok_probes"`
 	Level        string           `json:"level"`
 	Models       []modelHealthDTO `json:"models"`
+	// Observed is false when the group has neither probe results nor traffic in
+	// the window. Its Availability is still filled in — a group with nothing to
+	// report reads as 100% — but the card renders that figure as unknown rather
+	// than as a green 100%, which is what made "all green" and "all red" on the
+	// same model possible.
+	Observed bool `json:"observed"`
 }
 
 type statusCheckResponse struct {
@@ -171,6 +183,29 @@ func GetStatusCheck(c *gin.Context) {
 			dto.Models[i].Series = seriesByModel[group+"|"+dto.Models[i].ModelName]
 		}
 
+		// A model the group serves but that neither a probe nor traffic reached
+		// in the window still belongs on the card: it is what the group offers,
+		// and hiding it until it happens to be exercised makes a freshly
+		// configured model invisible. It is listed without data and counts
+		// towards no average.
+		if served != nil {
+			for _, name := range sortedServedModelNames(served) {
+				if seen[name] || modelIsExcluded(name, excluded) {
+					continue
+				}
+				if _, hasPassive := passive[group+"|"+name]; hasPassive {
+					continue
+				}
+				seen[name] = true
+				dto.Models = append(dto.Models, modelHealthDTO{
+					ModelName: name,
+					Group:     group,
+					Level:     "unknown",
+					HasData:   false,
+				})
+			}
+		}
+
 		// group-level roll-up
 		if active, ok := activeByGroup[group]; ok && active.TotalProbes > 0 {
 			dto.TotalProbes = active.TotalProbes
@@ -180,6 +215,7 @@ func GetStatusCheck(c *gin.Context) {
 			// passive weighted into availability
 			passiveAvail := passiveGroupAvailability(passive, group)
 			dto.Availability = mergeAvailability(activeAvail, passiveAvail, true, passiveAvail >= 0)
+			dto.Observed = true
 		} else {
 			// no active probe, fall back to all-passive
 			passiveAvail := passiveGroupAvailability(passive, group)
@@ -187,6 +223,7 @@ func GetStatusCheck(c *gin.Context) {
 			if dto.Availability < 0 {
 				dto.Availability = 100 // unknown → optimistic
 			}
+			dto.Observed = passiveAvail >= 0
 		}
 		dto.Level = GradeAvailability(dto.Availability)
 
@@ -219,12 +256,29 @@ func modelIsAdvertised(served map[string]bool, modelName string, excluded map[st
 	if served != nil && !served[modelName] {
 		return false
 	}
-	if excluded != nil {
-		if _, skip := excluded[modelName]; skip {
-			return false
-		}
+	if modelIsExcluded(modelName, excluded) {
+		return false
 	}
 	return true
+}
+
+func modelIsExcluded(modelName string, excluded map[string]struct{}) bool {
+	if excluded == nil {
+		return false
+	}
+	_, skip := excluded[modelName]
+	return skip
+}
+
+// sortedServedModelNames gives the no-data rows a stable order, so the card
+// does not reshuffle between refreshes.
+func sortedServedModelNames(served map[string]bool) []string {
+	names := make([]string, 0, len(served))
+	for name := range served {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func mergeHealthRow(m model.ModelHealth, passive map[string]model.PerfMetricSummaryByGroup, group string) modelHealthDTO {
@@ -237,6 +291,7 @@ func mergeHealthRow(m model.ModelHealth, passive map[string]model.PerfMetricSumm
 		ErrorCode: m.ErrorCode,
 		ErrorMsg:  m.ErrorMsg,
 		HasActive: true,
+		HasData:   true,
 	}
 	activeAvail := 0.0
 	if m.Ok {
@@ -268,6 +323,7 @@ func passiveOnlyRow(s model.PerfMetricSummaryByGroup, group string) modelHealthD
 		Ok:              avail >= 70,
 		PassiveRequests: s.RequestCount,
 		PassiveSuccess:  s.SuccessCount,
+		HasData:         true,
 	}
 }
 
