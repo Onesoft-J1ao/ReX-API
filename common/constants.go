@@ -154,6 +154,13 @@ var CapCheckinSecretKey = ""
 var ForceCheckinCaptcha = false
 var ForceRedemptionCaptcha = false
 
+// ForceRecordIpLog makes every consume and error log record the caller IP even
+// when the owning user left their own record_ip_log privacy toggle off. It
+// exists for abuse investigation of shared or leaked API keys. Off by default
+// because it overrides a user-visible privacy setting, and root-only so a
+// regular admin cannot turn it on.
+var ForceRecordIpLog = false
+
 // CaptchaType selects the active captcha provider: "turnstile", "hcaptcha", or "cap".
 var CaptchaType = "turnstile"
 
@@ -356,6 +363,11 @@ var (
 
 	DownloadRateLimitNum            = 10
 	DownloadRateLimitDuration int64 = 60
+
+	// Anime metadata is proxied to a third-party API on the viewer's behalf, so
+	// the limit protects that API's quota rather than this instance.
+	BangumiRateLimitNum            = 30
+	BangumiRateLimitDuration int64 = 60
 
 	// Per-user search rate limit (applies after authentication, keyed by user ID)
 	SearchRateLimitEnable         = true

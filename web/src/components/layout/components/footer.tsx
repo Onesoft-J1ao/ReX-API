@@ -166,8 +166,8 @@ export function Footer(props: FooterProps) {
             href: '/docs',
           },
           {
-            text: t('关于项目'),
-            href: '/about',
+            text: t('动漫'),
+            href: '/bangumi',
           },
           {
             text: t('QQ 邮箱: 1987800833@qq.com'),

@@ -49,6 +49,15 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
 		apiRouter.GET("/rankings/users", middleware.HeaderNavModuleAuth("rankings"), controller.GetUserRankings)
+		bangumiRoute := apiRouter.Group("/bangumi")
+		bangumiRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("bangumi"))
+		bangumiRoute.Use(middleware.BangumiRateLimit())
+		{
+			bangumiRoute.GET("/calendar", controller.GetBangumiCalendar)
+			bangumiRoute.GET("/search", controller.GetBangumiSearch)
+			bangumiRoute.GET("/subjects/:id", controller.GetBangumiSubject)
+		}
+		apiRouter.GET("/bangumi-image/*path", middleware.BangumiRateLimit(), controller.ProxyBangumiImage)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.CaptchaCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.CaptchaCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
@@ -439,6 +448,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			tokenRoute.GET("/", controller.GetAllTokens)
 			tokenRoute.GET("/rpm", controller.GetTokenRPM)
+			tokenRoute.GET("/ip-stats", controller.GetTokenIpStats)
 			tokenRoute.GET("/search", middleware.SearchRateLimit(), controller.SearchTokens)
 			tokenRoute.GET("/auto-groups", controller.GetTokenAutoGroups)
 			tokenRoute.GET("/:id/auto-routes", controller.GetTokenAutoRoutes)

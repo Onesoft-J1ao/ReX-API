@@ -95,9 +95,9 @@ export function useTopNavLinks(): TopNavLink[] {
     }
   }
 
-  // About
+  // Anime
   if (modules?.about !== false) {
-    links.push({ title: t('About'), href: '/about' })
+    links.push({ title: t('Anime'), href: '/bangumi' })
   }
 
   return links

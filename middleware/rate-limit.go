@@ -231,6 +231,10 @@ func UploadRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.UploadRateLimitNum, common.UploadRateLimitDuration, "UP")
 }
 
+func BangumiRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(common.BangumiRateLimitNum, common.BangumiRateLimitDuration, "BG")
+}
+
 // userRateLimitFactory creates a rate limiter keyed by authenticated user ID
 // instead of client IP, making it resistant to proxy rotation attacks.
 // Must be used AFTER authentication middleware (UserAuth).
