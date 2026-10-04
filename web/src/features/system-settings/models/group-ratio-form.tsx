@@ -64,23 +64,12 @@ import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeJsonParse } from '../utils/json-parser'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import { GroupCodingModelEditor } from './group-coding-model-editor'
+import { GroupPricingSourceEditor } from './group-pricing-source-editor'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
-
-type GroupFormValues = {
-  GroupRatio: string
-  TopupGroupRatio: string
-  UserUsableGroups: string
-  GroupGroupRatio: string
-  AutoGroups: string
-  AutoGroupDescription: string
-  MaxTokenAutoGroups: number
-  DefaultUseAutoGroup: boolean
-  GroupSpecialUsableGroup: string
-  GroupDefaultModel: string
-  GroupRetryTimes: string
-  ModelSquareVisibleGroups: string
-}
+// Type-only: the schema lives in the card that renders this form, so importing
+// it for real would close a runtime cycle.
+import type { GroupFormValues } from './ratio-settings-card'
 
 type GroupRatioFormProps = {
   form: UseFormReturn<GroupFormValues>
@@ -147,6 +136,17 @@ export const GroupRatioForm = memo(function GroupRatioForm({
     })
     return Object.keys(ratioMap).sort()
   }, [watchedGroupRatio])
+
+  // A per-group override only makes sense for a model that has a price of the
+  // source it names, so the picker offers the models that are configured at all.
+  const watchedBillingMode = form.watch('billing_setting.billing_mode')
+  const modelNames = useMemo(() => {
+    const modes = safeJsonParse<Record<string, string>>(
+      watchedBillingMode,
+      { fallback: {}, silent: true }
+    )
+    return Object.keys(modes).sort()
+  }, [watchedBillingMode])
 
   return (
     <div className='space-y-6'>
@@ -239,6 +239,15 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               groups={groupNames}
               defaultModels={form.watch('GroupDefaultModel')}
               onChange={handleFieldChange}
+            />
+
+            <GroupPricingSourceEditor
+              value={form.watch('GroupPricingSource')}
+              groupOptions={groupNames}
+              modelOptions={modelNames}
+              onChange={(value) =>
+                handleFieldChange('GroupPricingSource', value)
+              }
             />
 
             {hasAutoGroups ? (

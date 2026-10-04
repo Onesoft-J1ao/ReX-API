@@ -57,6 +57,8 @@ const getGroupDefaults = (settings: BillingSettings) => ({
   GroupRetryTimes: settings.GroupRetryTimes,
   ModelSquareVisibleGroups:
     settings['console_setting.model_square_visible_groups'],
+  GroupPricingSource: settings['billing_setting.group_pricing_source'],
+  'billing_setting.billing_mode': settings['billing_setting.billing_mode'],
 })
 
 const BILLING_SECTIONS = [

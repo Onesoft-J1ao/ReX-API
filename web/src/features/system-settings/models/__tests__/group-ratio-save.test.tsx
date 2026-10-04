@@ -22,6 +22,7 @@ import { toast } from 'sonner'
 import { describe, expect, test, vi } from 'vitest'
 
 import { GroupRatioForm } from '../group-ratio-form'
+import type { GroupFormValues } from '../ratio-settings-card'
 import { isModelSquareVisibleGroups, validateJsonString } from '../utils'
 
 vi.mock('sonner', () => ({
@@ -47,20 +48,9 @@ vi.mock('../group-coding-model-editor', () => ({
   GroupCodingModelEditor: () => null,
 }))
 
-type GroupFormValues = {
-  GroupRatio: string
-  TopupGroupRatio: string
-  UserUsableGroups: string
-  GroupGroupRatio: string
-  AutoGroups: string
-  AutoGroupDescription: string
-  MaxTokenAutoGroups: number
-  DefaultUseAutoGroup: boolean
-  GroupSpecialUsableGroup: string
-  GroupDefaultModel: string
-  GroupRetryTimes: string
-  ModelSquareVisibleGroups: string
-}
+vi.mock('../group-pricing-source-editor', () => ({
+  GroupPricingSourceEditor: () => null,
+}))
 
 const values: GroupFormValues = {
   GroupRatio: '{}',
@@ -68,10 +58,12 @@ const values: GroupFormValues = {
   UserUsableGroups: '{}',
   GroupGroupRatio: '{}',
   AutoGroups: '[]',
+  'billing_setting.billing_mode': '{}',
   AutoGroupDescription: '',
   MaxTokenAutoGroups: 5,
   DefaultUseAutoGroup: false,
   GroupSpecialUsableGroup: '{}',
+  GroupPricingSource: '{}',
   GroupDefaultModel: '{}',
   GroupRetryTimes: '{}',
   ModelSquareVisibleGroups: '[]',

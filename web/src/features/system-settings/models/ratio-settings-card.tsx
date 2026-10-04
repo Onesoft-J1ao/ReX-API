@@ -163,6 +163,10 @@ const createGroupSchema = (t: Translate) =>
     MaxTokenAutoGroups: positiveIntegerSchema(t('Enter a positive integer')),
     DefaultUseAutoGroup: z.boolean(),
     GroupSpecialUsableGroup: createJsonStringField(t),
+    GroupPricingSource: createJsonStringField(t),
+    // Read-only input to the per-group override editor: it offers the models
+    // that are configured at all, since an override can only name one.
+    'billing_setting.billing_mode': z.string(),
     GroupDefaultModel: createJsonStringField(t),
     GroupRetryTimes: createJsonStringField(t, {
       predicate: (parsed) =>
@@ -187,7 +191,7 @@ const createGroupSchema = (t: Translate) =>
   })
 
 type ModelFormValues = z.infer<ReturnType<typeof createModelSchema>>
-type GroupFormValues = z.infer<ReturnType<typeof createGroupSchema>>
+export type GroupFormValues = z.infer<ReturnType<typeof createGroupSchema>>
 type RatioTabId =
   | 'models'
   | 'unset-models'
@@ -292,6 +296,7 @@ export function RatioSettingsCard({
     GroupSpecialUsableGroup: normalizeJsonString(
       groupDefaults.GroupSpecialUsableGroup
     ),
+    GroupPricingSource: normalizeJsonString(groupDefaults.GroupPricingSource),
     GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
     GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
     ModelSquareVisibleGroups: normalizeJsonString(
@@ -336,6 +341,9 @@ export function RatioSettingsCard({
       MaxTokenAutoGroups: groupDefaults.MaxTokenAutoGroups,
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
+      ),
+      GroupPricingSource: formatJsonForTextarea(
+        groupDefaults.GroupPricingSource
       ),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
@@ -395,6 +403,9 @@ export function RatioSettingsCard({
       GroupSpecialUsableGroup: normalizeJsonString(
         groupDefaults.GroupSpecialUsableGroup
       ),
+      GroupPricingSource: normalizeJsonString(
+        groupDefaults.GroupPricingSource
+      ),
       GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
       ModelSquareVisibleGroups: normalizeJsonString(
@@ -413,6 +424,9 @@ export function RatioSettingsCard({
       MaxTokenAutoGroups: groupDefaults.MaxTokenAutoGroups,
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
+      ),
+      GroupPricingSource: formatJsonForTextarea(
+        groupDefaults.GroupPricingSource
       ),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
@@ -486,6 +500,7 @@ export function RatioSettingsCard({
         GroupSpecialUsableGroup: normalizeJsonString(
           values.GroupSpecialUsableGroup
         ),
+        GroupPricingSource: normalizeJsonString(values.GroupPricingSource),
         GroupDefaultModel: filterDefaultModelsByGroups(
           values.GroupDefaultModel,
           Object.keys(
@@ -506,6 +521,7 @@ export function RatioSettingsCard({
         GroupSpecialUsableGroup:
           'group_ratio_setting.group_special_usable_group',
         ModelSquareVisibleGroups: 'console_setting.model_square_visible_groups',
+        GroupPricingSource: 'billing_setting.group_pricing_source',
       }
 
       const updates = (
