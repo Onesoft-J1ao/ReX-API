@@ -38,6 +38,18 @@ func modelPriceNotConfiguredError(modelName string, userId int) error {
 	)
 }
 
+// groupPricingSourceUnavailableError reports a group pin the model can no longer
+// honour: the operator pinned this model to per-call billing in this group and
+// the per-call price has since been removed. Failing the request is the safe
+// reading; the alternative is billing the per-call path at a zero price.
+func groupPricingSourceUnavailableError(modelName, group, source string) error {
+	return fmt.Errorf(
+		"分组 %s 把模型 %s 指定为「%s」计费，但该模型没有配置对应的价格，请管理员补上或移除该分组覆盖；"+
+			"Group %s pins model %s to %q billing, but that price is not configured. Configure it or remove the group override.",
+		group, modelName, source, group, modelName, source,
+	)
+}
+
 // https://docs.claude.com/en/docs/build-with-claude/prompt-caching#1-hour-cache-duration
 const claudeCacheCreation1hMultiplier = 6 / 3.75
 
@@ -124,8 +136,27 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
+	// A group may pin this model to a different pricing source than the global
+	// one, so the same model name is billed per token in one group and per call
+	// in another. Resolved after HandleGroupRatio, which is what settles which
+	// group the request is actually routed through.
+	groupSource := billing_setting.GetGroupPricingSource(info.UsingGroup, billingModelName)
+	switch groupSource {
+	case billing_setting.PricingSourceTieredExpr:
+		return modelPriceHelperTiered(c, info, billingModelName, promptTokens, groupRatioInfo)
+	case billing_setting.PricingSourcePrice:
+		if !usePrice {
+			// The save-time validation rejects this, but a price can be removed
+			// after the pin was stored; charging zero would be a silent giveaway.
+			return hosttypes.PriceData{}, groupPricingSourceUnavailableError(billingModelName, info.UsingGroup, groupSource)
+		}
+		usePrice = true
+	case billing_setting.PricingSourceRatio:
+		usePrice = false
+	}
+
 	// Check if this model uses tiered_expr billing
-	if billing_setting.GetBillingMode(billingModelName) == billing_setting.BillingModeTieredExpr {
+	if groupSource == "" && billing_setting.GetBillingMode(billingModelName) == billing_setting.BillingModeTieredExpr {
 		return modelPriceHelperTiered(c, info, billingModelName, promptTokens, groupRatioInfo)
 	}
 

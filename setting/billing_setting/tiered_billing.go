@@ -1,6 +1,7 @@
 package billing_setting
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -26,19 +27,35 @@ const (
 	maxTaskExprSmokeTests   = 64
 )
 
+// The pricing sources a group may pin a model to. "price" is the per-call
+// price, "ratio" the per-token ratio; neither is a BillingMode, because the
+// per-call path is selected by whether a price is configured rather than by a
+// mode value.
+const (
+	PricingSourceRatio      = "ratio"
+	PricingSourcePrice      = "price"
+	PricingSourceTieredExpr = "tiered_expr"
+)
+
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr,
-// billing_setting.plugin_billing_expr
+// billing_setting.plugin_billing_expr, billing_setting.group_pricing_source
 type BillingSetting struct {
 	BillingMode       map[string]string `json:"billing_mode"`
 	BillingExpr       map[string]string `json:"billing_expr"`
 	PluginBillingExpr map[string]string `json:"plugin_billing_expr"`
+	// GroupPricingSource pins how one model is billed in one group, so the same
+	// model name can be priced per token in one group and per call in another.
+	// Shape: {"<group>": {"<model>": "ratio" | "price" | "tiered_expr"}}. A group
+	// absent from this map leaves every model on its global billing mode.
+	GroupPricingSource map[string]map[string]string `json:"group_pricing_source"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode:       make(map[string]string),
-	BillingExpr:       make(map[string]string),
-	PluginBillingExpr: make(map[string]string),
+	BillingMode:        make(map[string]string),
+	BillingExpr:        make(map[string]string),
+	PluginBillingExpr:  make(map[string]string),
+	GroupPricingSource: make(map[string]map[string]string),
 }
 
 func init() {
@@ -65,6 +82,100 @@ func GetBillingMode(model string) string {
 		return BillingModeTieredExpr
 	}
 	return BillingModeRatio
+}
+
+// GetGroupPricingSource returns the source a group pins a model to, or "" when
+// the group leaves the model on its global billing mode.
+func GetGroupPricingSource(group, model string) string {
+	if group == "" || model == "" {
+		return ""
+	}
+	byModel, ok := billingSetting.GroupPricingSource[group]
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(byModel[model])
+}
+
+func GetGroupPricingSourceCopy() map[string]map[string]string {
+	if len(billingSetting.GroupPricingSource) == 0 {
+		return nil
+	}
+	cloned := make(map[string]map[string]string, len(billingSetting.GroupPricingSource))
+	for group, byModel := range billingSetting.GroupPricingSource {
+		copied := make(map[string]string, len(byModel))
+		maps.Copy(copied, byModel)
+		cloned[group] = copied
+	}
+	return cloned
+}
+
+// ValidateGroupPricingSources parses the stored option and rejects a pin the
+// model cannot honour.
+//
+// A pin to per-call billing on a model with no per-call price would fail every
+// request in that group at billing time, and a typo in a group name would
+// silently do nothing — both are cheaper to catch when the option is saved than
+// when a user's request is rejected.
+func ValidateGroupPricingSources(raw string) (map[string]map[string]string, error) {
+	sources := make(map[string]map[string]string)
+	if strings.TrimSpace(raw) == "" {
+		return sources, nil
+	}
+	if err := common.UnmarshalJsonStr(raw, &sources); err != nil {
+		return nil, fmt.Errorf("分组计费配置必须是分组到模型的 JSON 对象: %w", err)
+	}
+
+	groupRatios := ratio_setting.GetGroupRatioCopy()
+	groups := make([]string, 0, len(sources))
+	for group := range sources {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+
+	for _, group := range groups {
+		if strings.TrimSpace(group) == "" {
+			return nil, errors.New("分组名不能为空")
+		}
+		if _, configured := groupRatios[group]; !configured && group != "auto" {
+			return nil, fmt.Errorf("分组 %q 没有配置分组倍率，按分组计费不会生效", group)
+		}
+		models := make([]string, 0, len(sources[group]))
+		for model := range sources[group] {
+			models = append(models, model)
+		}
+		sort.Strings(models)
+		for _, model := range models {
+			if err := validateGroupPricingSource(group, model, sources[group][model]); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return sources, nil
+}
+
+func validateGroupPricingSource(group, model, source string) error {
+	if strings.TrimSpace(model) == "" {
+		return fmt.Errorf("分组 %q 下存在空的模型名", group)
+	}
+	switch strings.TrimSpace(source) {
+	case PricingSourcePrice:
+		if _, configured := ratio_setting.GetModelPrice(model, false); !configured {
+			return fmt.Errorf("模型 %s 没有配置按次价格，分组 %q 无法按次计费", model, group)
+		}
+	case PricingSourceRatio:
+		if _, exists, _ := ratio_setting.GetModelRatio(model); !exists {
+			return fmt.Errorf("模型 %s 没有配置按量倍率，分组 %q 无法按量计费", model, group)
+		}
+	case PricingSourceTieredExpr:
+		if _, ok := GetBillingExpr(model); !ok {
+			return fmt.Errorf("模型 %s 没有配置计费表达式，分组 %q 无法按表达式计费", model, group)
+		}
+	default:
+		return fmt.Errorf("分组 %q 的模型 %s 计费方式 %q 无效，只支持 %s / %s / %s",
+			group, model, source, PricingSourceRatio, PricingSourcePrice, PricingSourceTieredExpr)
+	}
+	return nil
 }
 
 func GetBillingExpr(model string) (string, bool) {

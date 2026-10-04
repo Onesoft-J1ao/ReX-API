@@ -152,6 +152,20 @@ func GetOptions(c *gin.Context) {
 		}
 		options = append(options, &model.Option{Key: key, Value: string(encoded)})
 	}
+	// The group overrides are a nested map, so they do not fit the loop above.
+	groupSources := billing_setting.GetGroupPricingSourceCopy()
+	if groupSources == nil {
+		groupSources = map[string]map[string]string{}
+	}
+	encodedGroupSources, err := common.Marshal(groupSources)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	options = append(options, &model.Option{
+		Key:   "billing_setting.group_pricing_source",
+		Value: string(encodedGroupSources),
+	})
 	options = append(options, &model.Option{
 		Key:   "CompletionRatioMeta",
 		Value: buildCompletionRatioMetaValue(optionValues),
@@ -826,6 +840,11 @@ func UpdateOption(c *gin.Context) {
 				common.ApiErrorMsg(c, fmt.Sprintf("模型 %s 的计费表达式无效: %v", modelName, err))
 				return
 			}
+		}
+	case "billing_setting.group_pricing_source":
+		if _, err = billing_setting.ValidateGroupPricingSources(option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
 		}
 	case billing_setting.PluginBillingExprOption:
 		var expressions map[string]string

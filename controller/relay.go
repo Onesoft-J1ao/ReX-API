@@ -24,6 +24,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -214,6 +215,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = billingErr
 			break
 		}
+		if billingErr := prepareGroupPricedBilling(c, relayInfo); billingErr != nil {
+			newAPIError = billingErr
+			break
+		}
 
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
@@ -393,6 +398,63 @@ func getRetryTimesForCurrentGroup(c *gin.Context, tokenGroup string) int {
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, relayInfo *relaycommon.RelayInfo) {
 	service.ProcessChannelError(c, channelError, err, relayInfo)
+}
+
+// prepareGroupPricedBilling re-resolves the pricing source when an auto-group
+// retry lands on a different group.
+//
+// A group may price a model per token in one group and per call in another, so
+// the source frozen at pre-consume time is only correct for the group that
+// produced it. Re-running the resolver swaps UsePrice/ModelPrice/ModelRatio and
+// the completion/cache ratios to the new group's, then raises the existing
+// session's reservation when the new estimate is higher — never creating a
+// second session, which would deduct the user's quota twice.
+//
+// A group with no pin is left alone: the global billing mode already decided
+// the source, and that decision does not vary by group.
+func prepareGroupPricedBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
+	billingModelName := relayInfo.GetBillingModelName()
+	if billing_setting.GetGroupPricingSource(relayInfo.UsingGroup, billingModelName) == "" {
+		return nil
+	}
+	if relayInfo.TieredBillingSnapshot != nil {
+		// Tiered billing has its own snapshot refresh; re-resolving here would
+		// overwrite it with a legacy-shaped PriceData.
+		return nil
+	}
+
+	previous := relayInfo.PriceData
+	// Same inputs the initial estimate used, so the recomputed price reflects the
+	// same request the user sent.
+	meta := &types.TokenCountMeta{}
+	if relayInfo.Request != nil {
+		meta = relayInfo.Request.GetTokenCountMeta()
+	}
+	priceData, err := helper.ModelPriceHelper(c, relayInfo, relayInfo.GetEstimatePromptTokens(), meta)
+	if err != nil {
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if priceData.QuotaToPreConsume == previous.QuotaToPreConsume {
+		return nil
+	}
+
+	if relayInfo.Billing == nil {
+		// Pre-consume was skipped on the first attempt (a free initial group).
+		// A paid group now needs a session before the upstream call.
+		if !priceData.FreeModel {
+			if billingErr := service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo); billingErr != nil {
+				return billingErr
+			}
+		}
+		return nil
+	}
+	if priceData.QuotaToPreConsume > relayInfo.Billing.GetPreConsumedQuota() {
+		if err := relayInfo.Billing.Reserve(priceData.QuotaToPreConsume); err != nil {
+			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+		}
+	}
+	relayInfo.FinalPreConsumedQuota = relayInfo.Billing.GetPreConsumedQuota()
+	return nil
 }
 
 func RelayMidjourney(c *gin.Context) {
