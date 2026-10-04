@@ -690,11 +690,15 @@ func TestAuditDatabaseMatrix(t *testing.T) {
 						require.NoError(t, db.Create(&releasedAuditLog{UserId: 1, Type: model.LogTypeLogin, Content: "historical login", CreatedAt: 100, RequestId: "legacy-request"}).Error)
 					}
 					// InitDB replaces model.DB with a fresh handle to the same
-					// file. It must be closed at the end too, or the open
-					// handle keeps t.TempDir from removing the directory on
-					// Windows even after newAuditTestDatabase closed its own.
+					// file, once per call, and the two handles it leaves behind are
+					// not the same object. Every one of them has to be closed at the
+					// end, or an open handle keeps t.TempDir from removing the
+					// directory on Windows even after newAuditTestDatabase closed
+					// its own.
+					openedHandles := make([]*gorm.DB, 0, 4)
 					t.Cleanup(func() {
-						for _, handle := range []*gorm.DB{model.DB, model.LOG_DB} {
+						openedHandles = append(openedHandles, model.DB, model.LOG_DB)
+						for _, handle := range openedHandles {
 							if handle == nil {
 								continue
 							}
@@ -706,6 +710,10 @@ func TestAuditDatabaseMatrix(t *testing.T) {
 					for range 2 {
 						require.NoError(t, model.InitDB())
 						require.NoError(t, model.InitLogDB())
+						// InitLogDB reuses model.DB when no separate log DSN is
+						// configured, so collect after each round to catch the
+						// handle the next InitDB is about to replace.
+						openedHandles = append(openedHandles, model.DB)
 					}
 					if !upgrade {
 						require.NoError(t, db.Create(&model.User{Username: "fresh-owner", Password: "placeholder", AffCode: "fresh-aff"}).Error)

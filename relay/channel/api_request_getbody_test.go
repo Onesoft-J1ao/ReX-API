@@ -425,7 +425,12 @@ func runResetOnFirstStreamServer(ln net.Listener, expectRetry bool) <-chan h2Ser
 			res.err = err
 			return
 		}
-		defer conn.Close()
+		closed := false
+		defer func() {
+			if !closed {
+				_ = conn.Close()
+			}
+		}()
 
 	attempts:
 		for attempt := 0; ; attempt++ {
@@ -443,6 +448,16 @@ func runResetOnFirstStreamServer(ln net.Listener, expectRetry bool) <-chan h2Ser
 					return
 				}
 				if !expectRetry {
+					// Announce the shutdown before closing, and let the peer
+					// read it: see closeAfterH2Shutdown. Without the GOAWAY the
+					// client cannot tell a refused stream from a dropped
+					// connection, and this case documents what it reports for
+					// the latter.
+					if err := framer.WriteGoAway(streamID, http2.ErrCodeNo, nil); err != nil {
+						res.err = err
+					}
+					closed = true
+					closeAfterH2Shutdown(conn, framer)
 					break attempts
 				}
 				continue
@@ -480,7 +495,9 @@ func runGoAwayAfterFirstRequestServer(ln net.Listener) <-chan h2ServerResult {
 
 			if attempt == 0 {
 				err = framer.WriteGoAway(0, http2.ErrCodeNo, nil)
-				conn.Close()
+				// Let the client read the GOAWAY before the connection goes
+				// away; see closeAfterH2Shutdown.
+				closeAfterH2Shutdown(conn, framer)
 				if err != nil {
 					res.err = err
 					return
@@ -489,7 +506,9 @@ func runGoAwayAfterFirstRequestServer(ln net.Listener) <-chan h2ServerResult {
 			}
 
 			err = writeH2TestResponse(framer, streamID)
-			conn.Close()
+			// Same ordering concern as the GOAWAY above: the response has to
+			// land before the connection goes away.
+			closeAfterH2Shutdown(conn, framer)
 			if err != nil {
 				res.err = err
 			}
@@ -498,6 +517,34 @@ func runGoAwayAfterFirstRequestServer(ln net.Listener) <-chan h2ServerResult {
 	}()
 	return resCh
 }
+
+// closeAfterH2Shutdown ends an HTTP/2 connection the way a server should after
+// announcing a shutdown: let the peer read the GOAWAY or RST_STREAM first,
+// then close.
+//
+// Closing right after the write races the client — Windows delivers the TCP
+// reset often enough that the transport reports a connection error instead of
+// the GOAWAY it is supposed to retry on. The wait is short and bounded: the
+// peer is not expected to close (it still has this request in flight), so
+// draining until it goes away would simply stall the server goroutine.
+func closeAfterH2Shutdown(conn net.Conn, framer *http2.Framer) {
+	_ = conn.SetReadDeadline(time.Now().Add(h2ShutdownDrainTimeout))
+	for {
+		if _, err := framer.ReadFrame(); err != nil {
+			break
+		}
+		// A frame arrived, so the peer is still talking. Give it a moment to
+		// process the shutdown and then stop waiting for it.
+		_ = conn.SetReadDeadline(time.Now().Add(h2ShutdownDrainIdle))
+	}
+	_ = conn.SetReadDeadline(time.Time{})
+	_ = conn.Close()
+}
+
+const (
+	h2ShutdownDrainTimeout = 500 * time.Millisecond
+	h2ShutdownDrainIdle    = 20 * time.Millisecond
+)
 
 func newH2PriorKnowledgeClient(ln net.Listener) (*http.Client, *http2.Transport) {
 	transport := &http2.Transport{

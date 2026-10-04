@@ -1081,6 +1081,15 @@ func TestSecurityEnrollmentOAuthVerificationNeverChangesLoginOrBindings(t *testi
 				FlowToken string `json:"flow_token"`
 			}
 			require.NoError(t, common.Unmarshal(body.Data, &started))
+			// The callback only proceeds when the browser cookie issued with the
+			// flow is presented again, so the test has to carry it across.
+			var browser *http.Cookie
+			for _, cookie := range response.Result().Cookies() {
+				if cookie.Name == oauthBrowserCookie {
+					browser = cookie
+				}
+			}
+			require.NotNil(t, browser, "the flow must be bound to a browser cookie")
 			callbackIdentity := identity
 			query := "&code=authorization-code"
 			switch scenario {
@@ -1102,7 +1111,7 @@ func TestSecurityEnrollmentOAuthVerificationNeverChangesLoginOrBindings(t *testi
 				HandleOAuth(c)
 			}
 			path := "/api/oauth/enrollment-oauth?state=" + started.FlowToken + query
-			response = securityEnrollmentRequest("GET", path, "", "", callbackIdentity, handler)
+			response = securityEnrollmentRequest("GET", path, "", "", callbackIdentity, handler, browser)
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 			assert.Equal(t, scenario == "success", body.Success, body.Message)
 			assert.NotContains(t, response.Body.String(), "access_token")
@@ -1112,7 +1121,9 @@ func TestSecurityEnrollmentOAuthVerificationNeverChangesLoginOrBindings(t *testi
 				require.NoError(t, common.Unmarshal(body.Data, &proof))
 				_, err := service.ConsumeOperationProof(proof.ProofToken, identity, service.VerificationOperation{Scope: "2fa.setup"})
 				require.NoError(t, err)
-				replayed := securityEnrollmentRequest("GET", path, "", "", identity, handler)
+				// The cookie is presented again so the replay is refused for the reason under
+				// test — the flow is single-use — rather than the browser check.
+				replayed := securityEnrollmentRequest("GET", path, "", "", identity, handler, browser)
 				assert.Equal(t, http.StatusForbidden, replayed.Code)
 			}
 			var users, sessions, bindings int64
@@ -1371,10 +1382,17 @@ func TestSecurityEnrollmentCustomOAuthUsesExistingBinding(t *testing.T) {
 		FlowToken string `json:"flow_token"`
 	}
 	require.NoError(t, common.Unmarshal(body.Data, &started))
+	var browser *http.Cookie
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == oauthBrowserCookie {
+			browser = cookie
+		}
+	}
+	require.NotNil(t, browser, "the flow must be bound to a browser cookie")
 	response = securityEnrollmentRequest("GET", "/api/oauth/enrollment-custom?state="+started.FlowToken+"&code=custom-code", "", "", identity, func(c *gin.Context) {
 		c.Params = gin.Params{{Key: "provider", Value: "enrollment-custom"}}
 		HandleOAuth(c)
-	})
+	}, browser)
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 	require.True(t, body.Success, body.Message)
 	var proof service.SecurityProof

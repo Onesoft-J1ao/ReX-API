@@ -190,8 +190,12 @@ export function parseTaskResult() { return {}; }
 	require.NoError(t, err)
 	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister(key) })
 
-	bound := `{"mode":"single","channel":{"type":60,"name":"gateway","key":"sk","models":"gateway-doc","group":"default","base_url":"https://gateway.example","setting":"{\"task_extend_plugin_keys\":[\"gateway-bind\"]}"}}`
-	unbound := `{"mode":"single","channel":{"type":60,"name":"plain-gateway","key":"sk","models":"gpt","group":"default","base_url":"https://gateway.example"}}`
+	// The JSON bodies spell the channel type out, so they take the constant
+	// rather than a literal. Channel ids above 58 were renumbered once already,
+	// and a literal here silently became a different channel type.
+	newAPIType := constant.ChannelTypeNewAPI
+	bound := fmt.Sprintf(`{"mode":"single","channel":{"type":%d,"name":"gateway","key":"sk","models":"gateway-doc","group":"default","base_url":"https://gateway.example","setting":"{\"task_extend_plugin_keys\":[\"gateway-bind\"]}"}}`, newAPIType)
+	unbound := fmt.Sprintf(`{"mode":"single","channel":{"type":%d,"name":"plain-gateway","key":"sk","models":"gpt","group":"default","base_url":"https://gateway.example"}}`, newAPIType)
 	adminDenied := postAddChannel(t, 2, common.RoleAdminUser, bound)
 	assert.Contains(t, adminDenied.Body.String(), "task plugin channels require the task_plugin.bind permission")
 	rootAllowed := postAddChannel(t, 1, common.RoleRootUser, bound)
@@ -204,7 +208,7 @@ export function parseTaskResult() { return {}; }
 	channel := model.Channel{Type: constant.ChannelTypeNewAPI, Status: common.ChannelStatusEnabled, Name: "existing-gateway", Models: "gateway-doc", Group: "default", Key: "sk", BaseURL: &baseURL, Setting: &setting}
 	require.NoError(t, channel.Insert())
 	update := func(name, setting string) string {
-		return fmt.Sprintf(`{"id":%d,"type":60,"name":%q,"key":"sk","models":"gateway-doc","group":"default","base_url":"https://gateway.example","setting":%q}`, channel.Id, name, setting)
+		return fmt.Sprintf(`{"id":%d,"type":%d,"name":%q,"key":"sk","models":"gateway-doc","group":"default","base_url":"https://gateway.example","setting":%q}`, channel.Id, newAPIType, name, setting)
 	}
 	unchanged := putUpdateChannel(t, 2, common.RoleAdminUser, update("renamed-gateway", setting))
 	assert.Contains(t, unchanged.Body.String(), `"success":true`, "resubmitting the stored bindings does not need the bind permission")

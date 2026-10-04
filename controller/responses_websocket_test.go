@@ -815,7 +815,12 @@ func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing
 		t.Run(tc.name, func(t *testing.T) {
 			preConsumed := make(chan int, 1)
 			tokenID := make(chan int, 1)
-			fixture := newResponsesWSBillingTest(t, `tier("output", c * 2)`, func(ws *websocket.Conn, _ *http.Request) {
+			// A fixed per-request price reserves a non-zero amount before the
+			// upstream is contacted, which is what makes the refund observable.
+			// A token-priced expression would reserve against input tokens only —
+			// the reservation runs the expression with C=0, so the client's
+			// max_output_tokens does not enter it.
+			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
 				if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
 					return
 				}
@@ -848,7 +853,10 @@ func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing
 			rejectionError, _ := rejection["error"].(map[string]any)
 			assert.Equal(t, tc.wantType, rejectionError["type"])
 			assert.Equal(t, tc.wantMessage, rejectionError["message"])
-			assert.Equal(t, 2990, <-preConsumed, "the rejected request reserved quota before contacting upstream")
+			// The fixture prices at $0.002 per request with QuotaPerUnit 500000, so the
+			// reservation is 1000 quota and the token is left at 2000 until the
+			// refund lands.
+			assert.Equal(t, 2000, <-preConsumed, "the rejected request reserved quota before contacting upstream")
 			deadline := time.NewTimer(3 * time.Second)
 			defer deadline.Stop()
 			for {

@@ -320,17 +320,40 @@ func (mailbox *securityMailbox) receive(connection net.Conn) {
 	}
 }
 
+// verificationCodePattern pulls the six-digit code out of the email body.
+//
+// The code is rendered as the only text inside the monospace block the
+// template draws it in. Matching that block rather than a specific tag keeps
+// this working when the template's styling changes — an earlier version of this
+// regex expected <strong>, which no template has emitted for some time.
+var verificationCodePattern = regexp.MustCompile(`(?s)font-family:monospace[^>]*>([0-9]{6})<`)
+
+// code waits for the delivery instead of reading once. Sending runs on a
+// separate goroutine from the handler under test, so an immediate read races
+// the listener and reports a delivered message as missing.
 func (mailbox *securityMailbox) code(t *testing.T, receiver string) string {
 	t.Helper()
-	mailbox.mutex.Lock()
-	defer mailbox.mutex.Unlock()
-	for index := len(mailbox.mail[receiver]) - 1; index >= 0; index-- {
-		match := regexp.MustCompile(`<strong>([0-9]{6})</strong>`).FindStringSubmatch(mailbox.mail[receiver][index])
-		if len(match) == 2 {
-			return match[1]
+	const waitForDelivery = 3 * time.Second
+	deadline := time.Now().Add(waitForDelivery)
+	for {
+		mailbox.mutex.Lock()
+		var found string
+		for index := len(mailbox.mail[receiver]) - 1; index >= 0; index-- {
+			if match := verificationCodePattern.FindStringSubmatch(mailbox.mail[receiver][index]); len(match) == 2 {
+				found = match[1]
+				break
+			}
 		}
+		mailbox.mutex.Unlock()
+		if found != "" {
+			return found
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("no verification email delivered to %s", receiver)
+	t.Fatalf("no verification email delivered to %s within %s", receiver, waitForDelivery)
 	return ""
 }
 
