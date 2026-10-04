@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import {
   DEFAULT_PRICING_PAGE_SIZE,
   DEFAULT_TOKEN_UNIT,
+  FILTER_ALL,
   SORT_OPTIONS,
 } from '../constants'
 import { modelFamilyRank } from '../lib/filters'
@@ -73,33 +74,40 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     retry: false,
   })
 
-  const perfMap = useMemo(() => {
+  // Health is per (model, group). A model is usually served by several groups
+  // and they can disagree completely — one group 97% and another 0% — so a map
+  // keyed on the model name alone shows one group's numbers on every card.
+  // The key keeps the group, and the lookup below picks the group the viewer is
+  // looking at.
+  const healthByModelAndGroup = useMemo(() => {
     const map = new Map<string, ModelPerfBadgeData>()
     for (const group of healthQuery.data?.data?.groups ?? []) {
       for (const model of group.models ?? []) {
         if (!model.model || !model.has_active) continue
-        const existing = map.get(model.model)
-        // A model can be served by several groups; keep the healthiest reading
-        // instead of letting whichever group is listed last win.
-        if (existing && existing.success_rate >= model.availability) continue
-        map.set(model.model, {
+        map.set(`${group.group}|${model.model}`, {
           success_rate: model.availability,
           avg_latency_ms: model.latency_ms,
-          // The probe does not measure throughput, so keep whatever the passive
-          // rollup had rather than reporting a made-up zero.
-          avg_tps: existing?.avg_tps ?? 0,
-          recent_success_series:
-            model.series?.map((bucket) => ({
-              ts: bucket.ts,
-              success_rate: bucket.ok_pct,
-            })) ?? existing?.recent_success_series,
+          // The probe does not measure throughput. Reporting the previous
+          // group's figure here — which is what carrying it over amounted to —
+          // would put one group's TPS on another group's card.
+          avg_tps: 0,
+          recent_success_series: model.series?.map((bucket) => ({
+            ts: bucket.ts,
+            success_rate: bucket.ok_pct,
+          })),
         })
       }
     }
-    // Traffic with no probe result yet still deserves a reading. The probe is
-    // the fresher signal, so a model it already reported keeps that reading.
+    return map
+  }, [healthQuery.data])
+
+  // The passive rollup has no group dimension at all, so it stands in only for a
+  // model no probe has reported. The probe is the fresher signal, so a model it
+  // already covered keeps that reading.
+  const perfMap = useMemo(() => {
+    const map = new Map<string, ModelPerfBadgeData>()
     for (const model of perfQuery.data?.data?.models ?? []) {
-      if (!model.model_name || map.has(model.model_name)) continue
+      if (!model.model_name) continue
       map.set(model.model_name, {
         ...model,
         window_start: perfQuery.data?.data.window_start,
@@ -107,7 +115,25 @@ export function ModelCardGrid(props: ModelCardGridProps) {
       })
     }
     return map
-  }, [perfQuery.data, healthQuery.data])
+  }, [perfQuery.data])
+
+  const perfFor = useCallback(
+    (modelName: string): ModelPerfBadgeData | undefined => {
+      if (!modelName) return undefined
+      const group = props.selectedGroup
+      if (group && group !== FILTER_ALL) {
+        const scoped = healthByModelAndGroup.get(`${group}|${modelName}`)
+        if (scoped) return scoped
+      }
+      // No group filter, or the filtered group has no reading for this model:
+      // fall back to any group, then to the passive rollup.
+      for (const [key, value] of healthByModelAndGroup) {
+        if (key.endsWith(`|${modelName}`)) return value
+      }
+      return perfMap.get(modelName)
+    },
+    [healthByModelAndGroup, perfMap, props.selectedGroup]
+  )
 
   const orderedModels = useMemo(() => {
     if (props.sortBy !== SORT_OPTIONS.RECOMMENDED) return props.models
@@ -119,11 +145,11 @@ export function ModelCardGrid(props: ModelCardGridProps) {
         modelFamilyRank(a.model_name) - modelFamilyRank(b.model_name)
       if (family !== 0) return family
       return (
-        (perfMap.get(b.model_name || '')?.success_rate ?? 0) -
-        (perfMap.get(a.model_name || '')?.success_rate ?? 0)
+        (perfFor(b.model_name)?.success_rate ?? 0) -
+        (perfFor(a.model_name)?.success_rate ?? 0)
       )
     })
-  }, [props.models, props.sortBy, perfMap])
+  }, [props.models, props.sortBy, perfFor])
 
   const totalPages = Math.max(1, Math.ceil(orderedModels.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -150,7 +176,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             showRechargePrice={props.showRechargePrice}
             selectedGroup={props.selectedGroup}
             groupBillingSource={props.groupBillingSource}
-            perf={perfMap.get(model.model_name || '')}
+            perf={perfFor(model.model_name)}
             onClick={() => props.onModelClick(model.model_name || '')}
           />
         ))}

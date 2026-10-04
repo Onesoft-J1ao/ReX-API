@@ -625,6 +625,70 @@ describe('model cards', () => {
     expect(grid).not.toHaveClass('min-[1440px]:grid-cols-3')
   })
 
+  // The same model in two groups can read completely differently — one healthy,
+  // one failing. Keying the health map on the model name alone put one group's
+  // numbers on the other's card.
+  it('reads each card from the group the viewer selected', async () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: { models: [] },
+    })
+    queryClient.setQueryData(['status-check'], {
+      success: true,
+      data: {
+        groups: [
+          {
+            group: 'healthy-group',
+            models: [
+              {
+                model: 'example-model',
+                group: 'healthy-group',
+                availability: 97,
+                latency_ms: 500,
+                has_active: true,
+                ok: true,
+              },
+            ],
+          },
+          {
+            group: 'broken-group',
+            models: [
+              {
+                model: 'example-model',
+                group: 'broken-group',
+                availability: 0,
+                latency_ms: 90000,
+                has_active: true,
+                ok: false,
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={[pricingModel()]}
+          onModelClick={vi.fn()}
+          selectedGroup='broken-group'
+        />
+      </QueryClientProvider>
+    )
+
+    const heading = await screen.findByRole('heading', {
+      name: 'example-model',
+    })
+    // The card is the grid item wrapping the heading; assert on all of its text
+    // rather than trying to pick the right inner row.
+    const card = heading.closest('.rounded-xl') ?? heading.parentElement!
+    await waitFor(() => {
+      expect(card.textContent).toContain('90.00s')
+    })
+    expect(card.textContent).not.toContain('500ms')
+  })
+
   it('lights slots 23 and 18 when series has the current hour and five hours earlier', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
