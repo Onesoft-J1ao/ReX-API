@@ -159,7 +159,10 @@ export function formatPrice(
   selectedGroup?: string,
   showCurrencySymbol = true
 ): string {
-  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
+  // A per-request model has no token price to show; its price belongs on the
+  // request column. A free one still has a price of zero, so leave the label to
+  // that column rather than claiming there is none.
+  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST && model.model_price) {
     return '-'
   }
 
@@ -202,7 +205,9 @@ export function formatGroupPrice(
   usdExchangeRate = 1,
   groupRatio: Record<string, number>
 ): string {
-  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
+  // Same rule as formatPrice: a per-request model shows nothing on a token
+  // column, but a free one has a real price of zero.
+  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST && model.model_price) {
     return '-'
   }
 
@@ -255,12 +260,14 @@ export function formatFixedPrice(
     model.quota_type === QUOTA_TYPE_VALUES.REQUEST ||
     getGroupPricingForModel(model, group, groupBillingSource, 1).source ===
       'price'
-  if (!perCallSource || !((model.model_price ?? 0) > 0)) {
+  if (!perCallSource || model.model_price == null) {
+    // A model with no per-call price at all is unpriced, which is not the same
+    // as free. One configured at zero is free and falls through below.
     return '-'
   }
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
-  let priceInUSD = (model.model_price || 0) * ratio
+  let priceInUSD = model.model_price * ratio
   if (priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) return t('Free')
 
   priceInUSD = applyRechargeRate(
@@ -299,14 +306,15 @@ export function formatRequestPrice(
     getGroupPricingForModel(model, selectedGroup ?? '', groupBillingSource, 1)
       .source === 'price'
   // A pinned model with no per-call price configured has nothing to charge per
-  // request; the gateway rejects that pin rather than billing zero.
-  if (!perCallSource || !((model.model_price ?? 0) > 0)) {
+  // request; the gateway rejects that pin rather than billing zero. A model
+  // configured at zero is free, not unpriced, and falls through below.
+  if (!perCallSource || model.model_price == null) {
     return '-'
   }
 
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
-  let priceInUSD = (model.model_price || 0) * displayGroupRatio
+  let priceInUSD = model.model_price * displayGroupRatio
   if (priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) {
     return t('Free')
   }
