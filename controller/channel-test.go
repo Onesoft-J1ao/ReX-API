@@ -302,6 +302,12 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 
 	request := buildTestRequest(testModel, endpointType, channel.Type, isStream)
 
+	// A video submit is an asynchronous task handled by the task-plugin path, not
+	// by the synchronous relay below, so it gets its own reachability check.
+	if classifyChannelTestModel(channel.Type, testModel) == channelTestModelVideo {
+		return probeVideoEndpointReachable(c, channel, testModel)
+	}
+
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
 	if err != nil {
@@ -955,6 +961,8 @@ func autoDetectChannelTestRequestPath(channelType int, model string) string {
 	case channelTestModelImage:
 		// 图片生成模型统一走 /v1/images/generations（含 VolcEngine seedream 等各厂商模型）
 		return "/v1/images/generations"
+	case channelTestModelVideo:
+		return "/v1/videos"
 	case channelTestModelResponses:
 		return "/v1/responses"
 	}
@@ -978,6 +986,90 @@ func isImageGenerationTestModel(model string) bool {
 	return false
 }
 
+// probeVideoEndpointReachable checks that a video model's endpoint answers,
+// without creating a render task.
+//
+// A real submit costs money — the site would pay for a video on every probe
+// cycle — and the async task path is not the synchronous relay this file drives.
+// So the probe sends a request that is malformed on purpose and reads the
+// rejection: the upstream answers "prompt is required" only when the endpoint
+// exists, the key authenticates and the model is recognised. A missing endpoint
+// answers 404 and an unusable model answers 503, so the three are
+// distinguishable.
+func probeVideoEndpointReachable(c *gin.Context, channel *model.Channel, testModel string) testResult {
+	w := httptest.NewRecorder()
+	testCtx, _ := gin.CreateTestContext(w)
+
+	body, err := common.Marshal(map[string]any{"model": testModel})
+	if err != nil {
+		return testResult{context: c, localErr: err,
+			newAPIError: types.NewError(err, types.ErrorCodeJsonMarshalFailed)}
+	}
+
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return testResult{context: c, localErr: errors.New("channel has no usable key"),
+			newAPIError: types.NewError(errors.New("channel has no usable key"), types.ErrorCodeConvertRequestFailed)}
+	}
+
+	endpoint := strings.TrimSuffix(channel.GetBaseURL(), "/") + "/v1/videos"
+	var lastErr error
+	for _, key := range keys {
+		request, err := http.NewRequestWithContext(
+			c.Request.Context(), http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Authorization", "Bearer "+key)
+
+		response, err := service.GetHttpClient().Do(request)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		payload, readErr := io.ReadAll(io.LimitReader(response.Body, 8<<10))
+		response.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+
+		// The upstream rejects a prompt-less video submit only when it got far
+		// enough to read the body, which means routing and auth both worked.
+		if response.StatusCode == http.StatusBadRequest &&
+			strings.Contains(strings.ToLower(string(payload)), "prompt") {
+			testCtx.Request = httptest.NewRequestWithContext(
+				c.Request.Context(), http.MethodPost, "/v1/videos", nil)
+			common.SetContextKey(testCtx, "channel", channel.Type)
+			common.SetContextKey(testCtx, "base_url", channel.GetBaseURL())
+			common.SetContextKey(testCtx, "group", common.GetContextKeyString(c, "group"))
+			common.SetContextKey(testCtx, constant.ContextKeyChannelKey, key)
+			return testResult{context: c}
+		}
+		lastErr = fmt.Errorf(
+			"video endpoint did not accept the probe: HTTP %d %s",
+			response.StatusCode, common.LocalLogPreview(string(payload)))
+	}
+
+	if lastErr == nil {
+		lastErr = errors.New("video endpoint probe failed")
+	}
+	return testResult{context: c, localErr: lastErr,
+		newAPIError: types.NewError(lastErr, types.ErrorCodeDoRequestFailed)}
+}
+
+// isVideoGenerationTestModel 判断渠道测试是否应把该模型当作视频生成模型处理。
+//
+// 关键词刻意收窄到 "agnes-video"：上游对这类模型答 "Model X is a video model.
+// Use /v1/videos."，实测只有 agnes-video-* 家族如此。泛用 "video" 会误伤
+// nvidia/ai-synthetic-video-detector —— 它名字里有 video，实际是检测器而非生成
+// 模型，走 /v1/videos 只会得到一个无意义的失败。
+func isVideoGenerationTestModel(model string) bool {
+	return strings.Contains(strings.ToLower(model), "agnes-video")
+}
+
 // channelTestModelKind classifies a model for the channel test. The request path
 // and the request body must both come from this one classification.
 //
@@ -995,6 +1087,7 @@ const (
 	channelTestModelEmbedding
 	channelTestModelImage
 	channelTestModelResponses
+	channelTestModelVideo
 )
 
 func classifyChannelTestModel(channelType int, modelName string) channelTestModelKind {
@@ -1007,6 +1100,8 @@ func classifyChannelTestModel(channelType int, modelName string) channelTestMode
 		return channelTestModelEmbedding
 	case isImageGenerationTestModel(modelName):
 		return channelTestModelImage
+	case isVideoGenerationTestModel(modelName):
+		return channelTestModelVideo
 	case strings.Contains(lower, "codex"):
 		return channelTestModelResponses
 	}

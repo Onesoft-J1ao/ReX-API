@@ -24,6 +24,25 @@ func TestBuildTestRequestForSystemOne(t *testing.T) {
 	require.NoError(t, systemOne.Validate())
 }
 
+func TestVideoModelsAreClassifiedAndRouted(t *testing.T) {
+	for _, name := range []string{"agnes-video-v2.0", "agnes-video-2.5-flash"} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, channelTestModelVideo,
+				classifyChannelTestModel(constant.ChannelTypeOpenAI, name))
+			assert.Equal(t, "/v1/videos",
+				autoDetectChannelTestRequestPath(constant.ChannelTypeOpenAI, name))
+		})
+	}
+
+	// A substring of "video" is not enough: this one is a detector, and sending
+	// it to /v1/videos would report a failure that means nothing.
+	t.Run("a detector is not a video model", func(t *testing.T) {
+		assert.False(t, isVideoGenerationTestModel("nvidia/ai-synthetic-video-detector"))
+		assert.Equal(t, channelTestModelChat,
+			classifyChannelTestModel(constant.ChannelTypeOpenAI, "nvidia/ai-synthetic-video-detector"))
+	})
+}
+
 func TestChannelTestPathAndBodyAgree(t *testing.T) {
 	// The auto-detected path and the auto-detected body must classify a model
 	// the same way. They used to be decided separately: a name matching "embed"
