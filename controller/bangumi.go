@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -147,17 +148,10 @@ func GetBangumiCalendar(c *gin.Context) {
 
 // GetBangumiSubject returns one subject with its episode list.
 func GetBangumiSubject(c *gin.Context) {
-	id := strings.TrimSpace(c.Param("id"))
 	// The id goes into a cache key and an upstream path, so keep it to digits
 	// rather than trusting the shape.
-	for _, r := range id {
-		if r < '0' || r > '9' {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid subject id"})
-			return
-		}
-	}
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid subject id"})
+	id, ok := animePathID(c, "id", "invalid subject id")
+	if !ok {
 		return
 	}
 	bangumiFetch(c, "bangumi:subject:"+id, bangumiCacheTTL["subject"], func() (string, error) {
@@ -349,14 +343,10 @@ func dandanplayGet(ctx context.Context, path string, query url.Values) ([]byte, 
 	}, dandanplayTimeout)
 }
 
-// animeUpstreamError marks a failure that came from the upstream rather than
-// from this instance, so the handler can answer 502 rather than 500.
-type animeUpstreamError struct{ message string }
-
-func (e *animeUpstreamError) Error() string { return e.message }
-
+// errAnimeUpstream reports a failure that came from an upstream rather than
+// from this instance. The message is passed through to the caller as-is.
 func errAnimeUpstream(message string) error {
-	return &animeUpstreamError{message: message}
+	return errors.New(message)
 }
 
 // animeRelease mirrors one Mikan release, plus the attributes Animeko derives
@@ -757,8 +747,7 @@ func animeOrderReleases(candidates []animeRelease) []animeRelease {
 	return ordered
 }
 
-// animeSelectRelease picks the release for one episode, and returns the rest
-// best-first behind it so the page can offer alternatives.
+// animeSelectRelease picks the release for one episode.
 //
 // It returns nil only when there is nothing to choose from.
 func animeSelectRelease(candidates []animeRelease) *animeRelease {
@@ -1284,7 +1273,9 @@ func animeReleasesPayload(c *gin.Context, subjectID, keyword string) (string, er
 }
 
 // animeEpisodesForSubject reads the episode list so releases can be matched to
-// episodes. The episode list is itself cached, so this usually costs nothing.
+// episodes. It fetches dandanplay directly instead of reading the cache the
+// episodes endpoint fills, so it costs one upstream call each time the caller's
+// releases response is rebuilt.
 func animeEpisodesForSubject(c *gin.Context, subjectID string) ([]animeEpisode, error) {
 	body, err := dandanplayGet(c.Request.Context(), "/api/v2/bangumi/bgmtv/"+subjectID, nil)
 	if err != nil {
