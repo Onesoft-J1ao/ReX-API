@@ -8003,7 +8003,8 @@
     "No sources found for this anime.": "Для этого аниме источники не найдены.",
     "Sources": "Источники",
     "Watch": "Смотреть",
-    "No source matched this episode. Pick one below.": "Для этой серии источник не найден. Выберите ниже."
+    "No source matched this episode. Pick one below.": "Для этой серии источник не найден. Выберите ниже.",
+    "Cannot play in the browser": "Браузер не сможет воспроизвести"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

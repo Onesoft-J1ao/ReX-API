@@ -231,6 +231,92 @@ func TestAnimeMatchRelease(t *testing.T) {
 	})
 }
 
+// animeReleaseFor builds a release the way production does, so a test exercises
+// the real title parsing instead of hand-setting the fields it is asserting on.
+func animeReleaseFor(topicID, title string) animeRelease {
+	release := animeRelease{TopicID: topicID, Title: title}
+	applyAnimeTitleAttributes(&release, title)
+	return release
+}
+
+func TestAnimeParseVideoAttributes(t *testing.T) {
+	cases := []struct {
+		name      string
+		title     string
+		codec     string
+		container string
+		playable  bool
+	}{
+		{
+			name:      "Baha web release in H.264 MP4",
+			title:     "[ANi] Sousou no Frieren - 28 [1080P][Baha][WEB-DL][AAC AVC][CHT][MP4]",
+			codec:     "H264",
+			container: "MP4",
+			playable:  true,
+		},
+		{
+			name:      "x265 blu-ray rip",
+			title:     "[7ACG] Frieren S01 [BDRip 1080p HEVC AAC][简繁字幕]",
+			codec:     "H265",
+			container: "",
+			playable:  false,
+		},
+		{
+			name:      "H.264 without a stated container",
+			title:     "[GJ.Y] Frieren - 28 (1920x1080 AVC AAC)",
+			codec:     "H264",
+			container: "",
+			playable:  false,
+		},
+		{
+			name:      "AV1 in MP4 is not H.264",
+			title:     "[Group] Frieren - 01 [1080p AV1 MP4]",
+			codec:     "AV1",
+			container: "MP4",
+			playable:  false,
+		},
+		{
+			name:      "a title naming neither",
+			title:     "[Group] Frieren - 01 [1080p][简繁字幕]",
+			codec:     "",
+			container: "",
+			playable:  false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			release := animeReleaseFor("id", tc.title)
+			assert.Equal(t, tc.codec, release.VideoCodec)
+			assert.Equal(t, tc.container, release.Container)
+			assert.Equal(t, tc.playable, release.Playable)
+		})
+	}
+}
+
+func TestAnimeMatchReleasePrefersAPlayableRelease(t *testing.T) {
+	// The HEVC file is the better one and the feed lists it first, but it is the
+	// one the page cannot decode. Picking it would stall the player on an
+	// episode a worse-looking release could have played.
+	hevc := animeReleaseFor("hevc", "[Group] Show - 01 [1080p HEVC MKV]")
+	mp4 := animeReleaseFor("mp4", "[Group] Show - 01 [720p AVC MP4]")
+
+	matched := animeMatchRelease([]animeRelease{hevc, mp4}, 1)
+
+	require.NotNil(t, matched)
+	assert.Equal(t, "mp4", matched.TopicID)
+}
+
+func TestAnimeMatchReleaseKeepsAnUnplayableReleaseWhenItIsAllThereIs(t *testing.T) {
+	hevc := animeReleaseFor("hevc", "[Group] Show - 01 [1080p HEVC MKV]")
+
+	matched := animeMatchRelease([]animeRelease{hevc}, 1)
+
+	require.NotNil(t, matched)
+	assert.Equal(t, "hevc", matched.TopicID)
+	assert.False(t, matched.Playable)
+}
+
 // TestAnimeEpisodeNumberInTitle covers the number parsing, including the
 // resolution trap: a bare "1080" must not read as episode 1080, and a batch
 // range must not claim to be its own first episode.

@@ -219,7 +219,13 @@ function ReleaseOption(props: {
   selected: boolean
   onSelect: () => void
 }) {
+  const { t } = useTranslation()
   const size = formatBytes(props.release.size)
+  // The codec and container together are what decide whether the page can play
+  // the file, so they are shown instead of being left buried in the title.
+  const format = [props.release.videoCodec, props.release.container]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <button
@@ -234,10 +240,16 @@ function ReleaseOption(props: {
       <span className='line-clamp-2'>{props.release.title}</span>
       <span className='text-muted-foreground mt-1 flex flex-wrap gap-x-2'>
         {props.release.resolution && <span>{props.release.resolution}</span>}
+        {format && <span>{format}</span>}
         {props.release.subtitleLanguages.length > 0 && (
           <span>{props.release.subtitleLanguages.join('/')}</span>
         )}
         {size && <span>{size}</span>}
+        {!props.release.playable && (
+          <span className='text-warning'>
+            {t('Cannot play in the browser')}
+          </span>
+        )}
       </span>
     </button>
   )

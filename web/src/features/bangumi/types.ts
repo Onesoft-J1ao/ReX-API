@@ -153,6 +153,15 @@ export type BangumiRelease = {
   subtitleLanguages: string[]
   /** EMBEDDED, CLOSED or EXTERNAL_DISCOVER when the title states one. */
   subtitleKind?: string
+  /** H264, H265, AV1 or VP9 when the title states one. */
+  videoCodec?: string
+  /** MP4, MKV, AVI or WebM when the title states one. */
+  container?: string
+  /**
+   * Whether a browser can play this release as published. Decided by the server
+   * so the rule is written once; only H.264 in MP4 qualifies.
+   */
+  playable: boolean
   /**
    * Always `EXACT`: the server confirms a candidate against Mikan's own page
    * before returning its releases, so a name-only match is dropped rather than

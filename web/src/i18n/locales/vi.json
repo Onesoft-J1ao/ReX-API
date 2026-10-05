@@ -8003,7 +8003,8 @@
     "No sources found for this anime.": "Không tìm thấy nguồn cho anime này.",
     "Sources": "Nguồn",
     "Watch": "Xem",
-    "No source matched this episode. Pick one below.": "Không có nguồn nào khớp với tập này. Chọn một nguồn bên dưới."
+    "No source matched this episode. Pick one below.": "Không có nguồn nào khớp với tập này. Chọn một nguồn bên dưới.",
+    "Cannot play in the browser": "Trình duyệt không phát được"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

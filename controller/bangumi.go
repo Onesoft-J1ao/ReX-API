@@ -366,6 +366,12 @@ type animeRelease struct {
 	MediaOrigin   string   `json:"mediaOrigin,omitempty"`
 	SubtitleLangs []string `json:"subtitleLanguages"`
 	SubtitleKind  string   `json:"subtitleKind,omitempty"`
+	// VideoCodec and Container are parsed from the title. Playable is derived
+	// from both here rather than in the browser, so the rule that decides
+	// whether an episode can be watched is written once.
+	VideoCodec string `json:"videoCodec,omitempty"`
+	Container  string `json:"container,omitempty"`
+	Playable   bool   `json:"playable"`
 	// MatchKind records how the subject was located. It is always EXACT: a
 	// candidate Mikan series is only accepted once its own page links back to
 	// this bgm.tv subject, so a name-only match is discarded rather than
@@ -582,6 +588,67 @@ func animeParseMediaOrigin(text string) string {
 	return ""
 }
 
+// animeVideoCodecs are the encodings a release title names, checked in the
+// order written. Only the first is universally decodable in a browser, which is
+// the reason this is parsed rather than merely displayed.
+var animeVideoCodecs = []struct {
+	ID     string
+	Tokens []string
+}{
+	{ID: "H264", Tokens: []string{"h.264", "h264", "avc", "x264"}},
+	{ID: "H265", Tokens: []string{"h.265", "h265", "hevc", "x265", "hvc1", "hev1"}},
+	{ID: "AV1", Tokens: []string{"av1"}},
+	{ID: "VP9", Tokens: []string{"vp9"}},
+}
+
+func animeParseVideoCodec(text string) string {
+	lowered := strings.ToLower(text)
+	for _, entry := range animeVideoCodecs {
+		for _, token := range entry.Tokens {
+			if strings.Contains(lowered, token) {
+				return entry.ID
+			}
+		}
+	}
+	return ""
+}
+
+// animeContainers are the file containers a release title names.
+var animeContainers = []struct {
+	ID     string
+	Tokens []string
+}{
+	{ID: "MP4", Tokens: []string{"mp4", "m4v"}},
+	{ID: "MKV", Tokens: []string{"mkv"}},
+	{ID: "AVI", Tokens: []string{"avi"}},
+	{ID: "WebM", Tokens: []string{"webm"}},
+}
+
+func animeParseContainer(text string) string {
+	lowered := strings.ToLower(text)
+	for _, entry := range animeContainers {
+		for _, token := range entry.Tokens {
+			if strings.Contains(lowered, token) {
+				return entry.ID
+			}
+		}
+	}
+	return ""
+}
+
+// animeIsBrowserPlayable reports whether a browser can decode a release as
+// published, without this instance re-encoding anything.
+//
+// Only H.264 in MP4 qualifies. That is the one combination every browser
+// implements; H.265 is common in the better-looking releases and is exactly what
+// a browser usually cannot play, which is why the release list says so instead
+// of letting the viewer discover it when the player stalls. A title that names
+// no container is left out rather than assumed to be MP4: guessing wrong here
+// costs a failed playback, and the guess would not help the viewer anyway.
+func animeIsBrowserPlayable(release animeRelease) bool {
+	return release.VideoCodec == "H264" && release.Container == "MP4"
+}
+
 // animeSubtitleLanguages mirrors Animeko's matchable entries in its parse
 // order: CHS, CHT, CHC, JPN, ENG. The order matters: "简繁内封字幕" matches
 // both Chinese variants and Animeko keeps both, which is what makes it a CLOSED
@@ -660,6 +727,9 @@ func animeParseSubtitleKind(text string, languages []string) string {
 func applyAnimeTitleAttributes(release *animeRelease, title string) {
 	release.Resolution = animeParseResolution(title)
 	release.MediaOrigin = animeParseMediaOrigin(title)
+	release.VideoCodec = animeParseVideoCodec(title)
+	release.Container = animeParseContainer(title)
+	release.Playable = animeIsBrowserPlayable(*release)
 
 	// Animeko checks this before anything else: a release that says it has no
 	// Chinese subtitles states exactly what it has, so the token match below --
@@ -751,8 +821,14 @@ func animeOrderReleases(candidates []animeRelease) []animeRelease {
 // animeSelectRelease picks the release for one episode.
 //
 // It returns nil only when there is nothing to choose from.
+// animeSelectRelease picks the release for one episode.
+//
+// Candidates a browser cannot play are dropped first, whenever any playable one
+// exists. Filtering rather than ranking keeps the quality order meaningful: a
+// 480p H.264 release should not beat a 1080p one merely for being decodable, but
+// it should beat a 1080p HEVC that will not play at all.
 func animeSelectRelease(candidates []animeRelease) *animeRelease {
-	ordered := animeOrderReleases(candidates)
+	ordered := animeOrderReleases(animePreferPlayable(candidates))
 	if len(ordered) == 0 {
 		return nil
 	}
@@ -767,6 +843,20 @@ func animeSelectRelease(candidates []animeRelease) *animeRelease {
 		return &ordered[0]
 	}
 	return selected
+}
+
+// animePreferPlayable narrows the candidates to those a browser can play, and
+// returns them all when none can. Returning the full list rather than nothing
+// keeps a subject whose releases are all H.265 available to a viewer who will
+// play it somewhere else.
+func animePreferPlayable(candidates []animeRelease) []animeRelease {
+	playable := animeFilterReleases(candidates, func(release animeRelease) bool {
+		return release.Playable
+	})
+	if len(playable) > 0 {
+		return playable
+	}
+	return candidates
 }
 
 // animeSelectImpl is Animeko's selectImpl: a nested loop over the preference
@@ -1033,19 +1123,30 @@ func animeEpisodeNumberInTitle(title string) int {
 // A release covering exactly that episode wins. A season pack states no episode
 // at all, so it is the fallback rather than a competitor -- otherwise a single
 // 48GB batch would outrank a correct per-episode release on every episode.
+// animeMatchRelease picks the release covering an episode.
+//
+// The candidates that name the episode are considered first, and a season pack
+// only when none does. Within either group the choice is animeSelectRelease, so
+// a browser-playable release wins and the resolution and language order decides
+// among equals -- rather than the first candidate the feed happened to list,
+// which is what this picked before.
 func animeMatchRelease(candidates []animeRelease, episodeNumber int) *animeRelease {
-	var pack *animeRelease
+	var named, packs []animeRelease
 	for i := range candidates {
-		release := &candidates[i]
+		release := candidates[i]
 		number := animeEpisodeNumberInTitle(release.Title)
 		switch {
 		case number == episodeNumber:
-			return release
-		case number == 0 && pack == nil:
-			pack = release
+			named = append(named, release)
+		case number == 0:
+			packs = append(packs, release)
 		}
 	}
-	return pack
+
+	if len(named) > 0 {
+		return animeSelectRelease(named)
+	}
+	return animeSelectRelease(packs)
 }
 
 // animePathID validates a numeric path parameter.

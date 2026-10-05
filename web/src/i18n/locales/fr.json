@@ -8003,7 +8003,8 @@
     "No sources found for this anime.": "Aucune source trouvée pour cet anime.",
     "Sources": "Sources",
     "Watch": "Regarder",
-    "No source matched this episode. Pick one below.": "Aucune source ne correspond à cet épisode. Choisissez-en une ci-dessous."
+    "No source matched this episode. Pick one below.": "Aucune source ne correspond à cet épisode. Choisissez-en une ci-dessous.",
+    "Cannot play in the browser": "Lecture impossible dans le navigateur"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
