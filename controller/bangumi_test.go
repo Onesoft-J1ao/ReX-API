@@ -262,11 +262,11 @@ func TestAnimeParseVideoAttributes(t *testing.T) {
 			playable:  false,
 		},
 		{
-			name:      "H.264 without a stated container",
+			name:      "H.264 without a stated container is still playable",
 			title:     "[GJ.Y] Frieren - 28 (1920x1080 AVC AAC)",
 			codec:     "H264",
 			container: "",
-			playable:  false,
+			playable:  true,
 		},
 		{
 			name:      "AV1 in MP4 is not H.264",

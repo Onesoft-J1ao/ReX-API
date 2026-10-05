@@ -159,7 +159,7 @@ export type BangumiRelease = {
   container?: string
   /**
    * Whether a browser can play this release as published. Decided by the server
-   * so the rule is written once; only H.264 in MP4 qualifies.
+   * so the rule is written once: H.264, in whichever container it ships in.
    */
   playable: boolean
   /**

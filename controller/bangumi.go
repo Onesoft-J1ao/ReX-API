@@ -639,14 +639,18 @@ func animeParseContainer(text string) string {
 // animeIsBrowserPlayable reports whether a browser can decode a release as
 // published, without this instance re-encoding anything.
 //
-// Only H.264 in MP4 qualifies. That is the one combination every browser
-// implements; H.265 is common in the better-looking releases and is exactly what
-// a browser usually cannot play, which is why the release list says so instead
-// of letting the viewer discover it when the player stalls. A title that names
-// no container is left out rather than assumed to be MP4: guessing wrong here
-// costs a failed playback, and the guess would not help the viewer anyway.
+// H.264 is the deciding factor and the container is not consulted. Chromium --
+// the engine behind Chrome, Edge and the browsers most visitors here use --
+// plays H.264 in both MP4 and MKV, and MKV is what most releases ship in.
+// Requiring MP4 as well would have marked 12% of releases playable rather than
+// 30%, leaving some subjects with nothing to offer. The cost is a viewer on
+// Firefox or Safari who picks an MKV, which the release list cannot warn about
+// because it does not know the browser.
+//
+// H.265 is the case this exists for: it is common in the better-looking releases
+// and is exactly what a browser usually cannot play.
 func animeIsBrowserPlayable(release animeRelease) bool {
-	return release.VideoCodec == "H264" && release.Container == "MP4"
+	return release.VideoCodec == "H264"
 }
 
 // animeSubtitleLanguages mirrors Animeko's matchable entries in its parse
