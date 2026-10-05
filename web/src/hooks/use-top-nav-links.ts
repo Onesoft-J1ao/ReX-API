@@ -96,8 +96,15 @@ export function useTopNavLinks(): TopNavLink[] {
   }
 
   // Anime
+  const bangumi = modules?.bangumi
+  if (bangumi && typeof bangumi === 'object' && bangumi.enabled) {
+    const requiresAuth = bangumi.requireAuth && !isAuthed
+    links.push({ title: t('Anime'), href: '/bangumi', requiresAuth })
+  }
+
+  // About
   if (modules?.about !== false) {
-    links.push({ title: t('Anime'), href: '/bangumi' })
+    links.push({ title: t('About'), href: '/about' })
   }
 
   return links

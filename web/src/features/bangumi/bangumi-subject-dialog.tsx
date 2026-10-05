@@ -21,6 +21,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
+import { ErrorState } from '@/components/error-state'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -106,7 +107,10 @@ export function BangumiSubjectDialog(props: {
       )}
 
       {detailQuery.isError && (
-        <p className='text-destructive text-sm'>{t('Could not load this anime.')}</p>
+        <ErrorState
+          className='min-h-[160px]'
+          title={t('Could not load this anime.')}
+        />
       )}
 
       {detail && (

@@ -18,9 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { CalendarDays, Search, Tv } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@/components/empty-state'
+import { ErrorState } from '@/components/error-state'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -52,16 +54,36 @@ export function Bangumi() {
     retry: false,
   })
 
+  const debounceRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current !== null) {
+        window.clearTimeout(debounceRef.current)
+      }
+    }
+  }, [])
+
   // Typing updates the input immediately but only searches once the user
-  // pauses, so a title does not cost one upstream request per keystroke.
+  // pauses, so a title does not cost one upstream request per keystroke. Each
+  // keystroke cancels the one before it: without that, clearing the field would
+  // still be followed by the pending timer firing and searching the old text.
   const onKeywordChange = (value: string) => {
     setKeyword(value)
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+
     const trimmed = value.trim()
     if (!trimmed) {
       setSubmitted('')
       return
     }
-    window.setTimeout(() => setSubmitted(trimmed), SEARCH_DEBOUNCE_MS)
+    debounceRef.current = window.setTimeout(() => {
+      debounceRef.current = null
+      setSubmitted(trimmed)
+    }, SEARCH_DEBOUNCE_MS)
   }
 
   const days = useMemo(() => {
@@ -145,16 +167,18 @@ function Calendar(props: {
   }
   if (props.errored) {
     return (
-      <p className='text-destructive text-sm'>
-        {t('Could not reach the anime source. Try again later.')}
-      </p>
+      <ErrorState
+        className='min-h-[200px]'
+        title={t('Could not reach the anime source. Try again later.')}
+      />
     )
   }
   if (props.days.length === 0) {
     return (
-      <p className='text-muted-foreground text-sm'>
-        {t('Nothing is airing today.')}
-      </p>
+      <EmptyState
+        className='min-h-[200px]'
+        title={t('Nothing is airing today.')}
+      />
     )
   }
 
@@ -200,14 +224,15 @@ function SearchResults(props: {
   }
   if (props.errored) {
     return (
-      <p className='text-destructive text-sm'>
-        {t('Could not reach the anime source. Try again later.')}
-      </p>
+      <ErrorState
+        className='min-h-[200px]'
+        title={t('Could not reach the anime source. Try again later.')}
+      />
     )
   }
   if (props.items.length === 0) {
     return (
-      <p className='text-muted-foreground text-sm'>{t('No anime found.')}</p>
+      <EmptyState className='min-h-[200px]' title={t('No anime found.')} />
     )
   }
 

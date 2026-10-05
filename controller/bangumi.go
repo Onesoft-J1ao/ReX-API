@@ -366,9 +366,10 @@ type animeRelease struct {
 	MediaOrigin   string   `json:"mediaOrigin,omitempty"`
 	SubtitleLangs []string `json:"subtitleLanguages"`
 	SubtitleKind  string   `json:"subtitleKind,omitempty"`
-	// MatchKind records how the subject was located: EXACT when Mikan's own
-	// page carried this subject's bgm.tv id, FUZZY on a name search alone
-	// (Animeko's MatchKind).
+	// MatchKind records how the subject was located. It is always EXACT: a
+	// candidate Mikan series is only accepted once its own page links back to
+	// this bgm.tv subject, so a name-only match is discarded rather than
+	// reported. (Animeko's MatchKind, without the FUZZY case it can produce.)
 	MatchKind string `json:"matchKind"`
 }
 
@@ -1252,7 +1253,6 @@ func animeReleasesPayload(c *gin.Context, subjectID, keyword string) (string, er
 	payload := struct {
 		SubjectID int64          `json:"subjectId"`
 		MatchKind string         `json:"matchKind"`
-		MikanID   string         `json:"mikanId"`
 		Releases  []animeRelease `json:"releases"`
 		Episodes  []animeEpisode `json:"episodes"`
 	}{

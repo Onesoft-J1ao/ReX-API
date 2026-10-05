@@ -46,15 +46,17 @@ import { DanmakuOverlay } from './danmaku-overlay'
  * BitTorrent clients has nobody a browser can reach, so the transfer never
  * starts and the visitor needs to know that is what happened rather than
  * assume the page is broken.
+ *
+ * `unknownError` is deliberately absent: the title already says playback
+ * failed, and there is no more specific reason to give behind it.
  */
-const FAILURE_MESSAGES: Record<PlaybackFailure, string> = {
+const FAILURE_DESCRIPTIONS: Partial<Record<PlaybackFailure, string>> = {
   resolutionTimedOut: 'The source did not respond in time.',
   networkError: 'Could not reach the source.',
   unsupportedMedia: 'This browser cannot play this file.',
   noMatchingFile: 'This release contains no playable video file.',
   noPeers:
     'No peers are sharing this release over WebRTC. It may only be seeding to regular BitTorrent clients.',
-  unknownError: 'Playback failed.',
 }
 
 const DANMAKU_SWITCH_ID = 'bangumi-danmaku-switch'
@@ -163,11 +165,14 @@ function PlaybackOverlay(props: {
   const { t } = useTranslation()
 
   if (props.status === 'failed') {
+    const description = props.failure
+      ? FAILURE_DESCRIPTIONS[props.failure]
+      : undefined
     return (
       <ErrorState
         className='min-h-0'
         title={t('Playback failed')}
-        description={t(FAILURE_MESSAGES[props.failure ?? 'unknownError'])}
+        description={description ? t(description) : undefined}
         onRetry={props.onRetry}
       />
     )

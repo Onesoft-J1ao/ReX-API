@@ -153,7 +153,11 @@ export type BangumiRelease = {
   subtitleLanguages: string[]
   /** EMBEDDED, CLOSED or EXTERNAL_DISCOVER when the title states one. */
   subtitleKind?: string
-  /** EXACT when Mikan's own page linked this subject, FUZZY otherwise. */
+  /**
+   * Always `EXACT`: the server confirms a candidate against Mikan's own page
+   * before returning its releases, so a name-only match is dropped rather than
+   * reported.
+   */
   matchKind: string
 }
 

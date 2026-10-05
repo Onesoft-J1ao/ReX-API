@@ -20,9 +20,38 @@ import { describe, expect, it } from 'vitest'
 
 import {
   normalizeSidebarAdminLink,
+  parseHeaderNavModules,
   parseSidebarAdminLinks,
   parseSidebarAdminLinksFromStatus,
 } from '../nav-modules'
+
+describe('parseHeaderNavModules', () => {
+  it('parses an access module from the object form', () => {
+    const modules = parseHeaderNavModules({
+      bangumi: { enabled: true, requireAuth: true },
+    })
+
+    expect(modules.bangumi).toEqual({ enabled: true, requireAuth: true })
+  })
+
+  it('parses an access module from a plain flag, leaving auth off', () => {
+    expect(parseHeaderNavModules({ bangumi: false }).bangumi).toEqual({
+      enabled: false,
+      requireAuth: false,
+    })
+  })
+
+  it('defaults the anime module to enabled when the operator has not set it', () => {
+    expect(parseHeaderNavModules({}).bangumi).toEqual({
+      enabled: true,
+      requireAuth: false,
+    })
+  })
+
+  it('keeps a plain-flag module a boolean', () => {
+    expect(parseHeaderNavModules({ about: false }).about).toBe(false)
+  })
+})
 
 describe('normalizeSidebarAdminLink', () => {
   it('keeps a titled absolute http(s) address', () => {

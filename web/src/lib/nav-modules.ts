@@ -22,13 +22,14 @@ import { readCachedStatus, statusQueryOptions } from '@/lib/status-query'
 
 export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
 
-export type HeaderNavModule = 'rankings' | 'pricing'
+export type HeaderNavModule = 'rankings' | 'pricing' | 'bangumi'
 
 export type HeaderNavModules = {
   home: boolean
   console: boolean
   pricing: ModuleAccess
   rankings: ModuleAccess
+  bangumi: ModuleAccess
   docs: boolean
   about: boolean
   [key: string]: boolean | ModuleAccess
@@ -39,6 +40,7 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
   console: true,
   pricing: { enabled: true, requireAuth: false },
   rankings: { enabled: true, requireAuth: false },
+  bangumi: { enabled: true, requireAuth: false },
   docs: true,
   about: true,
 }
@@ -46,6 +48,21 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
 const DEFAULTS: Record<HeaderNavModule, ModuleAccess> = {
   pricing: DEFAULT_HEADER_NAV_MODULES.pricing,
   rankings: DEFAULT_HEADER_NAV_MODULES.rankings,
+  bangumi: DEFAULT_HEADER_NAV_MODULES.bangumi,
+}
+
+/**
+ * Modules the operator configures as `{ enabled, requireAuth }` rather than as a
+ * plain flag, because their pages can additionally require a signed-in visitor.
+ */
+const ACCESS_MODULES = new Set<HeaderNavModule>([
+  'pricing',
+  'rankings',
+  'bangumi',
+])
+
+function isAccessModule(key: string): key is HeaderNavModule {
+  return ACCESS_MODULES.has(key as HeaderNavModule)
 }
 
 function cloneHeaderNavDefaults(): HeaderNavModules {
@@ -53,6 +70,7 @@ function cloneHeaderNavDefaults(): HeaderNavModules {
     ...DEFAULT_HEADER_NAV_MODULES,
     pricing: { ...DEFAULT_HEADER_NAV_MODULES.pricing },
     rankings: { ...DEFAULT_HEADER_NAV_MODULES.rankings },
+    bangumi: { ...DEFAULT_HEADER_NAV_MODULES.bangumi },
   }
 }
 
@@ -112,12 +130,8 @@ export function parseHeaderNavModules(raw: unknown): HeaderNavModules {
   if (!parsed) return result
 
   Object.entries(parsed).forEach(([key, value]) => {
-    if (key === 'pricing') {
-      result.pricing = parseAccess(value, result.pricing)
-      return
-    }
-    if (key === 'rankings') {
-      result.rankings = parseAccess(value, result.rankings)
+    if (isAccessModule(key)) {
+      result[key] = parseAccess(value, result[key])
       return
     }
 

@@ -21,6 +21,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
+import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -130,9 +131,10 @@ export function BangumiWatchView(props: {
         {episodesQuery.isLoading && <LoadingState />}
 
         {episodesQuery.isError && (
-          <p className='text-destructive text-sm'>
-            {t('Could not load the episodes.')}
-          </p>
+          <ErrorState
+            className='min-h-[160px]'
+            title={t('Could not load the episodes.')}
+          />
         )}
 
         {!episodesQuery.isLoading && !episodesQuery.isError && (
@@ -217,7 +219,6 @@ function ReleaseOption(props: {
   selected: boolean
   onSelect: () => void
 }) {
-  const { t } = useTranslation()
   const size = formatBytes(props.release.size)
 
   return (
@@ -237,9 +238,6 @@ function ReleaseOption(props: {
           <span>{props.release.subtitleLanguages.join('/')}</span>
         )}
         {size && <span>{size}</span>}
-        {props.release.matchKind !== 'EXACT' && (
-          <span>{t('Unverified match')}</span>
-        )}
       </span>
     </button>
   )
