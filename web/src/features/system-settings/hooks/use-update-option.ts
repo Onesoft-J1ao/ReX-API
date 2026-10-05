@@ -42,6 +42,7 @@ const STATUS_RELATED_KEYS = new Set([
   'NoticeHeaderButtonMode',
   'SupportEnabled',
   'LogConsumeEnabled',
+  'ForceRecordIpLog',
   'QuotaPerUnit',
   'USDExchangeRate',
   'DisplayInCurrencyEnabled',

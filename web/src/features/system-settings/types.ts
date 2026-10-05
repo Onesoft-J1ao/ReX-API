@@ -301,7 +301,7 @@ export type ContentSettings = {
   'console_setting.upstream_status_url': string
   'console_setting.upstream_status_name': string
   'console_setting.upstream_status_enabled': boolean
-'console_setting.support_qq_url': string
+  'console_setting.support_qq_url': string
   'console_setting.support_qq_enabled': boolean
   'console_setting.hide_models_without_enabled_channel': boolean
   DataExportEnabled: boolean
@@ -517,6 +517,7 @@ export type OperationsSettings = {
   WorkerMeshyImageProxyBaseURL: string
   WorkerMeshyImageProxyAPIKey: string
   LogConsumeEnabled: boolean
+  ForceRecordIpLog: boolean
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
   'performance_setting.disk_cache_max_size_mb': number
