@@ -53,7 +53,14 @@ import { useDirection } from '@/context/direction-provider'
 import { type Collapsible, useLayout } from '@/context/layout-provider'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
+import { FramingSlider } from '@/features/wallpaper/components/framing-slider'
 import { WallpaperConfig } from '@/features/wallpaper/components/wallpaper-config'
+import {
+  CONSOLE_OPACITY_MAX,
+  CONSOLE_OPACITY_MIN,
+  CONSOLE_OPACITY_STEP,
+} from '@/lib/console-opacity'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import {
   type ContentLayout,
   THEME_PRESETS,
@@ -64,17 +71,18 @@ import {
 } from '@/lib/theme-customization'
 import { cn } from '@/lib/utils'
 
-import { useSidebar } from './ui/sidebar'
+import { useSidebarOptional } from './ui/sidebar'
 
 const Item = RadioPrimitive.Root
 
 export function ConfigDrawer() {
   const { t } = useTranslation()
-  const { resetOpen } = useSidebar()
+  const { resetOpen } = useSidebarOptional()
   const { resetDir } = useDirection()
   const { resetTheme } = useTheme()
   const { resetLayout } = useLayout()
-  const { resetCustomization } = useThemeCustomization()
+  const { resetCustomization, resetBackgroundOpacity } =
+    useThemeCustomization()
 
   const handleReset = () => {
     resetOpen()
@@ -82,6 +90,7 @@ export function ConfigDrawer() {
     resetTheme()
     resetLayout()
     resetCustomization()
+    resetBackgroundOpacity()
   }
 
   return (
@@ -109,6 +118,7 @@ export function ConfigDrawer() {
         <div className={sideDrawerFormClassName()}>
           <ThemeConfig />
           <WallpaperConfig />
+          <BackdropConfig />
           <PresetConfig />
           <FontConfig />
           <RadiusConfig />
@@ -182,6 +192,44 @@ function RadioGroupItem(props: {
         {props.item.label}
       </div>
     </Item>
+  )
+}
+
+/**
+ * Backdrop density. The administrator sets the baseline; this lets one viewer
+ * make the panels sheerer or denser without touching the site-wide value.
+ */
+function BackdropConfig() {
+  const { t } = useTranslation()
+  const { appearance } = useSystemConfig()
+  const { backgroundOpacity, setBackgroundOpacity, resetBackgroundOpacity } =
+    useThemeCustomization()
+  // With no override the slider shows the operator's value, so the control
+  // still reads as a live number rather than an empty track.
+  const value = backgroundOpacity ?? appearance.backgroundBlurOpacity
+
+  return (
+    <div>
+      <SectionTitle
+        title={t('Backdrop transparency')}
+        showReset={backgroundOpacity != null}
+        onReset={resetBackgroundOpacity}
+      />
+      <FramingSlider
+        label={t('Transparency')}
+        value={value}
+        min={CONSOLE_OPACITY_MIN}
+        max={CONSOLE_OPACITY_MAX}
+        step={CONSOLE_OPACITY_STEP}
+        format={(current) => `${Math.round(current)}%`}
+        onChange={setBackgroundOpacity}
+      />
+      <p className='text-muted-foreground mt-1 text-xs'>
+        {t(
+          'How much of the backdrop shows through the panels. Lower keeps the picture clearer.'
+        )}
+      </p>
+    </div>
   )
 }
 
@@ -556,7 +604,7 @@ function SidebarConfig() {
 
 function LayoutConfig() {
   const { t } = useTranslation()
-  const { defaultOpen, open, setOpen, resetOpen } = useSidebar()
+  const { defaultOpen, open, setOpen, resetOpen } = useSidebarOptional()
   const { defaultCollapsible, collapsible, setCollapsible, resetCollapsible } =
     useLayout()
 

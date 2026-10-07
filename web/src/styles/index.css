@@ -144,14 +144,55 @@ For commercial licensing, please contact support@quantumnous.com
   backdrop-filter: blur(4px);
 }
 
+/* Anything the app renders as a surface over the photo: cards (PanelWrapper,
+ * TitledCard and StatCard all build on Card), dialogs, sheets, popovers and
+ * menus. They share one transparency step so the backdrop reads through
+ * consistently instead of some panels going solid. */
 [data-console-background='image'] [data-slot='card'],
-[data-console-background='image'] .bg-card {
+[data-console-background='image'] .bg-card,
+[data-console-background='image'] .bg-card\/80,
+[data-console-background='image'] [data-slot='dialog-content'],
+[data-console-background='image'] [data-slot='alert-dialog-content'],
+[data-console-background='image'] [data-slot='sheet-content'],
+[data-console-background='image'] [data-slot='drawer-content'],
+[data-console-background='image'] [data-slot='popover-content'],
+[data-console-background='image'] [data-slot='dropdown-menu-content'],
+[data-console-background='image'] [data-slot='select-content'],
+[data-console-background='image'] [data-slot='command'],
+[data-console-background='image'] [data-slot='accordion-item'],
+[data-console-background='image'] [data-slot='tabs-content'] {
   background-color: color-mix(
     in oklch,
     var(--card) var(--console-card-opacity),
     transparent
   );
   backdrop-filter: blur(4px);
+}
+
+/* Inputs, buttons and other controls sit inside those surfaces, so they take
+ * the lighter list step to stay distinguishable without going fully solid. */
+[data-console-background='image'] [data-slot='input'],
+[data-console-background='image'] [data-slot='textarea'],
+[data-console-background='image'] [data-slot='select-trigger'],
+[data-console-background='image'] [data-slot='toggle-group'],
+[data-console-background='image'] [data-slot='toggle-group-item'][data-state='on'] {
+  background-color: color-mix(
+    in oklch,
+    var(--background) var(--console-list-opacity),
+    transparent
+  );
+  backdrop-filter: blur(4px);
+}
+
+/* A card inside a card: stat tiles, list rows and the balance block sit on
+ * top of a panel, so they take the denser step and read as solid furniture
+ * against the sheer container behind them. */
+[data-console-background='image'] [data-slot='card'] [data-slot='card'] {
+  background-color: color-mix(
+    in oklch,
+    var(--card) var(--console-inner-card-opacity),
+    transparent
+  );
 }
 
 [data-console-background='image'] [data-slot='table-row'] {

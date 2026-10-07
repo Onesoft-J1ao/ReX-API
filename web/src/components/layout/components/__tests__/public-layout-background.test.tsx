@@ -124,11 +124,13 @@ describe('public layout background surfaces', () => {
     expect(root.style.getPropertyValue('--console-list-opacity')).toBe('75%')
   })
 
-  test('leaves surfaces solid without a hero background image', () => {
+  test('falls back to the bundled pool when no image is configured', () => {
+    // A hero page still shows a backdrop with nothing configured: the bundled
+    // pool supplies one, so the surface stays tinted instead of going solid.
     const root = renderLayout('hero')
 
-    expect(root).not.toHaveAttribute('data-console-background')
-    expect(root.style.getPropertyValue('--console-card-opacity')).toBe('')
+    expect(root).toHaveAttribute('data-console-background', 'image')
+    expect(root.style.getPropertyValue('--console-card-opacity')).toBe('55%')
   })
 
   test('leaves surfaces solid when the page does not request the hero backdrop', () => {

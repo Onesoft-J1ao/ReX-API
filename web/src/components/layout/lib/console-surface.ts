@@ -26,13 +26,23 @@ import type React from 'react'
  */
 export function consoleSurfaceStyles(
   backgroundImage: string,
-  backgroundBlurOpacity: number | undefined
+  backgroundBlurOpacity: number | undefined,
+  /** Per-browser override for the surface density; null keeps the configured value. */
+  opacityOverride?: number | null
 ): React.CSSProperties | undefined {
   if (!backgroundImage) return undefined
-  const blurOpacity = Math.min(100, Math.max(0, backgroundBlurOpacity ?? 40))
+  const configured = Math.min(100, Math.max(0, backgroundBlurOpacity ?? 40))
+  const blurOpacity =
+    opacityOverride == null
+      ? configured
+      : Math.min(100, Math.max(0, opacityOverride))
   return {
     '--console-surface-opacity': `${blurOpacity}%`,
-    '--console-card-opacity': `${Math.min(85, blurOpacity + 15)}%`,
+    // Outer containers stay quite sheer so the photo reads through them.
+    '--console-card-opacity': `${Math.min(60, Math.round(blurOpacity * 0.85))}%`,
+    // A card nested inside another is denser, so the two levels stay
+    // distinguishable instead of flattening into one translucent sheet.
+    '--console-inner-card-opacity': `${Math.min(95, blurOpacity + 45)}%`,
     '--console-sidebar-opacity': `${Math.min(80, blurOpacity + 10)}%`,
     '--console-list-opacity': `${Math.min(75, blurOpacity + 20)}%`,
   } as React.CSSProperties

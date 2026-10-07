@@ -43,6 +43,8 @@ const defaultSiteSettings: SiteSettings = {
   SidebarModulesAdmin: '',
   SidebarAdminLinks: '',
   'console_setting.background_image': '',
+  'console_setting.background_unsplash_query': '',
+  'console_setting.background_unsplash_access_key': '',
   'console_setting.background_blur_opacity': 40,
   'console_setting.legal_background_enabled': true,
   'console_setting.default_theme': 'system',

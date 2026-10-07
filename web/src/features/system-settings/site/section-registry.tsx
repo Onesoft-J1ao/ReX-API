@@ -81,6 +81,10 @@ const SITE_SECTIONS = [
       <AppearanceSection
         defaultValues={{
           backgroundImage: settings['console_setting.background_image'],
+          backgroundUnsplashQuery:
+            settings['console_setting.background_unsplash_query'],
+          backgroundUnsplashAccessKey:
+            settings['console_setting.background_unsplash_access_key'],
           backgroundBlurOpacity:
             settings['console_setting.background_blur_opacity'],
           legalBackgroundEnabled:

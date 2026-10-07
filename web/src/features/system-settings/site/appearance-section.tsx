@@ -55,6 +55,8 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const appearanceSchema = z.object({
   backgroundImage: z.string(),
+  backgroundUnsplashQuery: z.string(),
+  backgroundUnsplashAccessKey: z.string(),
   backgroundBlurOpacity: z.coerce.number().min(0).max(100).default(40),
   legalBackgroundEnabled: z.boolean(),
   defaultTheme: z.enum(['system', 'light', 'dark']),
@@ -76,6 +78,9 @@ export type AppearanceFormValues = z.infer<typeof appearanceSchema>
 
 const OPTION_KEYS: Record<keyof AppearanceFormValues, string> = {
   backgroundImage: 'console_setting.background_image',
+  backgroundUnsplashQuery: 'console_setting.background_unsplash_query',
+  backgroundUnsplashAccessKey:
+    'console_setting.background_unsplash_access_key',
   backgroundBlurOpacity: 'console_setting.background_blur_opacity',
   legalBackgroundEnabled: 'console_setting.legal_background_enabled',
   defaultTheme: 'console_setting.default_theme',
@@ -278,6 +283,47 @@ export function AppearanceSection({ defaultValues }: AppearanceSectionProps) {
                     <FormDescription>
                       {t(
                         'Applied by the administrator and cannot be changed by users'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='backgroundUnsplashQuery'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Unsplash search term')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('e.g. landscape nature')}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'When set, a random Unsplash photo is used as the backdrop on pages without their own image.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='backgroundUnsplashAccessKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Unsplash access key')}</FormLabel>
+                    <FormControl>
+                      <Input type='password' autoComplete='off' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'The Client ID of your Unsplash application. Stored on the server and never sent to the browser.'
                       )}
                     </FormDescription>
                     <FormMessage />

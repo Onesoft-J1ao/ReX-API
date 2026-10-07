@@ -26,6 +26,12 @@ import {
 } from 'react'
 
 import { sampleVideoAccent, sampleWallpaperAccent } from '@/features/wallpaper/lib/dominant-color'
+import {
+  clampConsoleOpacity,
+  CONSOLE_OPACITY_COOKIE_KEY,
+  CONSOLE_OPACITY_DEFAULT,
+  parseConsoleOpacity,
+} from '@/lib/console-opacity'
 import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
 import {
   CONTENT_LAYOUT_VALUES,
@@ -112,12 +118,19 @@ type ThemeCustomizationContextType = {
   wallpaperAccentEnabled: boolean
   /** How much of the wallpaper the console's surfaces let through, 0-100. */
   wallpaperVisibility: number
+  /**
+   * Per-browser override for how much of the backdrop image shows through the
+   * console surfaces, 0-100. Null keeps the operator's configured value.
+   */
+  backgroundOpacity: number | null
   /** Whether the whole page is currently a drag surface for framing. */
   wallpaperFramingMode: boolean
   setWallpaper: (wallpaperUrl: string) => void
   setWallpaperFraming: (framing: WallpaperFraming) => void
   resetWallpaperFraming: () => void
   setWallpaperVisibility: (visibility: number) => void
+  setBackgroundOpacity: (opacity: number | null) => void
+  resetBackgroundOpacity: () => void
   setWallpaperAccentEnabled: (enabled: boolean) => void
   setWallpaperFramingMode: (active: boolean) => void
   setPreset: (preset: ThemePreset) => void
@@ -145,11 +158,14 @@ liquid: false,
   wallpaperFraming: DEFAULT_WALLPAPER_FRAMING,
   wallpaperAccentEnabled: false,
   wallpaperVisibility: WALLPAPER_VISIBILITY_DEFAULT,
+  backgroundOpacity: CONSOLE_OPACITY_DEFAULT,
   wallpaperFramingMode: false,
   setWallpaper: () => {},
   setWallpaperFraming: () => {},
   resetWallpaperFraming: () => {},
   setWallpaperVisibility: () => {},
+  setBackgroundOpacity: () => {},
+  resetBackgroundOpacity: () => {},
   setWallpaperAccentEnabled: () => {},
   setWallpaperFramingMode: () => {},
   setPreset: () => {},
@@ -243,6 +259,9 @@ export function ThemeCustomizationProvider(props: {
   // While this is on, the whole viewport becomes a drag surface for placing the
   // picture. Off by default: dragging the page is how people scroll and select.
   const [wallpaperFramingMode, setWallpaperFramingMode] = useState(false)
+  const [backgroundOpacity, _setBackgroundOpacity] = useState<number | null>(() =>
+    parseConsoleOpacity(getCookie(CONSOLE_OPACITY_COOKIE_KEY))
+  )
   // Natural aspect ratio of the wallpaper. Only needed to spell out a zoomed
   // `background-size`; stays null until the image has been measured, and for an
   // image that never loads.
@@ -571,6 +590,24 @@ export function ThemeCustomizationProvider(props: {
     }
   }, [])
 
+  // How sheer the backdrop shows through the console panels. Clearing the
+  // cookie hands control back to the operator's configured value.
+  const setBackgroundOpacity = useCallback((value: number | null) => {
+    if (value == null) {
+      _setBackgroundOpacity(null)
+      removeCookie(CONSOLE_OPACITY_COOKIE_KEY)
+      return
+    }
+    const normalized = clampConsoleOpacity(value)
+    _setBackgroundOpacity(normalized)
+    setCookie(CONSOLE_OPACITY_COOKIE_KEY, String(normalized), COOKIE_MAX_AGE)
+  }, [])
+
+  const resetBackgroundOpacity = useCallback(() => {
+    _setBackgroundOpacity(null)
+    removeCookie(CONSOLE_OPACITY_COOKIE_KEY)
+  }, [])
+
   // The wallpaper is deliberately left alone: it was bought, so "reset" must
   // not silently unpaint something the user paid for. Removing it is its own
   // explicit action in the wallpaper settings.
@@ -612,11 +649,14 @@ export function ThemeCustomizationProvider(props: {
       wallpaperFraming,
       wallpaperAccentEnabled,
       wallpaperVisibility,
+      backgroundOpacity,
       wallpaperFramingMode,
       setWallpaper,
       setWallpaperFraming,
       resetWallpaperFraming,
       setWallpaperVisibility,
+      setBackgroundOpacity,
+      resetBackgroundOpacity,
       setWallpaperAccentEnabled,
       setWallpaperFramingMode,
       setPreset,
@@ -642,11 +682,14 @@ export function ThemeCustomizationProvider(props: {
       wallpaperFraming,
       wallpaperAccentEnabled,
       wallpaperVisibility,
+      backgroundOpacity,
       wallpaperFramingMode,
       setWallpaper,
       setWallpaperFraming,
       resetWallpaperFraming,
       setWallpaperVisibility,
+      setBackgroundOpacity,
+      resetBackgroundOpacity,
       setWallpaperAccentEnabled,
       setPreset,
       setFont,

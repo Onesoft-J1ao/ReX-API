@@ -20,9 +20,14 @@ type ConsoleSetting struct {
 	AnnouncementsEnabled     bool   `json:"announcements_enabled"` // 是否启用系统公告面板
 	FAQEnabled               bool   `json:"faq_enabled"`           // 是否启用常见问答面板
 	BackgroundImage          string `json:"background_image"`
-	BackgroundBlurOpacity    int    `json:"background_blur_opacity"`
-	LegalBackgroundEnabled   bool   `json:"legal_background_enabled"`
-	DefaultTheme             string `json:"default_theme"`
+	BackgroundRandomCategory string `json:"background_random_category"`
+	BackgroundUnsplashQuery  string `json:"background_unsplash_query"`
+	// Never returned to the SPA: it is only read server-side when calling
+	// Unsplash on the visitor's behalf.
+	BackgroundUnsplashAccessKey string `json:"background_unsplash_access_key"`
+	BackgroundBlurOpacity      int    `json:"background_blur_opacity"`
+	LegalBackgroundEnabled     bool   `json:"legal_background_enabled"`
+	DefaultTheme               string `json:"default_theme"`
 	DefaultThemeOverride     string `json:"default_theme_override"`
 	DefaultThemePreset       string `json:"default_theme_preset"`
 	DefaultThemeFont         string `json:"default_theme_font"`
@@ -132,6 +137,8 @@ func GetConsoleSetting() *ConsoleSetting {
 
 type AppearanceSetting struct {
 	BackgroundImage          string `json:"background_image"`
+	BackgroundRandomCategory string `json:"background_random_category"`
+	BackgroundUnsplashQuery  string `json:"background_unsplash_query"`
 	BackgroundBlurOpacity    int    `json:"background_blur_opacity"`
 	LegalBackgroundEnabled   bool   `json:"legal_background_enabled"`
 	DefaultTheme             string `json:"default_theme"`
@@ -174,6 +181,8 @@ func GetHomepageSetting() HomepageSetting {
 func GetAppearanceSetting() AppearanceSetting {
 	return AppearanceSetting{
 		BackgroundImage:          consoleSetting.BackgroundImage,
+		BackgroundRandomCategory: consoleSetting.BackgroundRandomCategory,
+		BackgroundUnsplashQuery:  consoleSetting.BackgroundUnsplashQuery,
 		BackgroundBlurOpacity:    consoleSetting.BackgroundBlurOpacity,
 		LegalBackgroundEnabled:   consoleSetting.LegalBackgroundEnabled,
 		DefaultTheme:             consoleSetting.DefaultTheme,
@@ -223,6 +232,66 @@ func validatePublicImageURL(label, value string) error {
 	return nil
 }
 
+// validateUnsplashQuery accepts a free-text search term for Unsplash. Empty
+// disables the remote lookup.
+func validateUnsplashQuery(value string) error {
+	value = strings.TrimSpace(value)
+	if len(value) > 120 {
+		return fmt.Errorf("unsplash query is too long")
+	}
+	return nil
+}
+
+// validateUnsplashAccessKey accepts an Unsplash application access key. It is a
+// URL-safe token, so the charset is restricted rather than free-form.
+func validateUnsplashAccessKey(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if len(value) > 128 {
+		return fmt.Errorf("unsplash access key is too long")
+	}
+	for _, r := range value {
+		isAllowed := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '-' || r == '_'
+		if !isAllowed {
+			return fmt.Errorf("unsplash access key contains invalid characters")
+		}
+	}
+	return nil
+}
+
+// GetUnsplashAccessKey returns the configured access key. It is deliberately
+// absent from AppearanceSetting so the value never reaches the browser.
+func GetUnsplashAccessKey() string {
+	return strings.TrimSpace(consoleSetting.BackgroundUnsplashAccessKey)
+}
+
+// GetUnsplashQuery returns the configured Unsplash search term, if any.
+func GetUnsplashQuery() string {
+	return strings.TrimSpace(consoleSetting.BackgroundUnsplashQuery)
+}
+
+// validateBackgroundRandomCategory accepts a Nekosia image category slug. Empty
+// disables the random backdrop, so the bundled pool is used instead.
+func validateBackgroundRandomCategory(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if len(value) > 64 {
+		return fmt.Errorf("background random category is too long")
+	}
+	for _, r := range value {
+		isAllowed := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-'
+		if !isAllowed {
+			return fmt.Errorf("background random category may only contain lowercase letters, digits and dashes")
+		}
+	}
+	return nil
+}
+
 func validateEnum(value string, allowed ...string) error {
 	for _, item := range allowed {
 		if value == item {
@@ -246,6 +315,12 @@ func ValidatePublicOption(key, value string) error {
 	switch name {
 	case "background_image":
 		return validatePublicImageURL("background image", value)
+	case "background_random_category":
+		return validateBackgroundRandomCategory(value)
+	case "background_unsplash_query":
+		return validateUnsplashQuery(value)
+	case "background_unsplash_access_key":
+		return validateUnsplashAccessKey(value)
 	case "background_blur_opacity":
 		parsed, err := strconv.Atoi(strings.TrimSpace(value))
 		if err != nil || parsed < 0 || parsed > 100 {

@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
+
 import { NoticeDialog } from '@/components/notice-dialog'
 import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
@@ -23,12 +25,16 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
 import { WallpaperSync } from '@/features/wallpaper/components/wallpaper-sync'
+import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { useUnsplashBackground } from '@/hooks/use-unsplash-background'
 import { getCookie } from '@/lib/cookies'
+import { pickLocalBackground } from '@/lib/local-backgrounds'
 import { cn } from '@/lib/utils'
 
 import { consoleSurfaceStyles } from '../lib/console-surface'
 import { AppHeader } from './app-header'
+import { BackgroundCredit } from './background-credit'
 import { AppSidebar } from './app-sidebar'
 
 type AuthenticatedLayoutProps = {
@@ -37,29 +43,47 @@ type AuthenticatedLayoutProps = {
 
 export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
   const { appearance } = useSystemConfig()
+  const { backgroundOpacity } = useThemeCustomization()
   const savedSidebarState = getCookie('sidebar_state')
   const defaultOpen = savedSidebarState
     ? savedSidebarState !== 'false'
     : appearance.defaultSidebarLayout === 'expanded'
-  const backgroundImage = appearance.backgroundImage
+  // An operator-set image wins, then Unsplash when configured; otherwise the
+  // bundled pool keeps the console from being the one flat page on a site that
+  // has a backdrop elsewhere.
+  const [localBackground] = useState(pickLocalBackground)
+  const {
+    image: unsplashImage,
+    credit,
+    pending: unsplashPending,
+  } = useUnsplashBackground()
+  const backgroundImage =
+    appearance.backgroundImage ||
+    unsplashImage ||
+    (unsplashPending ? '' : localBackground)
+  const showCredit = !appearance.backgroundImage && !!unsplashImage
   const surfaceStyles = consoleSurfaceStyles(
     backgroundImage,
-    appearance.backgroundBlurOpacity
+    appearance.backgroundBlurOpacity,
+    backgroundOpacity
   )
 
   return (
     <div
       className='relative isolate min-h-svh'
-      data-console-background={backgroundImage ? 'image' : undefined}
+      data-console-background='image'
       style={surfaceStyles}
     >
-      {backgroundImage && (
-        <div
-          aria-hidden='true'
-          className='pointer-events-none fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat'
-          style={{ backgroundImage: `url(${JSON.stringify(backgroundImage)})` }}
-        />
-      )}
+      <div
+        aria-hidden='true'
+        className='pointer-events-none fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat'
+        style={{ backgroundImage: `url(${JSON.stringify(backgroundImage)})` }}
+      />
+      <div
+        aria-hidden='true'
+        className='from-background/30 via-background/55 to-background/75 pointer-events-none fixed inset-0 -z-10 bg-linear-to-b'
+      />
+      {showCredit && credit && <BackgroundCredit credit={credit} />}
       <LayoutProvider>
         <SearchProvider>
           <WallpaperSync />
@@ -69,15 +93,11 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
           >
             <SkipToMain />
             <AppHeader
-              className={cn(backgroundImage && 'backdrop-blur-sm')}
-              style={
-                backgroundImage
-                  ? {
-                      backgroundColor:
-                        'color-mix(in oklch, var(--background) var(--console-surface-opacity), transparent)',
-                    }
-                  : undefined
-              }
+              className='backdrop-blur-sm'
+              style={{
+                backgroundColor:
+                  'color-mix(in oklch, var(--background) var(--console-surface-opacity), transparent)',
+              }}
             />
             <NoticeDialog />
             <div className='flex min-h-0 w-full flex-1'>
@@ -88,17 +108,13 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                   'h-[calc(100svh-var(--app-header-height,0px))]',
                   'min-h-0 overflow-hidden',
                   'pb-0',
-                  'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]',
-                  backgroundImage && 'backdrop-blur-sm'
+                  'backdrop-blur-sm',
+                  'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
                 )}
-                style={
-                  backgroundImage
-                    ? {
-                        backgroundColor:
-                          'color-mix(in oklch, var(--background) var(--console-surface-opacity), transparent)',
-                      }
-                    : undefined
-                }
+                style={{
+                  backgroundColor:
+                    'color-mix(in oklch, var(--background) var(--console-surface-opacity), transparent)',
+                }}
               >
                 {props.children ?? <AnimatedOutlet />}
               </SidebarInset>

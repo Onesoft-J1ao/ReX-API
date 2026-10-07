@@ -31,12 +31,22 @@ import {
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import { THEME_PRESETS, type ThemePreset } from '@/lib/theme-customization'
+import { CONSOLE_OPACITY_DEFAULT } from '@/lib/console-opacity'
 import { cn } from '@/lib/utils'
+
+/** Discrete steps: a slider inside a dropdown fights the menu's own closing. */
+const BACKDROP_LEVELS = [
+  { value: CONSOLE_OPACITY_DEFAULT, label: 'Follow the site' },
+  { value: 30, label: 'Clear' },
+  { value: 55, label: 'Medium' },
+  { value: 80, label: 'Dense' },
+] as const
 
 export function ThemeSwitch() {
   const { t } = useTranslation()
   const { isForced, resolvedTheme, theme, setTheme } = useTheme()
-  const { customization, setPreset } = useThemeCustomization()
+  const { customization, setPreset, backgroundOpacity, setBackgroundOpacity } =
+    useThemeCustomization()
 
   useEffect(() => {
     const themeColor = resolvedTheme === 'dark' ? '#202020' : '#fff'
@@ -100,6 +110,25 @@ export function ThemeSwitch() {
               className={cn(
                 'ms-auto',
                 customization.preset !== preset.value && 'hidden'
+              )}
+            />
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <span className='text-muted-foreground px-2 py-1.5 text-xs'>
+          {t('Backdrop transparency')}
+        </span>
+        {BACKDROP_LEVELS.map((level) => (
+          <DropdownMenuItem
+            key={level.label}
+            onClick={() => setBackgroundOpacity(level.value)}
+          >
+            {t(level.label)}
+            <Check
+              size={14}
+              className={cn(
+                'ms-auto',
+                backgroundOpacity !== level.value && 'hidden'
               )}
             />
           </DropdownMenuItem>

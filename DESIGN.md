@@ -13,16 +13,16 @@
 | 角色 | 用什么 | 典型场景 |
 |---|---|---|
 | 容器 | `rounded-xl` | 卡片、面板、弹窗、区块包装 |
+| 大容器 | `rounded-2xl` | 控制台/公开页的一级面板、模型卡 |
 | 控件 | `rounded-md` | 按钮、输入框、下拉、标签页 |
 | 胶囊 | `rounded-full` | 状态点、徽标、头像、进度条 |
 
-**要消除**：裸 `rounded`（99 处）、`rounded-sm`（35）、`rounded-lg`（279）、
-`rounded-2xl`（28）、`rounded-3xl`。
+**要消除**：裸 `rounded`、`rounded-sm`、`rounded-3xl`。
 
 映射规则：
 - `rounded` / `rounded-sm` → 控件用 `rounded-md`；胶囊类用 `rounded-full`
 - `rounded-lg` → 按钮/输入等控件→`rounded-md`；卡片/面板→`rounded-xl`
-- `rounded-2xl` / `rounded-3xl` → `rounded-xl`
+- `rounded-3xl` 及以上 → 收敛到 `rounded-2xl`
 
 > 单边圆角（`rounded-t-*` 等）保留，但取值同样收敛到上面的档位。
 
@@ -30,8 +30,8 @@
 
 | 位置 | 值 |
 |---|---|
-| 页面左右留白 | `px-4 sm:px-6` |
-| 页面顶部留白 | `py-4 sm:py-6` |
+| 页面左右留白 | `px-3 sm:px-6 xl:px-8`（公开页）/ `px-4 sm:px-6`（应用区） |
+| 页面顶部留白 | `pt-14 sm:pt-18`（公开页，为浮动头部让位）/ `py-4 sm:py-6`（应用区） |
 | 区块之间 | `space-y-4`（紧凑）/ `space-y-6`（宽松，仅一级分区） |
 | 卡片内边距 | `p-4`（默认）/ `p-5`（内容型面板）/ `p-3`（紧凑列表项） |
 | 表格单元格 | `px-4 py-3`（默认）/ `px-3 py-2`（紧凑模式） |
@@ -92,13 +92,65 @@
 - `dark:` 变体里出现硬编码色（如 `dark:bg-slate-900`）→ 改语义 token
 - 半透明叠加（`/50`、`/20`）超过一层的，收敛到一层
 
+## 8. 背景与玻璃态
+
+控制台与公开页（模型广场、排行榜、动漫页）共用同一套背景语言：一张铺满整个
+视口的照片，上面压一层由上到下的底色渐隐，所有内容浮在它之上。
+
+**背景层**（`PublicLayout` / `AuthenticatedLayout`）
+
+```
+照片：fixed inset-0 bg-cover bg-center
+渐隐：from-background/30 via-background/55 to-background/75
+```
+
+**图片来源（按优先级）**
+
+1. 页面自带的 `backgroundOverride`（动漫页传入的 Nekosia 随机图）
+2. 运营配置的 `console_setting.background_image`
+3. Unsplash：配置了 `console_setting.background_unsplash_query` 时，由后端
+   `/api/background/random` 代取（Access Key 只存服务端，5 分钟缓存一次）
+4. 内置图片池 `web/public/backgrounds/`（`@/lib/local-backgrounds` 随机取一张）
+
+随机值一律在 `useState` 初始化时固定，重渲染不换图。
+
+**Unsplash 强制要求**：必须显示署名（摄影师 + Unsplash，均带链接），
+见 `components/layout/components/background-credit.tsx`；必须直接热链返回的
+URL，不得下载转存。
+
+**分层透明度**：外层大容器更透（照片透出来），嵌在里面的小卡片更实，
+两层才能拉开层次。数值由 `consoleSurfaceStyles()` 统一生成：
+
+| 变量 | 用途 |
+|---|---|
+| `--console-surface-opacity` | 顶栏、内容区底色 |
+| `--console-card-opacity` | 外层卡片 / 面板 |
+| `--console-inner-card-opacity` | 卡片里的卡片（统计块、列表行） |
+| `--console-sidebar-opacity` | 侧边栏 |
+| `--console-list-opacity` | 输入框、表格行 |
+
+规则写在 `styles/index.css` 的 `[data-console-background='image']` 段，
+按 `data-slot` 选择器覆盖，组件无需各自处理。
+
+## 9. 控制台侧边栏
+
+侧边栏与内容面板**连成一体**，中间不留空隙，整体覆盖背景：使用 `sidebar`
+变体（`console_setting.default_sidebar_variant = sidebar`），而不是
+`inset`（带外边距、圆角悬浮）。
+
+菜单项：`h-7 text-[13px]`；分组标签 `h-7 text-xs`；分组之间 `gap-1.5 p-1.5`；
+同级菜单项之间 `gap-0.5`。
+
+用户浏览器里的 `layout_variant` cookie 会覆盖该配置，改配置后老访客需要在
+布局切换器（config drawer）里手动选一次 `Sidebar`。
+
 ---
 
 ## 不许做的事
 
 - 不改任何文案、字段含义、请求参数、路由。
 - 不删除功能，不为「更简洁」合并不同的交互。
-- 不动 `features/home/**`（落地页自成一体）。
+- 不动 `features/home/**`（落地页自成一体，见第 8 节的背景语言）。
 - 不动 `styles/theme.css` 与 `styles/theme-presets.css` 里的 token 定义
   （除非是补一个缺失的语义 token，且两个主题都补）。
 - 不引入新的依赖或新的全局 CSS 类。
