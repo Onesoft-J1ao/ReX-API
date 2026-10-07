@@ -7,6 +7,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestBangumiRankingOffsetBoundsTheUpstreamPage keeps a caller from walking the
+// upstream catalogue: a page that is not a number in range reads as the first
+// page, and the last accepted page stays inside the bound.
+func TestBangumiRankingOffsetBoundsTheUpstreamPage(t *testing.T) {
+	cases := map[string]int{
+		"":    0,
+		"1":   0,
+		"2":   bangumiRankingPageSize,
+		"0":   0,
+		"-3":  0,
+		"x":   0,
+		"101": 0,
+		"100": (bangumiRankingMaxPage - 1) * bangumiRankingPageSize,
+	}
+	for page, expected := range cases {
+		assert.Equal(t, expected, bangumiRankingOffset(page), "page %q", page)
+	}
+}
+
 // TestDandanplaySignature pins the signing contract. The one property that
 // matters and is easy to break: the signature covers the PATH ONLY. Folding the
 // query into the signed path is what produces a 403 from the upstream, so the
@@ -115,6 +134,7 @@ func TestParseMikanFeed(t *testing.T) {
 		releases := parseMikanFeed(feed, "EXACT")
 		require.Len(t, releases, 1)
 		assert.Equal(t, hash, releases[0].TopicID)
+		assert.Equal(t, 2, releases[0].EpisodeNumber)
 	})
 
 	t.Run("returns nothing for the empty channel Mikan sends when it has no releases", func(t *testing.T) {
@@ -315,6 +335,77 @@ func TestAnimeMatchReleaseKeepsAnUnplayableReleaseWhenItIsAllThereIs(t *testing.
 	require.NotNil(t, matched)
 	assert.Equal(t, "hevc", matched.TopicID)
 	assert.False(t, matched.Playable)
+}
+
+func TestRqbitVideoFileIndex(t *testing.T) {
+	pack := []rqbitFile{
+		{Name: "Show - NCOP.mkv", Length: 900},
+		{Name: "Show - 01.mkv", Length: 100},
+		{Name: "Show - 02.mkv", Length: 800},
+	}
+
+	t.Run("picks the file naming the wanted episode, not the largest", func(t *testing.T) {
+		index, err := rqbitVideoFileIndex(pack, 1)
+		require.NoError(t, err)
+		assert.Equal(t, "Show - 01.mkv", pack[index].Name)
+	})
+
+	t.Run("demotes extras so a pack plays an episode rather than its opening", func(t *testing.T) {
+		index, err := rqbitVideoFileIndex(pack, 7)
+		require.NoError(t, err)
+		assert.Equal(t, "Show - 02.mkv", pack[index].Name)
+	})
+
+	t.Run("falls back to the largest video when no name matches", func(t *testing.T) {
+		files := []rqbitFile{
+			{Name: "Show - partA.mkv", Length: 100},
+			{Name: "Show - partB.mkv", Length: 800},
+		}
+		index, err := rqbitVideoFileIndex(files, 0)
+		require.NoError(t, err)
+		assert.Equal(t, "Show - partB.mkv", files[index].Name)
+	})
+
+	t.Run("ignores files that are not video", func(t *testing.T) {
+		index, err := rqbitVideoFileIndex([]rqbitFile{
+			{Name: "cover.jpg", Length: 9999},
+			{Name: "Show - 01.mkv", Length: 100},
+		}, 1)
+		require.NoError(t, err)
+		assert.Equal(t, 1, index)
+	})
+
+	t.Run("errors when the torrent has no video at all", func(t *testing.T) {
+		_, err := rqbitVideoFileIndex([]rqbitFile{{Name: "cover.jpg", Length: 1}}, 1)
+		require.Error(t, err)
+	})
+
+	t.Run("prefers the episode over a short special naming the same number", func(t *testing.T) {
+		// A real season pack lists S00E01 first, and it is a fourteen megabyte
+		// special rather than the two gigabyte episode.
+		files := []rqbitFile{
+			{Name: "Show S00E01 [special].mkv", Length: 14_603_794},
+			{Name: "Show S01E01 [1080p].mkv", Length: 2_068_840_312},
+		}
+		index, err := rqbitVideoFileIndex(files, 1)
+		require.NoError(t, err)
+		assert.Equal(t, "Show S01E01 [1080p].mkv", files[index].Name)
+	})
+}
+
+func TestAnimeFileNamesEpisode(t *testing.T) {
+	assert.True(t, animeFileNamesEpisode("Show - 03.mkv", 3))
+	assert.True(t, animeFileNamesEpisode("[Group] Show S01E03 [1080p].mkv", 3))
+	assert.True(t, animeFileNamesEpisode("[Group] Show - 第3话 [1080p].mkv", 3))
+
+	// The resolution must not be read as an episode number.
+	assert.False(t, animeFileNamesEpisode("[Group] Show - 1080p.mkv", 1))
+	assert.False(t, animeFileNamesEpisode("[Group] Show - 1080p.mkv", 8))
+	// Nor a prefix of a longer number.
+	assert.False(t, animeFileNamesEpisode("Show - 12.mkv", 1))
+	// Nor the season number of a marked name: "S01E03" is episode 3, not 1.
+	assert.False(t, animeFileNamesEpisode("[Group] Show S01E03 [1080p].mkv", 1))
+	assert.True(t, animeFileNamesEpisode("[Group] Show S01E03 [1080p].mkv", 3))
 }
 
 // TestAnimeEpisodeNumberInTitle covers the number parsing, including the

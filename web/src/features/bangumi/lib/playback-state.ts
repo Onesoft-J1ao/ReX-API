@@ -17,79 +17,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /**
- * The playback state model, ported from Animeko's player.
+ * The playback state model.
  *
- * Animeko separates a loading state machine (its `VideoLoadingState`) from the
- * engine's own state, and shows its overlay while anything other than a
- * successful load is in effect. The same split is kept here:
- *
- *   idle        -> Initial: nothing chosen yet
- *   resolving   -> ResolvingSource: fetching the torrent, opening the source
- *   connecting  -> DecodingData: querying the swarm for metadata and files
- *   buffering   -> Succeed, but the player has no data to show yet
- *   playing     -> Succeed and the player is advancing
- *   paused/ended-> Succeed, playback stopped
- *   failed      -> Failed, with a reason
- *
- * Animeko's Failed reasons are carried over as-is. `noPeers` is the one addition:
- * Animeko runs a native libtorrent session that connects over TCP/UDP and has no
- * peer-related state or copy at all, whereas a browser reaches a swarm only over
- * WebRTC. A torrent with no WebRTC-capable peers therefore stalls with no data
- * ever arriving, which the visitor deserves to be told plainly rather than
- * watching an endless spinner.
+ * The instance relays the video, so the browser's own player is the only thing
+ * that knows whether bytes are arriving; these are the states its events map
+ * onto. Nothing here samples a transfer, because there is no transfer this side
+ * of the relay to sample.
  */
 export type PlaybackStatus =
   | 'idle'
-  | 'resolving'
-  | 'connecting'
-  | 'buffering'
+  | 'loading'
   | 'playing'
   | 'paused'
   | 'ended'
   | 'failed'
 
-/** Animeko's `VideoLoadingState.Failed` members, plus `noPeers`. */
-export type PlaybackFailure =
-  | 'resolutionTimedOut'
-  | 'networkError'
-  | 'unsupportedMedia'
-  | 'noMatchingFile'
-  | 'noPeers'
-  | 'unknownError'
-
-/**
- * How long the transfer may sit at zero before the viewer is told.
- *
- * Animeko uses exactly 15 seconds of zero speed for the same purpose, and only
- * for BitTorrent: below that it shows a plain buffering state.
- */
-export const ZERO_SPEED_TIMEOUT_MS = 15_000
-
 /** The statuses in which playback is under way and the overlay stays hidden. */
 const PLAYING_STATUSES = new Set<PlaybackStatus>(['playing', 'paused', 'ended'])
 
 /**
- * Whether the loading/buffering overlay should cover the video.
+ * Whether the loading or error overlay should cover the video.
  *
- * This mirrors Animeko's predicate (`buffering || playerError || state !is
- * Succeed`): the overlay is suppressed only once playback is genuinely running.
+ * Suppressed only once playback is genuinely running, so a stall or an error
+ * during a stream is visible rather than hidden behind a picture that is not
+ * moving.
  */
 export function shouldShowOverlay(status: PlaybackStatus): boolean {
   return !PLAYING_STATUSES.has(status)
-}
-
-/**
- * Whether a zero transfer has lasted long enough to report.
- *
- * Speed is in bytes per second; `undefined` means it is not known yet, which
- * must not be reported as zero -- the same distinction Animeko draws between
- * `FileSize.Zero` and `FileSize.Unspecified`.
- */
-export function isStalled(
-  downloadSpeed: number | undefined,
-  stalledForMs: number
-): boolean {
-  return downloadSpeed === 0 && stalledForMs >= ZERO_SPEED_TIMEOUT_MS
 }
 
 /**

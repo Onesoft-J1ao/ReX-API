@@ -23,6 +23,8 @@ import {
   commentsInWindow,
   danmakuColor,
   danmakuDuration,
+  filterDanmaku,
+  parseBlockedWords,
   parseDanmaku,
 } from '../danmaku'
 
@@ -124,5 +126,36 @@ describe('danmakuDuration', () => {
   it('keeps the duration within bounds for the shortest and longest text', () => {
     expect(danmakuDuration('')).toBeGreaterThan(0)
     expect(danmakuDuration('x'.repeat(500))).toBe(12)
+  })
+})
+
+describe('parseBlockedWords', () => {
+  it('splits on the separators a hand-typed list uses and drops duplicates', () => {
+    expect(parseBlockedWords('剧透, 广告\n前方高能，刷屏、剧透')).toEqual([
+      '剧透',
+      '广告',
+      '前方高能',
+      '刷屏',
+    ])
+  })
+
+  it('keeps an empty list empty rather than producing an empty term', () => {
+    expect(parseBlockedWords(' , , ')).toEqual([])
+  })
+})
+
+describe('filterDanmaku', () => {
+  function decoded(text: string, id: number) {
+    return parseDanmaku([comment({ cid: id, m: text })])[0]
+  }
+
+  it('drops a comment containing a blocked word, case-insensitively', () => {
+    const comments = [decoded('剧透警告', 1), decoded('Spoiler ahead', 2), decoded('好看', 3)]
+    expect(filterDanmaku(comments, ['剧透', 'spoiler']).map((c) => c.id)).toEqual([3])
+  })
+
+  it('keeps every comment when nothing is blocked', () => {
+    const comments = [decoded('一', 1), decoded('二', 2)]
+    expect(filterDanmaku(comments, [])).toHaveLength(2)
   })
 })

@@ -20,16 +20,33 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { PublicLayout } from '@/components/layout'
 import { Bangumi } from '@/features/bangumi'
+import { useRandomAnimeBackground } from '@/features/bangumi/hooks/use-random-anime-background'
+
+/**
+ * The search term lives in the URL so that opening a subject and coming back
+ * returns to the same results. Component state would be gone by then, because
+ * the calendar route remounts on the way back.
+ */
+type BangumiSearch = { keyword?: string }
 
 export const Route = createFileRoute('/bangumi/')({
+  validateSearch: (search: Record<string, unknown>): BangumiSearch => ({
+    keyword: typeof search.keyword === 'string' ? search.keyword : undefined,
+  }),
   component: AnimePage,
 })
 
 function AnimePage() {
+  const { keyword } = Route.useSearch()
+  const background = useRandomAnimeBackground()
   return (
-    <PublicLayout>
-      <div className='mx-auto max-w-6xl px-4 py-8'>
-        <Bangumi />
+    <PublicLayout
+      backgroundMode='hero'
+      backgroundOverride={background.url}
+      backgroundPending={background.pending}
+    >
+      <div className='mx-auto w-full max-w-6xl px-3 pt-10 pb-10 sm:px-6 sm:pt-14 xl:px-8'>
+        <Bangumi keyword={keyword ?? ''} />
       </div>
     </PublicLayout>
   )

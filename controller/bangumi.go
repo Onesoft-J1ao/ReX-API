@@ -17,9 +17,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -49,11 +51,28 @@ import (
 // reference below.
 
 const (
-	bangumiAPIBase    = "https://api.bgm.tv"
-	bangumiImageBase  = "https://lain.bgm.tv"
-	bangumiUserAgent  = "ReX-API/1.0 (https://github.com/QuantumNous/new-api)"
+	bangumiAPIBase   = "https://api.bgm.tv"
+	bangumiImageBase = "https://lain.bgm.tv"
+	// Sent to third-party anime sites on every upstream request, so it presents a
+	// browser rather than this instance: several of them reject a non-browser
+	// agent outright, and none of them need to learn who is calling. Mikan in
+	// particular answers a bot agent with an empty result set, which then reads
+	// as "no release matches" instead of a blocked request.
+	bangumiUserAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 	bangumiMaxBody    = 4 << 20
 	bangumiSearchType = 2 // anime, excluding books and music
+
+	// The ranking is one page of the same subject list, so it reuses the search
+	// type and a fixed page size rather than accepting one from the caller: the
+	// page size keys the cache, and an unbounded one would let a single request
+	// pull the whole catalogue through this instance.
+	bangumiRankingPageSize = 24
+	bangumiRankingMaxPage  = 100
+
+	// A search or release keyword keys a cache entry and is forwarded upstream,
+	// so it is bounded at the point it enters. The media-source search uses the
+	// same bound.
+	maxBangumiKeywordBytes = 512
 
 	dandanplayAPIBase = "https://api.dandanplay.net"
 	mikanAPIBase      = "https://mikanani.me"
@@ -80,6 +99,9 @@ var bangumiCacheTTL = map[string]time.Duration{
 	"calendar": 30 * time.Minute,
 	"subject":  6 * time.Hour,
 	"search":   10 * time.Minute,
+	// Rank is recomputed from every user's score, so it drifts slowly; a page of
+	// the ranking is stable enough to cache like the calendar.
+	"ranking": 30 * time.Minute,
 	// Episode lists change when a season airs, not minute to minute.
 	"episodes": 6 * time.Hour,
 	// Comments are effectively append-only for a released episode.
@@ -171,6 +193,13 @@ func GetBangumiSearch(c *gin.Context) {
 		c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(`{"data":[],"total":0,"limit":0,"offset":0}`))
 		return
 	}
+	// The keyword is part of the cache key and is forwarded upstream, so bound
+	// it here: an unbounded key is a Redis key-length problem and a way to fill
+	// the cache with junk, and the upstream pays for the oversized query too.
+	if len(keyword) > maxBangumiKeywordBytes {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "keyword is too long"})
+		return
+	}
 	limit := 20
 	if raw := c.Query("limit"); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 50 {
@@ -218,13 +247,38 @@ func GetBangumiSearch(c *gin.Context) {
 	})
 }
 
+// bangumiRankingOffset maps a caller's page onto an upstream offset, clamped to
+// the pages this instance is willing to proxy. Anything that is not a page
+// number in range reads as the first page rather than an error: the upstream
+// list is what the viewer wants, and a bad page should not deny them it.
+func bangumiRankingOffset(raw string) int {
+	page := 1
+	if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= bangumiRankingMaxPage {
+		page = parsed
+	}
+	return (page - 1) * bangumiRankingPageSize
+}
+
+// GetBangumiRanking returns the highest-ranked anime, one page at a time.
+//
+// bgm.tv's ranking is its subject list sorted by rank, so this is the search
+// upstream with the sort fixed. The page number is bounded because it keys the
+// cache and indexes into the upstream list.
+func GetBangumiRanking(c *gin.Context) {
+	offset := bangumiRankingOffset(c.Query("page"))
+	page := offset/bangumiRankingPageSize + 1
+	bangumiFetch(c, "bangumi:ranking:"+strconv.Itoa(page), bangumiCacheTTL["ranking"], func() (string, error) {
+		return bangumiGet(fmt.Sprintf("/v0/subjects?type=%d&sort=rank&limit=%d&offset=%d",
+			bangumiSearchType, bangumiRankingPageSize, offset))
+	})
+}
+
 // ProxyBangumiImage streams a cover through this instance.
 //
-// The upstream hands out two path shapes -- a bare `/pic/cover/l/...` from the
-// calendar and an already-sized `/r/400/pic/...` from the subject endpoint --
-// and its image host serves the first only when asked for as-is: requesting it
-// under `/r/` without a width returns 400. So the path is forwarded verbatim
-// and the caller's job is simply to keep whichever shape it was given.
+// The path is forwarded verbatim, so the caller owns the size decision: the
+// host accepts a `/r/<width>/` prefix only on the `l` (original) path, and
+// answers 400 for one on a `c` or `m` thumbnail. The frontend therefore asks
+// for the original under the width it needs rather than the thumbnail.
 func ProxyBangumiImage(c *gin.Context) {
 	// Gin's wildcard keeps the leading slash, and the upstream answers 500 on
 	// a doubled one, so it is trimmed rather than concatenated.
@@ -253,10 +307,16 @@ func ProxyBangumiImage(c *gin.Context) {
 		c.Status(response.StatusCode)
 		return
 	}
-	contentType := response.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "image/jpeg"
+	// The upstream chooses the content type and this response is served from the
+	// gateway's own origin, so a hostile or compromised image host returning
+	// text/html would otherwise be a script running on this site. Only image
+	// types are forwarded, and the browser is told not to sniff past the header.
+	contentType := strings.ToLower(strings.TrimSpace(response.Header.Get("Content-Type")))
+	if !strings.HasPrefix(contentType, "image/") {
+		contentType = "application/octet-stream"
 	}
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Disposition", "inline")
 	c.DataFromReader(http.StatusOK, response.ContentLength, contentType,
 		response.Body, nil)
 }
@@ -362,6 +422,7 @@ type animeRelease struct {
 	Size          int64    `json:"size"`
 	PublishedAt   string   `json:"publishedAt"`
 	PublishedMs   int64    `json:"publishedTime"`
+	EpisodeNumber int      `json:"episodeNumber"`
 	Resolution    string   `json:"resolution"`
 	MediaOrigin   string   `json:"mediaOrigin,omitempty"`
 	SubtitleLangs []string `json:"subtitleLanguages"`
@@ -729,6 +790,7 @@ func animeParseSubtitleKind(text string, languages []string) string {
 // which is where Mikan carries them: an item has no resolution or subtitle
 // field, only the raw release name.
 func applyAnimeTitleAttributes(release *animeRelease, title string) {
+	release.EpisodeNumber = animeEpisodeNumberInTitle(title)
 	release.Resolution = animeParseResolution(title)
 	release.MediaOrigin = animeParseMediaOrigin(title)
 	release.VideoCodec = animeParseVideoCodec(title)
@@ -1020,22 +1082,452 @@ func mikanHTMLHeaders() map[string]string {
 // headers, so a fetch from the page is blocked before WebTorrent ever sees it.
 // The upstream host is fixed and only the /Download/ path is accepted, which
 // keeps this an allowlisted fetch rather than a proxy for arbitrary URLs.
+// validMikanDownloadPath reports whether a path names one of Mikan's own torrent
+// downloads. The host is fixed by the caller, so accepting only this shape keeps
+// both the torrent proxy and the stream an allowlisted fetch rather than a proxy
+// for arbitrary URLs.
+func validMikanDownloadPath(torrentPath string) bool {
+	return torrentPath != "" &&
+		strings.HasPrefix(torrentPath, "Download/") &&
+		!strings.Contains(torrentPath, "..") &&
+		!strings.Contains(torrentPath, "://")
+}
+
 func ProxyBangumiTorrent(c *gin.Context) {
-	path := strings.Trim(strings.TrimSpace(c.Param("path")), "/")
-	if path == "" ||
-		!strings.HasPrefix(path, "Download/") ||
-		strings.Contains(path, "..") ||
-		strings.Contains(path, "://") {
+	torrentPath := strings.Trim(strings.TrimSpace(c.Param("path")), "/")
+	if !validMikanDownloadPath(torrentPath) {
 		c.Status(http.StatusBadRequest)
 		return
 	}
 
-	body, err := animeUpstreamGet(c.Request.Context(), mikanAPIBase+"/"+path, mikanHTMLHeaders(), mikanTimeout)
+	body, err := animeUpstreamGet(c.Request.Context(), mikanAPIBase+"/"+torrentPath, mikanHTMLHeaders(), mikanTimeout)
 	if err != nil {
 		c.Status(http.StatusBadGateway)
 		return
 	}
 	c.Data(http.StatusOK, "application/x-bittorrent", body)
+}
+
+// --- Playback: streaming an episode through the local BitTorrent backend -----
+//
+// Mikan publishes torrents, and a browser cannot join a swarm of ordinary
+// BitTorrent peers -- it speaks HTTP, they speak TCP and UDP. Something has to
+// sit in the data path and translate, and this instance is that something: rqbit
+// runs beside it, joins the swarm, and serves the file over HTTP, which the
+// browser's own player then reads.
+//
+// The bytes are copied through without buffering, so serving a two gigabyte
+// episode costs a buffer rather than the episode, and rqbit's own footprint is
+// tens of megabytes. What it does cost is disk and bandwidth: the torrent's
+// selected files are written to disk for as long as the torrent is held, which
+// is why an idle one is evicted.
+
+const (
+	// rqbitAPIBase is the local BitTorrent backend. A loopback address, because
+	// the process runs beside this one rather than somewhere on the network.
+	rqbitAPIBase = "http://127.0.0.1:3031"
+	// rqbitAddTimeout bounds fetching the .torrent and registering it, which is
+	// the slow part before any bytes move.
+	rqbitAddTimeout = 60 * time.Second
+	// rqbitControlTimeout bounds the control calls that are not streaming:
+	// registering a torrent and evicting one. The shared client carries no
+	// overall timeout because a stream stays open for as long as the viewer
+	// watches, so every non-streaming call sets its own deadline.
+	rqbitControlTimeout = 30 * time.Second
+	// rqbitIdleTimeout is how long a torrent is kept after its last request.
+	// It holds the episode's own size on disk the whole time, so eviction has to
+	// be prompt on a volume this instance shares with the database.
+	rqbitIdleTimeout = 20 * time.Minute
+)
+
+// rqbitFile is the part of a torrent's file list this needs.
+type rqbitFile struct {
+	Name     string `json:"name"`
+	Length   int64  `json:"length"`
+	Included bool   `json:"included"`
+}
+
+type rqbitTorrentDetail struct {
+	ID    int         `json:"id"`
+	Files []rqbitFile `json:"files"`
+}
+
+// rqbitEntry is one torrent this instance is serving, the file chosen for the
+// episode being watched, and when it was last asked for.
+type rqbitEntry struct {
+	id        int
+	files     []rqbitFile
+	fileIndex int
+	lastUsed  time.Time
+}
+
+var (
+	rqbitMu      sync.Mutex
+	rqbitEntries = map[string]*rqbitEntry{}
+
+	rqbitSweeperOnce sync.Once
+
+	// rqbitHTTPClient has no overall timeout: a stream stays open for as long as
+	// the viewer is watching, and the request's own context is what ends it.
+	rqbitHTTPClient = &http.Client{}
+)
+
+// GetBangumiStream serves an episode from the torrent named in the path.
+//
+// The browser is handed a same-origin URL and asks for byte ranges as it plays;
+// each range is forwarded to the backend and copied straight through. That is
+// also why the episode is chosen here rather than in the page: the backend's
+// file order is the only thing that can be streamed, and picking the wrong entry
+// of a season pack plays the wrong episode.
+func GetBangumiStream(c *gin.Context) {
+	torrentPath := strings.Trim(strings.TrimSpace(c.Param("path")), "/")
+	if !validMikanDownloadPath(torrentPath) {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	episodeNumber, _ := strconv.Atoi(c.Query("episode"))
+
+	startRqbitSweeper()
+
+	entry, err := ensureRqbitTorrent(c.Request.Context(), torrentPath, episodeNumber)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Anime stream could not be prepared: %v", err))
+		c.Status(http.StatusBadGateway)
+		return
+	}
+
+	proxyRqbitFile(c, entry.id, entry.fileIndex)
+}
+
+// proxyRqbitFile forwards one request to the backend and copies the response.
+func proxyRqbitFile(c *gin.Context, torrentID, fileIndex int) {
+	target := fmt.Sprintf("%s/torrents/%d/stream/%d", rqbitAPIBase, torrentID, fileIndex)
+	request, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, target, nil)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	// The range is the whole point: without it the browser cannot start in the
+	// middle of an episode, which is what seeking is.
+	if rangeHeader := c.GetHeader("Range"); rangeHeader != "" {
+		request.Header.Set("Range", rangeHeader)
+	}
+
+	response, err := rqbitHTTPClient.Do(request)
+	if err != nil {
+		c.Status(http.StatusBadGateway)
+		return
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {
+		c.Status(http.StatusBadGateway)
+		return
+	}
+
+	for _, header := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges"} {
+		if value := response.Header.Get(header); value != "" {
+			c.Writer.Header().Set(header, value)
+		}
+	}
+	c.Status(response.StatusCode)
+	c.Writer.WriteHeaderNow()
+
+	if _, err := io.Copy(c.Writer, response.Body); err != nil {
+		// A viewer closing the tab mid-stream is the ordinary cause, so this is
+		// logged rather than surfaced.
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Anime stream ended early: %v", err))
+	}
+}
+
+// ensureRqbitTorrent returns the backend's id for the torrent and the index of
+// the file to play, adding the torrent if the backend does not have it.
+func ensureRqbitTorrent(ctx context.Context, torrentPath string, episodeNumber int) (*rqbitEntry, error) {
+	rqbitMu.Lock()
+	cached, ok := rqbitEntries[torrentPath]
+	if ok {
+		cached.lastUsed = time.Now()
+	}
+	rqbitMu.Unlock()
+
+	if ok {
+		index, err := rqbitVideoFileIndex(cached.files, episodeNumber)
+		if err == nil {
+			// Copy, so the caller is not reading a struct the sweeper may replace.
+			return &rqbitEntry{id: cached.id, files: cached.files, fileIndex: index, lastUsed: cached.lastUsed}, nil
+		}
+		rqbitMu.Lock()
+		delete(rqbitEntries, torrentPath)
+		rqbitMu.Unlock()
+	}
+
+	addCtx, cancel := context.WithTimeout(ctx, rqbitAddTimeout)
+	defer cancel()
+
+	body, err := animeUpstreamGet(addCtx, mikanAPIBase+"/"+torrentPath, mikanHTMLHeaders(), mikanTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	// Listed before it is added so the file to download is known in advance:
+	// rqbit's only_files is set at add time, and adding a season pack first would
+	// start pulling all of it. The whole pack is fifty gigabytes; one episode is
+	// one.
+	files, err := rqbitListFiles(addCtx, body)
+	if err != nil {
+		return nil, err
+	}
+	index, err := rqbitVideoFileIndex(files, episodeNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := rqbitAddTorrent(addCtx, body, index)
+	if err != nil {
+		return nil, err
+	}
+
+	entry := &rqbitEntry{id: id, files: files, fileIndex: index, lastUsed: time.Now()}
+	rqbitMu.Lock()
+	rqbitEntries[torrentPath] = entry
+	rqbitMu.Unlock()
+
+	return entry, nil
+}
+
+// rqbitListFiles asks the backend what a .torrent contains without adding it.
+func rqbitListFiles(ctx context.Context, torrent []byte) ([]rqbitFile, error) {
+	detail, err := rqbitPostTorrent(ctx, torrent, "?list_only=true")
+	if err != nil {
+		return nil, err
+	}
+	if len(detail.Files) == 0 {
+		return nil, errors.New("the torrent lists no files")
+	}
+	return detail.Files, nil
+}
+
+// rqbitAddTorrent registers the torrent, downloading only the chosen file.
+func rqbitAddTorrent(ctx context.Context, torrent []byte, fileIndex int) (int, error) {
+	detail, err := rqbitPostTorrent(ctx, torrent, fmt.Sprintf("?only_files=%d", fileIndex))
+	if err != nil {
+		return 0, err
+	}
+	return detail.ID, nil
+}
+
+func rqbitPostTorrent(ctx context.Context, torrent []byte, query string) (*rqbitTorrentDetail, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, rqbitAPIBase+"/torrents"+query, bytes.NewReader(torrent))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/octet-stream")
+
+	response, err := rqbitHTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("the torrent backend answered %d", response.StatusCode)
+	}
+
+	var added struct {
+		Details rqbitTorrentDetail `json:"details"`
+	}
+	if err := common.DecodeJson(response.Body, &added); err != nil {
+		return nil, err
+	}
+	return &added.Details, nil
+}
+
+// rqbitDeleteTorrent drops the torrent and its files.
+//
+// The backend's delete rather than its forget: forget leaves the downloaded
+// files on disk, which is the opposite of what an eviction is for.
+func rqbitDeleteTorrent(ctx context.Context, id int) error {
+	// Bounded, because the sweeper calls this with a background context and the
+	// shared client has no timeout: a hung rqbit would otherwise park the
+	// sweeper goroutine for good and stop every later eviction, filling the disk.
+	ctx, cancel := context.WithTimeout(ctx, rqbitControlTimeout)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		fmt.Sprintf("%s/torrents/%d/delete", rqbitAPIBase, id), nil)
+	if err != nil {
+		return err
+	}
+	response, err := rqbitHTTPClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("the torrent backend answered %d", response.StatusCode)
+	}
+	return nil
+}
+
+// startRqbitSweeper evicts torrents nobody is watching any more.
+//
+// Started on first use rather than at boot so an instance that never plays
+// anything never runs the goroutine.
+func startRqbitSweeper() {
+	rqbitSweeperOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				evictIdleRqbitTorrents()
+			}
+		}()
+	})
+}
+
+func evictIdleRqbitTorrents() {
+	rqbitMu.Lock()
+	var expired []*rqbitEntry
+	for key, entry := range rqbitEntries {
+		if time.Since(entry.lastUsed) >= rqbitIdleTimeout {
+			expired = append(expired, entry)
+			delete(rqbitEntries, key)
+		}
+	}
+	rqbitMu.Unlock()
+
+	for _, entry := range expired {
+		if err := rqbitDeleteTorrent(context.Background(), entry.id); err != nil {
+			logger.LogError(context.Background(), fmt.Sprintf("Failed to evict an idle torrent: %v", err))
+		}
+	}
+}
+
+// animeVideoExtensions are the container suffixes a release ships its episodes
+// in.
+var animeVideoExtensions = []string{".mkv", ".mp4", ".m4v", ".avi", ".mov", ".webm", ".ts", ".m2ts", ".flv", ".wmv"}
+
+func isAnimeVideoFile(name string) bool {
+	lowered := strings.ToLower(name)
+	for _, extension := range animeVideoExtensions {
+		if strings.HasSuffix(lowered, extension) {
+			return true
+		}
+	}
+	return false
+}
+
+// animeExtrasPatterns match the openings, endings and previews that sit beside
+// the episodes in a release, so a season pack plays an episode rather than its
+// NCOP.
+var animeExtrasPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)\bNC(OP|ED)\b`),
+	regexp.MustCompile(`(?i)\bOP\d`),
+	regexp.MustCompile(`(?i)\bED\d`),
+	regexp.MustCompile(`(?i)\bCM\d`),
+	regexp.MustCompile(`(?i)\bPV\d?`),
+	regexp.MustCompile(`(?i)\bSP\d?\b`),
+	regexp.MustCompile(`(?i)\bOVA\b`),
+}
+
+func isAnimeExtraFile(name string) bool {
+	for _, pattern := range animeExtrasPatterns {
+		if pattern.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+var (
+	// animeEpisodeMarkerPattern finds a number introduced by an episode marker,
+	// as in "S01E03" or "第3话".
+	animeEpisodeMarkerPattern = regexp.MustCompile(`(?i)(?:ep|e|第)\s*0*(\d+)`)
+	// animeDigitRunPattern finds any run of digits.
+	animeDigitRunPattern = regexp.MustCompile(`\d+`)
+)
+
+// animeFileNamesEpisode reports whether a filename names the given episode.
+//
+// The number must stand on its own, so "Show 03" and "S01E03" match episode 3
+// while the 1080 of a resolution does not. Go's regexp engine has no lookahead to
+// express that in the pattern, so whole runs of digits are compared instead of
+// searching for the number as a substring.
+//
+// A name carrying an explicit marker is judged only by the marked number. That
+// is what stops "S01E03" from reading as episode 1 through its season number.
+func animeFileNamesEpisode(name string, episodeNumber int) bool {
+	wanted := strconv.Itoa(episodeNumber)
+
+	if marked := animeEpisodeMarkerPattern.FindAllStringSubmatch(name, -1); len(marked) > 0 {
+		for _, match := range marked {
+			if strings.TrimLeft(match[1], "0") == wanted {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, run := range animeDigitRunPattern.FindAllString(name, -1) {
+		if strings.TrimLeft(run, "0") == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+// rqbitVideoFileIndex picks the file of a torrent to play.
+//
+// A release is as often a season pack as a single episode, so the file naming
+// the wanted episode wins; failing that the largest remaining video does, which
+// in a pack is a real episode rather than a sample or a menu. Extras are demoted
+// rather than dropped, so a torrent containing nothing else still plays one.
+func rqbitVideoFileIndex(files []rqbitFile, episodeNumber int) (int, error) {
+	videos := make([]int, 0, len(files))
+	for i := range files {
+		if isAnimeVideoFile(files[i].Name) {
+			videos = append(videos, i)
+		}
+	}
+	if len(videos) == 0 {
+		return 0, errors.New("the torrent contains no video file")
+	}
+
+	episodes := make([]int, 0, len(videos))
+	for _, i := range videos {
+		if !isAnimeExtraFile(files[i].Name) {
+			episodes = append(episodes, i)
+		}
+	}
+	pool := videos
+	if len(episodes) > 0 {
+		pool = episodes
+	}
+
+	if episodeNumber > 0 {
+		matches := make([]int, 0, len(pool))
+		for _, i := range pool {
+			if animeFileNamesEpisode(files[i].Name, episodeNumber) {
+				matches = append(matches, i)
+			}
+		}
+		if len(matches) > 0 {
+			pool = matches
+		}
+	}
+
+	// The largest of what is left, which is the rule for both cases: among files
+	// naming the episode it prefers the real one over a short special, and with
+	// none naming it, the largest is a real episode rather than a sample or a
+	// menu. Taking the first match instead picked whichever the pack happened to
+	// list first -- for one season pack that was its fourteen megabyte S00E01
+	// rather than the two gigabyte episode.
+	largest := pool[0]
+	for _, i := range pool {
+		if files[i].Length > files[largest].Length {
+			largest = i
+		}
+	}
+	return largest, nil
 }
 
 // animeFetchReleases returns the releases for a subject, resolving the Mikan id
@@ -1232,6 +1724,12 @@ func GetBangumiReleases(c *gin.Context) {
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	if keyword == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "keyword is required"})
+		return
+	}
+	// Bounded for the same reason as the search keyword: it keys the cache and
+	// travels upstream.
+	if len(keyword) > maxBangumiKeywordBytes {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "keyword is too long"})
 		return
 	}
 

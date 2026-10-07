@@ -20,21 +20,13 @@ import { describe, expect, it } from 'vitest'
 
 import {
   type PlaybackStatus,
-  ZERO_SPEED_TIMEOUT_MS,
   formatBytes,
-  isStalled,
   shouldShowOverlay,
 } from '../playback-state'
 
 describe('shouldShowOverlay', () => {
   it('covers the video while playback is not running', () => {
-    const covered: PlaybackStatus[] = [
-      'idle',
-      'resolving',
-      'connecting',
-      'buffering',
-      'failed',
-    ]
+    const covered: PlaybackStatus[] = ['idle', 'loading', 'failed']
 
     for (const status of covered) {
       expect(shouldShowOverlay(status)).toBe(true)
@@ -47,24 +39,6 @@ describe('shouldShowOverlay', () => {
     for (const status of uncovered) {
       expect(shouldShowOverlay(status)).toBe(false)
     }
-  })
-})
-
-describe('isStalled', () => {
-  it('does not report an unknown speed as a stall', () => {
-    expect(isStalled(undefined, ZERO_SPEED_TIMEOUT_MS * 2)).toBe(false)
-  })
-
-  it('does not report a transfer that is still moving', () => {
-    expect(isStalled(1024, ZERO_SPEED_TIMEOUT_MS * 2)).toBe(false)
-  })
-
-  it('does not report a zero speed before the timeout elapses', () => {
-    expect(isStalled(0, ZERO_SPEED_TIMEOUT_MS - 1)).toBe(false)
-  })
-
-  it('reports a zero speed once the timeout elapses', () => {
-    expect(isStalled(0, ZERO_SPEED_TIMEOUT_MS)).toBe(true)
   })
 })
 

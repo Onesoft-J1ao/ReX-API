@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { CalendarDays, Search, Tv } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,19 +26,21 @@ import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { getBangumiCalendar, searchBangumi } from './api'
 import { BangumiCard } from './bangumi-card'
-import { BangumiSubjectDialog } from './bangumi-subject-dialog'
+import { BangumiRanking } from './components/bangumi-ranking'
 import type { BangumiCalendarDay, BangumiCalendarItem } from './types'
 
 const SEARCH_DEBOUNCE_MS = 350
 
-export function Bangumi() {
+export function Bangumi(props: { keyword: string }) {
   const { t } = useTranslation()
-  const [keyword, setKeyword] = useState('')
-  const [submitted, setSubmitted] = useState('')
-  const [selected, setSelected] = useState<BangumiCalendarItem | null>(null)
+  const navigate = useNavigate()
+  const submitted = props.keyword
+  const [keyword, setKeyword] = useState(props.keyword)
+  const [view, setView] = useState<'calendar' | 'ranking'>('calendar')
 
   const calendarQuery = useQuery({
     queryKey: ['bangumi', 'calendar'],
@@ -64,6 +67,17 @@ export function Bangumi() {
     }
   }, [])
 
+  // The committed term is written to the URL rather than kept in state, so the
+  // search survives the round trip through a subject page. The input still
+  // updates on every keystroke; only the committed value is reflected.
+  const commitKeyword = (value: string) => {
+    void navigate({
+      to: '/bangumi',
+      search: value ? { keyword: value } : {},
+      replace: true,
+    })
+  }
+
   // Typing updates the input immediately but only searches once the user
   // pauses, so a title does not cost one upstream request per keystroke. Each
   // keystroke cancels the one before it: without that, clearing the field would
@@ -77,12 +91,12 @@ export function Bangumi() {
 
     const trimmed = value.trim()
     if (!trimmed) {
-      setSubmitted('')
+      commitKeyword('')
       return
     }
     debounceRef.current = window.setTimeout(() => {
       debounceRef.current = null
-      setSubmitted(trimmed)
+      commitKeyword(trimmed)
     }, SEARCH_DEBOUNCE_MS)
   }
 
@@ -99,12 +113,26 @@ export function Bangumi() {
   const results = searchQuery.data?.data ?? []
   const searching = submitted.length > 0
 
+  // The detail and player live on their own routes rather than in an overlay,
+  // so opening one is a navigation the browser back button can undo.
+  const openSubject = (item: BangumiCalendarItem) => {
+    void navigate({
+      to: '/bangumi/$subjectId',
+      params: { subjectId: String(item.id) },
+    })
+  }
+
   return (
-    <div className='mx-auto max-w-6xl space-y-6'>
-      <div className='flex flex-wrap items-center justify-between gap-3'>
-        <div className='flex items-center gap-2'>
-          <Tv className='size-5' />
-          <h1 className='text-lg font-semibold'>{t('Anime')}</h1>
+    <div className='mx-auto max-w-6xl space-y-8'>
+      <div className='flex flex-wrap items-end justify-between gap-4'>
+        <div className='space-y-1'>
+          <div className='text-muted-foreground flex items-center gap-2 font-mono text-xs tracking-wider uppercase'>
+            <Tv className='size-3.5' />
+            {t('Anime')}
+          </div>
+          <h1 className='text-2xl font-semibold tracking-tight'>
+            {t('Anime')}
+          </h1>
         </div>
         <div className='relative w-full sm:w-72'>
           <Search
@@ -126,24 +154,32 @@ export function Bangumi() {
           items={results}
           loading={searchQuery.isLoading}
           errored={searchQuery.isError}
-          onSelect={setSelected}
+          onSelect={openSubject}
         />
       ) : (
-        <Calendar
-          days={days}
-          loading={calendarQuery.isLoading}
-          errored={calendarQuery.isError}
-          onSelect={setSelected}
-        />
+        <Tabs
+          value={view}
+          onValueChange={(value) => {
+            if (value === 'calendar' || value === 'ranking') setView(value)
+          }}
+        >
+          <TabsList>
+            <TabsTrigger value='calendar'>{t('Broadcast calendar')}</TabsTrigger>
+            <TabsTrigger value='ranking'>{t('Ranking')}</TabsTrigger>
+          </TabsList>
+          <TabsContent value='calendar'>
+            <Calendar
+              days={days}
+              loading={calendarQuery.isLoading}
+              errored={calendarQuery.isError}
+              onSelect={openSubject}
+            />
+          </TabsContent>
+          <TabsContent value='ranking'>
+            <BangumiRanking onSelect={openSubject} />
+          </TabsContent>
+        </Tabs>
       )}
-
-      <BangumiSubjectDialog
-        subject={selected}
-        open={selected !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null)
-        }}
-      />
     </div>
   )
 }
@@ -231,9 +267,7 @@ function SearchResults(props: {
     )
   }
   if (props.items.length === 0) {
-    return (
-      <EmptyState className='min-h-[200px]' title={t('No anime found.')} />
-    )
+    return <EmptyState className='min-h-[200px]' title={t('No anime found.')} />
   }
 
   return (

@@ -17,10 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Dialog } from '@/components/dialog'
 import { ErrorState } from '@/components/error-state'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
@@ -28,9 +28,9 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { bangumiCoverUrl, getBangumiSubject } from './api'
-import { bangumiTitle } from './lib/title'
 import { BangumiWatchView } from './components/bangumi-watch-view'
-import type { BangumiCalendarItem, BangumiSubject } from './types'
+import { bangumiTitle } from './lib/title'
+import type { BangumiSubject } from './types'
 
 /**
  * The upstream keys its infobox by an arbitrary label per entry, so a fixed set
@@ -46,153 +46,162 @@ const INFOBOX_LABELS: { match: RegExp; labelKey: string }[] = [
   { match: /^(制作|制作公司|Studio|Production)/i, labelKey: 'Studio' },
 ]
 
-export function BangumiSubjectDialog(props: {
-  subject: BangumiCalendarItem | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
+export function BangumiSubjectPage(props: {
+  subjectId: number
+  onBack: () => void
 }) {
   const { t } = useTranslation()
   const [watching, setWatching] = useState(false)
-  const id = props.subject?.id
+  const id = props.subjectId
 
   const detailQuery = useQuery({
     queryKey: ['bangumi', 'subject', id],
-    queryFn: () => {
-      if (id == null) throw new Error('no subject selected')
-      return getBangumiSubject(id)
-    },
-    enabled: props.open && id != null,
+    queryFn: () => getBangumiSubject(id),
     staleTime: 6 * 60 * 60 * 1000,
     retry: false,
+    meta: { errorToast: false },
   })
 
-  const detail = detailQuery.data?.data
-  // The list entry already carries a title and a cover, so the dialog opens
-  // populated and fills in the rest once the full record lands.
-  const titleSource = detail ?? props.subject
-  const title = titleSource ? bangumiTitle(titleSource) : ''
-  const cover = bangumiCoverUrl(detail?.images ?? props.subject?.images, 'large')
+  const detail = detailQuery.data
+  const title = detail ? bangumiTitle(detail) : ''
+  // 320 is twice the 160px the cover renders at; the host has no 320 and snaps
+  // it up to 400, which stays sharp on a retina display.
+  const cover = bangumiCoverUrl(detail?.images, 320)
+
+  if (watching) {
+    return (
+      <BangumiWatchView
+        key={id}
+        subjectId={id}
+        title={title}
+        onBack={() => setWatching(false)}
+      />
+    )
+  }
 
   return (
-    <>
-      <Dialog
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        title={title}
-        description={
-          detail?.date
-            ? t('Aired from {{date}}', { date: detail.date })
-            : undefined
-        }
-        contentClassName='sm:max-w-3xl'
-        footer={
-          id != null ? (
-            <Button
-              onClick={() => {
-                setWatching(true)
-                props.onOpenChange(false)
-              }}
-            >
-              {t('Watch')}
-            </Button>
-          ) : undefined
-        }
-      >
-      {detailQuery.isLoading && (
-        <div className='space-y-2'>
-          <Skeleton className='h-4 w-2/3' />
-          <Skeleton className='h-4 w-full' />
-          <Skeleton className='h-4 w-5/6' />
+    <div className='min-h-dvh bg-background'>
+      <header className='bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-30 border-b backdrop-blur'>
+        <div className='mx-auto flex max-w-6xl items-center gap-3 px-4 py-3'>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='shrink-0 gap-1.5'
+            onClick={props.onBack}
+          >
+            <ArrowLeft className='size-4' />
+            {t('Back')}
+          </Button>
+          <h1
+            className='min-w-0 flex-1 truncate text-base font-semibold'
+            title={title}
+          >
+            {title}
+          </h1>
+          <Button
+            className='shrink-0'
+            disabled={!detail}
+            onClick={() => setWatching(true)}
+          >
+            {t('Watch')}
+          </Button>
         </div>
-      )}
+      </header>
 
-      {detailQuery.isError && (
-        <ErrorState
-          className='min-h-[160px]'
-          title={t('Could not load this anime.')}
-        />
-      )}
-
-      {detail && (
-        <div className='flex flex-col gap-5 sm:flex-row'>
-          {cover && (
-            <img
-              src={cover}
-              alt={title}
-              className='h-auto w-full max-w-40 shrink-0 rounded-lg object-cover sm:w-36'
-            />
-          )}
-          <div className='min-w-0 flex-1 space-y-4'>
-            <div className='flex flex-wrap gap-2'>
-              {typeof detail.rating?.score === 'number' && (
-                <StatusBadge
-                  variant='success'
-                  size='sm'
-                  label={`${detail.rating.score.toFixed(1)} / 10`}
-                />
-              )}
-              {detail.total_episodes ? (
-                <StatusBadge
-                  variant='neutral'
-                  size='sm'
-                  label={t('{{count}} episodes', { count: detail.total_episodes })}
-                />
-              ) : null}
-              {detail.collection?.doing ? (
-                <StatusBadge
-                  variant='info'
-                  size='sm'
-                  label={t('{{count}} watching', { count: detail.collection.doing })}
-                />
-              ) : null}
-              {detail.collection?.collect ? (
-                <StatusBadge
-                  variant='neutral'
-                  size='sm'
-                  label={t('{{count}} collected', {
-                    count: detail.collection.collect,
-                  })}
-                />
-              ) : null}
-            </div>
-
-            {detail.summary && (
-              <p className='text-sm leading-relaxed whitespace-pre-line'>
-                {detail.summary}
-              </p>
-            )}
-
-            <SubjectFacts detail={detail} />
-
-            {detail.tags && detail.tags.length > 0 && (
-              <>
-                <Separator />
-                <div className='flex flex-wrap gap-1.5'>
-                  {detail.tags.slice(0, 12).map((tag) => (
-                    <StatusBadge
-                      key={tag.name}
-                      variant='neutral'
-                      size='sm'
-                      label={tag.name}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
+      <div className='mx-auto max-w-6xl space-y-5 px-4 py-8'>
+        {detailQuery.isLoading && (
+          <div className='space-y-2'>
+            <Skeleton className='h-4 w-2/3' />
+            <Skeleton className='h-4 w-full' />
+            <Skeleton className='h-4 w-5/6' />
           </div>
-        </div>
-      )}
-      </Dialog>
+        )}
 
-      {id != null && (
-        <BangumiWatchView
-          subjectId={id}
-          title={title}
-          open={watching}
-          onOpenChange={setWatching}
-        />
-      )}
-    </>
+        {detailQuery.isError && (
+          <ErrorState
+            className='min-h-[160px]'
+            title={t('Could not load this anime.')}
+            onRetry={() => {
+              void detailQuery.refetch()
+            }}
+          />
+        )}
+
+        {detail && (
+          <div className='flex flex-col gap-5 sm:flex-row'>
+            {cover && (
+              <img
+                src={cover}
+                alt={title}
+                className='h-auto w-full max-w-40 shrink-0 rounded-xl object-cover sm:w-36'
+              />
+            )}
+            <div className='min-w-0 flex-1 space-y-4'>
+              <div className='flex flex-wrap gap-2'>
+                {typeof detail.rating?.score === 'number' && (
+                  <StatusBadge
+                    variant='success'
+                    size='sm'
+                    label={`${detail.rating.score.toFixed(1)} / 10`}
+                  />
+                )}
+                {detail.total_episodes ? (
+                  <StatusBadge
+                    variant='neutral'
+                    size='sm'
+                    label={t('{{count}} episodes', {
+                      count: detail.total_episodes,
+                    })}
+                  />
+                ) : null}
+                {detail.collection?.doing ? (
+                  <StatusBadge
+                    variant='info'
+                    size='sm'
+                    label={t('{{count}} watching', {
+                      count: detail.collection.doing,
+                    })}
+                  />
+                ) : null}
+                {detail.collection?.collect ? (
+                  <StatusBadge
+                    variant='neutral'
+                    size='sm'
+                    label={t('{{count}} collected', {
+                      count: detail.collection.collect,
+                    })}
+                  />
+                ) : null}
+              </div>
+
+              {detail.summary && (
+                <p className='text-sm leading-relaxed whitespace-pre-line'>
+                  {detail.summary}
+                </p>
+              )}
+
+              <SubjectFacts detail={detail} />
+
+              {detail.tags && detail.tags.length > 0 && (
+                <>
+                  <Separator />
+                  <div className='flex flex-wrap gap-1.5'>
+                    {detail.tags.slice(0, 12).map((tag) => (
+                      <StatusBadge
+                        key={tag.name}
+                        variant='neutral'
+                        size='sm'
+                        label={tag.name}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

@@ -17,13 +17,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /**
- * The package's ESM entry point imports Node builtins (fs, net, http, os) and
- * needs bundler-level polyfills. `dist/webtorrent.min.js` is the same library
- * already bundled for the browser, with those imports resolved, so the player
- * loads that build instead. It exports the constructor as its default export.
+ * Small viewer preferences that are not viewing progress: the playback speed
+ * and the danmaku block list. Both are the viewer's own and belong in their
+ * storage rather than on the server.
  */
-declare module 'webtorrent/dist/webtorrent.min.js' {
-  import WebTorrent from 'webtorrent'
+/** The playback speeds the player offers. 1 is first so the default reads as the norm. */
+export const PLAYER_SPEEDS = [1, 0.5, 0.75, 1.25, 1.5, 1.75, 2] as const
 
-  export default WebTorrent
+export function readPreference(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+export function writePreference(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    // A disabled or full storage loses the preference; playback continues.
+  }
 }

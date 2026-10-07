@@ -124,22 +124,17 @@ export type BangumiSubject = {
   nsfw?: boolean
 }
 
-/**
- * A BitTorrent release from Mikan Project, with the attributes parsed from its
- * title.
- *
- * Mikan publishes torrents rather than video files, so a release is only ever
- * played by the visitor's own browser joining the swarm. The attribute names
- * follow Animeko's Topic vocabulary so the two agree on what a release is.
- */
+/** A Mikan release streamed through the instance; attributes follow Animeko's Topic model. */
 export type BangumiRelease = {
   topicId: string
   title: string
   /** The release group, taken from the bracketed title prefix. */
   alliance: string
   description: string
-  /** The .torrent URL, which is what the browser hands to WebTorrent. */
+  /** Torrent metadata is handed to the instance's streaming backend. */
   downloadLink: string
+  /** A number parsed by the server; 0 denotes a batch or an unstated episode. */
+  episodeNumber: number
   episodeLink?: string
   /** Size in bytes; 0 when the feed did not state one. */
   size: number
@@ -203,4 +198,90 @@ export type BangumiDanmakuComment = {
 export type BangumiDanmakuResponse = {
   count: number
   comments: BangumiDanmakuComment[]
+}
+
+export type BangumiSourceState =
+  | 'idle'
+  | 'working'
+  | 'ready'
+  | 'empty'
+  | 'failed'
+  | 'captcha_required'
+  | 'rate_limited'
+  | 'browser_required'
+  | 'invalid_config'
+  | 'selection_required'
+
+export type BangumiMediaSource = {
+  id: string
+  name: string
+  kind: 'web' | 'bt'
+  icon: string
+  tier: number
+  enabled: boolean
+  /**
+   * The source's own site. Shown when a source answers with a challenge, so the
+   * viewer has somewhere to go and clear it by hand.
+   */
+  websiteUrl?: string
+}
+
+export type BangumiSourcesResponse = {
+  sources: BangumiMediaSource[]
+  legacyMikanSourceId: string
+}
+
+export type BangumiSourceStatus = {
+  sourceId: string
+  state: BangumiSourceState
+  captchaKind?: string
+  retryAt?: string
+  message?: string
+}
+
+export type BangumiSourceSubject = { id: string; name: string }
+
+export type BangumiSourceSearchResponse = BangumiSourceStatus & {
+  subjects: BangumiSourceSubject[]
+}
+
+export type BangumiSourceEpisode = {
+  id: string
+  name: string
+  episodeNumber: string
+}
+
+export type BangumiSourceChannel = {
+  id: string
+  name: string
+  label: string
+  episodes: BangumiSourceEpisode[]
+}
+
+export type BangumiSourceBrowseResponse = BangumiSourceStatus & {
+  channels: BangumiSourceChannel[]
+}
+
+export type BangumiMediaFormat =
+  | 'hls'
+  | 'mp4'
+  | 'matroska'
+  | 'unknown'
+  | 'torrent'
+
+export type BangumiSourceResolveResponse = BangumiSourceStatus & {
+  streamUrl?: string
+  format?: BangumiMediaFormat
+  files?: { id: string; name: string; size: number }[]
+}
+
+export type BangumiMediaSelection = {
+  sourceId: string
+  sourceName: string
+  subjectName: string
+  channelId: string
+  channelName: string
+  episode: BangumiSourceEpisode
+  streamUrl: string
+  format?: BangumiMediaFormat
 }

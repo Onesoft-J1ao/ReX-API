@@ -83,6 +83,46 @@ export function parseDanmaku(raw: BangumiDanmakuComment[]): DanmakuComment[] {
 }
 
 /**
+ * Splits the viewer's block list into terms.
+ *
+ * A block list is typed by hand, so it accepts the separators someone is likely
+ * to reach for -- a comma, a full-width comma, an enumeration comma or a new
+ * line -- and is bounded, because it is a hand-maintained list rather than an
+ * input anyone needs to grow without limit.
+ */
+const BLOCKED_TERM_LIMIT = 200
+
+export function parseBlockedWords(raw: string): string[] {
+  const terms = raw
+    .split(/[\n,，、]+/)
+    .map((term) => term.trim())
+    .filter(Boolean)
+  return [...new Set(terms)].slice(0, BLOCKED_TERM_LIMIT)
+}
+
+/**
+ * The comments that survive the viewer's block list.
+ *
+ * Matching is a case-insensitive substring test rather than a pattern: the list
+ * holds words and fragments typed while watching, and a mistyped pattern that
+ * silently matches nothing is worse than a broad substring. An empty list keeps
+ * everything.
+ */
+export function filterDanmaku(
+  comments: DanmakuComment[],
+  blocked: string[]
+): DanmakuComment[] {
+  const terms = blocked
+    .map((term) => term.trim().toLowerCase())
+    .filter(Boolean)
+  if (terms.length === 0) return comments
+  return comments.filter((comment) => {
+    const text = comment.text.toLowerCase()
+    return !terms.some((term) => text.includes(term))
+  })
+}
+
+/**
  * How long a comment stays on screen, in seconds.
  *
  * Longer text needs a longer run so it does not cross the screen faster than a

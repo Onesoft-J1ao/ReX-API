@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { cn } from '@/lib/utils'
+
 import { bangumiCoverUrl } from './api'
 import { bangumiTitle } from './lib/title'
 import type { BangumiCalendarItem } from './types'
@@ -26,6 +28,8 @@ import type { BangumiCalendarItem } from './types'
 export function BangumiCard(props: {
   item: BangumiCalendarItem
   onSelect: () => void
+  /** Position in a ranking; omitted everywhere else. */
+  rank?: number
 }) {
   const { t } = useTranslation()
   const { item } = props
@@ -38,7 +42,7 @@ export function BangumiCard(props: {
       type='button'
       onClick={props.onSelect}
       aria-label={t('View {{title}}', { title })}
-      className='group bg-card focus-visible:outline-primary hover:border-foreground/25 block w-full overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2'
+      className='group bg-card focus-visible:outline-primary block w-full overflow-hidden rounded-xl border text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-amber-500/40 hover:shadow-lg focus-visible:outline-2 focus-visible:-outline-offset-2'
     >
       <div className='bg-muted relative aspect-2/3 w-full overflow-hidden'>
         {cover ? (
@@ -46,15 +50,25 @@ export function BangumiCard(props: {
             src={cover}
             alt={title}
             loading='lazy'
-            className='size-full object-cover transition-transform duration-200 group-hover:scale-[1.03]'
+            className='size-full object-cover transition-transform duration-500 group-hover:scale-[1.06]'
           />
         ) : (
           <div className='text-muted-foreground flex size-full items-center justify-center p-3 text-center text-xs'>
             {title}
           </div>
         )}
+        {props.rank != null && (
+          <span className='absolute top-1.5 left-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-semibold text-black tabular-nums'>
+            {t('#{{rank}}', { rank: props.rank })}
+          </span>
+        )}
         {typeof score === 'number' && score > 0 && (
-          <span className='absolute top-1.5 left-1.5 flex items-center gap-0.5 rounded-full bg-black/65 px-1.5 py-0.5 text-[11px] font-medium text-white'>
+          <span
+            className={cn(
+              'absolute top-1.5 flex items-center gap-0.5 rounded-full bg-black/65 px-1.5 py-0.5 text-[11px] font-medium text-white',
+              props.rank != null ? 'right-1.5' : 'left-1.5'
+            )}
+          >
             <Star className='size-2.5 fill-amber-400 text-amber-400' />
             {score.toFixed(1)}
           </span>

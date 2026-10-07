@@ -24,6 +24,10 @@ import type {
   BangumiEpisodesResponse,
   BangumiReleasesResponse,
   BangumiSearchResponse,
+  BangumiSourceBrowseResponse,
+  BangumiSourceResolveResponse,
+  BangumiSourceSearchResponse,
+  BangumiSourcesResponse,
   BangumiSubject,
 } from './types'
 
@@ -47,47 +51,111 @@ export async function searchBangumi(
   return res.data
 }
 
+/**
+ * One page of the anime ranking.
+ *
+ * bgm.tv orders its own subjects by rank, and the server proxies that list; the
+ * page is a page number rather than an offset so the bound stays server-side.
+ */
+export async function getBangumiRanking(
+  page = 1
+): Promise<BangumiSearchResponse> {
+  const res = await api.get<BangumiSearchResponse>('/api/bangumi/ranking', {
+    params: { page },
+  })
+  return res.data
+}
+
+/**
+ * One subject with its episode list.
+ *
+ * The instance returns the record itself, not a `{data: ...}` envelope, so the
+ * caller gets the subject directly.
+ */
 export async function getBangumiSubject(
   subjectId: number | string
-): Promise<{ data: BangumiSubject }> {
-  const res = await api.get<{ data: BangumiSubject }>(
-    `/api/bangumi/subjects/${subjectId}`
-  )
+): Promise<BangumiSubject> {
+  const res = await api.get<BangumiSubject>(`/api/bangumi/subjects/${subjectId}`)
   return res.data
+}
+
+/**
+ * The widths the image host will actually render.
+ *
+ * Verified against it: it serves these six and answers 400 for anything else,
+ * including a sensible-looking 320 or 640. A width outside the ladder is not a
+ * smaller image, it is no image, so callers ask for a size and get snapped up
+ * to the next one that exists rather than a broken request.
+ */
+const BANGUMI_COVER_WIDTHS = [100, 200, 400, 600, 800, 1200] as const
+
+function bangumiCoverWidth(requested: number): number {
+  return (
+    BANGUMI_COVER_WIDTHS.find((width) => width >= requested) ??
+    Math.max(...BANGUMI_COVER_WIDTHS)
+  )
 }
 
 /**
  * Rewrite an upstream cover URL onto this instance's image proxy.
  *
- * The upstream hands out two shapes and the proxy forwards each verbatim: a
- * bare `/pic/cover/l/...` from the calendar, and an already-sized
- * `/r/400/pic/...` from the subject endpoint. Stripping `/r/` would break the
- * second one -- its image host only serves the sized form under that prefix.
- * The calendar's form also arrives as `http://`, which a browser on an HTTPS
- * page refuses to load, so only the scheme is normalized away here.
+ * The upstream ships every size of the same picture, and picking the wrong one
+ * is the whole story here: the `common` thumbnail is about 3.5 KB where the
+ * cards draw ~200 CSS px, so it was upscaled and looked blurred. The `l`
+ * original is ~58 KB and the host will downscale it to whatever width is asked
+ * for, so the original is the one to take and then size.
+ *
+ * The size prefix only works on that original. Verified against the host: it
+ * serves `/r/400/pic/cover/l/...` fine but answers 400 for the same prefix on a
+ * `c` or `m` path, so a subject that has no original keeps its thumbnail
+ * unsized rather than being turned into a broken request. The subject endpoint
+ * also hands back URLs that already carry a prefix, which is unwrapped first so
+ * the width here is the one that decides.
+ *
+ * The calendar's URLs arrive as `http://`, which a browser on an HTTPS page
+ * refuses to load, so the scheme is normalized away.
  */
 export function bangumiCoverUrl(
   images: Record<string, string> | undefined,
-  size: 'large' | 'common' | 'medium' | 'small' | 'grid' = 'common'
+  width = 400
 ): string | null {
-  const raw = images?.[size] ?? images?.common ?? images?.medium
+  // Prefer the original so it can be re-sized; fall back to whatever exists for
+  // a subject the upstream has not published a large cover for.
+  const raw =
+    images?.large ?? images?.medium ?? images?.common ?? images?.small ?? null
   if (!raw) return null
 
-  const path = raw.replace(/^https?:\/\/[^/]+/, '').replace(/^\/+/, '')
-  return path ? `/api/bangumi-image/${path}` : null
+  const path = raw
+    .replace(/^https?:\/\/[^/]+/, '')
+    .replace(/^\/+/, '')
+    .replace(/^r\/\d+\//, '')
+
+  if (!path.startsWith('pic/cover/l/')) {
+    return `/api/bangumi-image/${path}`
+  }
+  return `/api/bangumi-image/r/${bangumiCoverWidth(width)}/${path}`
 }
 
 /**
- * Rewrite a Mikan torrent URL onto this instance's torrent proxy.
+ * The same-origin URL the player streams an episode from.
  *
- * The browser cannot fetch the .torrent itself: Mikan serves it without CORS
- * headers, so the request is blocked before WebTorrent ever sees the bytes. The
- * proxy accepts only Mikan's own /Download/ path, so the host is discarded and
- * only that prefix is kept.
+ * The instance relays the bytes. A browser cannot join a BitTorrent swarm -- it
+ * speaks HTTP and the peers speak TCP and UDP -- so the torrent is fetched and
+ * served by the instance, and the player reads the result like any other video.
+ * The episode number travels with the request because the file to stream is
+ * chosen from the torrent's own file list, which only the server can see.
  */
-export function bangumiTorrentUrl(downloadLink: string): string | null {
+export function bangumiStreamUrl(
+  downloadLink: string,
+  episodeNumber?: number
+): string | null {
   const path = downloadLink.replace(/^https?:\/\/[^/]+/, '').replace(/^\/+/, '')
-  return path.startsWith('Download/') ? `/api/bangumi/torrent/${path}` : null
+  if (!path.startsWith('Download/')) return null
+  const query =
+    episodeNumber == null || !Number.isFinite(episodeNumber)
+      ? ''
+      : `?episode=${episodeNumber}`
+  return `/api/bangumi/stream/${path}${query}`
 }
 
 /**
@@ -97,10 +165,12 @@ export function bangumiTorrentUrl(downloadLink: string): string | null {
  * already holds is enough.
  */
 export async function getBangumiEpisodes(
-  subjectId: number | string
+  subjectId: number | string,
+  signal?: AbortSignal
 ): Promise<BangumiEpisodesResponse> {
   const res = await api.get<BangumiEpisodesResponse>(
-    `/api/bangumi/subjects/${subjectId}/episodes`
+    `/api/bangumi/subjects/${subjectId}/episodes`,
+    { signal }
   )
   return res.data
 }
@@ -112,10 +182,12 @@ export async function getBangumiEpisodes(
  * split "time,mode,color,userHash" meaningfully.
  */
 export async function getBangumiDanmaku(
-  episodeId: number | string
+  episodeId: number | string,
+  signal?: AbortSignal
 ): Promise<BangumiDanmakuResponse> {
   const res = await api.get<BangumiDanmakuResponse>(
-    `/api/bangumi/danmaku/${episodeId}`
+    `/api/bangumi/danmaku/${episodeId}`,
+    { signal }
   )
   return res.data
 }
@@ -129,11 +201,68 @@ export async function getBangumiDanmaku(
  */
 export async function getBangumiReleases(
   subjectId: number | string,
-  keyword: string
+  keyword: string,
+  signal?: AbortSignal
 ): Promise<BangumiReleasesResponse> {
   const res = await api.get<BangumiReleasesResponse>(
     `/api/bangumi/releases/${subjectId}`,
-    { params: { keyword } }
+    { params: { keyword }, signal }
+  )
+  return res.data
+}
+
+export async function getBangumiSources(
+  signal?: AbortSignal
+): Promise<BangumiSourcesResponse> {
+  const res = await api.get<BangumiSourcesResponse>('/api/bangumi/sources', {
+    signal,
+  })
+  return res.data
+}
+
+export async function searchBangumiSource(
+  sourceId: string,
+  keyword: string,
+  signal?: AbortSignal,
+  clearance?: string
+): Promise<BangumiSourceSearchResponse> {
+  const res = await api.get<BangumiSourceSearchResponse>(
+    `/api/bangumi/sources/${encodeURIComponent(sourceId)}/search`,
+    { params: { keyword, ...(clearance ? { clearance } : {}) }, signal }
+  )
+  return res.data
+}
+
+export async function getBangumiSourceSubject(
+  sourceId: string,
+  sourceSubjectId: string,
+  signal?: AbortSignal,
+  clearance?: string
+): Promise<BangumiSourceBrowseResponse> {
+  const res = await api.get<BangumiSourceBrowseResponse>(
+    `/api/bangumi/sources/${encodeURIComponent(sourceId)}/subjects/${encodeURIComponent(sourceSubjectId)}`,
+    { params: clearance ? { clearance } : {}, signal }
+  )
+  return res.data
+}
+
+export async function resolveBangumiSource(
+  sourceId: string,
+  episodeId: string,
+  signal?: AbortSignal,
+  fileId?: string,
+  clearance?: string
+): Promise<BangumiSourceResolveResponse> {
+  const res = await api.get<BangumiSourceResolveResponse>(
+    `/api/bangumi/sources/${encodeURIComponent(sourceId)}/resolve`,
+    {
+      params: {
+        episodeId,
+        ...(fileId ? { fileId } : {}),
+        ...(clearance ? { clearance } : {}),
+      },
+      signal,
+    }
   )
   return res.data
 }
