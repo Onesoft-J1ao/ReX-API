@@ -251,7 +251,7 @@ describe('model cards', () => {
     expect(statusStrip).not.toHaveClass('justify-between')
   })
 
-  it('keeps group and tag overflow counts, and tags every endpoint', () => {
+  it('collapses group and endpoint lists to a first value plus an overflow count', () => {
     const groups = ['default-with-a-long-group-name', 'premium', 'internal']
     const endpoints = ['openai-response', 'openai', 'claude', 'gemini', 'jina']
     const tags = [
@@ -279,18 +279,20 @@ describe('model cards', () => {
       throw new Error('Expected labeled group and endpoint fields')
     }
     const tagField = screen.getByRole('group', { name: 'Tags' })
-    // Every group the model belongs to is listed on the card, so a model that
-    // is reachable from several groups does not hide all but the first.
-    for (const group of groups) {
-      expect(within(groupField).getByText(group)).toBeVisible()
-    }
-    expect(within(groupField).queryByText('+2')).not.toBeInTheDocument()
-    // Endpoints are listed as tags rather than a truncated text summary, so a
-    // model's supported endpoints are all readable on the card.
-    for (const endpoint of endpoints) {
-      expect(within(endpointField).getByText(endpoint)).toBeVisible()
-    }
-    expect(within(endpointField).queryByText('+3')).not.toBeInTheDocument()
+    // Only the first group is listed, with the rest behind a count: a model
+    // reachable from many groups would otherwise turn the card into a wall of
+    // chips. The full list stays reachable through the title attribute.
+    expect(within(groupField).getByText(groups[0])).toBeVisible()
+    expect(within(groupField).getByText('+2')).toBeVisible()
+    expect(within(groupField).getByTitle(groups.join(', '))).toBeVisible()
+    // Endpoints follow the same rule, showing two before collapsing.
+    expect(
+      within(endpointField).getByText(endpoints.slice(0, 2).join(', '))
+    ).toBeVisible()
+    expect(within(endpointField).getByText('+3')).toBeVisible()
+    expect(
+      within(endpointField).getByTitle(endpoints.join(', '))
+    ).toBeVisible()
     expect(
       within(tagField).getByText('video-generation, high-resolution')
     ).toHaveAttribute('title', tags.join(', '))

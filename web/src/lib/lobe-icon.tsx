@@ -27,9 +27,20 @@ For commercial licensing, please contact support@quantumnous.com
  */
 import type React from 'react'
 
+import bigcodeLogo from '@/assets/brand-icons/bigcode.svg'
+import deepgramLogo from '@/assets/brand-icons/deepgram.svg'
+import mineruLogo from '@/assets/brand-icons/mineru.svg'
+import openbmbLogo from '@/assets/brand-icons/openbmb.svg'
+import opendatalabLogo from '@/assets/brand-icons/opendatalab.svg'
 import sglangLogo from '@/assets/brand-icons/sglang.svg'
+import teleaiLogo from '@/assets/brand-icons/teleai.svg'
+import typesafeLogo from '@/assets/brand-icons/typesafe.svg'
+import unrealspeechLogo from '@/assets/brand-icons/unrealspeech.svg'
+import writerLogo from '@/assets/brand-icons/writer.svg'
+import zyphraLogo from '@/assets/brand-icons/zyphra.svg'
 import { IconSub2api } from '@/assets/custom/icon-sub2api'
 import { IconWan } from '@/assets/custom/icon-wan'
+import { BrandLogo } from './brand-logo'
 import { IconFallbackBadge } from './icon-fallback-badge'
 import * as LobeIconRegistry from './lobe-icon-registry'
 import type { LobeIconComponent } from './lobe-icon-registry'
@@ -57,6 +68,20 @@ const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   ),
   Sub2API: IconSub2api,
   Wan: IconWan,
+  Writer: (props) => <BrandLogo src={writerLogo} size={props.size} mono />,
+  Deepgram: (props) => <BrandLogo src={deepgramLogo} size={props.size} mono />,
+  BigCode: (props) => <BrandLogo src={bigcodeLogo} size={props.size} />,
+  MinerU: (props) => <BrandLogo src={mineruLogo} size={props.size} mono />,
+  OpenDataLab: (props) => (
+    <BrandLogo src={opendatalabLogo} size={props.size} />
+  ),
+  OpenBMB: (props) => <BrandLogo src={openbmbLogo} size={props.size} />,
+  TeleAI: (props) => <BrandLogo src={teleaiLogo} size={props.size} />,
+  TypeSafe: (props) => <BrandLogo src={typesafeLogo} size={props.size} mono />,
+  UnrealSpeech: (props) => (
+    <BrandLogo src={unrealspeechLogo} size={props.size} mono />
+  ),
+  Zyphra: (props) => <BrandLogo src={zyphraLogo} size={props.size} mono />,
 }
 
 /**

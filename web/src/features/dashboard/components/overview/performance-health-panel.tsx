@@ -61,7 +61,7 @@ export function PerformanceHealthPanel() {
   const hasData = models.length > 0
 
   return (
-    <section className='bg-card h-full overflow-hidden rounded-xl border shadow-xs'>
+    <section className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>
       <div className='flex items-center gap-2 border-b px-4 py-3 sm:px-5'>
         <IconBadge tone='success' size='sm'>
           <HeartPulse />
@@ -103,7 +103,7 @@ export function PerformanceHealthPanel() {
         {loading ? (
           <div className='space-y-1'>
             {['success', 'latency', 'throughput'].map((key) => (
-              <Skeleton key={key} className='h-5 w-full rounded-md' />
+              <Skeleton key={key} className='h-5 w-full rounded' />
             ))}
           </div>
         ) : (
@@ -116,7 +116,7 @@ export function PerformanceHealthPanel() {
                 {topModels.map((model) => (
                   <div
                     key={model.model_name}
-                    className='flex items-center justify-between gap-2 rounded-md px-1.5 py-1'
+                    className='flex items-center justify-between gap-2 rounded px-1.5 py-1'
                   >
                     <span className='min-w-0 flex-1 truncate font-mono text-xs'>
                       {model.model_name}

@@ -116,7 +116,7 @@ export function FlowNodeFilterControl(props: FlowNodeFilterControlProps) {
             <Filter data-icon='inline-start' aria-hidden='true' />
             {selectedCount > 0 ? t('Selected nodes') : t('All nodes')}
             {selectedCount > 0 && (
-              <Badge variant='secondary' className='rounded-full px-1'>
+              <Badge variant='secondary' className='rounded-md px-1'>
                 {selectedCount}
               </Badge>
             )}

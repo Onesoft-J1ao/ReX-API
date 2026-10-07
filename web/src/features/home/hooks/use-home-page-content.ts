@@ -34,28 +34,19 @@ const STORAGE_KEY = 'home_page_content'
  */
 export function useHomePageContent(): HomePageContentResult {
   const { homepage, loading: configLoading } = useSystemConfig()
-  // The cached copy is read during the first render rather than in an effect,
-  // so a configured instance paints its own content immediately instead of
-  // flashing a loading placeholder and then swapping it out.
-  const [content, setContent] = useState<string>(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEY) ?? ''
-    } catch {
-      return ''
-    }
-  })
-  const [isLoaded, setIsLoaded] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEY) !== null
-    } catch {
-      return false
-    }
-  })
+  const [content, setContent] = useState<string>('')
+  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     let mounted = true
 
     const loadContent = async () => {
+      // Load from localStorage first for immediate display
+      const cached = localStorage.getItem(STORAGE_KEY)
+      if (cached && mounted) {
+        setContent(cached)
+      }
+
       try {
         const response = await getHomePageContent()
         const { success, data } = response

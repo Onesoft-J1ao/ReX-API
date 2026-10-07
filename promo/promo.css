@@ -1,0 +1,424 @@
+/* ============================================================================
+   ReX API — 产品动画
+   Dark canvas, one accent, two type voices (heavy sans display + mono technical).
+   Everything the timeline touches is transform / opacity only.
+   ========================================================================= */
+
+:root{
+  /* canvas */
+  --bg:        #07080B;
+  --ink:       #F4F6FA;
+  --dim:       #8B93A6;
+  --faint:     #222834;
+  --hair:      #3A4256;
+
+  /* the one accent, plus its deep source */
+  --accent:      #6E8FFF;
+  --accent-deep: #0030B0;
+
+  /* Two voices. No CDN font: the CJK stack must resolve to a real Chinese
+     face on both Windows and macOS, so PingFang / YaHei lead the list. */
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display",
+          "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
+          "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", "Heiti SC", sans-serif;
+  --mono: "SF Mono", "JetBrains Mono", "Cascadia Mono", "Cascadia Code", ui-monospace,
+          Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+
+html,body{ height:100%; }
+body{
+  margin:0;
+  background:#000;
+  color:var(--ink);
+  font-family:var(--sans);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+}
+
+/* ── letterboxed 16:9 film frame ────────────────────────────────────────── */
+#stage{ position:fixed; inset:0; display:grid; place-items:center; background:#000; }
+
+#film{
+  position:relative;
+  width:  min(100vw, calc(100vh * 16 / 9));
+  height: min(100vh, calc(100vw * 9 / 16));
+  /* `--fw` is the frame width in px, written by JS. 1em == 1% of frame width,
+     so every type size below is resolution-independent. */
+  font-size: calc(var(--fw, 1280px) * 0.01);
+  overflow:hidden;
+  background:var(--bg);
+  isolation:isolate;
+}
+
+.layer{ position:absolute; inset:0; pointer-events:none; }
+
+#glow{
+  background:
+    radial-gradient(62% 42% at 50% -6%,  rgba(0,48,176,.46), transparent 70%),
+    radial-gradient(100% 60% at 50% 112%, rgba(110,143,255,.08), transparent 72%);
+}
+
+#vignette{
+  background: radial-gradient(76% 60% at 50% 46%, transparent 48%, rgba(0,0,0,.74) 100%);
+}
+
+/* Film grain. Static SVG turbulence, no binary asset, no per-frame repaint —
+   the layer is oversized and only ever translated. */
+#grain{
+  inset:-16%;
+  opacity:.062;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:11em 11em;
+  will-change:transform;
+}
+
+/* ── scenes ─────────────────────────────────────────────────────────────── */
+.scene{
+  position:absolute; inset:0;
+  text-align:center;
+  visibility:hidden;
+  opacity:0;
+  will-change:opacity;
+}
+.scene.on{ visibility:visible; }
+
+/* ── layout primitives ──────────────────────────────────────────────────── */
+.stack{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  padding:0 8em;
+}
+.stack.mid{ align-items:center; justify-content:center; text-align:center; }
+
+/* The four montage sub-blocks occupy the same centred slot; the timeline
+   cross-fades them, so they stack rather than lay out in sequence. */
+.block{ position:absolute; inset:0; }
+
+.label{
+  position:absolute; left:5.4em; top:4.6em;
+  font-size:1.02em;
+  letter-spacing:.3em;
+  text-transform:uppercase;
+  color:var(--dim);
+  will-change:transform,opacity;
+}
+
+/* ── type ───────────────────────────────────────────────────────────────── */
+/* Latin display wants negative tracking. CJK display must NOT get it: at
+   display size, negative tracking on Chinese collides the glyphs. Two rules. */
+.tk-lat{ letter-spacing:-.038em; }
+.tk-cjk{ letter-spacing:.012em; }
+
+.mono{ font-family:var(--mono); }
+
+/* Cold-open wordmark */
+.mark{
+  margin:0;
+  font-size:9.4em;
+  font-weight:800;
+  line-height:1;
+  white-space:nowrap;
+  color:var(--ink);
+}
+
+/* Closing wordmark — the poster frame, a step larger */
+.closing{
+  margin:0;
+  font-size:11.2em;
+  font-weight:800;
+  line-height:1;
+  white-space:nowrap;
+  color:var(--ink);
+}
+
+.sub{
+  margin:2.6em 0 0;
+  font-size:2.05em;
+  font-weight:400;
+  letter-spacing:.06em;
+  color:var(--dim);
+}
+.sub .num{ color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums; }
+
+/* Scene 2 */
+.field{ position:absolute; inset:0; }
+
+.q{
+  position:absolute; left:0; right:0; top:7.5%;
+  margin:0;
+  font-size:5.2em;
+  font-weight:700;
+  line-height:1.24;
+  color:var(--ink);
+  text-wrap:balance;
+}
+
+.one{
+  position:absolute; left:0; right:0; top:47%;
+  margin:0;
+  font-size:5.6em;
+  font-weight:700;
+  line-height:1.1;
+  color:var(--ink);
+}
+
+.ring{
+  position:absolute; left:50%; top:50%;
+  width:11em; height:11em;
+  margin:-5.5em 0 0 -5.5em;
+  border:.16em solid var(--accent);
+  border-radius:50%;
+  box-shadow:0 0 6em .4em rgba(110,143,255,.28);
+}
+
+/* key chips (built by JS) */
+.chip{
+  position:absolute;
+  transform:translate(-50%,-50%);
+}
+.chip > i{
+  display:flex; align-items:center; gap:.85em;
+  padding:.72em 1.5em .72em 1.2em;
+  border:.1em solid #2C3342;
+  border-radius:.65em;
+  background:rgba(20,24,34,.78);
+  font-family:var(--mono);
+  font-size:1.5em;
+  font-style:normal;
+  letter-spacing:.04em;
+  color:var(--dim);
+  white-space:nowrap;
+}
+.chip > i::before{
+  content:"";
+  width:.62em; height:.62em;
+  border-radius:50%;
+  background:var(--hair);
+  flex:none;
+}
+
+/* Scene 3 */
+.turnline{ position:relative; width:100%; height:11.5em; }
+.turnline .mask{ position:absolute; left:0; right:0; top:0; }
+.turnline .display{
+  margin:0;
+  font-size:7.4em;
+  font-weight:700;
+  line-height:1.06;
+  color:var(--ink);
+}
+
+.diff{
+  margin-top:2.4em;
+  padding:1.7em 2.4em;
+  border:.1em solid var(--faint);
+  border-radius:.8em;
+  background:rgba(14,17,25,.72);
+  font-family:var(--mono);
+  font-size:1.72em;
+  line-height:1.85;
+  text-align:left;
+  white-space:nowrap;
+}
+.dl{ color:var(--dim); }
+.dl .sign{ display:inline-block; width:1.9em; color:var(--hair); }
+.dl .str{ color:var(--dim); }
+.dl:not(.plus) .str{ text-decoration:line-through; text-decoration-color:var(--hair); }
+.dl.plus{ color:var(--accent); }
+.dl.plus .sign{ color:var(--accent); }
+.dl.plus .str{ color:var(--accent); }
+
+.note{
+  margin:1.9em 0 0;
+  font-size:1.72em;
+  letter-spacing:.08em;
+  color:var(--dim);
+}
+
+/* Scene 4 */
+.bignum{
+  font-size:15.5em;
+  font-weight:800;
+  line-height:1;
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+  color:var(--ink);
+  /* fixed advance so the count-up never reflows the line */
+  min-width:3.4ch;
+  text-align:center;
+}
+.numcap{
+  margin:1.5em 0 0;
+  font-size:2.15em;
+  letter-spacing:.1em;
+  color:var(--dim);
+}
+
+.chips{
+  display:flex; flex-wrap:wrap; justify-content:center;
+  gap:.95em 1.05em;
+  max-width:62em;
+}
+.ep{
+  padding:.85em 1.65em;
+  border:.1em solid var(--faint);
+  border-radius:2em;
+  background:rgba(20,24,34,.6);
+  font-size:1.72em;
+  letter-spacing:.05em;
+  color:var(--ink);
+  white-space:nowrap;
+}
+.epcap{
+  margin:2.1em 0 0;
+  font-size:2.05em;
+  letter-spacing:.08em;
+  color:var(--dim);
+}
+
+.gh{
+  margin:0 0 1.9em;
+  font-size:3.6em;
+  font-weight:700;
+  line-height:1.2;
+  color:var(--ink);
+}
+
+/* group wall */
+.wall{
+  width:100%;
+  overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);
+          mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);
+}
+.row{
+  display:flex;
+  width:max-content;
+  will-change:transform;
+  padding:.5em 0;
+}
+.row + .row{ margin-top:.7em; }
+.grp{
+  display:inline-block;
+  margin-right:.85em;
+  padding:.7em 1.4em;
+  border:.1em solid var(--faint);
+  border-radius:.6em;
+  font-family:var(--mono);
+  font-size:1.6em;
+  letter-spacing:.02em;
+  color:var(--dim);
+  white-space:nowrap;
+}
+.grp.hot{ color:var(--accent); border-color:rgba(110,143,255,.42); }
+.grp.cjk{ font-family:var(--sans); font-weight:600; letter-spacing:.06em; }
+
+.hl{
+  margin:.55em 0;
+  font-size:3.5em;
+  font-weight:600;
+  line-height:1.3;
+  color:var(--ink);
+}
+.hl .hlk{ color:var(--accent); margin-right:.5em; }
+.hl .hls{ font-weight:400; color:var(--ink); }
+
+/* Scene 5 */
+.compat{
+  margin:0;
+  font-size:5.6em;
+  font-weight:700;
+  line-height:1.1;
+  letter-spacing:.02em;
+  color:var(--ink);
+}
+.compat2{
+  margin:1.5em 0 0;
+  font-size:2.1em;
+  letter-spacing:.06em;
+  color:var(--dim);
+}
+.compat2 .code{ font-family:var(--mono); color:var(--ink); }
+
+.rule{
+  height:.1em;
+  width:34em;
+  background:linear-gradient(90deg,transparent,var(--hair) 18%,var(--hair) 82%,transparent);
+  transform-origin:50% 50%;
+}
+.stack.mid > .rule{ margin:3.4em 0; }
+
+.url{
+  margin:1.7em 0 0;
+  font-size:2.4em;
+  letter-spacing:.16em;
+  color:var(--accent);
+}
+.tag{
+  margin:2.4em 0 0;
+  font-size:1.75em;
+  letter-spacing:.14em;
+  color:var(--dim);
+}
+
+/* ── reveal mask: text rises out of a clipped line box ──────────────────── */
+.mask{
+  display:block;
+  overflow:hidden;
+  padding-bottom:.17em;
+  margin-bottom:-.17em;
+}
+.mask > *{ display:block; }
+
+/* ── animated elements ──────────────────────────────────────────────────── */
+.a{ will-change:transform,opacity; }
+
+/* ── transport HUD ──────────────────────────────────────────────────────── */
+#hud{
+  position:fixed; left:0; right:0; bottom:0;
+  z-index:9;
+  padding:1.4rem 1.6rem 1.1rem;
+  background:linear-gradient(transparent,rgba(0,0,0,.82));
+  opacity:0;
+  transition:opacity .32s ease;
+  pointer-events:none;
+}
+#hud.on{ opacity:1; pointer-events:auto; }
+body.nohud #hud{ display:none; }
+
+#bar{
+  position:relative;
+  height:3px;
+  background:rgba(255,255,255,.13);
+  border-radius:2px;
+  cursor:pointer;
+}
+#bar::after{                       /* generous hit target */
+  content:""; position:absolute; inset:-9px 0;
+}
+#fill{
+  position:absolute; inset:0 auto 0 0;
+  width:0;
+  background:var(--accent);
+  border-radius:2px;
+  transform-origin:0 50%;
+}
+.hudrow{
+  display:flex; justify-content:space-between; align-items:baseline;
+  gap:1rem;
+  margin-top:.62rem;
+  font-size:.68rem;
+  letter-spacing:.12em;
+  color:rgba(255,255,255,.5);
+  text-transform:uppercase;
+}
+#hint{ text-transform:none; letter-spacing:.06em; }
+
+/* ── reduced motion: the film is a still ────────────────────────────────── */
+@media (prefers-reduced-motion:reduce){
+  #hud{ transition:none; }
+}

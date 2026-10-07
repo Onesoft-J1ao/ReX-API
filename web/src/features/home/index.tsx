@@ -22,23 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
 import { RichContent } from '@/components/rich-content'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useTheme } from '@/context/theme-provider'
 import { isLikelyHtml } from '@/lib/content-format'
-import { useLandingTone } from '@/lib/landing-theme'
 import { useAuthStore } from '@/stores/auth-store'
 
-import {
-  Exclusive3D,
-  FreeToExplore,
-  Hero,
-  ModelCoverage,
-  Quickstart,
-  ServiceRoutes,
-  StatsStrip,
-  Support,
-} from './components'
-import { LandingToneSwitch } from './components/landing-tone-switch'
+import { CTA, Features, Hero, HowItWorks, Stats } from './components'
 import { PresetOne } from './components/preset-one'
 import { useHomePageContent } from './hooks'
 
@@ -48,7 +36,6 @@ export function Home() {
   const { resolvedTheme } = useTheme()
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
-  const { tone } = useLandingTone()
   const { content, isLoaded, isUrl, style } = useHomePageContent()
 
   const syncIframePreferences = useCallback(() => {
@@ -75,20 +62,9 @@ export function Home() {
   if (!isLoaded) {
     return (
       <PublicLayout showMainContainer={false}>
-        {/*
-          The custom home page is served from localStorage first, so a
-          configured instance usually renders its own content on the very first
-          paint. Only a cold visit waits on the request. Showing the built-in
-          landing skeleton here would flash hero blocks that the configured
-          page does not have, so the fallback is deliberately neutral: it holds
-          the page height without inventing a layout.
-        */}
-        <div
-          aria-busy='true'
-          className='mx-auto flex min-h-svh max-w-7xl items-center justify-center px-6'
-        >
-          <Skeleton className='h-4 w-40 rounded-full' />
-        </div>
+        <main className='flex min-h-screen items-center justify-center'>
+          <div className='text-muted-foreground'>{t('Loading...')}</div>
+        </main>
       </PublicLayout>
     )
   }
@@ -150,40 +126,13 @@ export function Home() {
   }
 
   return (
-    <div
-      data-landing-tone={tone}
-      // The landing mirrors the console's light/dark choice. `landing-theme.css`
-      // keys its light surface ladder off this attribute and its darker accent
-      // pair off `html.dark`, so the visitor's in-app theme decides both.
-      data-landing-light={resolvedTheme === 'light' ? '' : undefined}
-      className='bg-background text-foreground min-h-svh'
-    >
-      {/* Mechanical noise grain — low-opacity film over the whole landing to
-          add physical texture and fill dead space without touching the
-          editorial layout. SVG feTurbulence keeps it dependency-free. */}
-      <div
-        aria-hidden='true'
-        className='pointer-events-none fixed inset-0 z-10 opacity-[0.05] mix-blend-multiply dark:mix-blend-screen'
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-        }}
-      />
-      <PublicLayout
-        showMainContainer={false}
-        showThemeSwitch={false}
-        headerProps={{ rightContent: <LandingToneSwitch /> }}
-      >
-        <Hero isAuthenticated={isAuthenticated} />
-        <StatsStrip />
-        <ServiceRoutes />
-        <ModelCoverage />
-        <Quickstart />
-        <Exclusive3D />
-        <FreeToExplore />
-        <Support />
-        <Footer />
-      </PublicLayout>
-    </div>
+    <PublicLayout showMainContainer={false}>
+      <Hero isAuthenticated={isAuthenticated} />
+      <Stats />
+      <Features />
+      <HowItWorks />
+      <CTA isAuthenticated={isAuthenticated} />
+      <Footer />
+    </PublicLayout>
   )
 }

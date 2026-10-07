@@ -58,6 +58,7 @@ interface StatusApiResponse {
     perf_metrics_bucket_time?: string
     site_appearance?: {
       background_image?: string
+      background_random_category?: string
       background_blur_opacity?: number
       legal_background_enabled?: boolean
       default_theme?: string
@@ -104,6 +105,8 @@ function normalizeAppearance(
   const defaults = DEFAULT_SITE_APPEARANCE
   return {
     backgroundImage: value?.background_image?.trim() || '',
+    backgroundRandomCategory:
+      value?.background_random_category?.trim() || '',
     backgroundBlurOpacity: Math.min(
       100,
       Math.max(0, toNumber(value?.background_blur_opacity, 40))

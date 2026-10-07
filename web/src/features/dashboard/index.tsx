@@ -127,7 +127,7 @@ function LogStatCardsFallback() {
             )}
           >
             <div className='flex items-center gap-1.5 sm:gap-2'>
-              <Skeleton className='size-4 rounded-md sm:size-7' />
+              <Skeleton className='size-4 rounded-md sm:size-7 sm:rounded-md' />
               <Skeleton className='h-4 w-16' />
             </div>
             <Skeleton className='mt-1 h-5 w-16 sm:mt-2 sm:h-7 sm:w-20' />

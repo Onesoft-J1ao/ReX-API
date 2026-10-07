@@ -44,7 +44,7 @@ const STATUS_COLOR_MAP: Record<number, string> = {
   2: 'bg-warning',
   3: 'bg-info',
 }
-const DEFAULT_STATUS_COLOR = 'bg-neutral/60'
+const DEFAULT_STATUS_COLOR = 'bg-muted-foreground/40'
 const STATUS_LABEL_MAP: Record<number, string> = {
   1: 'Operational',
   0: 'Down',

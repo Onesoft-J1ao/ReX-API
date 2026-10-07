@@ -46,7 +46,10 @@ const MODEL_PROVIDER_RULES: readonly ModelProviderRule[] = [
   },
   {
     name: 'OpenAI',
-    icon: 'OpenAI.Color',
+    // OpenAI has no Color variant in @lobehub/icons (only Avatar/Combine/Mono/
+    // Text), so "OpenAI.Color" never resolved and every OpenAI badge fell back
+    // to the placeholder glyph.
+    icon: 'OpenAI',
     fallbackKeywords: [
       'text-embedding-',
       'omni-moderation',
@@ -99,7 +102,7 @@ const MODEL_PROVIDER_RULES: readonly ModelProviderRule[] = [
   },
   {
     name: 'xAI',
-    icon: 'Grok.Color',
+    icon: 'Grok',
     label: 'Grok',
     keywords: ['x-ai/', 'xai/', 'xai-', 'grok'],
   },
@@ -111,7 +114,7 @@ const MODEL_PROVIDER_RULES: readonly ModelProviderRule[] = [
     pattern: /(?:^|[/.:])(?:text-embedding-v\d+|gui-plus|z-image)(?:$|[-_.:])/,
   },
   { name: 'Wan', icon: 'Wan', pattern: /(?:^|[/.:])wan(?:x?\d|[-_])/ },
-  { name: 'Moonshot', icon: 'Moonshot.Color', keywords: ['moonshot', 'kimi-'] },
+  { name: 'Moonshot', icon: 'Moonshot', keywords: ['moonshot', 'kimi-'] },
   {
     name: 'MiniMax',
     icon: 'Minimax.Color',
@@ -157,7 +160,7 @@ const MODEL_PROVIDER_RULES: readonly ModelProviderRule[] = [
   },
   { name: 'Baichuan', icon: 'Baichuan.Color', keywords: ['baichuan'] },
   { name: 'InternLM', icon: 'InternLM.Color', keywords: ['internlm'] },
-  { name: 'StepFun', icon: 'Stepfun.Color', keywords: ['stepfun', 'step-'] },
+  { name: 'StepFun', icon: 'Stepfun', keywords: ['stepfun', 'step-'] },
   { name: 'MiMo', icon: 'XiaomiMiMo', keywords: ['xiaomi', 'mimo-'] },
   {
     name: 'Mistral',

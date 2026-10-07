@@ -196,11 +196,11 @@ export function LogStatCards(props: LogStatCardsProps) {
                 <IconBadge
                   tone={it.iconTone}
                   size='stat'
-                  className='size-4 rounded-md sm:size-7 [&>svg]:size-2.5 sm:[&>svg]:size-3.5'
+                  className='size-4 rounded-md sm:size-7 sm:rounded-md [&>svg]:size-2.5 sm:[&>svg]:size-3.5'
                 >
                   <Icon />
                 </IconBadge>
-                <div className='text-muted-foreground truncate text-xs leading-4 font-medium tracking-wide uppercase sm:tracking-wider'>
+                <div className='text-muted-foreground truncate text-xs leading-4 font-medium tracking-wide uppercase sm:text-xs sm:tracking-wider'>
                   {it.title}
                 </div>
               </div>

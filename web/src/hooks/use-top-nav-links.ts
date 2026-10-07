@@ -102,10 +102,5 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Anime'), href: '/bangumi', requiresAuth })
   }
 
-  // About
-  if (modules?.about !== false) {
-    links.push({ title: t('About'), href: '/about' })
-  }
-
   return links
 }

@@ -132,7 +132,7 @@ export function ConsumptionDistributionChart(
           </span>
         </div>
 
-        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-md border p-0.5 sm:h-8 sm:w-auto'>
+        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-xl border p-0.5 sm:h-8 sm:w-auto'>
           {CONSUMPTION_DISTRIBUTION_CHART_OPTIONS.map((item) => {
             const Icon = CHART_TYPE_ICONS[item.value]
             return (

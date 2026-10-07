@@ -21,7 +21,6 @@ import { memo, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
-import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -168,7 +167,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   let priceSummary: ReactNode
   if (dynamicSummary && dynamicIsFree) {
     priceSummary = (
-      <span className='col-span-full font-mono text-sm font-semibold tabular-nums'>
+      <span className='col-span-full font-mono text-[14px] font-semibold tabular-nums'>
         {t('Free')}
       </span>
     )
@@ -225,7 +224,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     {label}
                   </span>
                 )}
-                <span className='flex flex-nowrap items-baseline gap-x-1 font-mono text-sm font-semibold tabular-nums'>
+                <span className='flex flex-nowrap items-baseline gap-x-1 font-mono text-[14px] font-semibold tabular-nums'>
                   <span className='whitespace-nowrap'>
                     {entry.formattedRange ?? entry.formatted}
                   </span>
@@ -326,7 +325,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             <span className='sr-only'>{t('Cached')}</span>
           )}
         </span>
-        <span className='font-mono text-sm font-semibold whitespace-nowrap tabular-nums'>
+        <span className='font-mono text-[14px] font-semibold whitespace-nowrap tabular-nums'>
           {formatPrice(
             props.model,
             price.type,
@@ -349,7 +348,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     // model's own per-call price, which is what such a group charges.
     priceSummary = (
       <div className='col-span-full flex min-w-0 flex-col gap-1'>
-        <span className='font-mono text-sm font-semibold tabular-nums'>
+        <span className='font-mono text-[14px] font-semibold tabular-nums'>
           {formatRequestPrice(
             props.model,
             showRechargePrice,
@@ -371,14 +370,17 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
 
   return (
     <Card
+      size='sm'
       className={cn(
-        'hover:ring-foreground/20 h-full min-w-0 gap-3 transition-colors'
+        // Translucent so the hero photo behind the page reads through the
+        // grid, matching the frosted panels elsewhere on the public pages.
+        'bg-card/80 hover:bg-card/95 hover:ring-foreground/20 h-full min-w-0 backdrop-blur-sm transition-colors'
       )}
     >
-      <CardHeader className='flex flex-row items-start gap-3'>
+      <CardHeader className='flex flex-row items-start gap-2.5'>
         <div
           aria-hidden
-          className='bg-muted/50 flex size-10 shrink-0 items-center justify-center rounded-md'
+          className='bg-muted/50 flex size-8 shrink-0 items-center justify-center rounded-md'
         >
           {modelIcon || (
             <span className='text-muted-foreground text-sm font-bold'>
@@ -388,14 +390,14 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         </div>
         <div className='min-w-0 flex-1'>
           <h3
-            className='line-clamp-2 font-mono text-sm leading-snug font-semibold [overflow-wrap:anywhere]'
+            className='line-clamp-1 font-mono text-[14px] leading-snug font-semibold [overflow-wrap:anywhere]'
             title={props.model.model_name}
           >
             {props.model.model_name}
           </h3>
           {props.model.vendor_name && (
             <p
-              className='text-muted-foreground mt-1 truncate text-xs'
+              className='text-muted-foreground mt-0.5 truncate text-xs'
               title={props.model.vendor_name}
             >
               {props.model.vendor_name}
@@ -409,45 +411,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           iconClassName='size-3.5'
         />
       </CardHeader>
-      <CardContent className='flex flex-1 flex-col gap-3'>
-        {/* Price comes before the description. Someone scanning the square is
-            answering "what does this cost" first; the description and tags are
-            context for a decision already half-made, and reading them first
-            pushed the number to the middle of the card. */}
-        <div
-          role='group'
-          aria-label={t('Pricing')}
-          className='flex min-w-0 flex-col gap-1.5'
-        >
-          {dynamicSummary?.providerCount && (
-            <span className='text-muted-foreground text-xs break-words'>
-              {t('{{count}} providers', {
-                count: dynamicSummary.providerCount,
-              })}
-              {dynamicSummary.hasUnconfiguredProviders &&
-                ` · ${t('Not configured for some providers')}`}
-            </span>
-          )}
-          <div className='grid grid-cols-[repeat(3,minmax(0,1fr))] gap-x-3 gap-y-2'>
-            {priceSummary}
-          </div>
-          {/* How the price above is charged, beside it rather than in the
-              metadata block: "0.012 / request" only means something next to
-              "per request", and the mode a group overrides is part of the
-              price, not a footnote. */}
-          <div className='flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1'>
-            <ModelBillingModeBadge model={props.model} appearance='caption' />
-            {perRequestOverride && (
-              <span className='text-muted-foreground text-xs'>
-                {t('Billed per request in this group')}
-              </span>
-            )}
-          </div>
-        </div>
-        {/* The description and tags sink to the bottom so cards of differing
-            description length keep their price aligned across a grid row. */}
-        <div className='mt-auto flex min-w-0 flex-col gap-1.5'>
-          <p className='text-muted-foreground line-clamp-2 text-sm leading-5 break-words'>
+      <CardContent className='flex flex-1 flex-col gap-2.5'>
+        {/* The description and tags lead, because they tell a reader what the
+            model is before the numbers tell them what it costs. */}
+        <div className='flex min-w-0 flex-col gap-1.5'>
+          <p className='text-muted-foreground line-clamp-1 text-xs leading-4 break-words'>
             {props.model.description || t('No description available.')}
           </p>
           {tags.length > 0 && (
@@ -468,41 +436,82 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </div>
           )}
         </div>
+        <div
+          role='group'
+          aria-label={t('Pricing')}
+          className='mt-auto flex min-w-0 flex-col gap-1.5'
+        >
+          {dynamicSummary?.providerCount && (
+            <span className='text-muted-foreground text-xs break-words'>
+              {t('{{count}} providers', {
+                count: dynamicSummary.providerCount,
+              })}
+              {dynamicSummary.hasUnconfiguredProviders &&
+                ` · ${t('Not configured for some providers')}`}
+            </span>
+          )}
+          <div className='grid grid-cols-[repeat(3,minmax(0,1fr))] gap-x-3 gap-y-2'>
+            {priceSummary}
+          </div>
+          {/* How the price above is charged, beside it rather than in the
+              metadata block: "0.012 / request" only means something next to
+              "per request", and the mode a group overrides is part of the
+              price, not a footnote. */}
+          {perRequestOverride && (
+            <span className='text-muted-foreground text-xs'>
+              {t('Billed per request in this group')}
+            </span>
+          )}
+        </div>
+        {/* Only the first value of each list is shown. A model reachable from
+            several groups or endpoints otherwise turns its card into a wall of
+            chips, and the overflow count carries the rest. */}
         <dl
           className={cn(
-            'grid min-w-0 grid-cols-2 gap-3 text-xs',
+            'grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 text-xs',
             (groups.length === 0 || endpoints.length === 0) && 'grid-cols-1'
           )}
         >
+          <div className='flex min-w-0 items-baseline gap-1.5'>
+            <dd className='flex min-w-0 items-baseline gap-1'>
+              <ModelBillingModeBadge model={props.model} appearance='caption' />
+            </dd>
+          </div>
           {groups.length > 0 && (
-            <div
-              className={cn(
-                'flex min-w-0 items-baseline gap-1.5',
-                groups.length > 1 && 'col-span-2'
-              )}
-            >
+            <div className='flex min-w-0 items-baseline gap-1.5'>
               <dt className='text-muted-foreground shrink-0'>{t('Groups')}</dt>
-              <dd className='flex min-w-0 flex-wrap items-baseline gap-1'>
-                {groups.map((group) => (
+              <dd className='flex min-w-0 items-baseline gap-1'>
+                <span className='truncate' title={groups.join(', ')}>
+                  {groups[0]}
+                </span>
+                {groups.length > 1 && (
                   <span
-                    key={group}
-                    className='bg-muted/60 max-w-full truncate rounded px-1.5 py-0.5 font-mono'
+                    className='text-muted-foreground shrink-0'
+                    title={groups.slice(1).join(', ')}
                   >
-                    {group}
+                    +{groups.length - 1}
                   </span>
-                ))}
+                )}
               </dd>
             </div>
           )}
           {endpoints.length > 0 && (
-            <div className='flex min-w-0 flex-col gap-1.5'>
+            <div className='flex min-w-0 items-baseline gap-1.5'>
               <dt className='text-muted-foreground shrink-0'>
                 {t('Endpoints')}
               </dt>
-              <dd className='flex min-w-0 flex-wrap gap-1'>
-                {endpoints.map((endpoint) => (
-                  <StatusBadge key={endpoint} label={endpoint} size='sm' />
-                ))}
+              <dd className='flex min-w-0 items-baseline gap-1'>
+                <span className='truncate' title={endpoints.join(', ')}>
+                  {endpoints.slice(0, 2).join(', ')}
+                </span>
+                {endpoints.length > 2 && (
+                  <span
+                    className='text-muted-foreground shrink-0'
+                    title={endpoints.slice(2).join(', ')}
+                  >
+                    +{endpoints.length - 2}
+                  </span>
+                )}
               </dd>
             </div>
           )}
@@ -511,7 +520,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       <CardFooter className='mt-auto border-0 bg-transparent pt-0'>
         <ModelPerfBadge
           perf={props.perf}
-          className='border-border/60 border-t pt-2'
+          className='pt-0.5'
         >
           <Button variant='ghost' size='sm' onClick={props.onClick}>
             {t('Details')}

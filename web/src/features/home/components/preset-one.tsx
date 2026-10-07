@@ -10,17 +10,18 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { motion, useReducedMotion, type Variants } from 'motion/react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
+import { BackgroundCredit } from '@/components/layout/components/background-credit'
 import { Button } from '@/components/ui/button'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { useUnsplashBackground } from '@/hooks/use-unsplash-background'
+import { pickLocalBackground } from '@/lib/local-backgrounds'
 import { useAuthStore } from '@/stores/auth-store'
-
-const FALLBACK_BACKGROUND =
-  'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=2400&q=88'
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const
 
@@ -95,7 +96,21 @@ export function PresetOne() {
   const isAuthenticated = !!auth.user
   const docsUrl =
     (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
-  const backgroundImage = appearance.backgroundImage || FALLBACK_BACKGROUND
+  // An operator-set background wins, then Unsplash when a query is configured;
+  // otherwise rotate through the bundled pool so repeat visits do not all show
+  // the same image. `useState` fixes the local pick at mount, so a re-render
+  // never swaps the picture out from under the viewer.
+  const [localBackground] = useState(pickLocalBackground)
+  const {
+    image: unsplashImage,
+    credit,
+    pending: unsplashPending,
+  } = useUnsplashBackground()
+  const backgroundImage =
+    appearance.backgroundImage ||
+    unsplashImage ||
+    (unsplashPending ? '' : localBackground)
+  const showCredit = !appearance.backgroundImage && !!unsplashImage
   const brandName = systemName || 'New API'
   const configuredServerAddress =
     typeof status?.server_address === 'string'
@@ -142,6 +157,9 @@ export function PresetOne() {
           aria-hidden='true'
           className='absolute inset-x-0 top-0 h-[100svh] bg-black/20 mix-blend-multiply'
         />
+        {showCredit && credit && (
+          <BackgroundCredit credit={credit} className='text-white/55' />
+        )}
 
         <main className='relative z-10'>
           <section className='mx-auto flex min-h-[calc(100svh-1.5rem)] max-w-[1230px] flex-col justify-between px-5 pt-28 pb-5 sm:px-8 sm:pt-32 lg:px-0'>

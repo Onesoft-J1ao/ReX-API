@@ -16,148 +16,230 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { CherryStudio } from '@lobehub/icons'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, BookOpen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { useStatus } from '@/hooks/use-status'
 
-import { RotatingPolyhedron } from '../rotating-polyhedron'
+import { HeroTerminalDemo } from '../hero-terminal-demo'
 
-type HeroProps = {
+interface HeroProps {
   className?: string
   isAuthenticated?: boolean
 }
 
+// Stylized three-dots indicator representing "More"
+const MoreIcon = () => (
+  <svg
+    className='text-muted-foreground/60 group-hover:text-foreground size-6 shrink-0 transition-colors'
+    viewBox='0 0 24 24'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <circle cx='6' cy='12' r='2' fill='currentColor' />
+    <circle cx='12' cy='12' r='2' fill='currentColor' />
+    <circle cx='18' cy='12' r='2' fill='currentColor' />
+  </svg>
+)
+
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
-  const isAuthenticated = props.isAuthenticated === true
+  const { status } = useStatus()
+  const docsUrl =
+    (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
+
+  const renderDocsButton = () => {
+    const isExternal = docsUrl.startsWith('http')
+    if (isExternal) {
+      return (
+        <Button
+          variant='outline'
+          className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
+          render={
+            <a href={docsUrl} target='_blank' rel='noopener noreferrer' />
+          }
+        >
+          <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
+          <span>{t('Docs')}</span>
+        </Button>
+      )
+    }
+    return (
+      <Button
+        variant='outline'
+        className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
+        render={<Link to={docsUrl} />}
+      >
+        <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
+        <span>{t('Docs')}</span>
+      </Button>
+    )
+  }
 
   return (
-    <section className='relative isolate flex min-h-svh flex-col justify-center overflow-hidden px-6 pt-[var(--hero-pad-y)] pb-[var(--hero-pad-y)] sm:px-10 lg:px-14'>
-      {/* Dark-tech ambience: horizon glow, perspective grid, and a vignette
-          that keeps the edges black so the polyhedron owns the viewport. */}
+    <section className='relative z-10 overflow-hidden px-6 pt-24 pb-16 md:pt-32 md:pb-24 lg:pt-36 lg:pb-28'>
+      {/* Radial gradient background */}
       <div
-        aria-hidden='true'
-        className='landing-glow pointer-events-none absolute top-[-18rem] left-1/2 -z-10 h-[46rem] w-[130%] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,var(--glow-soft),transparent)]'
+        aria-hidden
+        className='pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]'
+        style={{
+          background: [
+            'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 40% 35% at 40% 80%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
+          ].join(', '),
+        }}
       />
+      {/* Grid pattern */}
       <div
-        aria-hidden='true'
-        className='landing-grid pointer-events-none absolute inset-0 -z-10 [background-image:linear-gradient(var(--grid-line)_1px,transparent_1px),linear-gradient(90deg,var(--grid-line)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_75%_60%_at_50%_35%,black,transparent)] [background-size:56px_56px]'
-      />
-      <div
-        aria-hidden='true'
-        className='pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_90%_70%_at_50%_45%,transparent_55%,var(--background)_100%)]'
-      />
-      {/* Horizon line under the headline — the one structural device of the
-          dark world, echoing a router handing routes across a boundary. */}
-      <div
-        aria-hidden='true'
-        className='landing-section-divider pointer-events-none absolute bottom-0 left-1/2 w-full max-w-7xl -translate-x-1/2'
+        aria-hidden
+        className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_30%,black_20%,transparent_100%)] bg-[size:4rem_4rem] opacity-[0.08]'
       />
 
-      {/* `w-full` is load-bearing: `mx-auto` sets auto cross-axis margins, and
-          per spec an auto cross-axis margin absorbs the free space and
-          DISABLES the flex item's stretch. Without an explicit width the
-          wrapper fell back to its content width — which the `w-max` telemetry
-          ticker inflated to the full `max-w-7xl` (1280px) even on a phone, so
-          everything past the viewport was clipped by overflow-hidden. */}
-      <div className='mx-auto w-full max-w-7xl min-w-0'>
-        <h1 className='landing-animate-fade-up max-w-[16ch] font-serif text-[length:var(--hero-type)] leading-[0.98] font-medium tracking-[-0.03em] opacity-0'>
-          {t('One router,')}
-          <br />
-          {t('more ways to build.')}
-        </h1>
+      <div className='mx-auto grid max-w-6xl grid-cols-1 items-start gap-12 lg:grid-cols-12 lg:gap-8'>
+        {/* Left Column: Title, description, action buttons and application support */}
+        <div className='flex flex-col items-start text-left lg:col-span-6'>
+          {/* Top Pill Badge */}
+          <div
+            className='landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-[11px] font-medium text-blue-600 opacity-0 shadow-xs dark:border-blue-400/20 dark:bg-blue-400/5 dark:text-blue-400'
+            style={{ animationDelay: '0ms' }}
+          >
+            <span className='relative flex size-1.5'>
+              <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
+              <span className='relative inline-flex size-1.5 rounded-full bg-blue-500 dark:bg-blue-400' />
+            </span>
+            <span>{t('AI Application Infrastructure Foundation')}</span>
+          </div>
 
-        <div className='mt-[var(--hero-gap-tight)] grid items-center gap-[var(--hero-gap-loose)] lg:mt-[var(--hero-gap-loose)] lg:grid-cols-[1.05fr_0.95fr] lg:gap-12'>
-          <div className='landing-animate-fade-up max-w-xl opacity-0 [animation-delay:140ms]'>
-            <p className='text-muted-foreground font-serif text-lg leading-8 sm:text-xl sm:leading-9'>
-              {t(
-                'Access models from nearly every provider at a lower cost. Each model has more than one path: choose a group for the task, then select the model.'
-              )}
-            </p>
+          <h1
+            className='landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] leading-[1.15] font-bold tracking-tight'
+            style={{ animationDelay: '60ms' }}
+          >
+            {t('Unified API Gateway for')}
+            <br />
+            <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
+              {t('Vast Range of AI Models')}
+            </span>
+          </h1>
+          <p
+            className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-xl text-base leading-relaxed opacity-0 md:text-[15px]'
+            style={{ animationDelay: '120ms' }}
+          >
+            {t(
+              'Access a vast selection of models via a standard, unified API protocol. Power AI applications, manage digital assets, and connect the Future.'
+            )}
+          </p>
 
-            <div className='mt-9 flex flex-wrap items-center gap-3'>
-              {isAuthenticated ? (
+          <div
+            className='landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0'
+            style={{ animationDelay: '180ms' }}
+          >
+            {props.isAuthenticated ? (
+              <>
                 <Button
-                  className='group h-12 rounded-full px-7 text-base font-medium'
+                  className='group h-11 rounded-lg px-5 text-sm font-medium'
                   render={<Link to='/dashboard' />}
                 >
                   {t('Go to Dashboard')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform group-hover:translate-x-0.5' />
+                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
                 </Button>
-              ) : (
+                {renderDocsButton()}
+              </>
+            ) : (
+              <>
                 <Button
-                  className='group h-12 rounded-full px-7 text-base font-medium'
+                  className='group h-11 rounded-lg px-5 text-sm font-medium'
                   render={<Link to='/sign-up' />}
                 >
-                  {t('Create account')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform group-hover:translate-x-0.5' />
+                  {t('Get Started')}
+                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
                 </Button>
-              )}
-              <Button
-                variant='outline'
-                className='border-border/70 h-12 rounded-full px-7 text-base font-medium'
-                render={<Link to='/pricing' />}
-              >
-                {t('View pricing')}
-              </Button>
-            </div>
+                <Button
+                  variant='outline'
+                  className='border-border/50 hover:border-border hover:bg-muted/50 h-11 rounded-lg px-5 text-sm font-medium'
+                  render={<Link to='/pricing' />}
+                >
+                  {t('View Pricing')}
+                </Button>
+                {renderDocsButton()}
+              </>
+            )}
           </div>
 
-          {/* Centred in its column on lg: the panel is capped by the height
-              budget so it stays square and inside the fold, which leaves it
-              narrower than the column on wide screens. Left-aligning that gap
-              read as an empty right margin; auto margins split it evenly. */}
-          <div className='landing-animate-fade-up landing-float relative mx-auto w-full max-w-[min(26rem,var(--hero-panel-max-h))] opacity-0 [animation-delay:200ms] sm:max-w-[min(30rem,var(--hero-panel-max-h))] lg:max-w-[min(32rem,var(--hero-panel-max-h))]'>
-            <RotatingPolyhedron label={t('Rotating 3D gateway routing core')} />
+          {/* Supported Apps (参考图二样式，进行卡片化和信息扩充设计，增加视觉高度) */}
+          <div
+            className='landing-animate-fade-up mt-10 w-full max-w-xl opacity-0'
+            style={{ animationDelay: '240ms' }}
+          >
+            <div className='mb-4 flex flex-col gap-1'>
+              <span className='text-muted-foreground/50 text-[10px] font-bold tracking-[0.15em] uppercase'>
+                {t('Supported Applications')}
+              </span>
+              <p className='text-muted-foreground/60 text-xs leading-relaxed'>
+                {t(
+                  'Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.'
+                )}
+              </p>
+            </div>
+            <div className='flex flex-wrap items-center gap-3'>
+              {/* Cherry Studio */}
+              <a
+                href='https://cherry-ai.com'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
+              >
+                <CherryStudio.Color size={24} className='shrink-0' />
+                <span>Cherry Studio</span>
+              </a>
+
+              {/* CC Switch */}
+              <a
+                href='https://ccswitch.io'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
+              >
+                <img
+                  src='https://ccswitch.io/favicon.png'
+                  alt='CC Switch'
+                  className='size-6 shrink-0 rounded-md object-contain'
+                  onError={(e) => {
+                    // Fallback to a styled text avatar if the remote favicon fails to load in sandbox or local environments
+                    e.currentTarget.style.display = 'none'
+                    const fallback = e.currentTarget.nextSibling as HTMLElement
+                    if (fallback) fallback.style.display = 'flex'
+                  }}
+                />
+                <span
+                  style={{ display: 'none' }}
+                  className='size-6 shrink-0 items-center justify-center rounded-md bg-blue-500/10 text-[10px] font-bold text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'
+                >
+                  CC
+                </span>
+                <span>CC Switch</span>
+              </a>
+
+              {/* "更多" */}
+              <div className='group border-border/40 bg-muted/15 text-foreground/55 hover:border-border hover:bg-muted/30 hover:text-foreground flex cursor-default items-center gap-2.5 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'>
+                <MoreIcon />
+                <span>{t('More Apps')}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Telemetry data stream — a scrolling mono strip that fills the hero
-            footer space with mechanical movement. */}
-        <div className='landing-animate-fade-in mt-[var(--hero-gap-loose)] overflow-hidden [mask-image:linear-gradient(90deg,transparent,black_12%,black_88%,transparent)] opacity-0 [animation-delay:320ms]'>
-          <div className='rt-ticker text-muted-foreground/80 flex w-max items-center gap-8 py-3 font-mono text-[10px] tracking-[0.18em] uppercase'>
-            <TickerRow />
-          </div>
+        {/* Right Column: Hero Terminal API Demo */}
+        <div
+          className='landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6'
+          style={{ animationDelay: '320ms' }}
+        >
+          <HeroTerminalDemo className='mt-8 lg:mt-0' />
         </div>
       </div>
     </section>
-  )
-}
-
-const TELEMETRY = [
-  'RTT 38MS',
-  'CH 04',
-  'MODEL gpt-4o',
-  '200 OK',
-  'TOKEN 1.2K',
-  'UPSTREAM openai',
-  'LAT 99.98%',
-  'RPS 412',
-  'QUOTA 84%',
-  'NODE cn-east-1',
-  'BALANCE OK',
-  'ROUTE default',
-]
-
-function TickerRow() {
-  // Repeat the sequence 3x so the seamless loop has enough width.
-  return (
-    <>
-      {Array.from({ length: 3 }, (_, k) => (
-        <span key={k} className='flex items-center gap-8' aria-hidden={k > 0}>
-          {TELEMETRY.map((item) => (
-            <span
-              key={item}
-              className='flex items-center gap-8 whitespace-nowrap'
-            >
-              {item}
-              <span className='text-border'>/</span>
-            </span>
-          ))}
-        </span>
-      ))}
-    </>
   )
 }

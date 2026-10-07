@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ReX API — 一个密钥，接入所有模型</title>
+<meta name="description" content="ReX API 产品动画：一个密钥，一个端点，251 个模型。">
+<link rel="stylesheet" href="promo.css">
+</head>
+<body>
+
+<div id="stage">
+  <div id="film" role="img" aria-label="ReX API 产品宣传动画">
+
+    <!-- ── ambience ─────────────────────────────────────────────── -->
+    <div class="layer" id="glow" aria-hidden="true"></div>
+    <div class="layer" id="grain" aria-hidden="true"></div>
+    <div class="layer" id="vignette" aria-hidden="true"></div>
+
+    <!-- ── 01 · cold open ───────────────────────────────────────── -->
+    <section class="scene" id="s1" data-scene="s1" data-in="0" data-out="8">
+      <div class="stack mid">
+        <div class="rule a" data-cue="s1-rule"></div>
+        <div class="mask">
+          <div class="mark a tk-lat" data-cue="s1-mark">ReX&nbsp;API</div>
+        </div>
+        <p class="sub a" data-cue="s1-sub">一个密钥，<span class="num">251</span> 个模型。</p>
+      </div>
+    </section>
+
+    <!-- ── 02 · the problem ─────────────────────────────────────── -->
+    <section class="scene" id="s2" data-scene="s2" data-in="8" data-out="19">
+      <div class="label a mono" data-cue="s2-label">01 / 问题</div>
+
+      <div class="field" id="keyfield">
+        <div class="ring a" data-cue="s2-ring" aria-hidden="true"></div>
+        <p class="q a display tk-cjk" data-cue="s2-q">现在，你要维护<br>多少把密钥？</p>
+      </div>
+
+      <p class="one a display tk-cjk" data-cue="s2-one">一把，就够。</p>
+    </section>
+
+    <!-- ── 03 · the turn ────────────────────────────────────────── -->
+    <section class="scene" id="s3" data-scene="s3" data-in="19" data-out="31">
+      <div class="label a mono" data-cue="s3-label">02 / 收束</div>
+      <div class="stack mid">
+        <div class="turnline">
+          <div class="mask"><div class="display tk-cjk a" data-cue="s3-l1">一把密钥。</div></div>
+          <div class="mask"><div class="display tk-cjk a" data-cue="s3-l2">一个端点。</div></div>
+          <div class="mask"><div class="display tk-cjk a" data-cue="s3-l3">其余，交给我们。</div></div>
+        </div>
+        <div class="diff a" data-cue="s3-diff">
+          <div class="dl a" data-cue="s3-diff-a"><span class="sign">−</span>base_url = <span class="str">"https://&lt;原服务商&gt;/v1"</span></div>
+          <div class="dl plus a" data-cue="s3-diff-b"><span class="sign">+</span>base_url = <span class="str">"https://ai.j1ao.vip/v1"</span></div>
+        </div>
+        <p class="note a" data-cue="s3-note">其余代码，一行不动。</p>
+      </div>
+    </section>
+
+    <!-- ── 04 · capability montage ──────────────────────────────── -->
+    <section class="scene" id="s4" data-scene="s4" data-in="31" data-out="48">
+      <div class="label a mono" data-cue="s4-label">03 / 能力</div>
+
+      <!-- 4a · models -->
+      <div class="stack mid block" data-block="models">
+        <div class="bignum a tk-lat" data-cue="s4-num"><span id="counter">0</span></div>
+        <p class="numcap a" data-cue="s4-num-cap">个模型，已启用。</p>
+      </div>
+
+      <!-- 4b · endpoint families -->
+      <div class="stack mid block" data-block="endpoints">
+        <div class="chips a" id="epchips" data-cue="s4-eps"></div>
+        <p class="epcap a" data-cue="s4-ep-cap">对话，只是其中一种。</p>
+      </div>
+
+      <!-- 4c · channel groups -->
+      <div class="stack mid block" data-block="groups">
+        <p class="gh a display tk-cjk" data-cue="s4-groups-h">多条线路，各有所长。</p>
+        <div class="wall a" data-cue="s4-groups">
+          <div class="row" data-row="a"></div>
+          <div class="row" data-row="b"></div>
+        </div>
+      </div>
+
+      <!-- 4d · two highlights -->
+      <div class="stack mid block" data-block="highlights">
+        <p class="hl a" data-cue="s4-hl1"><span class="hlk tk-lat">NIM</span><span class="hls">免费，不限量。</span></p>
+        <p class="hl a" data-cue="s4-hl2"><span class="hlk tk-cjk">国模高速</span><span class="hls">缓存命中约 99%，低延迟。</span></p>
+      </div>
+    </section>
+
+    <!-- ── 05 · close ───────────────────────────────────────────── -->
+    <section class="scene" id="s5" data-scene="s5" data-in="48" data-out="60">
+      <div class="stack mid">
+        <p class="compat a" data-cue="s5-l1">OpenAI 兼容</p>
+        <p class="compat2 a" data-cue="s5-l2">现有 SDK 与客户端，只改 <span class="code tk-lat">base_url</span>。</p>
+        <div class="rule a" data-cue="s5-rule"></div>
+        <div class="mask">
+          <div class="closing a tk-lat" data-cue="s5-mark">ReX&nbsp;API</div>
+        </div>
+        <p class="url a mono" data-cue="s5-url">ai.j1ao.vip</p>
+        <p class="tag a" data-cue="s5-tag">一个密钥，接入所有模型。</p>
+      </div>
+    </section>
+
+  </div><!-- /#film -->
+</div><!-- /#stage -->
+
+<!-- ── transport ──────────────────────────────────────────────── -->
+<div id="hud" aria-hidden="true">
+  <div id="bar"><div id="fill"></div></div>
+  <div class="hudrow">
+    <span id="clock" class="mono">00:00.0 / 01:00.0</span>
+    <span id="hint" class="mono">空格 播放/暂停 · ← → 逐秒 · R 重播 · 拖动进度条定位</span>
+  </div>
+</div>
+
+<script src="promo.js"></script>
+</body>
+</html>

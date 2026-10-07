@@ -16,11 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+export { CTA } from './sections/cta'
+export { Features } from './sections/features'
 export { Hero } from './sections/hero'
-export { StatsStrip } from './sections/stats-strip'
-export { Quickstart } from './sections/quickstart'
-export { ServiceRoutes } from './sections/service-routes'
-export { ModelCoverage } from './sections/model-coverage'
-export { Exclusive3D } from './sections/exclusive-3d'
-export { FreeToExplore } from './sections/free-to-explore'
-export { Support } from './sections/support'
+export { HowItWorks } from './sections/how-it-works'
+export { Stats } from './sections/stats'

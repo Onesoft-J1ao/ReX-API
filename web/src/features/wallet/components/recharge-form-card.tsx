@@ -16,13 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import {
+  Gift,
+  ExternalLink,
+  Loader2,
+  Maximize2,
+  Receipt,
+  WalletCards,
+  X,
+} from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+} from '@/components/ui/dialog'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -88,6 +101,93 @@ interface RechargeFormCardProps {
   enableMoneroTopup?: boolean
   enableNowPaymentsTopup?: boolean
   nowPaymentsCurrencies?: string[]
+}
+
+/**
+ * Operator-authored markdown. Any image in it is usually a payment QR code, so
+ * the image and the button both open the same full-screen viewer to keep it
+ * scannable on a phone.
+ */
+function PaymentAnnouncement({ markdown }: { markdown: string }) {
+  const { t } = useTranslation()
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [zoomedSrc, setZoomedSrc] = useState<string | null>(null)
+  const hasImage = /!\[[^\]]*\]\([^)]*\)|<img\b/i.test(markdown)
+
+  const openViewer = (src?: string) => {
+    const image = contentRef.current?.querySelector('img')
+    const resolved = src ?? image?.currentSrc ?? image?.src
+
+    if (resolved) {
+      setZoomedSrc(resolved)
+    }
+  }
+
+  return (
+    <div className='border-t pt-4 sm:pt-6'>
+      <div
+        ref={contentRef}
+        onClick={(event) => {
+          if (event.target instanceof HTMLImageElement) {
+            openViewer(event.target.currentSrc || event.target.src)
+          }
+        }}
+      >
+        <Markdown
+          breaks
+          className='bg-muted/30 rounded-md border px-4 py-3 text-sm [&_img]:mx-auto [&_img]:max-w-[200px] [&_img]:cursor-zoom-in'
+        >
+          {markdown}
+        </Markdown>
+      </div>
+
+      {hasImage && (
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          className='mt-3 w-full'
+          onClick={() => openViewer()}
+        >
+          <Maximize2 className='size-4' />
+          {t('View full screen')}
+        </Button>
+      )}
+
+      <Dialog
+        open={zoomedSrc !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setZoomedSrc(null)
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          overlayClassName='bg-black/85'
+          className='w-auto max-w-none gap-0 rounded-none bg-transparent p-0 ring-0 sm:max-w-none'
+        >
+          <DialogClose
+            render={
+              <Button
+                variant='secondary'
+                size='icon'
+                className='absolute -top-12 right-0'
+              />
+            }
+          >
+            <X className='size-4' />
+            <span className='sr-only'>{t('Close')}</span>
+          </DialogClose>
+          <img
+            src={zoomedSrc ?? ''}
+            alt={t('Scan QR Code')}
+            className='max-h-[80vh] max-w-[92vw] rounded-xl bg-white object-contain'
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
 }
 
 export function RechargeFormCard({
@@ -524,14 +624,7 @@ export function RechargeFormCard({
         )}
 
       {topupInfo?.payment_announcement && (
-        <div className='border-t pt-4 sm:pt-6'>
-          <Markdown
-            breaks
-            className='bg-muted/30 rounded-md border px-4 py-3 text-sm'
-          >
-            {topupInfo.payment_announcement}
-          </Markdown>
-        </div>
+        <PaymentAnnouncement markdown={topupInfo.payment_announcement} />
       )}
 
       {/* Redemption Code Section */}

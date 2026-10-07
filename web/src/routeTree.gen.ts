@@ -14,6 +14,7 @@ import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as PriceSentinelRouteImport } from './routes/price-sentinel'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as ShopPreviewRouteImport } from './routes/shop-preview'
 import { Route as UserAgreementRouteImport } from './routes/user-agreement'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
@@ -31,6 +32,7 @@ import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authentica
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as BangumiIndexRouteImport } from './routes/bangumi/index'
+import { Route as BangumiSubjectIdRouteImport } from './routes/bangumi/$subjectId'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as PricingIndexRouteImport } from './routes/pricing/index'
@@ -107,6 +109,11 @@ const PriceSentinelRoute = PriceSentinelRouteImport.update({
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShopPreviewRoute = ShopPreviewRouteImport.update({
+  id: '/shop-preview',
+  path: '/shop-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UserAgreementRoute = UserAgreementRouteImport.update({
@@ -193,6 +200,11 @@ const AboutIndexRoute = AboutIndexRouteImport.update({
 const BangumiIndexRoute = BangumiIndexRouteImport.update({
   id: '/bangumi/',
   path: '/bangumi/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BangumiSubjectIdRoute = BangumiSubjectIdRouteImport.update({
+  id: '/bangumi/$subjectId',
+  path: '/bangumi/$subjectId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsIndexRoute = DocsIndexRouteImport.update({
@@ -511,6 +523,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/price-sentinel': typeof PriceSentinelRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/shop-preview': typeof ShopPreviewRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
@@ -526,6 +539,7 @@ export interface FileRoutesByFullPath {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/bangumi/$subjectId': typeof BangumiSubjectIdRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/bangumi/': typeof BangumiIndexRoute
@@ -587,6 +601,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/price-sentinel': typeof PriceSentinelRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/shop-preview': typeof ShopPreviewRoute
   '/user-agreement': typeof UserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
@@ -601,6 +616,7 @@ export interface FileRoutesByTo {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/bangumi/$subjectId': typeof BangumiSubjectIdRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/bangumi': typeof BangumiIndexRoute
@@ -665,6 +681,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/price-sentinel': typeof PriceSentinelRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/shop-preview': typeof ShopPreviewRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
@@ -680,6 +697,7 @@ export interface FileRoutesById {
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
+  '/bangumi/$subjectId': typeof BangumiSubjectIdRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/bangumi/': typeof BangumiIndexRoute
@@ -743,6 +761,7 @@ export interface FileRouteTypes {
     | '/'
     | '/price-sentinel'
     | '/privacy-policy'
+    | '/shop-preview'
     | '/user-agreement'
     | '/system-settings'
     | '/forgot-password'
@@ -758,6 +777,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/chat2link'
+    | '/bangumi/$subjectId'
     | '/oauth/$provider'
     | '/about/'
     | '/bangumi/'
@@ -819,6 +839,7 @@ export interface FileRouteTypes {
     | '/'
     | '/price-sentinel'
     | '/privacy-policy'
+    | '/shop-preview'
     | '/user-agreement'
     | '/forgot-password'
     | '/oauth'
@@ -833,6 +854,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/chat2link'
+    | '/bangumi/$subjectId'
     | '/oauth/$provider'
     | '/about'
     | '/bangumi'
@@ -896,6 +918,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/price-sentinel'
     | '/privacy-policy'
+    | '/shop-preview'
     | '/user-agreement'
     | '/_authenticated/system-settings'
     | '/(auth)/forgot-password'
@@ -911,6 +934,7 @@ export interface FileRouteTypes {
     | '/(errors)/500'
     | '/(errors)/503'
     | '/_authenticated/chat2link'
+    | '/bangumi/$subjectId'
     | '/oauth/$provider'
     | '/about/'
     | '/bangumi/'
@@ -975,12 +999,14 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   PriceSentinelRoute: typeof PriceSentinelRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  ShopPreviewRoute: typeof ShopPreviewRoute
   UserAgreementRoute: typeof UserAgreementRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
   errors404Route: typeof errors404Route
   errors500Route: typeof errors500Route
   errors503Route: typeof errors503Route
+  BangumiSubjectIdRoute: typeof BangumiSubjectIdRoute
   OauthProviderRoute: typeof OauthProviderRoute
   AboutIndexRoute: typeof AboutIndexRoute
   BangumiIndexRoute: typeof BangumiIndexRoute
@@ -1026,6 +1052,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shop-preview': {
+      id: '/shop-preview'
+      path: '/shop-preview'
+      fullPath: '/shop-preview'
+      preLoaderRoute: typeof ShopPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/user-agreement': {
@@ -1145,6 +1178,13 @@ declare module '@tanstack/react-router' {
       path: '/bangumi'
       fullPath: '/bangumi/'
       preLoaderRoute: typeof BangumiIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bangumi/$subjectId': {
+      id: '/bangumi/$subjectId'
+      path: '/bangumi/$subjectId'
+      fullPath: '/bangumi/$subjectId'
+      preLoaderRoute: typeof BangumiSubjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs/': {
@@ -1698,12 +1738,14 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   PriceSentinelRoute: PriceSentinelRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  ShopPreviewRoute: ShopPreviewRoute,
   UserAgreementRoute: UserAgreementRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,
   errors404Route: errors404Route,
   errors500Route: errors500Route,
   errors503Route: errors503Route,
+  BangumiSubjectIdRoute: BangumiSubjectIdRoute,
   OauthProviderRoute: OauthProviderRoute,
   AboutIndexRoute: AboutIndexRoute,
   BangumiIndexRoute: BangumiIndexRoute,

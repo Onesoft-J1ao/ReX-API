@@ -63,6 +63,7 @@ export type SiteThemePreset =
 
 export interface SiteAppearanceConfig {
   backgroundImage: string
+  backgroundRandomCategory: string
   backgroundBlurOpacity: number
   legalBackgroundEnabled: boolean
   defaultTheme: SiteTheme
@@ -119,6 +120,7 @@ export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
 
 export const DEFAULT_SITE_APPEARANCE: SiteAppearanceConfig = {
   backgroundImage: '',
+  backgroundRandomCategory: '',
   backgroundBlurOpacity: 40,
   legalBackgroundEnabled: true,
   defaultTheme: 'system',

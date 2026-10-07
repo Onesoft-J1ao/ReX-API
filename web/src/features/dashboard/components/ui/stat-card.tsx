@@ -262,7 +262,7 @@ export function StatCard(props: StatCardProps) {
         </div>
         <p
           className={cn(
-            'text-muted-foreground line-clamp-1 text-xs',
+            'text-muted-foreground line-clamp-1 text-xs sm:text-xs',
             props.compactMobile && 'hidden sm:block'
           )}
         >
@@ -278,7 +278,7 @@ export function StatCard(props: StatCardProps) {
         </div>
         <p
           className={cn(
-            'text-muted-foreground line-clamp-1 text-xs leading-relaxed',
+            'text-muted-foreground line-clamp-1 text-xs leading-relaxed sm:text-xs',
             props.compactMobile && 'hidden sm:block'
           )}
         >
@@ -305,13 +305,13 @@ export function StatCard(props: StatCardProps) {
       )}
     >
       <div className='flex items-start justify-between gap-1'>
-        <div className='text-muted-foreground flex items-center gap-1 text-xs font-medium sm:gap-2'>
+        <div className='text-muted-foreground flex items-center gap-1 text-xs font-medium sm:gap-2 sm:text-xs'>
           <IconBadge
             tone={iconTone}
             size='stat'
             className={cn(
               props.compactMobile &&
-                'size-4 rounded-md [&>svg]:size-2.5 sm:size-7 sm:[&>svg]:size-3.5'
+                'size-4 rounded-md [&>svg]:size-2.5 sm:size-7 sm:rounded-md sm:[&>svg]:size-3.5'
             )}
           >
             <Icon />
