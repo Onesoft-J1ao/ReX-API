@@ -9,4 +9,8 @@ docs
 .gocache
 /web/node_modules
 /web/dist
+# Local scratch: reference checkouts, backups and ops dumps. Hundreds of MB the
+# build never reads, and every byte is copied into the builder's storage.
+/work
+/.pricing-work
 !THIRD-PARTY-LICENSES.md
