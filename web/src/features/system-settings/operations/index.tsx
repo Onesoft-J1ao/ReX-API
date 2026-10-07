@@ -37,6 +37,7 @@ const defaultOperationsSettings: OperationsSettings = {
   'price_sentinel_setting.interval_minutes': 60,
   'price_sentinel_setting.send_time': '',
   'price_sentinel_setting.report_email': '',
+  'price_sentinel_setting.margin_percent': 0.2,
   QuotaRemindEnabled: true,
   QuotaRemindThreshold: '',
   SupportEnabled: true,

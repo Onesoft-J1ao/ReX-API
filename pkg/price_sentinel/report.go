@@ -37,11 +37,21 @@ func ReportSubject(checkedAt int64) string {
 func BuildReport(comparison *Comparison, checkedAt int64, editUrl string) string {
 	var body strings.Builder
 	body.WriteString(`<h1 style="margin:0 0 6px;font-size:20px;line-height:28px;font-weight:600;color:#111827;">上游价格巡检报告</h1>`)
-	body.WriteString(fmt.Sprintf(
-		`<p style="margin:0 0 20px;font-size:13px;line-height:20px;color:#6b7280;">%s · 对比 %d 个模型，%d 个价格不一致</p>`,
+	summary := fmt.Sprintf(
+		"%s · 对比 %d 个模型，%d 个价格不一致",
 		html.EscapeString(formatTimestamp(checkedAt)),
 		comparison.Compared,
 		len(comparison.Changes),
+	)
+	// Say the expression-priced models were left out rather than letting a
+	// short report read as "nothing else changed": their ratios are leftovers
+	// the sentinel cannot compare, and silence about them would be misleading.
+	if comparison.TieredSkipped > 0 {
+		summary += fmt.Sprintf("，另有 %d 个表达式计费模型未参与对比", comparison.TieredSkipped)
+	}
+	body.WriteString(fmt.Sprintf(
+		`<p style="margin:0 0 20px;font-size:13px;line-height:20px;color:#6b7280;">%s</p>`,
+		summary,
 	))
 
 	higher, lower := splitByDirection(comparison.Changes)

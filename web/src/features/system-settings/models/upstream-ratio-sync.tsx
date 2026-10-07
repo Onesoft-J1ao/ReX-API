@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckSquare, RefreshCcw } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ErrorState } from '@/components/error-state'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   buildPricingChanges,
   getModelPricing,
@@ -31,7 +33,10 @@ import {
   invalidateModelPricing,
   type ModelPricingConfig,
 } from '@/features/model-pricing/api'
-import { applyPriceSyncSelections } from '@/features/model-pricing/pricing'
+import {
+  applyPriceSyncSelections,
+  withMargin,
+} from '@/features/model-pricing/pricing'
 import { handleServerError } from '@/lib/handle-server-error'
 import {
   requireServerSuccess,
@@ -39,6 +44,10 @@ import {
 } from '@/lib/server-error-message'
 
 import { fetchUpstreamRatios, getUpstreamChannels } from '../api'
+import {
+  getOptionValue,
+  useSystemOptions,
+} from '../hooks/use-system-options'
 import type {
   DifferencesMap,
   PricingSyncModels,
@@ -68,6 +77,15 @@ import {
 } from './upstream-ratio-sync-helpers'
 import { UpstreamRatioSyncTable } from './upstream-ratio-sync-table'
 
+// The markup a sync writes on top of the upstream price, as a fraction, and the
+// largest the input accepts (the server clamps to the same ceiling). It falls
+// back to the price sentinel's own default so the two paths agree out of the
+// box: the sentinel compares against upstream * (1 + margin), so a sync that
+// landed on the raw upstream number read as -16.67% drift on every model, and
+// the next sentinel apply put the margin straight back.
+const DEFAULT_SYNC_MARGIN = 0.2
+const MAX_SYNC_MARGIN_PERCENT = 1000
+
 function getDefaultEndpointForChannel(channel: UpstreamChannel): string {
   if (channel.id === MODELS_DEV_PRESET_ID) return MODELS_DEV_PRESET_ENDPOINT
   if (channel.id === OFFICIAL_CHANNEL_ID) return OFFICIAL_CHANNEL_ENDPOINT
@@ -78,6 +96,7 @@ function getDefaultEndpointForChannel(channel: UpstreamChannel): string {
 export function UpstreamRatioSync() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const marginInputId = useId()
   const [pricingBaseline, setPricingBaseline] =
     useState<ModelPricingConfig | null>(null)
   const [channelDialogOpen, setChannelDialogOpen] = useState(false)
@@ -92,6 +111,26 @@ export function UpstreamRatioSync() {
     useState<PricingSourceSelections>({})
   const [conflictItems, setConflictItems] = useState<ConflictItem[]>([])
   const [loadingBaseline, setLoadingBaseline] = useState(false)
+  const [marginInput, setMarginInput] = useState<string | null>(null)
+  const { data: optionsData } = useSystemOptions()
+  // The price sentinel already owns this number, so the sync reads it instead of
+  // keeping a second copy that can drift out of agreement with the check.
+  const configuredMargin = useMemo(
+    () =>
+      getOptionValue(optionsData?.data, {
+        'price_sentinel_setting.margin_percent': DEFAULT_SYNC_MARGIN,
+      })['price_sentinel_setting.margin_percent'],
+    [optionsData?.data]
+  )
+  const marginPercentText =
+    marginInput ?? String(Math.round(configuredMargin * 100))
+  // A half-typed or cleared field must not reach a price: an empty box reads as
+  // no markup rather than as a parse failure.
+  const marginPercent = useMemo(() => {
+    const parsed = Number(marginPercentText)
+    if (!Number.isFinite(parsed) || parsed < 0) return 0
+    return Math.min(parsed, MAX_SYNC_MARGIN_PERCENT) / 100
+  }, [marginPercentText])
   const { data: channelsData } = useQuery({
     queryKey: ['upstream-channels'],
     queryFn: async () => requireServerSuccess(await getUpstreamChannels()),
@@ -175,7 +214,8 @@ export function UpstreamRatioSync() {
       if (!pricingBaseline) throw new Error(t('Reload pricing'))
       const after = applyPriceSyncSelections(
         pricingBaseline.options,
-        resolutions
+        resolutions,
+        marginPercent
       )
       await saveModelPricing(
         buildPricingChanges(pricingBaseline, pricingBaseline.options, after)
@@ -265,12 +305,23 @@ export function UpstreamRatioSync() {
         const row = prices[model]
         const selected: PricingSyncValues | undefined = row?.upstreams[source]
         if (!row || !selected) return []
+        // Preview what the apply will actually write. Showing the raw upstream
+        // number while the write lands a marked-up one would make the
+        // confirmation disagree with its own result.
+        const marked = Object.fromEntries(
+          Object.entries(selected).map(([field, value]) => [
+            field,
+            typeof value === 'number'
+              ? withMargin(field, value, marginPercent)
+              : value,
+          ])
+        ) as PricingSyncValues
         return [
           {
             model,
             channel: getUpstreamDisplayName(source, t),
             current: describeSyncPrice(row.current, t),
-            newVal: describeSyncPrice(selected, t),
+            newVal: describeSyncPrice(marked, t),
           },
         ]
       }
@@ -326,6 +377,30 @@ export function UpstreamRatioSync() {
               count: Object.keys(selectedSources).length,
             })}
           </span>
+          <div className='flex items-center gap-1.5'>
+            <Label
+              htmlFor={marginInputId}
+              className='text-sm whitespace-nowrap'
+            >
+              {t('Markup')}
+            </Label>
+            <div className='relative'>
+              <Input
+                id={marginInputId}
+                type='number'
+                min={0}
+                max={MAX_SYNC_MARGIN_PERCENT}
+                step={1}
+                value={marginPercentText}
+                onChange={(event) => setMarginInput(event.target.value)}
+                disabled={isLoading}
+                className='h-8 w-20 pr-6'
+              />
+              <span className='text-muted-foreground pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs'>
+                %
+              </span>
+            </div>
+          </div>
           {Object.keys(selectedSources).length > 0 && (
             <Button
               variant='ghost'

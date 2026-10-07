@@ -71,11 +71,12 @@ func (priceSentinelHandler) Run(ctx context.Context, task *model.SystemTask, run
 
 // priceSentinelRunSummary is what a run reports back to the task row.
 type priceSentinelRunSummary struct {
-	Compared    int    `json:"compared"`
-	Changed     int    `json:"changed"`
-	EmailSent   bool   `json:"email_sent"`
-	EmailTarget string `json:"email_target,omitempty"`
-	FetchError  string `json:"fetch_error,omitempty"`
+	Compared      int    `json:"compared"`
+	Changed       int    `json:"changed"`
+	TieredSkipped int    `json:"tiered_skipped,omitempty"`
+	EmailSent     bool   `json:"email_sent"`
+	EmailTarget   string `json:"email_target,omitempty"`
+	FetchError    string `json:"fetch_error,omitempty"`
 }
 
 // runPriceSentinelCheck performs one check end to end: compare, persist, mail.
@@ -116,6 +117,7 @@ func runPriceSentinelCheck(ctx context.Context) (*priceSentinelRunSummary, error
 		report.LowerPrice = lower
 		summary.Compared = comparison.Compared
 		summary.Changed = len(comparison.Changes)
+		summary.TieredSkipped = comparison.TieredSkipped
 	}
 
 	if err := model.InsertPriceSentinelReport(report); err != nil {

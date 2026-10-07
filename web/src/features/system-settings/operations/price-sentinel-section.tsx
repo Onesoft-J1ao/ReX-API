@@ -74,6 +74,9 @@ const priceSentinelSettingsSchema = z.object({
     .max(1440),
   'price_sentinel_setting.send_time': z.string(),
   'price_sentinel_setting.report_email': z.string(),
+  // A fraction, not a percentage, because that is what the check and the sync
+  // both multiply by. The server clamps to 10 (1000%).
+  'price_sentinel_setting.margin_percent': z.coerce.number().min(0).max(10),
 })
 
 export type PriceSentinelSettingsValues = z.infer<
@@ -180,6 +183,34 @@ export function PriceSentinelSection(props: PriceSentinelSectionProps) {
                 <FormDescription>
                   {t(
                     'How often the check runs. 60 is hourly, 300 is every five hours.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='price_sentinel_setting.margin_percent'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Markup factor')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    max={10}
+                    step={0.05}
+                    value={field.value}
+                    onChange={(event) => field.onChange(event.target.value)}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'A price sync writes upstream times one plus this: 0.2 is 20% above the upstream price. Both the sentinel and the upstream price sync use it, so they cannot drift apart.'
                   )}
                 </FormDescription>
                 <FormMessage />

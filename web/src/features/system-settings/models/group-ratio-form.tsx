@@ -64,6 +64,7 @@ import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeJsonParse } from '../utils/json-parser'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import { GroupCodingModelEditor } from './group-coding-model-editor'
+import { GroupModelPriceEditor } from './group-model-price-editor'
 import { GroupPricingSourceEditor } from './group-pricing-source-editor'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
@@ -248,6 +249,13 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               onChange={(value) =>
                 handleFieldChange('GroupPricingSource', value)
               }
+            />
+
+            <GroupModelPriceEditor
+              value={form.watch('GroupModelPrice')}
+              groupOptions={groupNames}
+              modelOptions={modelNames}
+              onChange={(value) => handleFieldChange('GroupModelPrice', value)}
             />
 
             {hasAutoGroups ? (

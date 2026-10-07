@@ -48,7 +48,7 @@ func BuildSyncEdits(changes []model.PriceChange, marginPercent float64) (edits [
 		edits = append(edits, PriceEdit{
 			ModelName: change.ModelName,
 			Field:     change.Field,
-			Value:     WithMargin(*change.Theirs, marginPercent),
+			Value:     WithMarginForField(change.Field, *change.Theirs, marginPercent),
 		})
 	}
 	return edits, skipped
@@ -68,6 +68,18 @@ func ChangeIsReported(changes []model.PriceChange, modelName, field string) bool
 	return false
 }
 
+// ratioFields are the dimensions that scale a price rather than being one.
+//
+// completion_ratio and cache_ratio are multipliers applied to model_ratio, so
+// marking them up multiplies the margin into the customer's bill instead of
+// into our price: a completion_ratio of 5 under a 20% margin would charge 6x
+// the input rate, which is 20% more margin than the markup intends and turns a
+// cache discount into a surcharge when cache_ratio is below 1.
+var ratioFields = map[string]bool{
+	"completion_ratio": true,
+	"cache_ratio":      true,
+}
+
 // WithMargin returns the price to charge for an upstream price under a markup.
 //
 // The result is rounded to six decimals: the upstream publishes ratios well
@@ -77,6 +89,21 @@ func ChangeIsReported(changes []model.PriceChange, modelName, field string) bool
 func WithMargin(upstream float64, marginPercent float64) float64 {
 	adjusted := upstream * (1 + marginPercent)
 	return math.Round(adjusted*1e6) / 1e6
+}
+
+// WithMarginForField applies the margin to a price field and leaves the ratio
+// fields alone.
+//
+// Only the dimensions that are themselves a price may carry the markup. This is
+// the single place that decides, so the compare and apply paths cannot disagree
+// about which fields a margin moves; when they did, a correctly synced model
+// was reported as drift on the next run and applying the report rewrote the
+// multiplier.
+func WithMarginForField(field string, upstream float64, marginPercent float64) float64 {
+	if ratioFields[field] {
+		return upstream
+	}
+	return WithMargin(upstream, marginPercent)
 }
 
 // ApplyPriceEdits writes several prices at once.

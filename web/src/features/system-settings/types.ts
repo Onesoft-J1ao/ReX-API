@@ -173,6 +173,8 @@ export type SiteSettings = {
   SidebarModulesAdmin: string
   SidebarAdminLinks: string
   'console_setting.background_image': string
+  'console_setting.background_unsplash_query': string
+  'console_setting.background_unsplash_access_key': string
   'console_setting.background_blur_opacity': number
   'console_setting.legal_background_enabled': boolean
   'console_setting.default_theme': 'system' | 'light' | 'dark'
@@ -351,6 +353,7 @@ export type ModelSettings = {
   'billing_setting.billing_expr': string
   'billing_setting.plugin_billing_expr': string
   'billing_setting.group_pricing_source': string
+  'billing_setting.group_model_price': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
@@ -394,6 +397,7 @@ export type BillingSettings = {
   'billing_setting.billing_expr': string
   'billing_setting.plugin_billing_expr': string
   'billing_setting.group_pricing_source': string
+  'billing_setting.group_model_price': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
@@ -496,6 +500,7 @@ export type OperationsSettings = {
   'price_sentinel_setting.interval_minutes': number
   'price_sentinel_setting.send_time': string
   'price_sentinel_setting.report_email': string
+  'price_sentinel_setting.margin_percent': number
   QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string
   SupportEnabled: boolean

@@ -198,3 +198,75 @@ func TestValidateGroupPricingSources(t *testing.T) {
 		})
 	}
 }
+
+// TestModelPriceHelperGroupModelPrice charges one group a different per-call
+// price for the same model, leaving every other group on the global price.
+func TestModelPriceHelperGroupModelPrice(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	loadGroupPricingFixture(t, `{}`)
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.group_model_price": `{"call-group":{"group-priced-model":0.5}}`,
+	}))
+
+	tests := []struct {
+		name      string
+		group     string
+		wantPrice float64
+	}{
+		{name: "the group with its own price", group: "call-group", wantPrice: 0.5},
+		{name: "a group without one keeps the global price", group: "default-group", wantPrice: 0.05},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Set("group", tc.group)
+			info := &relaycommon.RelayInfo{
+				OriginModelName: "group-priced-model",
+				UserGroup:       tc.group,
+				UsingGroup:      tc.group,
+			}
+
+			priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+			require.NoError(t, err)
+			assert.True(t, priceData.UsePrice, "a group price selects per-call billing")
+			assert.Equal(t, tc.wantPrice, priceData.ModelPrice)
+		})
+	}
+}
+
+// A group price that is not a finite non-negative number would become a
+// multiplier on the customer's bill, so it is refused when the option is saved.
+func TestValidateGroupModelPrices(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	// The fixture configures group ratios for call-group and default-group; a
+	// price under a group with no ratio is rejected, so the cases use those.
+	loadGroupPricingFixture(t, `{}`)
+
+	tests := []struct {
+		name    string
+		raw     string
+		wantErr string
+	}{
+		{name: "empty is allowed", raw: ""},
+		{name: "a plain price", raw: `{"call-group":{"m":0.5}}`},
+		{name: "zero is allowed", raw: `{"call-group":{"m":0}}`},
+		{name: "negative", raw: `{"call-group":{"m":-1}}`, wantErr: "不能为负"},
+		{name: "not a number", raw: `{"call-group":{"m":"x"}}`, wantErr: "JSON"},
+		{name: "empty model name", raw: `{"call-group":{"":1}}`, wantErr: "空的模型名"},
+		{name: "empty group name", raw: `{"":{"m":1}}`, wantErr: "分组名不能为空"},
+		{name: "a group with no ratio", raw: `{"nope":{"m":1}}`, wantErr: "没有配置分组倍率"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := billing_setting.ValidateGroupModelPrices(tc.raw)
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}

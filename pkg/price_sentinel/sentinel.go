@@ -15,6 +15,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/price_sentinel_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -44,6 +45,11 @@ var priceFields = []string{
 }
 
 // upstreamPricingResponse mirrors the reference site's /api/pricing envelope.
+//
+// BillingMode is read even though the sentinel cannot compare expressions: the
+// reference site returns a tiered model's numeric ratios alongside its
+// expression, and those numbers are leftovers rather than prices. Reading the
+// mode is what lets the comparison skip them.
 type upstreamPricingResponse struct {
 	Success bool `json:"success"`
 	Data    []struct {
@@ -53,6 +59,7 @@ type upstreamPricingResponse struct {
 		CompletionRatio float64  `json:"completion_ratio"`
 		CacheRatio      *float64 `json:"cache_ratio"`
 		QuotaType       int      `json:"quota_type"`
+		BillingMode     string   `json:"billing_mode"`
 		EnableGroups    []string `json:"enable_groups"`
 	} `json:"data"`
 }
@@ -61,6 +68,10 @@ type upstreamPricingResponse struct {
 type Comparison struct {
 	Compared int
 	Changes  []model.PriceChange
+	// TieredSkipped counts models left out because either side prices them with
+	// an expression. The sentinel compares numeric dimensions only, so their
+	// ratios are leftovers and any difference found in them would be fiction.
+	TieredSkipped int
 }
 
 // RunOnce fetches the reference site's prices, compares them against ours, and
@@ -99,11 +110,17 @@ func RunOnce(ctx context.Context) (*Comparison, error) {
 	sort.Strings(shared)
 
 	changes := make([]model.PriceChange, 0)
+	tieredSkipped := 0
 	for _, name := range shared {
 		if _, skip := ignored[name]; skip {
 			continue
 		}
-		changes = append(changes, compareModel(name, ours[name], upstream[name], threshold, margin)...)
+		ourPrice, theirPrice := ours[name], upstream[name]
+		if !numericallyComparable(ourPrice, theirPrice) {
+			tieredSkipped++
+			continue
+		}
+		changes = append(changes, compareModel(name, ourPrice, theirPrice, threshold, margin)...)
 	}
 
 	// Largest relative move first: the top of the report is what needs a
@@ -112,13 +129,16 @@ func RunOnce(ctx context.Context) (*Comparison, error) {
 		return math.Abs(changes[i].Percent) > math.Abs(changes[j].Percent)
 	})
 
-	return &Comparison{Compared: len(shared), Changes: changes}, nil
+	return &Comparison{Compared: len(shared), Changes: changes, TieredSkipped: tieredSkipped}, nil
 }
 
 // localPrice is one model's price as we charge it.
 type localPrice struct {
 	values map[string]*float64
 	groups []string
+	// tiered marks a model this site prices with an expression. Its numeric
+	// entries, if any survive in the tables, are not the price we charge.
+	tiered bool
 }
 
 // localPrices reads the gateway's own price tables. A field we never configured
@@ -155,9 +175,24 @@ func localPrices() map[string]localPrice {
 
 	for name, entry := range out {
 		entry.groups = model.GetModelEnableGroups(name)
+		entry.tiered = billing_setting.GetBillingMode(name) == billing_setting.BillingModeTieredExpr
 		out[name] = entry
 	}
 	return out
+}
+
+// numericallyComparable reports whether both sides price this model with numbers
+// the sentinel can compare.
+//
+// A model priced by an expression is not comparable: the reference site still
+// emits its ratios, and our own tables may still hold whatever it was priced at
+// before the expression took over. Neither number is the price charged, so a
+// difference between them is an artifact — reporting one and applying it would
+// overwrite a working expression price with a stale ratio. `ratio_sync` drops
+// the same fields for the same reason, and the two paths have to agree or they
+// undo each other.
+func numericallyComparable(ours localPrice, theirs upstreamPrice) bool {
+	return !ours.tiered && !theirs.Tiered
 }
 
 // compareModel returns one PriceChange per field that differs beyond threshold.
@@ -202,7 +237,12 @@ func compareModel(name string, ours localPrice, upstream upstreamPrice, threshol
 		// upstream number, so a healthy markup is not reported as drift. The
 		// report used to flag every synced model at -16.67% (1/1.2 - 1), and
 		// applying it wrote the margin back off.
-		expected := *theirValue * (1 + margin)
+		//
+		// The expected value comes from the same helper the apply path writes
+		// with, so the ratio fields a margin does not move are also compared
+		// without one; comparing them against a marked-up expectation reported
+		// every synced multiplier as drift forever.
+		expected := WithMarginForField(field, *theirValue, margin)
 		percent := percentChange(*ourValue, expected)
 		if math.Abs(percent) < threshold {
 			continue
@@ -242,6 +282,9 @@ type upstreamPrice struct {
 	CompletionRatio float64
 	CacheRatio      *float64
 	Groups          []string
+	// Tiered records that the reference site prices this model with an
+	// expression, which makes the ratios above leftovers rather than prices.
+	Tiered bool
 }
 
 // values exposes the upstream record in the same shape as ours, so the two can
@@ -325,6 +368,7 @@ func fetchUpstreamPricing(ctx context.Context, url string, timeout time.Duration
 			CompletionRatio: item.CompletionRatio,
 			CacheRatio:      item.CacheRatio,
 			Groups:          item.EnableGroups,
+			Tiered:          item.BillingMode == billing_setting.BillingModeTieredExpr,
 		}
 	}
 	return out, nil

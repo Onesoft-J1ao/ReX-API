@@ -136,10 +136,21 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
+	// A group may charge its own per-call price for a model, so the same model
+	// costs a different amount in different groups without touching what every
+	// other group pays. Resolved after HandleGroupRatio because that is what
+	// settles which group the request is actually routed through. The group
+	// ratio still multiplies the result further down, exactly as it does for the
+	// global per-call price, and an override also selects per-call billing.
+	if groupPrice, ok := billing_setting.GetGroupModelPrice(info.UsingGroup, billingModelName); ok {
+		modelPrice = groupPrice
+		configuredModelPrice = groupPrice
+		usePrice = true
+	}
+
 	// A group may pin this model to a different pricing source than the global
 	// one, so the same model name is billed per token in one group and per call
-	// in another. Resolved after HandleGroupRatio, which is what settles which
-	// group the request is actually routed through.
+	// in another.
 	groupSource := billing_setting.GetGroupPricingSource(info.UsingGroup, billingModelName)
 	switch groupSource {
 	case billing_setting.PricingSourceTieredExpr:

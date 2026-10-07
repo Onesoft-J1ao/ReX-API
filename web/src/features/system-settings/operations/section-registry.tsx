@@ -196,6 +196,8 @@ const OPERATIONS_SECTIONS = [
             settings['price_sentinel_setting.send_time'] ?? '',
           'price_sentinel_setting.report_email':
             settings['price_sentinel_setting.report_email'] ?? '',
+          'price_sentinel_setting.margin_percent':
+            settings['price_sentinel_setting.margin_percent'] ?? 0.2,
         }}
       />
     ),

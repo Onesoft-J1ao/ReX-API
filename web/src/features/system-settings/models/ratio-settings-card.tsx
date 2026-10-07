@@ -164,6 +164,7 @@ const createGroupSchema = (t: Translate) =>
     DefaultUseAutoGroup: z.boolean(),
     GroupSpecialUsableGroup: createJsonStringField(t),
     GroupPricingSource: createJsonStringField(t),
+    GroupModelPrice: createJsonStringField(t),
     // Read-only input to the per-group override editor: it offers the models
     // that are configured at all, since an override can only name one.
     'billing_setting.billing_mode': z.string(),
@@ -297,6 +298,7 @@ export function RatioSettingsCard({
       groupDefaults.GroupSpecialUsableGroup
     ),
     GroupPricingSource: normalizeJsonString(groupDefaults.GroupPricingSource),
+    GroupModelPrice: normalizeJsonString(groupDefaults.GroupModelPrice),
     GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
     GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
     ModelSquareVisibleGroups: normalizeJsonString(
@@ -345,6 +347,7 @@ export function RatioSettingsCard({
       GroupPricingSource: formatJsonForTextarea(
         groupDefaults.GroupPricingSource
       ),
+      GroupModelPrice: formatJsonForTextarea(groupDefaults.GroupModelPrice),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
       ModelSquareVisibleGroups: formatJsonForTextarea(
@@ -406,6 +409,7 @@ export function RatioSettingsCard({
       GroupPricingSource: normalizeJsonString(
         groupDefaults.GroupPricingSource
       ),
+      GroupModelPrice: normalizeJsonString(groupDefaults.GroupModelPrice),
       GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
       ModelSquareVisibleGroups: normalizeJsonString(
@@ -428,6 +432,7 @@ export function RatioSettingsCard({
       GroupPricingSource: formatJsonForTextarea(
         groupDefaults.GroupPricingSource
       ),
+      GroupModelPrice: formatJsonForTextarea(groupDefaults.GroupModelPrice),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
       ModelSquareVisibleGroups: formatJsonForTextarea(
@@ -501,6 +506,7 @@ export function RatioSettingsCard({
           values.GroupSpecialUsableGroup
         ),
         GroupPricingSource: normalizeJsonString(values.GroupPricingSource),
+        GroupModelPrice: normalizeJsonString(values.GroupModelPrice),
         GroupDefaultModel: filterDefaultModelsByGroups(
           values.GroupDefaultModel,
           Object.keys(
@@ -522,6 +528,7 @@ export function RatioSettingsCard({
           'group_ratio_setting.group_special_usable_group',
         ModelSquareVisibleGroups: 'console_setting.model_square_visible_groups',
         GroupPricingSource: 'billing_setting.group_pricing_source',
+        GroupModelPrice: 'billing_setting.group_model_price',
       }
 
       const updates = (

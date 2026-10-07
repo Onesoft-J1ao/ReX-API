@@ -324,9 +324,37 @@ export function pricingValuesByModel(
   return models
 }
 
+/**
+ * The fields that are themselves a price, and so carry the markup.
+ *
+ * Every other dimension is a multiplier on that price: marking one up multiplies
+ * the margin into the customer's bill instead of into our price, and turns a
+ * cache discount into a surcharge when the ratio sits below 1. This mirrors
+ * WithMarginForField on the price sentinel; the two have to agree, because when
+ * they did not a sync and a sentinel run undid each other on every pass.
+ */
+const MARGIN_FIELDS = new Set(['model_ratio', 'model_price'])
+
+/**
+ * Applies the markup a sync charges on top of the upstream price.
+ *
+ * Rounded to six decimals to match the Go side: without the rounding a
+ * multiplication leaves float noise (0.08 * 1.2 = 0.09600000000000002) that
+ * would be written into the price table and reported as a difference next run.
+ */
+export function withMargin(
+  field: string,
+  value: number,
+  marginPercent: number
+): number {
+  if (!MARGIN_FIELDS.has(field)) return value
+  return Math.round(value * (1 + marginPercent) * 1e6) / 1e6
+}
+
 export function applyPriceSyncSelections(
   options: PricingOptions,
-  selections: Record<string, Record<string, number | string>>
+  selections: Record<string, Record<string, number | string>>,
+  marginPercent = 0
 ): PricingOptions {
   let result = options
   for (const [name, fields] of Object.entries(selections)) {
@@ -351,7 +379,10 @@ export function applyPriceSyncSelections(
           PRICING_KEYS.includes(key) &&
           key !== 'billing_setting.plugin_billing_expr'
         ) {
-          next[key] = value
+          next[key] =
+            typeof value === 'number'
+              ? withMargin(field, value, marginPercent)
+              : value
         }
       }
     }

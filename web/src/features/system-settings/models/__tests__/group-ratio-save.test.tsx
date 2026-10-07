@@ -52,6 +52,10 @@ vi.mock('../group-pricing-source-editor', () => ({
   GroupPricingSourceEditor: () => null,
 }))
 
+vi.mock('../group-model-price-editor', () => ({
+  GroupModelPriceEditor: () => null,
+}))
+
 const values: GroupFormValues = {
   GroupRatio: '{}',
   TopupGroupRatio: '{}',
@@ -64,6 +68,7 @@ const values: GroupFormValues = {
   DefaultUseAutoGroup: false,
   GroupSpecialUsableGroup: '{}',
   GroupPricingSource: '{}',
+  GroupModelPrice: '{}',
   GroupDefaultModel: '{}',
   GroupRetryTimes: '{}',
   ModelSquareVisibleGroups: '[]',

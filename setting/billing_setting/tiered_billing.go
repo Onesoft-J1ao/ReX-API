@@ -49,6 +49,13 @@ type BillingSetting struct {
 	// Shape: {"<group>": {"<model>": "ratio" | "price" | "tiered_expr"}}. A group
 	// absent from this map leaves every model on its global billing mode.
 	GroupPricingSource map[string]map[string]string `json:"group_pricing_source"`
+	// GroupModelPrice overrides the per-call price of one model inside one
+	// group, so the same model can cost a different amount per group without
+	// changing what every other group pays. Shape: {"<group>": {"<model>": 0.5}}.
+	// The group ratio still multiplies the result, exactly as it does for the
+	// global per-call price, and an entry here also selects per-call billing for
+	// that group. A model absent from a group's map uses its global price.
+	GroupModelPrice map[string]map[string]float64 `json:"group_model_price"`
 }
 
 var billingSetting = BillingSetting{
@@ -56,6 +63,7 @@ var billingSetting = BillingSetting{
 	BillingExpr:        make(map[string]string),
 	PluginBillingExpr:  make(map[string]string),
 	GroupPricingSource: make(map[string]map[string]string),
+	GroupModelPrice:    make(map[string]map[string]float64),
 }
 
 func init() {
@@ -104,6 +112,34 @@ func GetGroupPricingSourceCopy() map[string]map[string]string {
 	cloned := make(map[string]map[string]string, len(billingSetting.GroupPricingSource))
 	for group, byModel := range billingSetting.GroupPricingSource {
 		copied := make(map[string]string, len(byModel))
+		maps.Copy(copied, byModel)
+		cloned[group] = copied
+	}
+	return cloned
+}
+
+// GetGroupModelPrice returns the per-call price this group charges for this
+// model, if one was configured. The caller still multiplies the group ratio.
+func GetGroupModelPrice(group, model string) (float64, bool) {
+	if group == "" || model == "" {
+		return 0, false
+	}
+	byModel, ok := billingSetting.GroupModelPrice[group]
+	if !ok {
+		return 0, false
+	}
+	price, ok := byModel[model]
+	return price, ok
+}
+
+// GetGroupModelPriceCopy returns a copy for the settings API.
+func GetGroupModelPriceCopy() map[string]map[string]float64 {
+	if len(billingSetting.GroupModelPrice) == 0 {
+		return nil
+	}
+	cloned := make(map[string]map[string]float64, len(billingSetting.GroupModelPrice))
+	for group, byModel := range billingSetting.GroupModelPrice {
+		copied := make(map[string]float64, len(byModel))
 		maps.Copy(copied, byModel)
 		cloned[group] = copied
 	}
@@ -176,6 +212,65 @@ func validateGroupPricingSource(group, model, source string) error {
 			group, model, source, PricingSourceRatio, PricingSourcePrice, PricingSourceTieredExpr)
 	}
 	return nil
+}
+
+// maxGroupModelPrice caps a per-call price a group may be charged. It is far
+// above any real price and exists only so a typo cannot become an unbounded
+// charge; the value is in USD per request.
+const maxGroupModelPrice = 1_000_000.0
+
+// ValidateGroupModelPrices parses the stored per-group price override and
+// rejects anything that would misprice a request.
+//
+// Every value here becomes a multiplier on the customer's bill, so a NaN, an
+// infinity, a negative, or an absurd number is refused at save time rather than
+// reaching quota math. A group with no ratio configured is rejected for the same
+// reason the source pin rejects it: the override would silently never apply.
+func ValidateGroupModelPrices(raw string) (map[string]map[string]float64, error) {
+	prices := make(map[string]map[string]float64)
+	if strings.TrimSpace(raw) == "" {
+		return prices, nil
+	}
+	if err := common.UnmarshalJsonStr(raw, &prices); err != nil {
+		return nil, fmt.Errorf("分组定价配置必须是分组到模型的 JSON 对象: %w", err)
+	}
+
+	groupRatios := ratio_setting.GetGroupRatioCopy()
+	groups := make([]string, 0, len(prices))
+	for group := range prices {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+
+	for _, group := range groups {
+		if strings.TrimSpace(group) == "" {
+			return nil, errors.New("分组名不能为空")
+		}
+		if _, configured := groupRatios[group]; !configured && group != "auto" {
+			return nil, fmt.Errorf("分组 %q 没有配置分组倍率，分组定价不会生效", group)
+		}
+		models := make([]string, 0, len(prices[group]))
+		for model := range prices[group] {
+			models = append(models, model)
+		}
+		sort.Strings(models)
+		for _, model := range models {
+			if strings.TrimSpace(model) == "" {
+				return nil, fmt.Errorf("分组 %q 下存在空的模型名", group)
+			}
+			price := prices[group][model]
+			if math.IsNaN(price) || math.IsInf(price, 0) {
+				return nil, fmt.Errorf("模型 %s 在分组 %q 的价格不是有限数", model, group)
+			}
+			if price < 0 {
+				return nil, fmt.Errorf("模型 %s 在分组 %q 的价格不能为负", model, group)
+			}
+			if price > maxGroupModelPrice {
+				return nil, fmt.Errorf("模型 %s 在分组 %q 的价格超过上限 %v", model, group, maxGroupModelPrice)
+			}
+		}
+	}
+	return prices, nil
 }
 
 func GetBillingExpr(model string) (string, bool) {

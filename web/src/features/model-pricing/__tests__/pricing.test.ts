@@ -144,6 +144,37 @@ describe('shared model pricing', () => {
   })
 })
 
+// A sync writes upstream * (1 + margin), the same rule the price sentinel
+// applies. Landing on the raw upstream number instead made every synced model
+// read as -16.67% drift to the sentinel, and the next sentinel apply put the
+// margin straight back — the two undid each other on every pass.
+it('marks up only the price fields a sync writes', () => {
+  const after = applyPriceSyncSelections(
+    pricingOptions({}),
+    {
+      example: {
+        model_ratio: 0.125,
+        completion_ratio: 2.5,
+        cache_ratio: 0.1,
+      },
+    },
+    0.2
+  )
+
+  expect(JSON.parse(after.ModelRatio)).toEqual({ example: 0.15 })
+  // The multipliers ride along unchanged: marking one up multiplies the margin
+  // into the customer's bill rather than into our price, and turns a cache
+  // discount into a surcharge.
+  expect(JSON.parse(after.CompletionRatio)).toEqual({ example: 2.5 })
+  expect(JSON.parse(after.CacheRatio)).toEqual({ example: 0.1 })
+
+  // A caller that passes no markup still lands on the upstream number.
+  const plain = applyPriceSyncSelections(pricingOptions({}), {
+    example: { model_ratio: 0.125 },
+  })
+  expect(JSON.parse(plain.ModelRatio)).toEqual({ example: 0.125 })
+})
+
 it('tracks nested provider prices by model, preserves :: in model names, and ignores key order', () => {
   const key = 'billing_setting.plugin_billing_expr'
   const before = pricingOptions({

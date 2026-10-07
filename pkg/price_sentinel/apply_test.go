@@ -34,6 +34,41 @@ func TestWithMarginRoundsFloatNoise(t *testing.T) {
 	assert.Equal(t, 2.5, WithMargin(2, 0.25))
 }
 
+// The margin belongs on the price, not on the multipliers that scale it.
+//
+// completion_ratio and cache_ratio ride along with model_ratio, so marking them
+// up multiplies the margin into the customer's bill: a 5x completion ratio under
+// a 20% margin would charge 6x, and a 0.04 cache ratio would stop being a
+// discount. Compare and apply must agree, so both go through this helper.
+func TestWithMarginForFieldLeavesRatiosAlone(t *testing.T) {
+	assert.Equal(t, 1.2, WithMarginForField("model_ratio", 1, 0.2))
+	assert.Equal(t, 0.12, WithMarginForField("model_price", 0.1, 0.2))
+	assert.Equal(t, 5.0, WithMarginForField("completion_ratio", 5, 0.2))
+	assert.Equal(t, 0.04, WithMarginForField("cache_ratio", 0.04, 0.2))
+}
+
+// A bulk sync must not rewrite the ratio fields, which is the same rule the
+// comparison uses to decide a synced model is healthy.
+func TestBuildSyncEditsDoesNotMarkUpRatioFields(t *testing.T) {
+	changes := []model.PriceChange{
+		{ModelName: "m", Field: "model_ratio", Ours: ptr[float64](0.81), Theirs: ptr[float64](0.675)},
+		{ModelName: "m", Field: "completion_ratio", Ours: ptr[float64](5), Theirs: ptr[float64](5)},
+		{ModelName: "m", Field: "cache_ratio", Ours: ptr[float64](0.04), Theirs: ptr[float64](0.04)},
+	}
+
+	edits, skipped := BuildSyncEdits(changes, 0.2)
+
+	require.Len(t, edits, 3)
+	require.Equal(t, 0, skipped)
+	byField := map[string]float64{}
+	for _, edit := range edits {
+		byField[edit.Field] = edit.Value
+	}
+	assert.Equal(t, 0.81, byField["model_ratio"], "the price carries the margin")
+	assert.Equal(t, 5.0, byField["completion_ratio"], "the multiplier is copied as published")
+	assert.Equal(t, 0.04, byField["cache_ratio"], "the multiplier is copied as published")
+}
+
 // The sentinel reports upstream models we do not carry so the operator knows
 // they exist; syncing one would start billing for a model we never chose to
 // sell, so it must be counted and left alone.
