@@ -604,7 +604,9 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy str
 	if err != nil {
 		return nil, err
 	}
-	value, err := a.plugin.Engine.Call(context.Background(), "buildQueryRequest", ctx)
+	value, err := a.plugin.Engine.Call(
+		pluginruntime.WithSignHost(context.Background(), baseURL),
+		"buildQueryRequest", ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1198,7 +1200,9 @@ func (a *TaskAdaptor) buildSubmit(c *gin.Context, info *relaycommon.RelayInfo) (
 		return a.submit, nil
 	}
 	started := time.Now()
-	value, err := a.plugin.Engine.Call(c.Request.Context(), "buildSubmitRequest", a.submitContext(c, info))
+	value, err := a.plugin.Engine.Call(
+		pluginruntime.WithSignHost(c.Request.Context(), info.ChannelBaseUrl),
+		"buildSubmitRequest", a.submitContext(c, info))
 	if err != nil {
 		logger.LogDebug(
 			c,
@@ -1524,9 +1528,21 @@ func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any, models ...string)
 			}
 			validated[key] = float64(common.QuotaFromFloat(number))
 		default:
-			if number, numeric := usageNumber(value, false); numeric {
-				validated[key] = number
+			// A key the plugin did not declare in its usage schema still becomes
+			// a variable a billing expression can read, so it carries the same
+			// bounds as a declared one: a NaN, an infinity, or a negative value
+			// here reaches quota math as a multiplier, and an absurd one would
+			// otherwise only be caught at saturation. Saturated rather than
+			// rejected so a plugin that reports a large-but-real quantity keeps
+			// its shape instead of failing the whole completion.
+			number, numeric := usageNumber(value, false)
+			if !numeric {
+				continue
 			}
+			if math.IsNaN(number) || math.IsInf(number, 0) || number < 0 {
+				return nil, fmt.Errorf("plugin usage value must be a finite non-negative number")
+			}
+			validated[key] = float64(common.QuotaFromFloat(number))
 		}
 	}
 	return validated, nil

@@ -268,7 +268,10 @@ func TestBuiltInPluginsAddressNewAPIUpstreamOnNativeRoutes(t *testing.T) {
 			require.True(t, found)
 			require.True(t, plugin.Meta.SupportsUpstream(jsplugin.UpstreamKindNewAPI), "%s must declare new_api to be bindable to a New API channel", tc.key)
 			call := func(hook string, args ...any) map[string]any {
-				value, err := plugin.Engine.Call(t.Context(), hook, args...)
+				// The host binds the signing scope per invocation; a plugin that
+				// signs (jimeng) is refused without one, so the harness binds the
+				// same base URL the adaptor would.
+				value, err := plugin.Engine.Call(jsplugin.WithSignHost(t.Context(), base), hook, args...)
 				require.NoError(t, err, hook)
 				encoded, err := common.Marshal(value)
 				require.NoError(t, err)

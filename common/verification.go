@@ -1,6 +1,7 @@
 package common
 
 import (
+	"crypto/subtle"
 	"strings"
 	"sync"
 	"time"
@@ -52,7 +53,10 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 	if !okay || int(now.Sub(value.time).Seconds()) >= VerificationValidMinutes*60 {
 		return false
 	}
-	return code == value.code
+	// Compared in constant time: a short verification code is guessable by
+	// timing alone otherwise, since a byte-by-byte compare returns as soon as
+	// the prefix diverges.
+	return subtle.ConstantTimeCompare([]byte(code), []byte(value.code)) == 1
 }
 
 func DeleteKey(key string, purpose string) {

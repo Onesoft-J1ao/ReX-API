@@ -71,6 +71,8 @@ require (
 
 require (
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
+	github.com/PuerkitoBio/goquery v1.10.3 // indirect
+	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/casbin/govaluate v1.10.0 // indirect
 	github.com/dlclark/regexp2/v2 v2.2.2 // indirect

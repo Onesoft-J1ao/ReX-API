@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -314,4 +316,110 @@ func TestProtectedFetchRoundTripperReusesTransportPerProxy(t *testing.T) {
 	require.NotSame(t, direct, proxied)
 	require.True(t, direct.ForceAttemptHTTP2)
 	require.False(t, direct.DisableKeepAlives)
+}
+
+func TestBangumiPublicClientRejectsPrivateTargetsEvenWhenGeneralProtectionIsDisabled(t *testing.T) {
+	configureSSRFTestFetchSetting(t)
+	setting := system_setting.GetFetchSetting()
+	setting.EnableSSRFProtection = false
+	setting.AllowPrivateIp = true
+	client, err := NewBangumiPublicHTTPClient("http://127.0.0.1:1")
+	require.NoError(t, err)
+	t.Cleanup(client.CloseIdleConnections)
+	for _, target := range []string{
+		"http://127.0.0.1/secret", "http://169.254.169.254/metadata",
+		"http://[::1]/secret", "https://user:pass@source.example/video",
+		"http://93.184.216.34:8080/video", "ftp://source.example/video",
+	} {
+		t.Run(target, func(t *testing.T) {
+			response, err := client.Get(target)
+			require.Error(t, err)
+			require.Nil(t, response)
+			require.NotContains(t, err.Error(), "connection refused")
+		})
+	}
+}
+
+func TestBangumiPublicProtectionAdmitsMediaPorts(t *testing.T) {
+	// The fixture allowlist is 80/443, the shape an operator's generic fetch
+	// setting has. A media CDN streams from a high port on a public host, which
+	// the anime fetcher must still reach; only ports outside both lists stay
+	// blocked.
+	configureSSRFTestFetchSetting(t)
+	protection, err := bangumiPublicProtection()
+	require.NoError(t, err)
+	require.NoError(t, protection.ValidateNetworkTarget("source.example", 443))
+	require.NoError(t, protection.ValidateNetworkTarget("cdn.example", 8088))
+	require.Error(t, protection.ValidateNetworkTarget("cdn.example", 7000))
+}
+
+func TestBangumiPublicClientRejectsPrivateProxyDNSAnswers(t *testing.T) {
+	configureSSRFTestFetchSetting(t)
+	client, err := NewBangumiPublicHTTPClient("http://127.0.0.1:1")
+	require.NoError(t, err)
+	t.Cleanup(client.CloseIdleConnections)
+	transport := client.Transport.(*bangumiPublicTransport)
+	transport.resolve = func(context.Context, string) ([]net.IP, error) {
+		return []net.IP{net.ParseIP("127.0.0.1")}, nil
+	}
+	response, err := client.Get("https://source.example/video")
+	require.ErrorContains(t, err, "no allowed public address")
+	require.Nil(t, response)
+}
+
+func TestBangumiPublicClientPinsPlainHTTPThroughProxyAndPreservesOriginHost(t *testing.T) {
+	configureSSRFTestFetchSetting(t)
+	type observedRequest struct {
+		connect string
+		host    string
+		path    string
+	}
+	observed := make(chan observedRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodConnect {
+			http.Error(writer, "CONNECT required", http.StatusBadRequest)
+			return
+		}
+		connection, buffer, err := writer.(http.Hijacker).Hijack()
+		if err != nil {
+			return
+		}
+		defer connection.Close()
+		if _, err := buffer.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
+			return
+		}
+		if err := buffer.Flush(); err != nil {
+			return
+		}
+		inner, err := http.ReadRequest(buffer.Reader)
+		if err != nil {
+			return
+		}
+		inner.Body.Close()
+		observed <- observedRequest{connect: request.Host, host: inner.Host, path: inner.URL.Path}
+		buffer.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+		buffer.Flush()
+	}))
+	defer server.Close()
+	client, err := NewBangumiPublicHTTPClient(server.URL)
+	require.NoError(t, err)
+	t.Cleanup(client.CloseIdleConnections)
+	transport := client.Transport.(*bangumiPublicTransport)
+	transport.resolve = func(context.Context, string) ([]net.IP, error) {
+		return []net.IP{net.ParseIP("93.184.216.34")}, nil
+	}
+	response, err := client.Get("http://source.example/video")
+	require.NoError(t, err)
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	require.Equal(t, "ok", string(body))
+	select {
+	case captured := <-observed:
+		require.Equal(t, "93.184.216.34:80", captured.connect)
+		require.Equal(t, "source.example", captured.host)
+		require.Equal(t, "/video", captured.path)
+	default:
+		t.Fatal("proxy did not observe the media request")
+	}
 }

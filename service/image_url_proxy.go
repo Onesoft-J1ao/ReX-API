@@ -10,7 +10,6 @@ the Free Software Foundation, either version 3 of the License, or
 package service
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -65,12 +64,7 @@ func proxyImageResponseOrOriginal(c *gin.Context, body []byte) []byte {
 	if err := common.Unmarshal(body, &payload); err != nil {
 		return body
 	}
-	requestID := c.GetString(common.RequestIdKey)
-	if requestID == "" {
-		return body
-	}
-	index := 0
-	changed := rewriteGeneratedImageURLs(c, payload, requestID, &index)
+	changed := rewriteGeneratedImageURLs(c, payload)
 	if !changed {
 		return body
 	}
@@ -81,12 +75,12 @@ func proxyImageResponseOrOriginal(c *gin.Context, body []byte) []byte {
 	return rewritten
 }
 
-func rewriteGeneratedImageURLs(c *gin.Context, value any, requestID string, index *int) bool {
+func rewriteGeneratedImageURLs(c *gin.Context, value any) bool {
 	switch current := value.(type) {
 	case []any:
 		changed := false
 		for _, item := range current {
-			if rewriteGeneratedImageURLs(c, item, requestID, index) {
+			if rewriteGeneratedImageURLs(c, item) {
 				changed = true
 			}
 		}
@@ -95,18 +89,16 @@ func rewriteGeneratedImageURLs(c *gin.Context, value any, requestID string, inde
 		changed := false
 		for _, key := range []string{"url", "fileUri", "file_uri"} {
 			if raw, ok := current[key].(string); ok && isProxyableImageURL(raw) {
-				current[key] = saveImageURLProxy(c, requestID, *index, raw)
+				current[key] = saveImageURLProxy(c, raw)
 				changed = true
-				(*index)++
 			}
 		}
 		if raw, ok := current["image_url"].(string); ok && isProxyableImageURL(raw) {
-			current["image_url"] = saveImageURLProxy(c, requestID, *index, raw)
+			current["image_url"] = saveImageURLProxy(c, raw)
 			changed = true
-			(*index)++
 		}
 		for _, child := range current {
-			if rewriteGeneratedImageURLs(c, child, requestID, index) {
+			if rewriteGeneratedImageURLs(c, child) {
 				changed = true
 			}
 		}
@@ -121,10 +113,20 @@ func isProxyableImageURL(value string) bool {
 	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
 }
 
-func saveImageURLProxy(c *gin.Context, requestID string, index int, originalURL string) string {
-	artifactID := requestID
-	if index > 0 {
-		artifactID = fmt.Sprintf("%s-%d", requestID, index+1)
+func saveImageURLProxy(c *gin.Context, originalURL string) string {
+	// The artifact id is the only thing guarding the image, because the browser
+	// loads it from an <img> that cannot carry an Authorization header. A
+	// request-id-plus-weak-random id is therefore not enough: it is derived from
+	// a value the caller already sees, and the generator behind it is
+	// math/rand/v2, so a few observed ids are enough to enumerate other callers'
+	// artifacts. The id is a 128-bit crypto-random token instead, which cannot be
+	// guessed or derived from the response the caller holds.
+	artifactID, err := common.GenerateRandomCharsKey(22)
+	if err != nil {
+		// Falling back to the request id would silently restore the guessable
+		// scheme, so a failure to draw entropy is a hard failure.
+		common.SysError("image artifact token generation failed: " + err.Error())
+		return originalURL
 	}
 	imageURLProxyStore.Lock()
 	imageURLProxyStore.entries[artifactID] = imageURLProxyEntry{URL: originalURL, ExpiresAt: time.Now().Add(30 * time.Minute)}
@@ -179,9 +181,17 @@ func ImageURLProxy(c *gin.Context) {
 		c.Status(http.StatusBadGateway)
 		return
 	}
-	if contentType := response.Header.Get("Content-Type"); contentType != "" {
-		c.Header("Content-Type", contentType)
+	// The upstream chooses the content type, and this response is served from
+	// the gateway's own origin, so a hostile or compromised upstream returning
+	// text/html would otherwise be a script running on this site. Only image
+	// types are forwarded, and the browser is told not to sniff past the header.
+	contentType := response.Header.Get("Content-Type")
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "image/") {
+		contentType = "application/octet-stream"
 	}
+	c.Header("Content-Type", contentType)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Disposition", "inline")
 	c.Header("Cache-Control", "private, max-age=1800")
 	c.Status(response.StatusCode)
 	_, _ = io.Copy(c.Writer, response.Body)

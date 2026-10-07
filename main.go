@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -189,9 +190,14 @@ func main() {
 	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
+		common.SysLog(fmt.Sprintf("stacktrace from panic: %s", string(debug.Stack())))
+		// The panic value stays in the server log. Echoing it to the caller
+		// leaked internal detail -- file paths, struct dumps, and anything a
+		// handler happened to be holding when it panicked -- so the client gets
+		// a fixed message and the correlation is made through the request id.
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
-				"message": fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
+				"message": "internal error",
 				"type":    "new_api_panic",
 			},
 		})

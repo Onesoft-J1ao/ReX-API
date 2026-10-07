@@ -29,7 +29,32 @@ type volcSignRequest struct {
 	Timestamp int64             `json:"timestamp"`
 }
 
-func injectGlobals(runtime *sobek.Runtime, identity func() string, now func() time.Time, logOutput func(string)) error {
+// signHostKey carries the one host a Volcengine signing call is allowed to
+// cover. It rides on the invocation context because the runtime is pooled per
+// plugin while the channel base URL is known only per request.
+type signHostKey struct{}
+
+// WithSignHost binds the Volcengine signing helper to the channel's base URL
+// host for this invocation. A call that does not set it cannot sign at all.
+func WithSignHost(ctx context.Context, baseURL string) context.Context {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil || parsed.Host == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, signHostKey{}, canonicalHost(parsed))
+}
+
+func signHostFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if host, ok := ctx.Value(signHostKey{}).(string); ok {
+		return host
+	}
+	return ""
+}
+
+func injectGlobals(runtime *sobek.Runtime, identity func() string, now func() time.Time, logOutput func(string), currentSignHost func() string) error {
 	utils := map[string]any{
 		"hasCapability": HasCapability,
 		"json": map[string]any{
@@ -68,7 +93,7 @@ func injectGlobals(runtime *sobek.Runtime, identity func() string, now func() ti
 		},
 		"uuid": func() string { return uuid.NewString() },
 		"volcSignV4": func(request volcSignRequest) (map[string]string, error) {
-			return signVolcV4(request, now)
+			return signVolcV4(request, now, currentSignHost())
 		},
 	}
 	if err := runtime.Set("utils", utils); err != nil {
@@ -90,10 +115,21 @@ func injectGlobals(runtime *sobek.Runtime, identity func() string, now func() ti
 	return runtime.Set("console", console)
 }
 
-func signVolcV4(request volcSignRequest, now func() time.Time) (map[string]string, error) {
+func signVolcV4(request volcSignRequest, now func() time.Time, allowedHost string) (map[string]string, error) {
 	parsedURL, err := url.Parse(request.URL)
 	if err != nil || parsedURL.Host == "" {
 		return nil, fmt.Errorf("invalid Volcengine signing URL")
+	}
+	// The signature covers the host, so signing an arbitrary URL hands the
+	// plugin a valid credential for a host it is not allowed to call. The host
+	// is pinned to the channel's own base URL, which is the only thing a plugin
+	// legitimately signs; with no scope bound the helper refuses outright, so a
+	// call site that forgets to declare one loses signing rather than leaking it.
+	if allowedHost == "" {
+		return nil, fmt.Errorf("Volcengine signing is not available for this call")
+	}
+	if canonicalHost(parsedURL) != allowedHost {
+		return nil, fmt.Errorf("Volcengine signing URL host is not the channel host")
 	}
 	region := request.Region
 	if region == "" {

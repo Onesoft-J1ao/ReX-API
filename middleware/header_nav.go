@@ -101,6 +101,11 @@ func parseHeaderNavBool(value any, fallback bool) bool {
 	}
 }
 
+func HeaderNavModuleRequiresAuthentication(module string) bool {
+	access := getHeaderNavAccess(module)
+	return !access.Enabled || access.RequireAuth
+}
+
 func HeaderNavModuleAuth(module string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		access := getHeaderNavAccess(module)

@@ -8,13 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// defaultTrustedProxyCIDRs is what an unset TRUSTED_PROXIES falls back to.
+//
+// Only loopback: a reverse proxy or tunnel on the same host connects from
+// 127.0.0.1, which is the common shape, while trusting every RFC 1918 range
+// would let any host on the same private network set X-Forwarded-For and
+// thereby choose its own client IP -- which is what the token IP allowlist and
+// the rate-limit buckets are keyed on. A proxy on a different host is a
+// deliberate deployment and declares itself with TRUSTED_PROXIES.
 var defaultTrustedProxyCIDRs = []string{
 	"127.0.0.0/8",
 	"::1",
-	"10.0.0.0/8",
-	"172.16.0.0/12",
-	"192.168.0.0/16",
-	"fc00::/7",
 }
 
 // ResolveTrustedProxies parses TRUSTED_PROXIES without applying it to an

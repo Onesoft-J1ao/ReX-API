@@ -696,3 +696,54 @@ func TestValidateRequestURL(t *testing.T) {
 		})
 	}
 }
+
+// The Volcengine signing helper is bound to the channel's own host per call.
+// A plugin that signs a different host would hold a valid credential for a host
+// it is not allowed to call, so anything outside the bound host is refused and
+// an invocation that binds nothing can sign nothing at all.
+func TestVolcSignIsBoundToTheChannelHost(t *testing.T) {
+	t.Parallel()
+	engine, err := Compile(`
+export function sign(ctx) {
+  return utils.volcSignV4({
+    Method: "POST",
+    URL: ctx.target,
+    AccessKey: "ak",
+    SecretKey: "sk",
+  });
+}
+
+export const meta = { apiVersion: 1, key: "signer" };
+`, Options{Key: "signer", Version: "1.0.0", Now: func() time.Time { return time.Unix(1700000000, 0) }})
+	require.NoError(t, err)
+
+	// No scope bound: the helper refuses rather than signing anything.
+	_, err = engine.Call(context.Background(), "sign", map[string]any{
+		"target": "https://visual.volcengineapi.com/?Action=X",
+	})
+	require.Error(t, err, "signing without a bound host must fail")
+
+	bound := WithSignHost(context.Background(), "https://visual.volcengineapi.com")
+
+	// The channel's own host signs.
+	result, err := engine.Call(bound, "sign", map[string]any{
+		"target": "https://visual.volcengineapi.com/?Action=X",
+	})
+	require.NoError(t, err)
+	encoded, err := kitutil.Marshal(result)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), "Authorization")
+
+	// A different host is refused even though a scope is bound.
+	_, err = engine.Call(bound, "sign", map[string]any{
+		"target": "https://evil.example/?Action=X",
+	})
+	require.Error(t, err, "signing a host outside the bound scope must fail")
+	assert.Contains(t, err.Error(), "not the channel host")
+
+	// The scope does not survive into the next call on the pooled runtime.
+	_, err = engine.Call(context.Background(), "sign", map[string]any{
+		"target": "https://visual.volcengineapi.com/?Action=X",
+	})
+	require.Error(t, err, "a pooled runtime must not retain the previous scope")
+}

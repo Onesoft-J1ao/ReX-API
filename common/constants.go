@@ -366,8 +366,23 @@ var (
 
 	// Anime metadata is proxied to a third-party API on the viewer's behalf, so
 	// the limit protects that API's quota rather than this instance.
-	BangumiRateLimitNum            = 30
+	//
+	// A viewer browsing sources legitimately spends one request per source: the
+	// page lists 18 website sources and a full sweep is 19 requests, so a limit
+	// of 30 locked the page out on the first reload. 120 leaves room for two
+	// sweeps plus the surrounding calendar, subject and episode calls while
+	// still bounding abuse. The source catalog itself is not counted, because it
+	// reads an embedded file and reaches no upstream.
+	BangumiRateLimitNum            = 120
 	BangumiRateLimitDuration int64 = 60
+
+	// Anime video is streamed rather than fetched once: a player issues a range
+	// request for each seek and a few more while it buffers, so the metadata
+	// limit would cut a viewer off mid-episode. This bounds abuse without
+	// interfering with ordinary playback, which spends this instance's bandwidth
+	// and disk instead of a third party's quota.
+	BangumiStreamRateLimitNum            = 240
+	BangumiStreamRateLimitDuration int64 = 60
 
 	// Per-user search rate limit (applies after authentication, keyed by user ID)
 	SearchRateLimitEnable         = true

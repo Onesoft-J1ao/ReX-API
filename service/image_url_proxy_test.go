@@ -11,6 +11,7 @@ package service
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -22,6 +23,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// The artifact id is the only thing protecting the image, and the browser
+// fetches it from an <img> that cannot carry an Authorization header. The id
+// must therefore be unguessable and independent of the request id the caller
+// already holds, while each URL in one response still gets its own entry.
 func TestRewriteGeneratedImageURLsUsesConfiguredAbsoluteAddress(t *testing.T) {
 	previousAddress := system_setting.ServerAddress
 	system_setting.ServerAddress = "https://gateway.example/prefix"
@@ -46,10 +51,35 @@ func TestRewriteGeneratedImageURLsUsesConfiguredAbsoluteAddress(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, common.Unmarshal(rewritten, &payload))
 	data := payload["data"].([]any)
-	assert.Equal(t, "https://gateway.example/prefix/v1/artifacts/request-123.png", data[0].(map[string]any)["url"])
-	assert.Equal(t, "https://gateway.example/prefix/v1/artifacts/request-123-2.png", data[1].(map[string]any)["url"])
-	assert.Equal(t, "https://gateway.example/prefix/v1/artifacts/request-123-3.png", data[1].(map[string]any)["nested"].(map[string]any)["file_uri"])
-	assert.Equal(t, "https://gateway.example/prefix/v1/artifacts/request-123-4.png", data[2].(map[string]any)["image_url"].(map[string]any)["url"])
+
+	urls := []string{
+		data[0].(map[string]any)["url"].(string),
+		data[1].(map[string]any)["url"].(string),
+		data[1].(map[string]any)["nested"].(map[string]any)["file_uri"].(string),
+		data[2].(map[string]any)["image_url"].(map[string]any)["url"].(string),
+	}
+	upstreams := []string{
+		"https://upstream.example/one.png",
+		"https://upstream.example/two.png",
+		"https://upstream.example/three.png",
+		"https://upstream.example/four.png",
+	}
+
+	seen := map[string]bool{}
+	for index, raw := range urls {
+		require.Contains(t, raw, "https://gateway.example/prefix/v1/artifacts/")
+		id := strings.TrimSuffix(strings.TrimPrefix(raw, "https://gateway.example/prefix/v1/artifacts/"), ".png")
+		assert.Len(t, id, 22, "the id is a 22-character random token")
+		assert.NotContains(t, id, "request-123", "the id must not derive from the caller-visible request id")
+		assert.False(t, seen[id], "each URL gets its own id")
+		seen[id] = true
+
+		imageURLProxyStore.Lock()
+		entry, ok := imageURLProxyStore.entries[id]
+		imageURLProxyStore.Unlock()
+		require.True(t, ok, "the id resolves to an entry")
+		assert.Equal(t, upstreams[index], entry.URL)
+	}
 }
 
 func TestRewriteGeneratedImageURLsSkipsUnsupportedChannels(t *testing.T) {

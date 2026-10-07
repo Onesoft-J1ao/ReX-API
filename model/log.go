@@ -1110,7 +1110,25 @@ func DeleteOldLogBatch(ctx context.Context, targetTimestamp int64, limit int) (i
 		return total, nil
 	}
 
-	result := LOG_DB.WithContext(ctx).Where("created_at < ?", targetTimestamp).Limit(limit).Delete(&Log{})
+	// GORM only emits LIMIT for the MySQL dialect: the postgres and SQLite
+	// dialectors leave it out of DeleteClauses, so `Limit().Delete()` there
+	// silently removes every matching row. On a large log table that is one
+	// unbounded DELETE holding a long lock (and bloating WAL on postgres), and
+	// on SQLite it blocks the single writer for the whole statement. Both are
+	// bounded to the requested batch by selecting the ids first.
+	if common.LogDatabaseType() == common.DatabaseTypeMySQL {
+		result := LOG_DB.WithContext(ctx).Where("created_at < ?", targetTimestamp).Limit(limit).Delete(&Log{})
+		if nil != result.Error {
+			return 0, result.Error
+		}
+		return result.RowsAffected, nil
+	}
+
+	subQuery := LOG_DB.WithContext(ctx).Model(&Log{}).
+		Select("id").Where("created_at < ?", targetTimestamp).Limit(limit)
+	result := LOG_DB.WithContext(ctx).
+		Where("id IN (?)", subQuery).
+		Delete(&Log{})
 	if nil != result.Error {
 		return 0, result.Error
 	}

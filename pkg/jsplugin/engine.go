@@ -124,6 +124,9 @@ type runtimeInstance struct {
 	runtime    *sobek.Runtime
 	module     sobek.ModuleInstance
 	logContext *runtimeLogContext
+	// signHost is the host the Volcengine signing helper may cover for the call
+	// currently running on this pooled runtime. Empty means signing is refused.
+	signHost string
 }
 
 type runtimeLogContext struct {
@@ -456,6 +459,9 @@ func resolveExportPath(instance *runtimeInstance, exportName string, members []s
 // Idle runtimes are bounded by the execution limit and survive GC. Start with
 // one instance and grow only when concurrent work actually needs more.
 func (e *Engine) putRuntime(instance *runtimeInstance) {
+	// Dropped before the instance is pooled so one call's signing scope can
+	// never be inherited by the next caller that picks it up.
+	instance.signHost = ""
 	select {
 	case e.pool <- instance:
 	default:
@@ -466,9 +472,14 @@ func (e *Engine) getRuntime(ctx context.Context) (*runtimeInstance, error) {
 	select {
 	case instance := <-e.pool:
 		instance.logContext.context = ctx
+		instance.signHost = signHostFromContext(ctx)
 		return instance, nil
 	default:
-		return e.newRuntime(ctx)
+		instance, err := e.newRuntime(ctx)
+		if instance != nil {
+			instance.signHost = signHostFromContext(ctx)
+		}
+		return instance, err
 	}
 }
 
@@ -498,9 +509,18 @@ func (e *Engine) newRuntime(ctx context.Context) (instance *runtimeInstance, err
 			logger.LogDebug(logContext.context, "task_plugin subsystem=runtime event=console message=%q", message)
 		}
 	}
+	instance = &runtimeInstance{runtime: runtime, logContext: logContext}
 	if err := injectGlobals(runtime, func() string {
 		return fmt.Sprintf("[plugin:%s@%s]", e.key, e.version)
-	}, e.now, logOutput); err != nil {
+	}, e.now, logOutput, func() string {
+		// Read through the instance so the scope can be rebound per call on a
+		// pooled runtime. A nil instance means the runtime never finished
+		// initializing, in which case nothing may be signed.
+		if instance == nil {
+			return ""
+		}
+		return instance.signHost
+	}); err != nil {
 		return nil, fmt.Errorf("inject plugin utils: %w", err)
 	}
 	timedOut := errors.New("plugin initialization timed out")
@@ -525,11 +545,8 @@ func (e *Engine) newRuntime(ctx context.Context) (instance *runtimeInstance, err
 	if promise.State() != sobek.PromiseStateFulfilled {
 		return nil, fmt.Errorf("evaluate plugin: %v", promise.Result().Export())
 	}
-	return &runtimeInstance{
-		runtime:    runtime,
-		module:     runtime.GetModuleInstance(e.module),
-		logContext: logContext,
-	}, nil
+	instance.module = runtime.GetModuleInstance(e.module)
+	return instance, nil
 }
 
 func sourceWithoutCommentsAndStrings(source string) string {

@@ -235,6 +235,16 @@ func BangumiRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.BangumiRateLimitNum, common.BangumiRateLimitDuration, "BG")
 }
 
+// BangumiStreamRateLimit bounds the anime video stream.
+//
+// Separate from BangumiRateLimit because the two count different things: that
+// one protects a third party's metadata quota and is deliberately tight, while
+// a player asks for a new byte range on every seek. Sharing it would end a
+// viewer's episode the first time they scrubbed.
+func BangumiStreamRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(common.BangumiStreamRateLimitNum, common.BangumiStreamRateLimitDuration, "BGS")
+}
+
 // userRateLimitFactory creates a rate limiter keyed by authenticated user ID
 // instead of client IP, making it resistant to proxy rotation attacks.
 // Must be used AFTER authentication middleware (UserAuth).

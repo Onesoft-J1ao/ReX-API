@@ -39,6 +39,7 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/landing_models", controller.GetLandingModels)
+		apiRouter.GET("/background/random", controller.GetRandomBackground)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
 		apiRouter.GET("/status-check", middleware.HeaderNavModulePublicOrUserAuth("status"), controller.GetStatusCheck)
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
@@ -51,10 +52,20 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/rankings/users", middleware.HeaderNavModuleAuth("rankings"), controller.GetUserRankings)
 		bangumiRoute := apiRouter.Group("/bangumi")
 		bangumiRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("bangumi"))
+		{
+			// The catalog reads an embedded file and reaches no upstream, so it is
+			// registered ahead of the limiter: counting it would spend the budget
+			// that exists to protect third-party quota, and the page needs it
+			// before it can show anything at all.
+			bangumiRoute.GET("/sources", controller.GetBangumiMediaSources)
+		}
 		bangumiRoute.Use(middleware.BangumiRateLimit())
 		{
+			bangumiRoute.GET("/sources/:sourceId/search", controller.SearchBangumiMediaSource)
+			bangumiRoute.GET("/sources/:sourceId/subjects/:sourceSubjectId", controller.BrowseBangumiMediaSource)
 			bangumiRoute.GET("/calendar", controller.GetBangumiCalendar)
 			bangumiRoute.GET("/search", controller.GetBangumiSearch)
+			bangumiRoute.GET("/ranking", controller.GetBangumiRanking)
 			bangumiRoute.GET("/subjects/:id", controller.GetBangumiSubject)
 			// Playback: the episode list comes from dandanplay's view of the same
 			// bgm.tv subject id, and the releases come from Mikan. Both share the
@@ -71,8 +82,35 @@ func SetApiRouter(router *gin.Engine) {
 			// is already registered above. A distinct name here panics at startup
 			// rather than failing the request.
 			bangumiRoute.GET("/subjects/:id/episodes", controller.GetBangumiEpisodes)
+			// Resolving picks the actual playable target for one episode of one
+			// source, which for a website source means parsing its player page and
+			// for a torrent source means registering the release with the local
+			// backend. Both spend upstream requests, so they sit behind the same
+			// gate and limiter as the metadata routes above.
+			bangumiRoute.GET("/sources/:sourceId/resolve", controller.ResolveBangumiMediaSource)
 		}
-		apiRouter.GET("/bangumi-image/*path", middleware.BangumiRateLimit(), controller.ProxyBangumiImage)
+		// The media route is registered outside the group above because it is
+		// requested once per byte range rather than once per upstream call, and a
+		// player issues a new range every time the viewer seeks.
+		apiRouter.GET("/bangumi/media/:mediaId/:resourceId",
+			middleware.HeaderNavModulePublicOrUserAuth("bangumi"),
+			middleware.BangumiStreamRateLimit(),
+			controller.GetBangumiSourceMedia)
+		// Registered outside the group above, which carries the metadata limiter:
+		// this route is counted per byte range rather than per upstream call,
+		// because a player asks for a new range every time the viewer seeks.
+		apiRouter.GET("/bangumi/stream/*path",
+			middleware.HeaderNavModulePublicOrUserAuth("bangumi"),
+			middleware.BangumiStreamRateLimit(),
+			controller.GetBangumiStream)
+		// The cover proxy reaches an upstream on the viewer's behalf, so it
+		// carries the same module gate as every other bangumi route: with the
+		// module off or set to require auth, it must not stay anonymously
+		// reachable just because it is registered outside the group.
+		apiRouter.GET("/bangumi-image/*path",
+			middleware.HeaderNavModulePublicOrUserAuth("bangumi"),
+			middleware.BangumiRateLimit(),
+			controller.ProxyBangumiImage)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.CaptchaCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.CaptchaCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
@@ -491,14 +529,18 @@ func SetApiRouter(router *gin.Engine) {
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
 		{
-			redemptionRoute.GET("/", controller.GetAllRedemptions)
-			redemptionRoute.GET("/search", controller.SearchRedemptions)
-			redemptionRoute.GET("/:id", controller.GetRedemption)
-			redemptionRoute.POST("/", controller.AddRedemption)
-			redemptionRoute.PUT("/", controller.UpdateRedemption)
-			redemptionRoute.POST("/batch", controller.DeleteRedemptionBatch)
-			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
-			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
+			// AdminAuth alone let any administrator mint codes, including one
+			// deliberately scoped to read-only elsewhere. Creating a code grants
+			// spendable balance, so it carries its own permission and can be
+			// withheld from an individual administrator.
+			redemptionRoute.GET("/", middleware.RequirePermission(authz.RedemptionRead), controller.GetAllRedemptions)
+			redemptionRoute.GET("/search", middleware.RequirePermission(authz.RedemptionRead), controller.SearchRedemptions)
+			redemptionRoute.GET("/:id", middleware.RequirePermission(authz.RedemptionRead), controller.GetRedemption)
+			redemptionRoute.POST("/", middleware.RequirePermission(authz.RedemptionCreateCode), controller.AddRedemption)
+			redemptionRoute.PUT("/", middleware.RequirePermission(authz.RedemptionCreateCode), controller.UpdateRedemption)
+			redemptionRoute.POST("/batch", middleware.RequirePermission(authz.RedemptionDeleteCode), controller.DeleteRedemptionBatch)
+			redemptionRoute.DELETE("/invalid", middleware.RequirePermission(authz.RedemptionDeleteCode), controller.DeleteInvalidRedemption)
+			redemptionRoute.DELETE("/:id", middleware.RequirePermission(authz.RedemptionDeleteCode), controller.DeleteRedemption)
 		}
 		apiRouter.GET("/audit", middleware.DisableCache(), middleware.AdminAuth(), middleware.RequirePermission(authz.AuditRead), controller.GetAuditLogs)
 		apiRouter.GET("/audit/export", middleware.DisableCache(), middleware.AdminAuth(), middleware.RequirePermission(authz.AuditRead), controller.ExportAuditLogsCSV)

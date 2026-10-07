@@ -209,6 +209,7 @@ func UpdateRedemption(c *gin.Context) {
 	if statusOnly == "" {
 		if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
 			common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
+			return
 		}
 		requestedPlanID := cleanRedemption.SubscriptionPlanId
 		if redemption.SubscriptionPlanId != nil {

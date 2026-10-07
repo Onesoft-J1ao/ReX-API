@@ -166,6 +166,19 @@ func GetOptions(c *gin.Context) {
 		Key:   "billing_setting.group_pricing_source",
 		Value: string(encodedGroupSources),
 	})
+	groupModelPrices := billing_setting.GetGroupModelPriceCopy()
+	if groupModelPrices == nil {
+		groupModelPrices = map[string]map[string]float64{}
+	}
+	encodedGroupModelPrices, err := common.Marshal(groupModelPrices)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	options = append(options, &model.Option{
+		Key:   "billing_setting.group_model_price",
+		Value: string(encodedGroupModelPrices),
+	})
 	options = append(options, &model.Option{
 		Key:   "CompletionRatioMeta",
 		Value: buildCompletionRatioMetaValue(optionValues),
@@ -226,9 +239,17 @@ func syncCapDifficultyForOption(c *gin.Context, key, value string) error {
 	case "CapCheckinSiteKey":
 		checkinSiteKey = value
 	case "LoginCaptchaDifficulty":
-		loginDifficulty, _ = strconv.Atoi(value)
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("LoginCaptchaDifficulty must be an integer")
+		}
+		loginDifficulty = parsed
 	case "CheckinCaptchaDifficulty":
-		checkinDifficulty, _ = strconv.Atoi(value)
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("CheckinCaptchaDifficulty must be an integer")
+		}
+		checkinDifficulty = parsed
 	}
 
 	if loginSiteKey != "" && loginSiteKey == checkinSiteKey && loginDifficulty != checkinDifficulty {
@@ -843,6 +864,11 @@ func UpdateOption(c *gin.Context) {
 		}
 	case "billing_setting.group_pricing_source":
 		if _, err = billing_setting.ValidateGroupPricingSources(option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
+	case "billing_setting.group_model_price":
+		if _, err = billing_setting.ValidateGroupModelPrices(option.Value.(string)); err != nil {
 			common.ApiErrorMsg(c, err.Error())
 			return
 		}
