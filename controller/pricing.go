@@ -117,11 +117,28 @@ func GetPricing(c *gin.Context) {
 		}
 	}
 	pricing = filterPricingByUsableGroups(pricing, pricingGroups)
+	// A model fed by a different upstream per group is priced per token by a
+	// group override, so the square needs it to show what this group charges.
+	groupModelRatio := filterGroupModelRatioByGroups(
+		billing_setting.GetGroupModelRatioCopy(),
+		ratio_setting.GetGroupRatioCopy(),
+	)
+	groupModelCompletionRatio := filterGroupModelRatioByGroups(
+		billing_setting.GetGroupModelCompletionRatioCopy(),
+		ratio_setting.GetGroupRatioCopy(),
+	)
+	groupModelCacheRatio := filterGroupModelRatioByGroups(
+		billing_setting.GetGroupModelCacheRatioCopy(),
+		ratio_setting.GetGroupRatioCopy(),
+	)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := pricingGroups[group]; !ok {
 			delete(groupRatio, group)
 			delete(groupBillingSource, group)
+			delete(groupModelRatio, group)
+			delete(groupModelCompletionRatio, group)
+			delete(groupModelCacheRatio, group)
 		}
 	}
 
@@ -131,13 +148,40 @@ func GetPricing(c *gin.Context) {
 		"vendors":                         model.GetVendors(),
 		"group_ratio":                     groupRatio,
 		"group_billing_source":            groupBillingSource,
+		"group_model_ratio":               groupModelRatio,
+		"group_model_completion_ratio":    groupModelCompletionRatio,
+		"group_model_cache_ratio":         groupModelCacheRatio,
 		"usable_group":                    usableGroup,
 		"model_square_groups":             visibleGroups,
 		"model_square_group_descriptions": visibleDescriptions,
 		"supported_endpoint":              model.GetSupportedEndpointMap(),
 		"auto_groups":                     service.GetUserAutoGroupForUser(userID, group),
-		"pricing_version":                 "a42d372ccf0b5dd13ecf71203521f9d2",
+		"pricing_version":                 "c3f81d6a4e07b9254fa8d1c63e509b72",
 	})
+}
+
+// filterGroupModelRatioByGroups drops overrides for groups that have no group
+// ratio, for the same reason filterGroupBillingSourceByGroups does: the
+// override could never apply, so publishing it would show a price no request
+// would ever receive.
+func filterGroupModelRatioByGroups(
+	ratios map[string]map[string]float64,
+	groupRatios map[string]float64,
+) map[string]map[string]float64 {
+	if len(ratios) == 0 {
+		return nil
+	}
+	filtered := make(map[string]map[string]float64, len(ratios))
+	for group, byModel := range ratios {
+		if _, active := groupRatios[group]; !active && group != "auto" {
+			continue
+		}
+		filtered[group] = byModel
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
 }
 
 // filterGroupBillingSourceByGroups drops overrides for groups that have no

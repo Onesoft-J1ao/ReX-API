@@ -49,6 +49,9 @@ export function Pricing() {
     vendors,
     groupRatio,
     groupBillingSource,
+    groupModelRatio,
+    groupModelCompletionRatio,
+    groupModelCacheRatio,
     usableGroup,
     modelSquareGroupDescriptions,
     modelSquareGroups,
@@ -149,6 +152,11 @@ export function Pricing() {
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
           groupBillingSource={groupBillingSource}
+          groupPricingOverrides={{
+            ratio: groupModelRatio,
+            completion: groupModelCompletionRatio,
+            cache: groupModelCacheRatio,
+          }}
           sortBy={sortBy}
           pageSize={appearance.modelSquareCardPageSize}
         />

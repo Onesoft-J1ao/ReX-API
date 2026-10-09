@@ -34,6 +34,7 @@ import {
 } from '../constants'
 import { modelFamilyRank } from '../lib/filters'
 import type { PricingModel, TokenUnit } from '../types'
+import type { GroupPricingOverrides } from '../lib/price'
 import { ModelCard } from './model-card'
 import type { ModelPerfBadgeData } from './model-perf-badge'
 
@@ -47,6 +48,8 @@ export interface ModelCardGridProps {
   selectedGroup?: string
   /** Per-group pricing source overrides; absent when none are configured. */
   groupBillingSource?: Record<string, Record<string, string>>
+  /** Per-group per-model token overrides; absent when none are configured. */
+  groupPricingOverrides?: GroupPricingOverrides
   sortBy?: string
   pageSize?: number
 }
@@ -176,6 +179,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             showRechargePrice={props.showRechargePrice}
             selectedGroup={props.selectedGroup}
             groupBillingSource={props.groupBillingSource}
+            groupPricingOverrides={props.groupPricingOverrides}
             perf={perfFor(model.model_name)}
             onClick={() => props.onModelClick(model.model_name || '')}
           />

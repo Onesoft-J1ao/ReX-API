@@ -71,6 +71,11 @@ export function usePricingData(enabled = true) {
     // Absent when the gateway publishes no per-group overrides, which is the
     // common case; every group then falls back to each model's global mode.
     groupBillingSource: data?.group_billing_source,
+    // Per-group per-token ratio overrides. Absent means every group uses the
+    // model's global ratio.
+    groupModelRatio: data?.group_model_ratio,
+    groupModelCompletionRatio: data?.group_model_completion_ratio,
+    groupModelCacheRatio: data?.group_model_cache_ratio,
     modelSquareGroupDescriptions: data?.model_square_group_descriptions ?? {},
     usableGroup: Object.fromEntries(
       Object.entries(data?.usable_group ?? {}).map(([group, value]) => [

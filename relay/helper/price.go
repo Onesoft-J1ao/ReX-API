@@ -200,8 +200,20 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 				return hosttypes.PriceData{}, modelPriceNotConfiguredError(matchName, info.UserId)
 			}
 		}
+		// A model can be fed by a different upstream in each group, so its
+		// per-token cost differs by group. Resolved after the global ratio so a
+		// group without an override keeps the global figure untouched.
+		if groupRatio, ok := billing_setting.GetGroupModelRatio(info.UsingGroup, billingModelName); ok {
+			modelRatio = groupRatio
+		}
 		completionRatio = ratio_setting.GetCompletionRatio(billingModelName)
+		if groupCompletion, ok := billing_setting.GetGroupModelCompletionRatio(info.UsingGroup, billingModelName); ok {
+			completionRatio = groupCompletion
+		}
 		cacheRatio, _ = ratio_setting.GetCacheRatio(billingModelName)
+		if groupCache, ok := billing_setting.GetGroupModelCacheRatio(info.UsingGroup, billingModelName); ok {
+			cacheRatio = groupCache
+		}
 		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(billingModelName)
 		cacheCreationRatio5m = cacheCreationRatio
 		// 固定1h和5min缓存写入价格的比例

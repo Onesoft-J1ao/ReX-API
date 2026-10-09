@@ -60,6 +60,63 @@ export function stripTrailingZeros(formatted: string): string {
 }
 
 /**
+ * Resolve the model ratio a group actually bills by.
+ *
+ * A model can be fed by a different upstream per group, so the gateway lets a
+ * group override the per-token ratio. When it does, that figure replaces the
+ * model's global ratio before any multiplier applies; without this the square
+ * would show every group the same price and hide the override entirely.
+ */
+export function resolveModelRatio(
+  model: PricingModel,
+  group: string | undefined,
+  overrides: GroupPricingOverrides
+): number | undefined {
+  return withGroupPricing(model, group, overrides).model_ratio ?? undefined
+}
+
+/**
+ * Apply a group's per-model overrides to a copy of the model.
+ *
+ * A model fed by a different upstream per group can differ in all three
+ * figures the square prices from (input ratio, output multiplier, cache
+ * multiplier). Applying them here keeps the four format* helpers from each
+ * having to know which maps exist.
+ */
+function withGroupPricing(
+  model: PricingModel,
+  group: string | undefined,
+  overrides: GroupPricingOverrides
+): PricingModel {
+  if (!group) return model
+  const ratio = overrides.ratio?.[group]?.[model.model_name]
+  const completion = overrides.completion?.[group]?.[model.model_name]
+  const cache = overrides.cache?.[group]?.[model.model_name]
+  return {
+    ...model,
+    model_ratio:
+      typeof ratio === 'number' && Number.isFinite(ratio)
+        ? ratio
+        : (model.model_ratio ?? undefined),
+    completion_ratio:
+      typeof completion === 'number' && Number.isFinite(completion)
+        ? completion
+        : model.completion_ratio,
+    cache_ratio:
+      typeof cache === 'number' && Number.isFinite(cache)
+        ? cache
+        : model.cache_ratio,
+  }
+}
+
+/** The three per-group per-model override maps the gateway publishes. */
+export type GroupPricingOverrides = {
+  ratio?: Record<string, Record<string, number>>
+  completion?: Record<string, Record<string, number>>
+  cache?: Record<string, Record<string, number>>
+}
+
+/**
  * Calculate token price in USD.
  *
  * Returns NaN when the required ratio field is missing/null so callers can
@@ -157,7 +214,8 @@ export function formatPrice(
   priceRate = 1,
   usdExchangeRate = 1,
   selectedGroup?: string,
-  showCurrencySymbol = true
+  showCurrencySymbol = true,
+  overrides: GroupPricingOverrides = {}
 ): string {
   // A per-request model has no token price to show; its price belongs on the
   // request column. A free one still has a price of zero, so leave the label to
@@ -168,12 +226,13 @@ export function formatPrice(
 
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
-  let priceInUSD = calculateTokenPrice(model, type, displayGroupRatio)
+  const priced = withGroupPricing(model, selectedGroup, overrides)
+  let priceInUSD = calculateTokenPrice(priced, type, displayGroupRatio)
   // A token model is free when either its input or output price for the
   // displayed million-token unit is below the public free threshold. Keep the
   // label consistent across both columns/cards when one side is effectively
   // free.
-  if (isTokenPriceFree(model, displayGroupRatio)) {
+  if (isTokenPriceFree(priced, displayGroupRatio)) {
     return t('Free')
   }
   priceInUSD = applyRechargeRate(
@@ -203,7 +262,8 @@ export function formatGroupPrice(
   showWithRecharge = false,
   priceRate = 1,
   usdExchangeRate = 1,
-  groupRatio: Record<string, number>
+  groupRatio: Record<string, number>,
+  overrides: GroupPricingOverrides = {}
 ): string {
   // Same rule as formatPrice: a per-request model shows nothing on a token
   // column, but a free one has a real price of zero.
@@ -212,8 +272,9 @@ export function formatGroupPrice(
   }
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
-  let priceInUSD = calculateTokenPrice(model, type, ratio)
-  if (isTokenPriceFree(model, ratio)) {
+  const priced = withGroupPricing(model, group, overrides)
+  let priceInUSD = calculateTokenPrice(priced, type, ratio)
+  if (isTokenPriceFree(priced, ratio)) {
     return t('Free')
   }
   priceInUSD = applyRechargeRate(

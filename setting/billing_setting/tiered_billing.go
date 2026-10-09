@@ -56,14 +56,35 @@ type BillingSetting struct {
 	// global per-call price, and an entry here also selects per-call billing for
 	// that group. A model absent from a group's map uses its global price.
 	GroupModelPrice map[string]map[string]float64 `json:"group_model_price"`
+	// GroupModelRatio overrides the per-token ratio of one model inside one
+	// group. This is the per-token counterpart to GroupModelPrice: a model can
+	// be fed by a different upstream in each group, so the same name costs a
+	// different amount per token depending on which group serves it. Shape:
+	// {"<group>": {"<model>": 0.5}}. The group ratio still multiplies the
+	// result, and a group absent from this map leaves the global ratio alone.
+	//
+	// Kept separate from GroupModelPrice because that one forces per-call
+	// billing; writing a ratio there would charge one flat fee per request.
+	GroupModelRatio map[string]map[string]float64 `json:"group_model_ratio"`
+	// GroupModelCompletionRatio and GroupModelCacheRatio override the output and
+	// cache-read multipliers of one model inside one group. They exist because a
+	// group override on the input ratio alone is not enough: two upstreams can
+	// quote the same model with different output/input and cache/input ratios,
+	// and the global multipliers only fit one of them. Shape matches
+	// GroupModelRatio. A missing entry leaves the model's global multiplier.
+	GroupModelCompletionRatio map[string]map[string]float64 `json:"group_model_completion_ratio"`
+	GroupModelCacheRatio      map[string]map[string]float64 `json:"group_model_cache_ratio"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode:        make(map[string]string),
-	BillingExpr:        make(map[string]string),
-	PluginBillingExpr:  make(map[string]string),
-	GroupPricingSource: make(map[string]map[string]string),
-	GroupModelPrice:    make(map[string]map[string]float64),
+	BillingMode:               make(map[string]string),
+	BillingExpr:               make(map[string]string),
+	PluginBillingExpr:         make(map[string]string),
+	GroupPricingSource:        make(map[string]map[string]string),
+	GroupModelPrice:           make(map[string]map[string]float64),
+	GroupModelRatio:           make(map[string]map[string]float64),
+	GroupModelCompletionRatio: make(map[string]map[string]float64),
+	GroupModelCacheRatio:      make(map[string]map[string]float64),
 }
 
 func init() {
@@ -139,6 +160,75 @@ func GetGroupModelPriceCopy() map[string]map[string]float64 {
 	}
 	cloned := make(map[string]map[string]float64, len(billingSetting.GroupModelPrice))
 	for group, byModel := range billingSetting.GroupModelPrice {
+		copied := make(map[string]float64, len(byModel))
+		maps.Copy(copied, byModel)
+		cloned[group] = copied
+	}
+	return cloned
+}
+
+// GetGroupModelRatio returns the per-token ratio this group charges for this
+// model, if one was configured. The caller still multiplies the group ratio.
+func GetGroupModelRatio(group, model string) (float64, bool) {
+	if group == "" || model == "" {
+		return 0, false
+	}
+	byModel, ok := billingSetting.GroupModelRatio[group]
+	if !ok {
+		return 0, false
+	}
+	ratio, ok := byModel[model]
+	return ratio, ok
+}
+
+// GetGroupModelRatioCopy returns a copy for the settings API.
+func GetGroupModelRatioCopy() map[string]map[string]float64 {
+	return cloneGroupModelMap(billingSetting.GroupModelRatio)
+}
+
+// GetGroupModelCompletionRatio returns the output/input multiplier this group
+// charges for this model, if one was configured.
+func GetGroupModelCompletionRatio(group, model string) (float64, bool) {
+	return lookupGroupModelValue(billingSetting.GroupModelCompletionRatio, group, model)
+}
+
+// GetGroupModelCompletionRatioCopy returns a copy for the settings API.
+func GetGroupModelCompletionRatioCopy() map[string]map[string]float64 {
+	return cloneGroupModelMap(billingSetting.GroupModelCompletionRatio)
+}
+
+// GetGroupModelCacheRatio returns the cache-read multiplier this group charges
+// for this model, if one was configured.
+func GetGroupModelCacheRatio(group, model string) (float64, bool) {
+	return lookupGroupModelValue(billingSetting.GroupModelCacheRatio, group, model)
+}
+
+// GetGroupModelCacheRatioCopy returns a copy for the settings API.
+func GetGroupModelCacheRatioCopy() map[string]map[string]float64 {
+	return cloneGroupModelMap(billingSetting.GroupModelCacheRatio)
+}
+
+func lookupGroupModelValue(
+	set map[string]map[string]float64,
+	group, model string,
+) (float64, bool) {
+	if group == "" || model == "" {
+		return 0, false
+	}
+	byModel, ok := set[group]
+	if !ok {
+		return 0, false
+	}
+	value, ok := byModel[model]
+	return value, ok
+}
+
+func cloneGroupModelMap(set map[string]map[string]float64) map[string]map[string]float64 {
+	if len(set) == 0 {
+		return nil
+	}
+	cloned := make(map[string]map[string]float64, len(set))
+	for group, byModel := range set {
 		copied := make(map[string]float64, len(byModel))
 		maps.Copy(copied, byModel)
 		cloned[group] = copied
@@ -271,6 +361,78 @@ func ValidateGroupModelPrices(raw string) (map[string]map[string]float64, error)
 		}
 	}
 	return prices, nil
+}
+
+// maxGroupModelRatio caps a per-token ratio a group may be charged. Like
+// maxGroupModelPrice it exists only so a typo cannot become an unbounded
+// charge, and sits far above any real ratio.
+const maxGroupModelRatio = 1_000_000.0
+
+// ValidateGroupModelRatios parses the stored per-group ratio override and
+// rejects anything that would misprice a request.
+//
+// Mirrors ValidateGroupModelPrices: the group must have a configured ratio (or
+// be "auto") or the override would silently never apply, and each value must be
+// a finite, non-negative, sane number because it multiplies the customer's bill.
+func ValidateGroupModelRatios(raw string) (map[string]map[string]float64, error) {
+	return validateGroupModelMap(raw, "分组倍率")
+}
+
+// ValidateGroupModelCompletionRatios and ValidateGroupModelCacheRatios mirror
+// ValidateGroupModelRatios for the two multiplier maps.
+func ValidateGroupModelCompletionRatios(raw string) (map[string]map[string]float64, error) {
+	return validateGroupModelMap(raw, "分组输出倍率")
+}
+
+func ValidateGroupModelCacheRatios(raw string) (map[string]map[string]float64, error) {
+	return validateGroupModelMap(raw, "分组缓存倍率")
+}
+
+func validateGroupModelMap(raw, label string) (map[string]map[string]float64, error) {
+	ratios := make(map[string]map[string]float64)
+	if strings.TrimSpace(raw) == "" {
+		return ratios, nil
+	}
+	if err := common.UnmarshalJsonStr(raw, &ratios); err != nil {
+		return nil, fmt.Errorf("%s配置必须是分组到模型的 JSON 对象: %w", label, err)
+	}
+
+	groupRatios := ratio_setting.GetGroupRatioCopy()
+	groups := make([]string, 0, len(ratios))
+	for group := range ratios {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+
+	for _, group := range groups {
+		if strings.TrimSpace(group) == "" {
+			return nil, errors.New("分组名不能为空")
+		}
+		if _, configured := groupRatios[group]; !configured && group != "auto" {
+			return nil, fmt.Errorf("%s：分组 %q 没有配置分组倍率，覆盖不会生效", label, group)
+		}
+		models := make([]string, 0, len(ratios[group]))
+		for model := range ratios[group] {
+			models = append(models, model)
+		}
+		sort.Strings(models)
+		for _, model := range models {
+			if strings.TrimSpace(model) == "" {
+				return nil, fmt.Errorf("分组 %q 下存在空的模型名", group)
+			}
+			ratio := ratios[group][model]
+			if math.IsNaN(ratio) || math.IsInf(ratio, 0) {
+				return nil, fmt.Errorf("%s：模型 %s 在分组 %q 的倍率不是有限数", label, model, group)
+			}
+			if ratio < 0 {
+				return nil, fmt.Errorf("%s：模型 %s 在分组 %q 的倍率不能为负", label, model, group)
+			}
+			if ratio > maxGroupModelRatio {
+				return nil, fmt.Errorf("%s：模型 %s 在分组 %q 的倍率超过上限 %v", label, model, group, maxGroupModelRatio)
+			}
+		}
+	}
+	return ratios, nil
 }
 
 func GetBillingExpr(model string) (string, bool) {

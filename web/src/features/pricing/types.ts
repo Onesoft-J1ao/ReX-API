@@ -140,6 +140,24 @@ export type PricingData = {
    * show the same figure in both.
    */
   group_billing_source?: Record<string, Record<string, string>>
+  /**
+   * Per-token ratio override by group, as `{group: {model: ratio}}`.
+   *
+   * A model can be fed by a different upstream in each group, so the same name
+   * costs a different amount per token depending on which group serves it. The
+   * override replaces the model's global `model_ratio` before the group ratio
+   * multiplies it, which is why the square has to read it to show the price a
+   * viewer would actually pay.
+   */
+  group_model_ratio?: Record<string, Record<string, number>>
+  /**
+   * Per-group output/input and cache/input multipliers, as
+   * `{group: {model: ratio}}`. Two upstreams can quote the same model with
+   * different output and cache ratios, and the global multipliers only fit one
+   * of them, so the square has to read these to price the other group right.
+   */
+  group_model_completion_ratio?: Record<string, Record<string, number>>
+  group_model_cache_ratio?: Record<string, Record<string, number>>
   usable_group: Record<string, { desc: string; ratio: number }>
   model_square_group_descriptions?: Record<string, string>
   supported_endpoint: Record<string, string>

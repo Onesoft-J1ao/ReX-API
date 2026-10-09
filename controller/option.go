@@ -179,6 +179,36 @@ func GetOptions(c *gin.Context) {
 		Key:   "billing_setting.group_model_price",
 		Value: string(encodedGroupModelPrices),
 	})
+	groupModelRatios := billing_setting.GetGroupModelRatioCopy()
+	if groupModelRatios == nil {
+		groupModelRatios = map[string]map[string]float64{}
+	}
+	encodedGroupModelRatios, err := common.Marshal(groupModelRatios)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	options = append(options, &model.Option{
+		Key:   "billing_setting.group_model_ratio",
+		Value: string(encodedGroupModelRatios),
+	})
+	for _, extra := range []struct {
+		key string
+		val map[string]map[string]float64
+	}{
+		{"billing_setting.group_model_completion_ratio", billing_setting.GetGroupModelCompletionRatioCopy()},
+		{"billing_setting.group_model_cache_ratio", billing_setting.GetGroupModelCacheRatioCopy()},
+	} {
+		if extra.val == nil {
+			extra.val = map[string]map[string]float64{}
+		}
+		encoded, err := common.Marshal(extra.val)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		options = append(options, &model.Option{Key: extra.key, Value: string(encoded)})
+	}
 	options = append(options, &model.Option{
 		Key:   "CompletionRatioMeta",
 		Value: buildCompletionRatioMetaValue(optionValues),
@@ -869,6 +899,21 @@ func UpdateOption(c *gin.Context) {
 		}
 	case "billing_setting.group_model_price":
 		if _, err = billing_setting.ValidateGroupModelPrices(option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
+	case "billing_setting.group_model_ratio":
+		if _, err = billing_setting.ValidateGroupModelRatios(option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
+	case "billing_setting.group_model_completion_ratio":
+		if _, err = billing_setting.ValidateGroupModelCompletionRatios(option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
+	case "billing_setting.group_model_cache_ratio":
+		if _, err = billing_setting.ValidateGroupModelCacheRatios(option.Value.(string)); err != nil {
 			common.ApiErrorMsg(c, err.Error())
 			return
 		}

@@ -42,7 +42,11 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { getGroupPricingForModel } from '../lib/group-pricing'
-import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  formatPrice,
+  formatRequestPrice,
+  type GroupPricingOverrides,
+} from '../lib/price'
 import { taskPriceLabel, taskUsageUnitLabel } from '../lib/task-price-display'
 import type { PricingModel, PriceType, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
@@ -58,6 +62,8 @@ export interface ModelCardProps {
   selectedGroup?: string
   /** Per-group pricing source overrides; absent when none are configured. */
   groupBillingSource?: Record<string, Record<string, string>>
+  /** Per-group per-model token overrides; absent when none are configured. */
+  groupPricingOverrides?: GroupPricingOverrides
   perf?: ModelPerfBadgeData
 }
 
@@ -333,7 +339,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             showRechargePrice,
             priceRate,
             usdExchangeRate,
-            props.selectedGroup
+            props.selectedGroup,
+            true,
+            props.groupPricingOverrides
           )}
           <span className='text-muted-foreground text-xs font-normal'>
             {' '}
