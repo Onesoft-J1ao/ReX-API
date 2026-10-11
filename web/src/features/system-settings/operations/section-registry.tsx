@@ -153,6 +153,12 @@ const OPERATIONS_SECTIONS = [
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
         defaultForceRecordIpLog={Boolean(settings.ForceRecordIpLog)}
+        defaultContentReviewEnabled={Boolean(
+          settings['content_review_setting.enabled']
+        )}
+        defaultContentReviewRetentionDays={
+          settings['content_review_setting.retention_days'] ?? 14
+        }
       />
     ),
   },

@@ -20,6 +20,7 @@ import {
   Activity,
   Box,
   ClipboardList,
+  FileSearch,
   CreditCard,
   Cpu,
   Download,
@@ -144,6 +145,14 @@ export function useSidebarData(): SidebarData {
             // The audit trail records the operator's address and every
             // account's sign-in history. Ordinary users do not need it, and
             // exposing it republishes the operator's own address.
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('Content Review'),
+            url: '/content-review',
+            icon: FileSearch,
+            // Captured request/reply bodies are personal data reviewed by
+            // operators; a regular user must never reach this page.
             requiredRole: ROLE.ADMIN,
           },
           {

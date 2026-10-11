@@ -249,6 +249,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			if channel != nil {
 				service.ClearChannelErrorStreak(channel.Id)
 			}
+			captureReviewContent(c, relayFormat, request, requestId,
+				relayInfo.UserId, relayInfo.OriginModelName, c.GetString("token_name"))
 			return
 		}
 

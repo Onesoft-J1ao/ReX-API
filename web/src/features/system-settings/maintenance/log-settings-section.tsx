@@ -81,11 +81,14 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 import type { LogCleanupTask } from '../types'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
   ForceRecordIpLog: z.boolean(),
+  ContentReviewEnabled: z.boolean(),
+  ContentReviewRetentionDays: z.coerce.number().int().min(0).max(365),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
@@ -93,6 +96,8 @@ type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
   defaultForceRecordIpLog: boolean
+  defaultContentReviewEnabled: boolean
+  defaultContentReviewRetentionDays: number
 }
 
 type ServerLogInfo = {
@@ -149,14 +154,18 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
 export function LogSettingsSection({
   defaultEnabled,
   defaultForceRecordIpLog,
+  defaultContentReviewEnabled,
+  defaultContentReviewRetentionDays,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
-  const form = useForm<LogSettingsFormValues>({
+  const form = useForm({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
       ForceRecordIpLog: defaultForceRecordIpLog,
+      ContentReviewEnabled: defaultContentReviewEnabled,
+      ContentReviewRetentionDays: defaultContentReviewRetentionDays,
     },
   })
 
@@ -187,8 +196,16 @@ export function LogSettingsSection({
     form.reset({
       LogConsumeEnabled: defaultEnabled,
       ForceRecordIpLog: defaultForceRecordIpLog,
+      ContentReviewEnabled: defaultContentReviewEnabled,
+      ContentReviewRetentionDays: defaultContentReviewRetentionDays,
     })
-  }, [defaultEnabled, defaultForceRecordIpLog, form])
+  }, [
+    defaultEnabled,
+    defaultForceRecordIpLog,
+    defaultContentReviewEnabled,
+    defaultContentReviewRetentionDays,
+    form,
+  ])
 
   useEffect(() => {
     fetchServerLogInfo()
@@ -283,6 +300,21 @@ export function LogSettingsSection({
       await updateOption.mutateAsync({
         key: 'ForceRecordIpLog',
         value: values.ForceRecordIpLog,
+      })
+    }
+    if (values.ContentReviewEnabled !== defaultContentReviewEnabled) {
+      await updateOption.mutateAsync({
+        key: 'content_review_setting.enabled',
+        value: values.ContentReviewEnabled,
+      })
+    }
+    if (
+      values.ContentReviewRetentionDays !==
+      defaultContentReviewRetentionDays
+    ) {
+      await updateOption.mutateAsync({
+        key: 'content_review_setting.retention_days',
+        value: values.ContentReviewRetentionDays,
       })
     }
   }
@@ -383,6 +415,57 @@ export function LogSettingsSection({
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ContentReviewEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Content review capture')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Store the request text and AI reply of every relay call for manual review. Captured bodies are visible to administrators only under Content Review; ordinary users never see their own request text. Bodies are personal data — keep the retention window short.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ContentReviewRetentionDays'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Content review retention (days)')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Captured bodies older than this many days are pruned by the Clean up action on the Content Review page. 0 keeps everything until deleted by hand.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    max={365}
+                    className='w-28'
+                    {...safeNumberFieldProps(field)}
                   />
                 </FormControl>
                 <FormMessage />

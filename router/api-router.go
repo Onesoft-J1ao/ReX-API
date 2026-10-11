@@ -557,6 +557,20 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/self/export", middleware.UserAuth(), controller.ExportLogsCSV)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
+		// 内容审查：请求/回答正文的查看与下载。AdminAuth（root 及管理员）可见；
+		// 普通用户的 self 日志接口不返回正文，这张表也不在任何用户查询路径上。
+		contentReviewRoute := apiRouter.Group("/content-review")
+		contentReviewRoute.Use(middleware.AdminAuth())
+		{
+			contentReviewRoute.GET("/status", controller.GetContentReviewStatus)
+			contentReviewRoute.GET("/", controller.GetContentReviewList)
+			contentReviewRoute.GET("/export", controller.DownloadContentReviewList)
+			contentReviewRoute.GET("/:id", controller.GetContentReviewDetail)
+			contentReviewRoute.GET("/:id/download", controller.DownloadContentReviewDetail)
+			contentReviewRoute.DELETE("/:id", controller.DeleteContentReview)
+			contentReviewRoute.POST("/cleanup", controller.CleanupContentReview)
+		}
+
 		systemTaskRoute := apiRouter.Group("/system-task")
 		systemTaskRoute.Use(middleware.RootAuth())
 		{

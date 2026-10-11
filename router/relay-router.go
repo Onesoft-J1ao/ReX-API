@@ -18,6 +18,9 @@ func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.DecompressRequestMiddleware())
 	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	router.Use(middleware.StatsMiddleware())
+	// 内容审查：开关开启时把响应体抄一份，controller.Relay 的 defer 里与请求
+	// 文本一起落库。开关关闭时是纯透传，relay 路径零开销。
+	router.Use(middleware.ContentReviewCapture())
 	router.GET("/v1/artifacts/:artifact_id", service.ImageURLProxy)
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")

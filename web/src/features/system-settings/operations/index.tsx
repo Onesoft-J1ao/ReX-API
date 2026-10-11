@@ -60,6 +60,8 @@ const defaultOperationsSettings: OperationsSettings = {
   WorkerMeshyImageProxyAPIKey: '',
   LogConsumeEnabled: false,
   ForceRecordIpLog: false,
+  'content_review_setting.enabled': false,
+  'content_review_setting.retention_days': 14,
   'performance_setting.disk_cache_enabled': false,
   'performance_setting.disk_cache_threshold_mb': 10,
   'performance_setting.disk_cache_max_size_mb': 1024,
