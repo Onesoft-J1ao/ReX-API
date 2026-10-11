@@ -25,31 +25,31 @@ type ConsoleSetting struct {
 	// Never returned to the SPA: it is only read server-side when calling
 	// Unsplash on the visitor's behalf.
 	BackgroundUnsplashAccessKey string `json:"background_unsplash_access_key"`
-	BackgroundBlurOpacity      int    `json:"background_blur_opacity"`
-	LegalBackgroundEnabled     bool   `json:"legal_background_enabled"`
-	DefaultTheme               string `json:"default_theme"`
-	DefaultThemeOverride     string `json:"default_theme_override"`
-	DefaultThemePreset       string `json:"default_theme_preset"`
-	DefaultThemeFont         string `json:"default_theme_font"`
-	DefaultThemeRadius       string `json:"default_theme_radius"`
-	DefaultThemeScale        string `json:"default_theme_scale"`
-	DefaultSidebarVariant    string `json:"default_sidebar_variant"`
-	DefaultSidebarLayout     string `json:"default_sidebar_layout"`
-	DefaultContentLayout     string `json:"default_content_layout"`
-	DefaultDirection         string `json:"default_direction"`
-	ModelSquareDefaultView   string `json:"model_square_default_view"`
-	ModelSquareCardPageSize  int    `json:"model_square_card_page_size"`
-	ModelSquareTablePageSize int    `json:"model_square_table_page_size"`
-	ModelSquareVisibleGroups string `json:"model_square_visible_groups"`
-	GroupAccessRules         string `json:"group_access_rules"`
-	HomepageStyle            string `json:"homepage_style"`
-	HomepagePresetTitleMode  string `json:"homepage_preset_title_mode"`
-	HomepagePresetSLAEnabled bool   `json:"homepage_preset_sla_enabled"`
-	HomepagePresetSLAText    string `json:"homepage_preset_sla_text"`
-	SPAMetaDescription       string `json:"spa_meta_description"`
-	SPAMetaOGType            string `json:"spa_meta_og_type"`
-	SPAMetaOGDescription     string `json:"spa_meta_og_description"`
-	HideUpstreamRequestID    bool   `json:"hide_upstream_request_id"`
+	BackgroundBlurOpacity       int    `json:"background_blur_opacity"`
+	LegalBackgroundEnabled      bool   `json:"legal_background_enabled"`
+	DefaultTheme                string `json:"default_theme"`
+	DefaultThemeOverride        string `json:"default_theme_override"`
+	DefaultThemePreset          string `json:"default_theme_preset"`
+	DefaultThemeFont            string `json:"default_theme_font"`
+	DefaultThemeRadius          string `json:"default_theme_radius"`
+	DefaultThemeScale           string `json:"default_theme_scale"`
+	DefaultSidebarVariant       string `json:"default_sidebar_variant"`
+	DefaultSidebarLayout        string `json:"default_sidebar_layout"`
+	DefaultContentLayout        string `json:"default_content_layout"`
+	DefaultDirection            string `json:"default_direction"`
+	ModelSquareDefaultView      string `json:"model_square_default_view"`
+	ModelSquareCardPageSize     int    `json:"model_square_card_page_size"`
+	ModelSquareTablePageSize    int    `json:"model_square_table_page_size"`
+	ModelSquareVisibleGroups    string `json:"model_square_visible_groups"`
+	GroupAccessRules            string `json:"group_access_rules"`
+	HomepageStyle               string `json:"homepage_style"`
+	HomepagePresetTitleMode     string `json:"homepage_preset_title_mode"`
+	HomepagePresetSLAEnabled    bool   `json:"homepage_preset_sla_enabled"`
+	HomepagePresetSLAText       string `json:"homepage_preset_sla_text"`
+	SPAMetaDescription          string `json:"spa_meta_description"`
+	SPAMetaOGType               string `json:"spa_meta_og_type"`
+	SPAMetaOGDescription        string `json:"spa_meta_og_description"`
+	HideUpstreamRequestID       bool   `json:"hide_upstream_request_id"`
 
 	// HideModelsWithoutEnabledChannel drops a group from the model square when
 	// none of its channels can serve it, so the picker and the list never

@@ -234,69 +234,69 @@ func TestBuildStatusSyncPlanActions(t *testing.T) {
 		wantTarget   int
 	}{
 		{
-			name: "down monitor auto-disables an enabled channel",
+			name:         "down monitor auto-disables an enabled channel",
 			remoteStatus: RemoteStatusDown, remoteAgeSec: 60, channelState: common.ChannelStatusEnabled,
 			wantAction: SyncActionDisable, wantTarget: common.ChannelStatusAutoDisabled,
 		},
 		{
-			name: "down monitor leaves an already auto-disabled channel alone",
+			name:         "down monitor leaves an already auto-disabled channel alone",
 			remoteStatus: RemoteStatusDown, remoteAgeSec: 60, channelState: common.ChannelStatusAutoDisabled,
 			wantAction: SyncActionNoop,
 		},
 		{
-			name: "down monitor never overrides a human disable",
+			name:         "down monitor never overrides a human disable",
 			remoteStatus: RemoteStatusDown, remoteAgeSec: 60, channelState: common.ChannelStatusManuallyDisabled,
 			wantAction: SyncActionNoop,
 		},
 		{
-			name: "recovered monitor re-enables what automation disabled",
+			name:         "recovered monitor re-enables what automation disabled",
 			remoteStatus: RemoteStatusUp, remoteAgeSec: 60, channelState: common.ChannelStatusAutoDisabled,
 			wantAction: SyncActionEnable, wantTarget: common.ChannelStatusEnabled,
 		},
 		{
-			name: "recovered monitor never overrides a human disable",
+			name:         "recovered monitor never overrides a human disable",
 			remoteStatus: RemoteStatusUp, remoteAgeSec: 60, channelState: common.ChannelStatusManuallyDisabled,
 			wantAction: SyncActionSkip,
 		},
 		{
-			name: "enabled channel with an up monitor is a no-op",
+			name:         "enabled channel with an up monitor is a no-op",
 			remoteStatus: RemoteStatusUp, remoteAgeSec: 60, channelState: common.ChannelStatusEnabled,
 			wantAction: SyncActionNoop,
 		},
 		{
-			name: "pending monitor is not actionable",
+			name:         "pending monitor is not actionable",
 			remoteStatus: RemoteStatusPending, remoteAgeSec: 60, channelState: common.ChannelStatusEnabled,
 			wantAction: SyncActionSkip,
 		},
 		{
-			name: "maintenance monitor is not actionable",
+			name:         "maintenance monitor is not actionable",
 			remoteStatus: RemoteStatusMaintenance, remoteAgeSec: 60, channelState: common.ChannelStatusEnabled,
 			wantAction: SyncActionSkip,
 		},
 		{
-			name: "stale heartbeat is not actionable",
+			name:         "stale heartbeat is not actionable",
 			remoteStatus: RemoteStatusDown, remoteAgeSec: 3600, channelState: common.ChannelStatusEnabled,
 			wantAction: SyncActionSkip,
 		},
 		{
-			name: "unparsable heartbeat time is not actionable",
+			name:         "unparsable heartbeat time is not actionable",
 			remoteStatus: RemoteStatusDown, remoteAgeSec: -1, channelState: common.ChannelStatusEnabled,
 			wantAction: SyncActionSkip,
 		},
 		{
-			name: "disable_on_down off suppresses the disable",
+			name:         "disable_on_down off suppresses the disable",
 			remoteStatus: RemoteStatusDown, remoteAgeSec: 60, channelState: common.ChannelStatusEnabled,
 			options:    func(o StatusSyncOptions) StatusSyncOptions { o.DisableOnDown = false; return o },
 			wantAction: SyncActionSkip,
 		},
 		{
-			name: "enable_on_up off suppresses the re-enable",
+			name:         "enable_on_up off suppresses the re-enable",
 			remoteStatus: RemoteStatusUp, remoteAgeSec: 60, channelState: common.ChannelStatusAutoDisabled,
 			options:    func(o StatusSyncOptions) StatusSyncOptions { o.EnableOnUp = false; return o },
 			wantAction: SyncActionSkip,
 		},
 		{
-			name: "staleness check disabled still acts on an old heartbeat",
+			name:         "staleness check disabled still acts on an old heartbeat",
 			remoteStatus: RemoteStatusDown, remoteAgeSec: 86400, channelState: common.ChannelStatusEnabled,
 			options:    func(o StatusSyncOptions) StatusSyncOptions { o.StaleAfterMinutes = 0; return o },
 			wantAction: SyncActionDisable, wantTarget: common.ChannelStatusAutoDisabled,

@@ -52,12 +52,12 @@ type bangumiTorrentDetail struct {
 }
 
 type bangumiTorrentMetadata struct {
-	hash    string
-	body    []byte
-	isURL   bool
-	files   []bangumiTorrentFile
+	hash      string
+	body      []byte
+	isURL     bool
+	files     []bangumiTorrentFile
 	diskNames []string
-	expires time.Time
+	expires   time.Time
 }
 
 type bangumiTorrentMetadataWait struct {
@@ -92,19 +92,19 @@ type bangumiTorrentFileBinding struct {
 }
 
 type bangumiTorrentOwned struct {
-	Hash      string        `json:"hash"`
-	ID        *int          `json:"id"`
-	DirectoryOwned bool     `json:"directoryOwned"`
-	CleanupPending bool `json:"cleanupPending"`
-	Retained  map[int]int64 `json:"retained"`
+	Hash                         string        `json:"hash"`
+	ID                           *int          `json:"id"`
+	DirectoryOwned               bool          `json:"directoryOwned"`
+	CleanupPending               bool          `json:"cleanupPending"`
+	Retained                     map[int]int64 `json:"retained"`
 	cleanupDeadline, nextCleanup time.Time
-	cleanupAttempts int
-	cleanupParked bool
-	metadata  *bangumiTorrentMetadata
-	wanted    int
-	included  []int
-	refs      map[int]int
-	idleSince time.Time
+	cleanupAttempts              int
+	cleanupParked                bool
+	metadata                     *bangumiTorrentMetadata
+	wanted                       int
+	included                     []int
+	refs                         map[int]int
+	idleSince                    time.Time
 }
 
 type bangumiTorrentRootOwner struct {
@@ -135,7 +135,7 @@ type bangumiTorrentManager struct {
 	control         chan struct{}
 	entries         map[string]*bangumiTorrentOwned
 	reconciled      bool
-	startupPending bool
+	startupPending  bool
 	now             func() time.Time
 	mu              sync.Mutex
 	metadata        map[string]*bangumiTorrentMetadata
@@ -451,10 +451,14 @@ func (m *bangumiTorrentManager) deleteOwned(ctx context.Context, entry *bangumiT
 		if bangumiTorrentReadJSON(filepath.Join(folder, ".rex-owner.json"), &marker) == nil && marker.Owner == m.owner && marker.Hash == entry.Hash {
 			entry.DirectoryOwned = true
 		} else {
-			if _, err := os.Lstat(folder); err == nil || !os.IsNotExist(err) { return errors.New("Unproven torrent output directory will not be reused or deleted") }
+			if _, err := os.Lstat(folder); err == nil || !os.IsNotExist(err) {
+				return errors.New("Unproven torrent output directory will not be reused or deleted")
+			}
 			// An intent recorded before exclusive directory creation is not proof
 			// of ownership over another client's directory or backend torrent.
-			for _, size := range entry.Retained { m.bytes -= size }
+			for _, size := range entry.Retained {
+				m.bytes -= size
+			}
 			delete(m.entries, entry.Hash)
 			return m.saveJournal()
 		}
@@ -486,7 +490,9 @@ func (m *bangumiTorrentManager) deleteOwned(ctx context.Context, entry *bangumiT
 		if err := m.backendRequest(ctx, http.MethodPost, fmt.Sprintf("/torrents/%d/delete", *detail.ID), nil, nil, nil); err != nil {
 			return err
 		}
-		if _, err := m.detail(ctx, *detail.ID); !errors.Is(err, bangumiTorrentNotFound) { return errors.New("Owned torrent deletion could not be verified") }
+		if _, err := m.detail(ctx, *detail.ID); !errors.Is(err, bangumiTorrentNotFound) {
+			return errors.New("Owned torrent deletion could not be verified")
+		}
 	}
 	if info, err := os.Lstat(folder); err == nil && (!info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
 		return errors.New("Unsafe owned torrent output directory")
@@ -502,18 +508,28 @@ func (m *bangumiTorrentManager) deleteOwned(ctx context.Context, entry *bangumiT
 }
 
 func (m *bangumiTorrentManager) reconcile(ctx context.Context) error {
-	if m.reconciled { return nil }
-	for _, entry := range m.entries { _ = m.tryCleanup(ctx, entry, m.now(), true) }
+	if m.reconciled {
+		return nil
+	}
+	for _, entry := range m.entries {
+		_ = m.tryCleanup(ctx, entry, m.now(), true)
+	}
 	m.reconciled = true
 	m.startupPending = len(m.entries) != 0
-	if err := m.saveJournal(); err != nil { return err }
-	if m.startupPending { return errors.New("Owned torrent startup cleanup is pending; no resource is admitted") }
+	if err := m.saveJournal(); err != nil {
+		return err
+	}
+	if m.startupPending {
+		return errors.New("Owned torrent startup cleanup is pending; no resource is admitted")
+	}
 	return nil
 }
 
 func (m *bangumiTorrentManager) markFault(entry *bangumiTorrentOwned, now time.Time) {
 	entry.CleanupPending = true
-	if entry.cleanupDeadline.IsZero() { entry.cleanupDeadline = now.Add(5*time.Minute) }
+	if entry.cleanupDeadline.IsZero() {
+		entry.cleanupDeadline = now.Add(5 * time.Minute)
+	}
 	_ = m.saveJournal()
 }
 
@@ -521,18 +537,26 @@ func (m *bangumiTorrentManager) tryCleanup(ctx context.Context, entry *bangumiTo
 	if len(entry.refs) != 0 {
 		if entry.CleanupPending && !entry.cleanupParked && !entry.cleanupDeadline.IsZero() && !now.Before(entry.cleanupDeadline) {
 			entry.cleanupParked = true
-			common.SysError("Bangumi torrent "+entry.Hash[:12]+": active faulted resource parked for last-release or restart cleanup")
+			common.SysError("Bangumi torrent " + entry.Hash[:12] + ": active faulted resource parked for last-release or restart cleanup")
 			_ = m.saveJournal()
 		}
 		return nil
 	}
 	if entry.CleanupPending {
-		if entry.cleanupParked && !force { return nil }
-		if entry.cleanupAttempts >= 4 || (!force && !entry.cleanupDeadline.IsZero() && !now.Before(entry.cleanupDeadline)) {
-			if !entry.cleanupParked { entry.cleanupParked = true; common.SysError("Bangumi torrent "+entry.Hash[:12]+": cleanup retry limit reached; ownership retained for restart"); _ = m.saveJournal() }
+		if entry.cleanupParked && !force {
 			return nil
 		}
-		if !force && now.Before(entry.nextCleanup) { return nil }
+		if entry.cleanupAttempts >= 4 || (!force && !entry.cleanupDeadline.IsZero() && !now.Before(entry.cleanupDeadline)) {
+			if !entry.cleanupParked {
+				entry.cleanupParked = true
+				common.SysError("Bangumi torrent " + entry.Hash[:12] + ": cleanup retry limit reached; ownership retained for restart")
+				_ = m.saveJournal()
+			}
+			return nil
+		}
+		if !force && now.Before(entry.nextCleanup) {
+			return nil
+		}
 	}
 	entry.cleanupAttempts++
 	if err := m.deleteOwned(ctx, entry); err != nil {
@@ -540,22 +564,31 @@ func (m *bangumiTorrentManager) tryCleanup(ctx context.Context, entry *bangumiTo
 		delay := min(30*time.Second*time.Duration(1<<min(entry.cleanupAttempts-1, 4)), 5*time.Minute)
 		entry.nextCleanup = now.Add(delay)
 		entry.cleanupParked = entry.cleanupAttempts >= 4 || !now.Before(entry.cleanupDeadline)
-		common.SysError("Bangumi torrent "+entry.Hash[:12]+": owned cleanup failed; bounded retry or restart required")
+		common.SysError("Bangumi torrent " + entry.Hash[:12] + ": owned cleanup failed; bounded retry or restart required")
 		_ = m.saveJournal()
 		return err
 	}
 	m.startupPending = false
-	for _, remaining := range m.entries { if remaining.metadata == nil { m.startupPending = true; break } }
+	for _, remaining := range m.entries {
+		if remaining.metadata == nil {
+			m.startupPending = true
+			break
+		}
+	}
 	return nil
 }
 
 func (m *bangumiTorrentManager) sweep(ctx context.Context, now time.Time) error {
-	if err := m.lock(ctx); err != nil { return err }
+	if err := m.lock(ctx); err != nil {
+		return err
+	}
 	defer m.unlock()
 	firstError := m.reconcile(ctx)
 	for _, entry := range m.entries {
 		if entry.CleanupPending || (len(entry.refs) == 0 && !entry.idleSince.IsZero() && now.Sub(entry.idleSince) >= bangumiTorrentIdleTTL) {
-			if err := m.tryCleanup(ctx, entry, now, false); err != nil && firstError == nil { firstError = err }
+			if err := m.tryCleanup(ctx, entry, now, false); err != nil && firstError == nil {
+				firstError = err
+			}
 		}
 	}
 	return firstError
@@ -564,9 +597,14 @@ func (m *bangumiTorrentManager) sweep(ctx context.Context, now time.Time) error 
 func (m *bangumiTorrentManager) abandon(hash string) {
 	ctx, cancel := context.WithTimeout(context.Background(), bangumiTorrentControlTimeout)
 	defer cancel()
-	if err := m.lock(ctx); err != nil { return }
+	if err := m.lock(ctx); err != nil {
+		return
+	}
 	defer m.unlock()
-	if entry := m.entries[hash]; entry != nil && len(entry.refs) == 0 { m.markFault(entry, m.now()); _ = m.tryCleanup(ctx, entry, m.now(), true) }
+	if entry := m.entries[hash]; entry != nil && len(entry.refs) == 0 {
+		m.markFault(entry, m.now())
+		_ = m.tryCleanup(ctx, entry, m.now(), true)
+	}
 }
 
 func (m *bangumiTorrentManager) streamTarget(id, index int) string {
@@ -940,12 +978,16 @@ func (m *bangumiTorrentManager) fetchMetadata(ctx context.Context, uri string, h
 	seen := make(map[string]bool)
 	for index, file := range listed.Details.Files {
 		key := strings.ToLower(file.Name)
-		if !bangumiValidTorrentFilename(file.Name) || file.Length < 0 || seen[key] { return nil, errors.New("Torrent contains an unsafe or aliased file path") }
+		if !bangumiValidTorrentFilename(file.Name) || file.Length < 0 || seen[key] {
+			return nil, errors.New("Torrent contains an unsafe or aliased file path")
+		}
 		seen[key] = true
 		if expected != nil {
 			canonical := expected[index].Name
 			_, relative, multi := strings.Cut(canonical, "/")
-			if file.Length != expected[index].Length || (file.Name != canonical && (!multi || file.Name != relative)) { return nil, errors.New("Torrent backend file order does not match its metainfo") }
+			if file.Length != expected[index].Length || (file.Name != canonical && (!multi || file.Name != relative)) {
+				return nil, errors.New("Torrent backend file order does not match its metainfo")
+			}
 			metadata.diskNames = append(metadata.diskNames, canonical)
 		}
 		file.Name = strings.Clone(file.Name)
@@ -1065,7 +1107,9 @@ func (m *bangumiTorrentManager) prepare(ctx context.Context, resolved service.Ba
 			}
 		}
 		folder := m.ownedFolder(metadata.hash)
-		if _, err := os.Lstat(folder); err == nil || !os.IsNotExist(err) { return result, errors.New("Unproven torrent output directory will not be reused or overwritten") }
+		if _, err := os.Lstat(folder); err == nil || !os.IsNotExist(err) {
+			return result, errors.New("Unproven torrent output directory will not be reused or overwritten")
+		}
 		entry = &bangumiTorrentOwned{Hash: metadata.hash, Retained: map[int]int64{index: metadata.files[index].Length}, metadata: metadata, wanted: index, included: []int{index}, refs: make(map[int]int), idleSince: m.now()}
 		m.entries[metadata.hash] = entry
 		m.bytes += metadata.files[index].Length
@@ -1087,7 +1131,10 @@ func (m *bangumiTorrentManager) prepare(ctx context.Context, resolved service.Ba
 			m.rollbackAdmission(entry)
 			return result, err
 		}
-		if err := m.saveJournal(); err != nil { m.rollbackAdmission(entry); return result, err }
+		if err := m.saveJournal(); err != nil {
+			m.rollbackAdmission(entry)
+			return result, err
+		}
 		query := url.Values{"only_files": {strconv.Itoa(index)}, "output_folder": {folder}, "is_url": {strconv.FormatBool(metadata.isURL)}, "overwrite": {"false"}}
 		var added struct {
 			ID      *int                 `json:"id"`
@@ -1165,33 +1212,60 @@ func (m *bangumiTorrentManager) updateFiles(ctx context.Context, entry *bangumiT
 	// rqbit may restart and reuse numeric IDs. Validate ownership before either
 	// reusing a grant or changing a backend selection, including the no-op path.
 	detail, err := m.detail(ctx, *entry.ID)
-	if err != nil || !m.ownsDetail(detail, entry.Hash) || len(detail.Files) != len(entry.metadata.files) { return errors.New("Torrent backend resource identity changed or expired") }
-	for i, file := range detail.Files { if file.Name != entry.metadata.files[i].Name || file.Length != entry.metadata.files[i].Length { return errors.New("Torrent backend file layout changed") } }
-	if bangumiTorrentIncluded(detail.Files, entry.metadata.files, files) { entry.included = files; return nil }
+	if err != nil || !m.ownsDetail(detail, entry.Hash) || len(detail.Files) != len(entry.metadata.files) {
+		return errors.New("Torrent backend resource identity changed or expired")
+	}
+	for i, file := range detail.Files {
+		if file.Name != entry.metadata.files[i].Name || file.Length != entry.metadata.files[i].Length {
+			return errors.New("Torrent backend file layout changed")
+		}
+	}
+	if bangumiTorrentIncluded(detail.Files, entry.metadata.files, files) {
+		entry.included = files
+		return nil
+	}
 	body, err := common.Marshal(map[string]any{"only_files": files})
-	if err != nil { return errors.New("Cannot encode exact torrent file selection") }
-	if err := m.backendRequest(ctx, http.MethodPost, fmt.Sprintf("/torrents/%d/update_only_files", *entry.ID), nil, body, nil); err != nil { return err }
+	if err != nil {
+		return errors.New("Cannot encode exact torrent file selection")
+	}
+	if err := m.backendRequest(ctx, http.MethodPost, fmt.Sprintf("/torrents/%d/update_only_files", *entry.ID), nil, body, nil); err != nil {
+		return err
+	}
 	detail, err = m.detail(ctx, *entry.ID)
-	if err != nil || !m.ownsDetail(detail, entry.Hash) || !bangumiTorrentIncluded(detail.Files, entry.metadata.files, files) { return errors.New("Torrent backend did not retain the exact active file selection") }
+	if err != nil || !m.ownsDetail(detail, entry.Hash) || !bangumiTorrentIncluded(detail.Files, entry.metadata.files, files) {
+		return errors.New("Torrent backend did not retain the exact active file selection")
+	}
 	entry.included = files
 	return nil
 }
 
 func (m *bangumiTorrentManager) selectFile(ctx context.Context, entry *bangumiTorrentOwned, index int) error {
-	if entry.CleanupPending { return errors.New("Faulted torrent resource is draining; new Range/HEAD requests are denied") }
-	if index < 0 || index >= len(entry.metadata.files) { return errors.New("Invalid torrent file index") }
+	if entry.CleanupPending {
+		return errors.New("Faulted torrent resource is draining; new Range/HEAD requests are denied")
+	}
+	if index < 0 || index >= len(entry.metadata.files) {
+		return errors.New("Invalid torrent file index")
+	}
 	previous, newReservation := entry.wanted, false
 	if _, retained := entry.Retained[index]; !retained {
 		size := entry.metadata.files[index].Length
-		if size <= 0 || size > m.maxBytes-m.bytes { return errors.New("Torrent retained-byte budget reached before file selection") }
+		if size <= 0 || size > m.maxBytes-m.bytes {
+			return errors.New("Torrent retained-byte budget reached before file selection")
+		}
 		entry.Retained[index] = size
 		m.bytes += size
 		newReservation = true
-		if err := m.saveJournal(); err != nil { delete(entry.Retained, index); m.bytes -= size; return err }
+		if err := m.saveJournal(); err != nil {
+			delete(entry.Retained, index)
+			m.bytes -= size
+			return err
+		}
 	}
 	if err := m.updateFiles(ctx, entry, index); err != nil {
 		m.markFault(entry, m.now())
-		if len(entry.refs) == 0 { m.rollbackAdmission(entry) } else {
+		if len(entry.refs) == 0 {
+			m.rollbackAdmission(entry)
+		} else {
 			// Restore the exact old union without canceling an active reader.
 			// Only a confirmed, never-created file can release its reservation.
 			entry.included = nil
@@ -1207,21 +1281,35 @@ func (m *bangumiTorrentManager) selectFile(ctx context.Context, entry *bangumiTo
 		return err
 	}
 	entry.wanted = index
-	if len(entry.refs) == 0 { entry.idleSince = m.now() }
+	if len(entry.refs) == 0 {
+		entry.idleSince = m.now()
+	}
 	return nil
 }
 
 func (m *bangumiTorrentManager) unwrittenFile(entry *bangumiTorrentOwned, index int) bool {
-	if !entry.DirectoryOwned || index < 0 || index >= len(entry.metadata.diskNames) { return false }
+	if !entry.DirectoryOwned || index < 0 || index >= len(entry.metadata.diskNames) {
+		return false
+	}
 	for _, name := range []string{entry.metadata.diskNames[index], entry.metadata.files[index].Name} {
-		if !bangumiValidTorrentFilename(name) { return false }
+		if !bangumiValidTorrentFilename(name) {
+			return false
+		}
 		folder := m.ownedFolder(entry.Hash)
 		parts := strings.Split(name, "/")
 		for _, segment := range parts[:len(parts)-1] {
 			folder = filepath.Join(folder, segment)
-			if info, err := os.Lstat(folder); err == nil { if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 { return false } } else if !os.IsNotExist(err) { return false }
+			if info, err := os.Lstat(folder); err == nil {
+				if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+					return false
+				}
+			} else if !os.IsNotExist(err) {
+				return false
+			}
 		}
-		if _, err := os.Lstat(filepath.Join(m.ownedFolder(entry.Hash), filepath.FromSlash(name))); !os.IsNotExist(err) { return false }
+		if _, err := os.Lstat(filepath.Join(m.ownedFolder(entry.Hash), filepath.FromSlash(name))); !os.IsNotExist(err) {
+			return false
+		}
 	}
 	return true
 }
@@ -1275,7 +1363,10 @@ func (m *bangumiTorrentManager) finishStream(hash string, index int) {
 	}
 	if len(entry.refs) == 0 {
 		entry.idleSince = m.now()
-		if entry.CleanupPending { _ = m.tryCleanup(ctx, entry, m.now(), true); return }
+		if entry.CleanupPending {
+			_ = m.tryCleanup(ctx, entry, m.now(), true)
+			return
+		}
 	}
 	if err := m.updateFiles(ctx, entry, entry.wanted); err != nil {
 		entry.included = nil

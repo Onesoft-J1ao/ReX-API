@@ -63,22 +63,22 @@ func bangumiTorrentFixture(name string, files []bangumiTorrentFile) bangumiTorre
 }
 
 type bangumiTorrentBackendFixture struct {
-	t                              *testing.T
-	server                         *httptest.Server
-	mu                             sync.Mutex
-	fixtures                       map[string]bangumiTorrentTestFixture
-	active                         map[int]bangumiTorrentDetail
-	nextID                         int
-	lists, adds                    int
-	updates                        [][]int
-	deleted                        []int
-	deleteAttempts int
-	addBodies                      [][]byte
-	folders                        []string
-	failAdd, missingID, failDelete bool
+	t                                 *testing.T
+	server                            *httptest.Server
+	mu                                sync.Mutex
+	fixtures                          map[string]bangumiTorrentTestFixture
+	active                            map[int]bangumiTorrentDetail
+	nextID                            int
+	lists, adds                       int
+	updates                           [][]int
+	deleted                           []int
+	deleteAttempts                    int
+	addBodies                         [][]byte
+	folders                           []string
+	failAdd, missingID, failDelete    bool
 	failUpdateBefore, failUpdateAfter bool
-	addStarted                     chan struct{}
-	allowAdd                       chan struct{}
+	addStarted                        chan struct{}
+	allowAdd                          chan struct{}
 }
 
 func newBangumiTorrentBackendFixture(t *testing.T, fixtures ...bangumiTorrentTestFixture) *bangumiTorrentBackendFixture {
@@ -229,7 +229,12 @@ func (backend *bangumiTorrentBackendFixture) serve(w http.ResponseWriter, reques
 				return
 			}
 			assert.NotEmpty(backend.t, change.OnlyFiles)
-			if backend.failUpdateBefore { backend.failUpdateBefore = false; backend.mu.Unlock(); w.WriteHeader(500); return }
+			if backend.failUpdateBefore {
+				backend.failUpdateBefore = false
+				backend.mu.Unlock()
+				w.WriteHeader(500)
+				return
+			}
 			detail.Files = slices.Clone(detail.Files)
 			for i := range detail.Files {
 				detail.Files[i].Included = slices.Contains(change.OnlyFiles, i)
@@ -508,84 +513,122 @@ func TestBangumiSourceTorrentActiveFileUnionAndIdleCleanup(t *testing.T) {
 }
 
 func TestBangumiSourceTorrentStreamCompletionContract(t *testing.T) {
-	for _, mode := range []string{"client disconnect", "write failure", "HEAD"} { t.Run(mode, func(t *testing.T) {
-		fixture := bangumiTorrentFixture("Flow", []bangumiTorrentFile{{Name: "episode.mp4", Length: 40}})
-		backend := newBangumiTorrentBackendFixture(t, fixture)
-		manager, locations, clock := newBangumiTorrentResources(t, backend, 1000, fixture)
-		prepared, err := manager.prepare(context.Background(), bangumiTorrentResolved("source", locations[fixture.hash]), "episode", "")
-		require.NoError(t, err)
-		started, released := make(chan struct{}), make(chan struct{})
-		writeError := make(chan error, 1)
-		receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-			finish, err := prepared.onStart()
-			if !assert.NoError(t, err) { w.WriteHeader(500); return }
-			defer func() { finish(); close(released) }()
-			close(started)
-			switch mode {
-			case "client disconnect": w.WriteHeader(206); w.(http.Flusher).Flush(); <-request.Context().Done()
-			case "write failure": connection, _, err := w.(http.Hijacker).Hijack(); if !assert.NoError(t, err) { return }; _ = connection.Close(); _, err = w.Write([]byte("must fail")); writeError <- err
-			case "HEAD": w.WriteHeader(200); return
+	for _, mode := range []string{"client disconnect", "write failure", "HEAD"} {
+		t.Run(mode, func(t *testing.T) {
+			fixture := bangumiTorrentFixture("Flow", []bangumiTorrentFile{{Name: "episode.mp4", Length: 40}})
+			backend := newBangumiTorrentBackendFixture(t, fixture)
+			manager, locations, clock := newBangumiTorrentResources(t, backend, 1000, fixture)
+			prepared, err := manager.prepare(context.Background(), bangumiTorrentResolved("source", locations[fixture.hash]), "episode", "")
+			require.NoError(t, err)
+			started, released := make(chan struct{}), make(chan struct{})
+			writeError := make(chan error, 1)
+			receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+				finish, err := prepared.onStart()
+				if !assert.NoError(t, err) {
+					w.WriteHeader(500)
+					return
+				}
+				defer func() { finish(); close(released) }()
+				close(started)
+				switch mode {
+				case "client disconnect":
+					w.WriteHeader(206)
+					w.(http.Flusher).Flush()
+					<-request.Context().Done()
+				case "write failure":
+					connection, _, err := w.(http.Hijacker).Hijack()
+					if !assert.NoError(t, err) {
+						return
+					}
+					_ = connection.Close()
+					_, err = w.Write([]byte("must fail"))
+					writeError <- err
+				case "HEAD":
+					w.WriteHeader(200)
+					return
+				}
+			}))
+			defer receiver.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			method := http.MethodGet
+			if mode == "HEAD" {
+				method = http.MethodHead
 			}
-		}))
-		defer receiver.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		method := http.MethodGet
-		if mode == "HEAD" { method = http.MethodHead }
-		request, err := http.NewRequestWithContext(ctx, method, receiver.URL, nil)
-		require.NoError(t, err)
-		request.Header.Set("Range", "bytes=0-10")
-		response, requestErr := receiver.Client().Do(request)
-		if response != nil { defer response.Body.Close() }
-		if mode != "write failure" { require.NoError(t, requestErr) }
-		<-started
-		if mode == "client disconnect" { cancel() }
-		select { case <-released: case <-time.After(5*time.Second): t.Fatal("receiver defer did not release torrent reference") }
-		if mode == "write failure" { require.Error(t, <-writeError) }
-		clock.Add(int64(21*time.Minute))
-		require.NoError(t, manager.sweep(context.Background(), manager.now()))
-		_, _, _, deleted, _ := backend.snapshot()
-		assert.Equal(t, []int{0}, deleted, "onStart recipient must defer release across every HTTP completion path")
-	}) }
+			request, err := http.NewRequestWithContext(ctx, method, receiver.URL, nil)
+			require.NoError(t, err)
+			request.Header.Set("Range", "bytes=0-10")
+			response, requestErr := receiver.Client().Do(request)
+			if response != nil {
+				defer response.Body.Close()
+			}
+			if mode != "write failure" {
+				require.NoError(t, requestErr)
+			}
+			<-started
+			if mode == "client disconnect" {
+				cancel()
+			}
+			select {
+			case <-released:
+			case <-time.After(5 * time.Second):
+				t.Fatal("receiver defer did not release torrent reference")
+			}
+			if mode == "write failure" {
+				require.Error(t, <-writeError)
+			}
+			clock.Add(int64(21 * time.Minute))
+			require.NoError(t, manager.sweep(context.Background(), manager.now()))
+			_, _, _, deleted, _ := backend.snapshot()
+			assert.Equal(t, []int{0}, deleted, "onStart recipient must defer release across every HTTP completion path")
+		})
+	}
 }
 
 func TestBangumiSourceTorrentFailedFileUpdateRollback(t *testing.T) {
-	for _, mode := range []string{"no partial data", "partial data with reader", "update without reader"} { t.Run(mode, func(t *testing.T) {
-		pack := bangumiTorrentFixture("RollbackPack", []bangumiTorrentFile{{Name: "01.mp4", Length: 40}, {Name: "02.mp4", Length: 80}})
-		other := bangumiTorrentFixture("Other", []bangumiTorrentFile{{Name: "episode.mp4", Length: 100}})
-		backend := newBangumiTorrentBackendFixture(t, pack, other)
-		manager, locations, _ := newBangumiTorrentResources(t, backend, 200, pack, other)
-		resolved := bangumiTorrentResolved("source", locations[pack.hash])
-		selection, err := manager.prepare(context.Background(), resolved, "episode", "")
-		require.NoError(t, err)
-		first, err := manager.prepare(context.Background(), resolved, "episode", selection.Files[0].ID)
-		require.NoError(t, err)
-		var finish func()
-		if mode != "update without reader" { finish, err = first.onStart(); require.NoError(t, err) }
-		backend.mu.Lock()
-		backend.failUpdateBefore = mode == "no partial data"
-		backend.failUpdateAfter = mode != "no partial data"
-		backend.mu.Unlock()
-		failed, err := manager.prepare(context.Background(), resolved, "episode", selection.Files[1].ID)
-		require.Error(t, err)
-		assert.Empty(t, failed.target)
-		_, err = first.onStart()
-		require.Error(t, err, "faulted resource must reject new Range/HEAD references")
-		if mode == "partial data with reader" {
-			_, err := manager.prepare(context.Background(), bangumiTorrentResolved("other", locations[other.hash]), "episode", "")
-			require.Error(t, err, "retained partial data is not a fictitious free budget")
+	for _, mode := range []string{"no partial data", "partial data with reader", "update without reader"} {
+		t.Run(mode, func(t *testing.T) {
+			pack := bangumiTorrentFixture("RollbackPack", []bangumiTorrentFile{{Name: "01.mp4", Length: 40}, {Name: "02.mp4", Length: 80}})
+			other := bangumiTorrentFixture("Other", []bangumiTorrentFile{{Name: "episode.mp4", Length: 100}})
+			backend := newBangumiTorrentBackendFixture(t, pack, other)
+			manager, locations, _ := newBangumiTorrentResources(t, backend, 200, pack, other)
+			resolved := bangumiTorrentResolved("source", locations[pack.hash])
+			selection, err := manager.prepare(context.Background(), resolved, "episode", "")
+			require.NoError(t, err)
+			first, err := manager.prepare(context.Background(), resolved, "episode", selection.Files[0].ID)
+			require.NoError(t, err)
+			var finish func()
+			if mode != "update without reader" {
+				finish, err = first.onStart()
+				require.NoError(t, err)
+			}
+			backend.mu.Lock()
+			backend.failUpdateBefore = mode == "no partial data"
+			backend.failUpdateAfter = mode != "no partial data"
+			backend.mu.Unlock()
+			failed, err := manager.prepare(context.Background(), resolved, "episode", selection.Files[1].ID)
+			require.Error(t, err)
+			assert.Empty(t, failed.target)
+			_, err = first.onStart()
+			require.Error(t, err, "faulted resource must reject new Range/HEAD references")
+			if mode == "partial data with reader" {
+				_, err := manager.prepare(context.Background(), bangumiTorrentResolved("other", locations[other.hash]), "episode", "")
+				require.Error(t, err, "retained partial data is not a fictitious free budget")
+				_, _, _, deleted, _ := backend.snapshot()
+				assert.Empty(t, deleted, "active reader must not be canceled to hide failed admission")
+			} else {
+				_, err := manager.prepare(context.Background(), bangumiTorrentResolved("other", locations[other.hash]), "episode", "")
+				require.NoError(t, err, "verified unused reservation must be returned")
+			}
+			if finish != nil {
+				finish()
+			}
 			_, _, _, deleted, _ := backend.snapshot()
-			assert.Empty(t, deleted, "active reader must not be canceled to hide failed admission")
-		} else {
-			_, err := manager.prepare(context.Background(), bangumiTorrentResolved("other", locations[other.hash]), "episode", "")
-			require.NoError(t, err, "verified unused reservation must be returned")
-		}
-		if finish != nil { finish() }
-		_, _, _, deleted, _ := backend.snapshot()
-		assert.Contains(t, deleted, 0, "last reference drains the faulted resource immediately")
-		_, err = manager.prepare(context.Background(), bangumiTorrentResolved("other", locations[other.hash]), "episode", "")
-		require.NoError(t, err)
-	}) }
+			assert.Contains(t, deleted, 0, "last reference drains the faulted resource immediately")
+			_, err = manager.prepare(context.Background(), bangumiTorrentResolved("other", locations[other.hash]), "episode", "")
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestBangumiSourceTorrentCleanupRetryIsBounded(t *testing.T) {
@@ -596,16 +639,29 @@ func TestBangumiSourceTorrentCleanupRetryIsBounded(t *testing.T) {
 	manager, locations, clock := newBangumiTorrentResources(t, backend, 100, failed, fresh)
 	_, err := manager.prepare(context.Background(), bangumiTorrentResolved("source", locations[failed.hash]), "episode", "")
 	require.Error(t, err)
-	for _, step := range []struct { advance time.Duration; attempts int; wantError bool }{{10*time.Second, 1, false}, {31*time.Second, 2, true}, {61*time.Second, 3, true}, {121*time.Second, 4, true}} {
+	for _, step := range []struct {
+		advance   time.Duration
+		attempts  int
+		wantError bool
+	}{{10 * time.Second, 1, false}, {31 * time.Second, 2, true}, {61 * time.Second, 3, true}, {121 * time.Second, 4, true}} {
 		clock.Add(int64(step.advance))
 		err := manager.sweep(context.Background(), manager.now())
-		if step.wantError { require.Error(t, err) } else { require.NoError(t, err) }
-		backend.mu.Lock(); attempts := backend.deleteAttempts; backend.mu.Unlock()
+		if step.wantError {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+		backend.mu.Lock()
+		attempts := backend.deleteAttempts
+		backend.mu.Unlock()
 		assert.Equal(t, step.attempts, attempts)
 	}
-	clock.Add(int64(24*time.Hour))
+	clock.Add(int64(24 * time.Hour))
 	require.NoError(t, manager.sweep(context.Background(), manager.now()))
-	backend.mu.Lock(); attempts := backend.deleteAttempts; backend.failAdd, backend.failDelete = false, false; backend.mu.Unlock()
+	backend.mu.Lock()
+	attempts := backend.deleteAttempts
+	backend.failAdd, backend.failDelete = false, false
+	backend.mu.Unlock()
 	assert.Equal(t, 4, attempts, "parked cleanup must not keep issuing connections")
 	restarted, err := newBangumiTorrentManager(backend.server.URL, manager.root, manager.publicClient, 100)
 	require.NoError(t, err)
