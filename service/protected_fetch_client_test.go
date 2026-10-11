@@ -326,10 +326,14 @@ func TestBangumiPublicClientRejectsPrivateTargetsEvenWhenGeneralProtectionIsDisa
 	client, err := NewBangumiPublicHTTPClient("http://127.0.0.1:1")
 	require.NoError(t, err)
 	t.Cleanup(client.CloseIdleConnections)
+	// 最后一个 case 用的是 RFC 5737 的文档保留地址（不可路由），不是某个真实
+	// 主机：早先这里写 93.184.216.34（example.com 的老 IP），端口 8080 又在
+	// bangumi 允许范围内，于是测试会真的去连那台机器 —— 结果取决于它当时是否
+	// 在监听，CI 上就 flake 成 "connection refused"。
 	for _, target := range []string{
 		"http://127.0.0.1/secret", "http://169.254.169.254/metadata",
 		"http://[::1]/secret", "https://user:pass@source.example/video",
-		"http://93.184.216.34:8080/video", "ftp://source.example/video",
+		"http://192.0.2.1:8080/video", "ftp://source.example/video",
 	} {
 		t.Run(target, func(t *testing.T) {
 			response, err := client.Get(target)
