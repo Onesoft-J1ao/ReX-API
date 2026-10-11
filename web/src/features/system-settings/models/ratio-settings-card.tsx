@@ -165,6 +165,9 @@ const createGroupSchema = (t: Translate) =>
     GroupSpecialUsableGroup: createJsonStringField(t),
     GroupPricingSource: createJsonStringField(t),
     GroupModelPrice: createJsonStringField(t),
+    GroupModelRatio: createJsonStringField(t),
+    GroupModelCompletionRatio: createJsonStringField(t),
+    GroupModelCacheRatio: createJsonStringField(t),
     // Read-only input to the per-group override editor: it offers the models
     // that are configured at all, since an override can only name one.
     'billing_setting.billing_mode': z.string(),
@@ -299,6 +302,13 @@ export function RatioSettingsCard({
     ),
     GroupPricingSource: normalizeJsonString(groupDefaults.GroupPricingSource),
     GroupModelPrice: normalizeJsonString(groupDefaults.GroupModelPrice),
+    GroupModelRatio: normalizeJsonString(groupDefaults.GroupModelRatio),
+    GroupModelCompletionRatio: normalizeJsonString(
+      groupDefaults.GroupModelCompletionRatio
+    ),
+    GroupModelCacheRatio: normalizeJsonString(
+      groupDefaults.GroupModelCacheRatio
+    ),
     GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
     GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
     ModelSquareVisibleGroups: normalizeJsonString(
@@ -348,6 +358,13 @@ export function RatioSettingsCard({
         groupDefaults.GroupPricingSource
       ),
       GroupModelPrice: formatJsonForTextarea(groupDefaults.GroupModelPrice),
+      GroupModelRatio: formatJsonForTextarea(groupDefaults.GroupModelRatio),
+      GroupModelCompletionRatio: formatJsonForTextarea(
+        groupDefaults.GroupModelCompletionRatio
+      ),
+      GroupModelCacheRatio: formatJsonForTextarea(
+        groupDefaults.GroupModelCacheRatio
+      ),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
       ModelSquareVisibleGroups: formatJsonForTextarea(
@@ -410,6 +427,13 @@ export function RatioSettingsCard({
         groupDefaults.GroupPricingSource
       ),
       GroupModelPrice: normalizeJsonString(groupDefaults.GroupModelPrice),
+      GroupModelRatio: normalizeJsonString(groupDefaults.GroupModelRatio),
+      GroupModelCompletionRatio: normalizeJsonString(
+        groupDefaults.GroupModelCompletionRatio
+      ),
+      GroupModelCacheRatio: normalizeJsonString(
+        groupDefaults.GroupModelCacheRatio
+      ),
       GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
       ModelSquareVisibleGroups: normalizeJsonString(
@@ -433,6 +457,13 @@ export function RatioSettingsCard({
         groupDefaults.GroupPricingSource
       ),
       GroupModelPrice: formatJsonForTextarea(groupDefaults.GroupModelPrice),
+      GroupModelRatio: formatJsonForTextarea(groupDefaults.GroupModelRatio),
+      GroupModelCompletionRatio: formatJsonForTextarea(
+        groupDefaults.GroupModelCompletionRatio
+      ),
+      GroupModelCacheRatio: formatJsonForTextarea(
+        groupDefaults.GroupModelCacheRatio
+      ),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
       ModelSquareVisibleGroups: formatJsonForTextarea(
@@ -507,6 +538,11 @@ export function RatioSettingsCard({
         ),
         GroupPricingSource: normalizeJsonString(values.GroupPricingSource),
         GroupModelPrice: normalizeJsonString(values.GroupModelPrice),
+        GroupModelRatio: normalizeJsonString(values.GroupModelRatio),
+        GroupModelCompletionRatio: normalizeJsonString(
+          values.GroupModelCompletionRatio
+        ),
+        GroupModelCacheRatio: normalizeJsonString(values.GroupModelCacheRatio),
         GroupDefaultModel: filterDefaultModelsByGroups(
           values.GroupDefaultModel,
           Object.keys(
@@ -529,6 +565,10 @@ export function RatioSettingsCard({
         ModelSquareVisibleGroups: 'console_setting.model_square_visible_groups',
         GroupPricingSource: 'billing_setting.group_pricing_source',
         GroupModelPrice: 'billing_setting.group_model_price',
+        GroupModelRatio: 'billing_setting.group_model_ratio',
+        GroupModelCompletionRatio:
+          'billing_setting.group_model_completion_ratio',
+        GroupModelCacheRatio: 'billing_setting.group_model_cache_ratio',
       }
 
       const updates = (

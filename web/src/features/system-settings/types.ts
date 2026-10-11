@@ -354,6 +354,9 @@ export type ModelSettings = {
   'billing_setting.plugin_billing_expr': string
   'billing_setting.group_pricing_source': string
   'billing_setting.group_model_price': string
+  'billing_setting.group_model_ratio': string
+  'billing_setting.group_model_completion_ratio': string
+  'billing_setting.group_model_cache_ratio': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
@@ -398,6 +401,9 @@ export type BillingSettings = {
   'billing_setting.plugin_billing_expr': string
   'billing_setting.group_pricing_source': string
   'billing_setting.group_model_price': string
+  'billing_setting.group_model_ratio': string
+  'billing_setting.group_model_completion_ratio': string
+  'billing_setting.group_model_cache_ratio': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string

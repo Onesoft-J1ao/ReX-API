@@ -56,6 +56,10 @@ vi.mock('../group-model-price-editor', () => ({
   GroupModelPriceEditor: () => null,
 }))
 
+vi.mock('../group-model-ratio-editor', () => ({
+  GroupModelRatioEditor: () => null,
+}))
+
 const values: GroupFormValues = {
   GroupRatio: '{}',
   TopupGroupRatio: '{}',
@@ -69,6 +73,9 @@ const values: GroupFormValues = {
   GroupSpecialUsableGroup: '{}',
   GroupPricingSource: '{}',
   GroupModelPrice: '{}',
+  GroupModelRatio: '{}',
+  GroupModelCompletionRatio: '{}',
+  GroupModelCacheRatio: '{}',
   GroupDefaultModel: '{}',
   GroupRetryTimes: '{}',
   ModelSquareVisibleGroups: '[]',

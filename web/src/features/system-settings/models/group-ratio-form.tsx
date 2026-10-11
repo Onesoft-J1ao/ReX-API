@@ -64,6 +64,10 @@ import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeJsonParse } from '../utils/json-parser'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import { GroupCodingModelEditor } from './group-coding-model-editor'
+import {
+  GroupModelRatioEditor,
+  type GroupModelRatioData,
+} from './group-model-ratio-editor'
 import { GroupModelPriceEditor } from './group-model-price-editor'
 import { GroupPricingSourceEditor } from './group-pricing-source-editor'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
@@ -148,6 +152,55 @@ export const GroupRatioForm = memo(function GroupRatioForm({
     )
     return Object.keys(modes).sort()
   }, [watchedBillingMode])
+
+  // The three per-token override maps are edited as one table, so they are read
+  // together and written back together.
+  const watchedGroupModelRatio = form.watch('GroupModelRatio')
+  const watchedGroupModelCompletionRatio = form.watch(
+    'GroupModelCompletionRatio'
+  )
+  const watchedGroupModelCacheRatio = form.watch('GroupModelCacheRatio')
+  const groupModelRatioValue = useMemo<GroupModelRatioData>(
+    () => ({
+      ratio: safeJsonParse<Record<string, Record<string, number>>>(
+        watchedGroupModelRatio,
+        { fallback: {}, silent: true }
+      ),
+      completion: safeJsonParse<Record<string, Record<string, number>>>(
+        watchedGroupModelCompletionRatio,
+        { fallback: {}, silent: true }
+      ),
+      cache: safeJsonParse<Record<string, Record<string, number>>>(
+        watchedGroupModelCacheRatio,
+        { fallback: {}, silent: true }
+      ),
+    }),
+    [
+      watchedGroupModelRatio,
+      watchedGroupModelCompletionRatio,
+      watchedGroupModelCacheRatio,
+    ]
+  )
+
+  const handleGroupModelRatioChange = useCallback(
+    (value: GroupModelRatioData) => {
+      form.setValue('GroupModelRatio', JSON.stringify(value.ratio, null, 2), {
+        shouldValidate: true,
+        shouldDirty: true,
+      })
+      form.setValue(
+        'GroupModelCompletionRatio',
+        JSON.stringify(value.completion, null, 2),
+        { shouldValidate: true, shouldDirty: true }
+      )
+      form.setValue(
+        'GroupModelCacheRatio',
+        JSON.stringify(value.cache, null, 2),
+        { shouldValidate: true, shouldDirty: true }
+      )
+    },
+    [form]
+  )
 
   return (
     <div className='space-y-6'>
@@ -256,6 +309,13 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               groupOptions={groupNames}
               modelOptions={modelNames}
               onChange={(value) => handleFieldChange('GroupModelPrice', value)}
+            />
+
+            <GroupModelRatioEditor
+              value={groupModelRatioValue}
+              groupOptions={groupNames}
+              modelOptions={modelNames}
+              onChange={handleGroupModelRatioChange}
             />
 
             {hasAutoGroups ? (
@@ -399,6 +459,84 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'JSON map of group → description exposed when users create API keys.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupModelRatio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Per-group token ratio')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Nested JSON: group → { model: ratio }. Overrides the model token ratio inside that group.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupModelCompletionRatio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Per-group output multiplier')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Nested JSON: group → { model: multiplier }. Overrides the model output/input multiplier inside that group.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupModelCacheRatio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Per-group cache multiplier')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Nested JSON: group → { model: multiplier }. Overrides the cache-read multiplier inside that group.'
                     )}
                   </FormDescription>
                   <FormMessage />

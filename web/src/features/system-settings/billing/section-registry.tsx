@@ -59,6 +59,10 @@ const getGroupDefaults = (settings: BillingSettings) => ({
     settings['console_setting.model_square_visible_groups'],
   GroupPricingSource: settings['billing_setting.group_pricing_source'],
   GroupModelPrice: settings['billing_setting.group_model_price'],
+  GroupModelRatio: settings['billing_setting.group_model_ratio'],
+  GroupModelCompletionRatio:
+    settings['billing_setting.group_model_completion_ratio'],
+  GroupModelCacheRatio: settings['billing_setting.group_model_cache_ratio'],
   'billing_setting.billing_mode': settings['billing_setting.billing_mode'],
 })
 
