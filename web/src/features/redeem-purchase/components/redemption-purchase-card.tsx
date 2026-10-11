@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -167,7 +168,12 @@ export function RedemptionPurchaseCard(props: RedemptionPurchaseCardProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('Buy redemption codes')}</CardTitle>
+        <CardTitle className='flex items-center gap-2'>
+          {t('Buy redemption codes')}
+          <Badge variant='secondary' className='text-xs'>
+            {t('No handling fee — recommended')}
+          </Badge>
+        </CardTitle>
         <CardDescription>
           {t(
             'Pay with a payment method and receive redemption codes of the face value you choose.'
