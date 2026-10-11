@@ -41,11 +41,11 @@ type PriceSentinelSetting struct {
 	// IgnoredModels are never reported. Operators use it for models whose price
 	// is deliberately kept above or below the upstream's.
 	IgnoredModels string `json:"ignored_models"`
-	// MarginPercent is the markup a synchronisation applies on top of the
-	// upstream price: ours = upstream * (1 + MarginPercent). Following the
-	// upstream at its own number would sell at cost, and the digest exists to be
-	// applied in bulk, so the margin is what keeps a bulk apply from moving every
-	// price onto the upstream's. 0.2 means 20% above.
+	// MarginPercent is the gross margin a synchronisation keeps over the
+	// upstream price: ours = upstream / (1 - MarginPercent). The upstream figure
+	// is what we pay, so following it at its own number would sell at cost, and
+	// the digest exists to be applied in bulk. 0.2 means 20% of revenue kept,
+	// i.e. x1.25 — not a 20% markup, which would keep only 16.67%.
 	MarginPercent float64 `json:"margin_percent"`
 }
 

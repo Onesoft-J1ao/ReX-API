@@ -10,9 +10,9 @@ import (
 
 func fptr(v float64) *float64 { return &v }
 
-// A model synced to upstream * (1 + margin) is healthy and must not be reported.
+// A model synced to upstream / (1 - margin) is healthy and must not be reported.
 // Comparing against the raw upstream number flagged every synced price at
-// -16.67% (1/1.2 - 1), and applying the report wrote the margin back off — so
+// -25% (1 - 1/1.25), and applying the report wrote the margin back off — so
 // each run undid the previous one.
 //
 // Only the price fields carry the markup. completion_ratio is a multiplier on
@@ -21,7 +21,7 @@ func fptr(v float64) *float64 { return &v }
 // upstream that publishes 2.5x.
 func TestCompareModelAcceptsAMarkedUpPrice(t *testing.T) {
 	ours := localPrice{values: map[string]*float64{
-		"model_ratio":      fptr(0.15),
+		"model_ratio":      fptr(0.15625),
 		"completion_ratio": fptr(2.5),
 	}}
 	upstream := upstreamPrice{ModelRatio: 0.125, CompletionRatio: 2.5}
@@ -36,7 +36,7 @@ func TestCompareModelAcceptsAMarkedUpPrice(t *testing.T) {
 // apply path must write the published ratio back.
 func TestCompareModelReportsAMarkedUpRatioField(t *testing.T) {
 	ours := localPrice{values: map[string]*float64{
-		"model_ratio":      fptr(0.15),
+		"model_ratio":      fptr(0.15625),
 		"completion_ratio": fptr(3),
 	}}
 	upstream := upstreamPrice{ModelRatio: 0.125, CompletionRatio: 2.5}
@@ -61,12 +61,12 @@ func TestCompareModelReportsDriftFromTheExpectedPrice(t *testing.T) {
 
 	changes := compareModel("grok-4.3", ours, upstream, 5, 0.2)
 
-	// Percent is relative to our own price: the expected 0.15 sits 50% below
-	// our 0.30, so the signed value is negative — we are charging more than the
-	// marked-up upstream.
+	// Percent is relative to our own price: the expected 0.15625 sits 47.92%
+	// below our 0.30, so the signed value is negative — we are charging more
+	// than the margin-adjusted upstream.
 	if assert.Len(t, changes, 1) {
 		assert.Equal(t, "model_ratio", changes[0].Field)
-		assert.InDelta(t, -50, changes[0].Percent, 0.01)
+		assert.InDelta(t, -47.92, changes[0].Percent, 0.01)
 	}
 }
 
@@ -87,7 +87,7 @@ func TestCompareModelIgnoresZeroAgainstAbsentBothWays(t *testing.T) {
 // A dimension only one side charges for is a real difference and stays reported.
 func TestCompareModelReportsAOneSidedDimension(t *testing.T) {
 	ours := localPrice{values: map[string]*float64{
-		"model_ratio": fptr(1.2),
+		"model_ratio": fptr(1.25),
 		"cache_ratio": fptr(0.08),
 	}}
 	upstream := upstreamPrice{ModelRatio: 1}
@@ -111,7 +111,7 @@ func TestPercentChangeHasNoMeaningForAZeroSide(t *testing.T) {
 func TestWithMarginMatchesTheComparisonExpectation(t *testing.T) {
 	upstream := 0.125
 	written := WithMargin(upstream, 0.2)
-	expected := upstream * (1 + 0.2)
+	expected := upstream / (1 - 0.2)
 
 	assert.InDelta(t, expected, written, 1e-6)
 

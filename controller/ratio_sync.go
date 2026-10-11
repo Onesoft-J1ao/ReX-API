@@ -730,7 +730,9 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 				var upstreamValue any = nil
 
 				if val, exists := valueMap(channel.data[ratioType])[modelName]; exists {
-					upstreamValue = normalizeSyncValue(ratioType, val)
+					// 上游报的是我们的进货价，直接抄等于零毛利 —— 提价后再作为
+					// 同步目标给出来。
+					upstreamValue = applyUpstreamMargin(ratioType, normalizeSyncValue(ratioType, val))
 					hasUpstreamValue = true
 
 					if localValue != nil && !valuesEqual(localValue, upstreamValue) {
@@ -821,6 +823,66 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 
 func roundRatioValue(value float64) float64 {
 	return math.Round(value*1e6) / 1e6
+}
+
+// upstreamSyncMargin is the markup applied to an upstream price before it is
+// offered as a synchronization target. The upstream's figure is what it charges
+// us, so copying it verbatim would sell at zero margin.
+const upstreamSyncMargin = 0.20
+
+// applyUpstreamMargin scales only the fields that carry an actual price.
+// completion / cache / image / audio ratios are relative multipliers — a
+// model's output costs "5× its input" on both sides — so scaling them would
+// corrupt the price rather than add margin to it.
+func applyUpstreamMargin(field string, value any) any {
+	scale := 1 / (1 - upstreamSyncMargin)
+	switch field {
+	case "model_ratio", "model_price":
+		if number, ok := asFloat64(value); ok {
+			return number * scale
+		}
+	case billing_setting.BillingExprField:
+		if expression, ok := value.(string); ok {
+			return scaleBillingExprCost(expression, scale)
+		}
+	}
+	return value
+}
+
+// scaleBillingExprCost multiplies every `* N` coefficient in a billing
+// expression. Only the number right after `*` is touched: tier names can carry
+// digits (`tier("0_272k", ...)`) and length bounds (`len <= 272000`) must
+// survive untouched.
+func scaleBillingExprCost(expression string, factor float64) string {
+	var b strings.Builder
+	b.Grow(len(expression))
+	for i := 0; i < len(expression); {
+		c := expression[i]
+		b.WriteByte(c)
+		i++
+		if c != '*' {
+			continue
+		}
+		for i < len(expression) && (expression[i] == ' ' || expression[i] == '\t') {
+			b.WriteByte(expression[i])
+			i++
+		}
+		start := i
+		for i < len(expression) &&
+			((expression[i] >= '0' && expression[i] <= '9') || expression[i] == '.') {
+			i++
+		}
+		if start == i {
+			continue // `*` followed by something that is not a number
+		}
+		number, err := strconv.ParseFloat(expression[start:i], 64)
+		if err != nil {
+			b.WriteString(expression[start:i])
+			continue
+		}
+		b.WriteString(strconv.FormatFloat(number*factor, 'f', -1, 64))
+	}
+	return b.String()
 }
 
 func isModelsDevAPIEndpoint(rawURL string) bool {

@@ -25,13 +25,13 @@ func TestChangeIsReportedOnlyMatchesTheMailedReport(t *testing.T) {
 	assert.False(t, ChangeIsReported(changes, "grok-4.6", "model_price"))
 }
 
-// A margin multiplication leaves float noise that would be written straight into
-// the price table and then reported as a difference on the next run, so the
-// rounding is part of the contract rather than cosmetic.
+// The margin division leaves float noise that would be written straight into the
+// price table and then reported as a difference on the next run, so the rounding
+// is part of the contract rather than cosmetic.
 func TestWithMarginRoundsFloatNoise(t *testing.T) {
-	assert.Equal(t, 0.096, WithMargin(0.08, 0.2))
+	assert.Equal(t, 0.1, WithMargin(0.08, 0.2))
 	assert.Equal(t, 1.0, WithMargin(1, 0))
-	assert.Equal(t, 2.5, WithMargin(2, 0.25))
+	assert.Equal(t, 2.666667, WithMargin(2, 0.25))
 }
 
 // The margin belongs on the price, not on the multipliers that scale it.
@@ -41,8 +41,8 @@ func TestWithMarginRoundsFloatNoise(t *testing.T) {
 // a 20% margin would charge 6x, and a 0.04 cache ratio would stop being a
 // discount. Compare and apply must agree, so both go through this helper.
 func TestWithMarginForFieldLeavesRatiosAlone(t *testing.T) {
-	assert.Equal(t, 1.2, WithMarginForField("model_ratio", 1, 0.2))
-	assert.Equal(t, 0.12, WithMarginForField("model_price", 0.1, 0.2))
+	assert.Equal(t, 1.25, WithMarginForField("model_ratio", 1, 0.2))
+	assert.Equal(t, 0.125, WithMarginForField("model_price", 0.1, 0.2))
 	assert.Equal(t, 5.0, WithMarginForField("completion_ratio", 5, 0.2))
 	assert.Equal(t, 0.04, WithMarginForField("cache_ratio", 0.04, 0.2))
 }
@@ -64,7 +64,7 @@ func TestBuildSyncEditsDoesNotMarkUpRatioFields(t *testing.T) {
 	for _, edit := range edits {
 		byField[edit.Field] = edit.Value
 	}
-	assert.Equal(t, 0.81, byField["model_ratio"], "the price carries the margin")
+	assert.Equal(t, 0.84375, byField["model_ratio"], "the price carries the margin")
 	assert.Equal(t, 5.0, byField["completion_ratio"], "the multiplier is copied as published")
 	assert.Equal(t, 0.04, byField["cache_ratio"], "the multiplier is copied as published")
 }
@@ -84,7 +84,7 @@ func TestBuildSyncEditsSkipsModelsWeNeverPriced(t *testing.T) {
 	require.Len(t, edits, 1, "only the model we already price may be written")
 	assert.Equal(t, "priced", edits[0].ModelName)
 	assert.Equal(t, "model_ratio", edits[0].Field)
-	assert.Equal(t, 1.2, edits[0].Value, "the write carries the margin")
+	assert.Equal(t, 1.25, edits[0].Value, "the write carries the margin")
 	assert.Equal(t, 2, skipped)
 }
 

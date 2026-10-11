@@ -95,10 +95,10 @@ func RunOnce(ctx context.Context) (*Comparison, error) {
 	ours := localPrices()
 	ignored := ignoredSet(price_sentinel_setting.GetIgnoredModels())
 	threshold := price_sentinel_setting.GetMinChangePercent()
-	// The apply path writes upstream * (1 + margin), so that is what a
+	// The apply path writes upstream / (1 - margin), so that is what a
 	// correctly-synced model looks like here. Comparing against the raw upstream
-	// number instead made every synced price read as a -16.67% difference
-	// (1/1.2 - 1), and applying the report then stripped the margin back off.
+	// number instead made every synced price read as a -25% difference
+	// (1 - 1/1.25), and applying the report then stripped the margin back off.
 	margin := price_sentinel_setting.GetMarginPercent()
 
 	shared := make([]string, 0, len(upstream))
@@ -197,8 +197,8 @@ func numericallyComparable(ours localPrice, theirs upstreamPrice) bool {
 
 // compareModel returns one PriceChange per field that differs beyond threshold.
 //
-// `margin` is the markup the apply path charges, so a model already synced to
-// upstream * (1 + margin) compares equal and stays out of the report. The
+// `margin` is the margin the apply path charges, so a model already synced to
+// upstream / (1 - margin) compares equal and stays out of the report. The
 // reported Percent stays relative to our own price, so the number still answers
 // "how far off are we" rather than "how far off is the expectation".
 func compareModel(name string, ours localPrice, upstream upstreamPrice, threshold, margin float64) []model.PriceChange {

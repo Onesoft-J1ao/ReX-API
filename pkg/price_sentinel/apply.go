@@ -80,14 +80,23 @@ var ratioFields = map[string]bool{
 	"cache_ratio":      true,
 }
 
-// WithMargin returns the price to charge for an upstream price under a markup.
+// WithMargin returns the price to charge for an upstream price under a margin.
+//
+// The margin is a share of what we charge, so the upstream figure is the cost
+// side of it: ours = upstream / (1 - margin). A 20% margin is therefore x1.25,
+// not x1.2 — the latter is a 20% markup, which leaves only 16.67% of revenue.
 //
 // The result is rounded to six decimals: the upstream publishes ratios well
-// inside that, and without the rounding a multiplication leaves float noise
-// (0.08 * 1.2 = 0.09600000000000002) that would be written into the price table
+// inside that, and without the rounding a division leaves float noise
+// (0.08 / 0.8 = 0.10000000000000002) that would be written into the price table
 // and reported as a difference on the next run.
 func WithMargin(upstream float64, marginPercent float64) float64 {
-	adjusted := upstream * (1 + marginPercent)
+	if marginPercent >= 1 {
+		// A margin of 100% or more has no finite price; leave the cost as-is
+		// rather than dividing by zero or flipping the sign.
+		return upstream
+	}
+	adjusted := upstream / (1 - marginPercent)
 	return math.Round(adjusted*1e6) / 1e6
 }
 
