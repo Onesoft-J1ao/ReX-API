@@ -1,34 +1,28 @@
-name: Publish Docker image (Multi-arch)
+name: Build and publish image
 
+# 本机 docker build 很占磁盘，构建统一放到这里跑，产物推到 GHCR。
+# 服务器侧改成 docker pull ghcr.io/onesoft-j1ao/rex-api:<tag> 即可。
 on:
   push:
     branches:
       - main
+      - 'deploy/**'
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/steve3184/new-api
+  IMAGE: ghcr.io/onesoft-j1ao/rex-api
 
 jobs:
-  build_single_arch:
-    name: Build & push (${{ matrix.arch }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            platform: linux/amd64
-            runner: ubuntu-latest
-          - arch: arm64
-            platform: linux/arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    outputs:
-      sha: ${{ steps.version.outputs.sha }}
+  build:
+    name: Build & push (linux/amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     permissions:
-      packages: write
       contents: read
+      packages: write
 
     steps:
       - name: Check out
@@ -36,12 +30,14 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Resolve short SHA & write VERSION
+      - name: Resolve tags
         id: version
         run: |
           SHA=$(git rev-parse --short HEAD)
-          echo "SHA=${SHA}" >> $GITHUB_ENV
+          # 分支名里的 / 不能进 docker tag
+          BRANCH=$(echo "${GITHUB_REF_NAME}" | tr '/' '-')
           echo "sha=${SHA}" >> $GITHUB_OUTPUT
+          echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
           echo "${SHA}" > VERSION
 
       - name: Set up Docker Buildx
@@ -65,11 +61,13 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          platforms: ${{ matrix.platform }}
+          # 服务器是 x86_64，只构建 amd64；要 arm64 再加一个 matrix 分支。
+          platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.IMAGE }}:latest-${{ matrix.arch }}
-            ${{ env.IMAGE }}:${{ env.SHA }}-${{ matrix.arch }}
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ steps.version.outputs.branch }}
+            ${{ env.IMAGE }}:${{ steps.version.outputs.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -78,48 +76,17 @@ jobs:
 
       - name: Image summary
         run: |
-          echo "### Docker Image (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ env.IMAGE }}:latest-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-  create_manifests:
-    name: Create multi-arch manifests
-    needs: [build_single_arch]
-    runs-on: ubuntu-latest
-
-    permissions:
-      packages: write
-
-    steps:
-      - name: Set SHA
-        run: echo "SHA=${{ needs.build_single_arch.outputs.sha }}" >> $GITHUB_ENV
-
-      - name: Log in to ghcr.io
-        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create & push manifest (latest)
-        run: |
-          docker buildx imagetools create \
-            -t ${{ env.IMAGE }}:latest \
-            ${{ env.IMAGE }}:latest-amd64 \
-            ${{ env.IMAGE }}:latest-arm64
-
-      - name: Create & push manifest (sha)
-        run: |
-          docker buildx imagetools create \
-            -t ${{ env.IMAGE }}:${{ env.SHA }} \
-            ${{ env.IMAGE }}:${{ env.SHA }}-amd64 \
-            ${{ env.IMAGE }}:${{ env.SHA }}-arm64
-
-      - name: Manifest summary
-        run: |
-          echo "### Multi-arch Manifest" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect ${{ env.IMAGE }}:latest >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### 镜像已推送"
+            echo '```'
+            echo "${{ env.IMAGE }}:latest"
+            echo "${{ env.IMAGE }}:${{ steps.version.outputs.branch }}"
+            echo "${{ env.IMAGE }}:${{ steps.version.outputs.sha }}"
+            echo "digest: ${{ steps.build.outputs.digest }}"
+            echo '```'
+            echo
+            echo "服务器上更新："
+            echo '```'
+            echo "docker pull ${{ env.IMAGE }}:${{ steps.version.outputs.sha }}"
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
