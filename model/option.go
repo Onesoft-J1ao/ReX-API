@@ -443,7 +443,24 @@ func UpdateOption(key string, value string) error {
 	// otherwise it will execute Update (with all fields).
 	DB.Save(&option)
 	// Update OptionMap
-	return updateOptionMap(key, value)
+	if err := updateOptionMap(key, value); err != nil {
+		return err
+	}
+	// 遗留键别名。分组设置页历史上把倍率存成裸 `GroupRatio` / `GroupGroupRatio`，
+	// 而网关读的是注册过的 `group_ratio_setting.*` —— 于是「后台改分组倍率不
+	// 生效」。这里补一次写入，让老键名的保存真正落到生效键上。
+	if alias, ok := legacyOptionAliases[key]; ok {
+		return UpdateOption(alias, value)
+	}
+	return nil
+}
+
+// legacyOptionAliases maps a legacy option key to the registered key that
+// actually feeds the running configuration. Only keys whose value is still
+// written under the old name belong here.
+var legacyOptionAliases = map[string]string{
+	"GroupRatio":      "group_ratio_setting.group_ratio",
+	"GroupGroupRatio": "group_ratio_setting.group_group_ratio",
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
