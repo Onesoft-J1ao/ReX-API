@@ -23,7 +23,8 @@ func TestPricingSyncExpressionPriority(t *testing.T) {
 		source     map[string]any
 		wantFields []string
 	}{
-		{"equal expressions suppress stale ratios", map[string]any{"billing_mode": map[string]string{"m": "tiered_expr"}, "billing_expr": map[string]string{"m": expression}}, map[string]any{"billing_mode": map[string]string{"m": "tiered_expr"}, "billing_expr": map[string]string{"m": expression}, "model_ratio": map[string]float64{"m": 3}, "model_price": map[string]float64{"m": 2}}, nil},
+		// local 已经是「上游 × 1.25」的形态 —— 同步过的模型不该再报差异。
+		{"equal expressions suppress stale ratios", map[string]any{"billing_mode": map[string]string{"m": "tiered_expr"}, "billing_expr": map[string]string{"m": scaleBillingExprCost(expression, 1/(1-upstreamSyncMargin))}}, map[string]any{"billing_mode": map[string]string{"m": "tiered_expr"}, "billing_expr": map[string]string{"m": expression}, "model_ratio": map[string]float64{"m": 3}, "model_price": map[string]float64{"m": 2}}, nil},
 		{"local expression excludes legacy-only source", map[string]any{"billing_mode": map[string]string{"m": "tiered_expr"}, "billing_expr": map[string]string{"m": expression}}, map[string]any{"model_ratio": map[string]float64{"m": 3}, "completion_ratio": map[string]float64{"m": 2}}, nil},
 		{"expression imports without legacy conflicts", map[string]any{"model_ratio": map[string]float64{"m": 1}}, map[string]any{"billing_mode": map[string]string{"m": "tiered_expr"}, "billing_expr": map[string]string{"m": expression}, "model_ratio": map[string]float64{"m": 3}, "model_price": map[string]float64{"m": 2}}, []string{"billing_mode", "billing_expr"}},
 		{"inactive expression follows explicit ratio mode", map[string]any{"model_ratio": map[string]float64{"m": 1}}, map[string]any{"billing_mode": map[string]string{"m": "ratio"}, "billing_expr": map[string]string{"m": expression}, "model_ratio": map[string]float64{"m": 3}}, []string{"model_ratio"}},
@@ -78,7 +79,9 @@ func TestPricingSyncCompleteSourcesAndArrayFormats(t *testing.T) {
 	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"sync-token":1}`))
 	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{"sync-token":2}`))
 	expression := `len <= 200000 ? tier("short", p * 2 + c * 8 + cr * 0) : tier("long", p * 4 + c * 12)`
-	expressions, err := common.Marshal(map[string]string{"sync-already": expression})
+	// 本地已按毛利同步过的形态：上游 × 1.25。
+	syncedExpression := scaleBillingExprCost(expression, 1/(1-upstreamSyncMargin))
+	expressions, err := common.Marshal(map[string]string{"sync-already": syncedExpression})
 	require.NoError(t, err)
 	config.UpdateConfigFromMap(config.GlobalConfig.Get("billing_setting"), map[string]string{"billing_mode": `{"sync-already":"tiered_expr"}`, "billing_expr": string(expressions)})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,10 +135,12 @@ func TestPricingSyncCompleteSourcesAndArrayFormats(t *testing.T) {
 	assert.NotContains(t, response.Data.Differences, "sync-already")
 	assert.NotContains(t, response.Data.Differences, "sync-unpriced")
 	assert.NotContains(t, response.Data.Differences, "sync-invalid-expression")
-	assert.Equal(t, map[string]any{"billing_mode": "tiered_expr", "billing_expr": expression}, response.Data.Prices["sync-expression"].Upstreams["Expressions(1)"])
+	assert.Equal(t, map[string]any{"billing_mode": "tiered_expr", "billing_expr": syncedExpression}, response.Data.Prices["sync-expression"].Upstreams["Expressions(1)"])
+
+	assert.Equal(t, map[string]any{"billing_mode": "tiered_expr", "billing_expr": syncedExpression}, response.Data.Prices["sync-array-expression"].Upstreams["Legacy(2)"])
+
+	assert.Equal(t, float64(1.25), response.Data.Prices["sync-token"].Upstreams["Expressions(1)"]["model_ratio"], "the preview carries the margin, matching what an apply writes")
 	assert.NotContains(t, response.Data.Prices["sync-expression"].Upstreams, "Legacy(2)")
-	assert.Equal(t, map[string]any{"billing_mode": "tiered_expr", "billing_expr": expression}, response.Data.Prices["sync-array-expression"].Upstreams["Legacy(2)"])
-	assert.Equal(t, float64(1), response.Data.Prices["sync-token"].Upstreams["Expressions(1)"]["model_ratio"], "unchanged base prices are included for a complete price preview")
 	assert.Equal(t, float64(4), response.Data.Prices["sync-token"].Upstreams["Expressions(1)"]["completion_ratio"])
 	assert.Equal(t, float64(0), response.Data.Prices["sync-token"].Upstreams["Expressions(1)"]["cache_ratio"])
 	assert.Equal(t, float64(0), response.Data.Prices["sync-free"].Upstreams["Legacy(2)"]["model_ratio"])

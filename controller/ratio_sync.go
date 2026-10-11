@@ -612,6 +612,11 @@ func FetchUpstreamRatios(c *gin.Context) {
 		_, expressionPriority := fields[billing_setting.BillingExprField]
 		for _, channel := range successfulChannels {
 			candidate := modelPricingSyncValues(channel.data, name)
+			// 预览必须与写入一致：差异里的目标值已经含毛利，这里也跟着提价，
+			// 否则用户会看到「上游 2」却写进 2.5。
+			for field, value := range candidate {
+				candidate[field] = applyUpstreamMargin(field, value)
+			}
 			if expressionPriority && candidate[billing_setting.BillingModeField] != billing_setting.BillingModeTieredExpr {
 				continue
 			}
