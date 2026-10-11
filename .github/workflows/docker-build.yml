@@ -90,3 +90,20 @@ jobs:
             echo "docker pull ${{ env.IMAGE }}:${{ steps.version.outputs.sha }}"
             echo '```'
           } >> $GITHUB_STEP_SUMMARY
+
+      # 服务器网络受墙时 GHCR 拉不动，就从这个 artifact 下载 tgz 再
+      # `docker load`。gzip 后约 80MB（镜像本体 333MB），远小于 save 出的 tar。
+      - name: Export compressed image
+        run: |
+          docker pull --quiet ${{ env.IMAGE }}:${{ steps.version.outputs.sha }}
+          docker save ${{ env.IMAGE }}:${{ steps.version.outputs.sha }} | gzip \
+            > rex-api-${{ steps.version.outputs.sha }}.tgz
+          ls -la rex-api-*.tgz
+
+      - name: Upload image tgz
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rex-api-image-${{ steps.version.outputs.sha }}
+          path: rex-api-*.tgz
+          retention-days: 14
+          compression-level: 0
