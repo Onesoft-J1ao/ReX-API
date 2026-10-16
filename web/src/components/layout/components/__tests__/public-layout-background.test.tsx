@@ -104,8 +104,9 @@ describe('public layout background surfaces', () => {
     const root = renderLayout('hero')
 
     expect(root).toHaveAttribute('data-console-background', 'image')
+    // 40% configured -> card clamps at round(40 * 0.85) = 34, sidebar 50, list 60.
     expect(root.style.getPropertyValue('--console-surface-opacity')).toBe('40%')
-    expect(root.style.getPropertyValue('--console-card-opacity')).toBe('55%')
+    expect(root.style.getPropertyValue('--console-card-opacity')).toBe('34%')
     expect(root.style.getPropertyValue('--console-sidebar-opacity')).toBe('50%')
     expect(root.style.getPropertyValue('--console-list-opacity')).toBe('60%')
   })
@@ -119,7 +120,8 @@ describe('public layout background surfaces', () => {
     expect(root.style.getPropertyValue('--console-surface-opacity')).toBe(
       '100%'
     )
-    expect(root.style.getPropertyValue('--console-card-opacity')).toBe('85%')
+    // 100% is the ceiling: card clamps at 60, sidebar at 80, list at 75.
+    expect(root.style.getPropertyValue('--console-card-opacity')).toBe('60%')
     expect(root.style.getPropertyValue('--console-sidebar-opacity')).toBe('80%')
     expect(root.style.getPropertyValue('--console-list-opacity')).toBe('75%')
   })
@@ -130,7 +132,7 @@ describe('public layout background surfaces', () => {
     const root = renderLayout('hero')
 
     expect(root).toHaveAttribute('data-console-background', 'image')
-    expect(root.style.getPropertyValue('--console-card-opacity')).toBe('55%')
+    expect(root.style.getPropertyValue('--console-card-opacity')).toBe('34%')
   })
 
   test('leaves surfaces solid when the page does not request the hero backdrop', () => {

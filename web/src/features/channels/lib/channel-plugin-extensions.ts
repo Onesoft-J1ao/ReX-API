@@ -67,6 +67,18 @@ export function readTaskExtendPluginKeys(
   return [...new Set(single ? [single, ...keys] : keys)]
 }
 
+/** The subset of a channel's saved setting that names its upstream plugins. */
+export function readChannelPluginSettings(
+  setting: string | null | undefined
+): Pick<ChannelSettings, 'task_plugin_key' | 'task_extend_plugin_keys'> {
+  if (!setting) return {}
+  try {
+    return JSON.parse(setting)
+  } catch {
+    return {}
+  }
+}
+
 // A New API channel proxies another gateway, which serves a plugin's wire
 // format only on the plugin's own native routes. Only drivers that declare
 // they address such a gateway can be bound there; the server rejects the rest.

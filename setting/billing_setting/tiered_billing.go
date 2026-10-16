@@ -155,16 +155,7 @@ func GetGroupModelPrice(group, model string) (float64, bool) {
 
 // GetGroupModelPriceCopy returns a copy for the settings API.
 func GetGroupModelPriceCopy() map[string]map[string]float64 {
-	if len(billingSetting.GroupModelPrice) == 0 {
-		return nil
-	}
-	cloned := make(map[string]map[string]float64, len(billingSetting.GroupModelPrice))
-	for group, byModel := range billingSetting.GroupModelPrice {
-		copied := make(map[string]float64, len(byModel))
-		maps.Copy(copied, byModel)
-		cloned[group] = copied
-	}
-	return cloned
+	return cloneGroupModelMap(billingSetting.GroupModelPrice)
 }
 
 // GetGroupModelRatio returns the per-token ratio this group charges for this

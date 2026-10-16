@@ -158,6 +158,13 @@ export type PricingData = {
    */
   group_model_completion_ratio?: Record<string, Record<string, number>>
   group_model_cache_ratio?: Record<string, Record<string, number>>
+  /**
+   * Per-group per-call prices, as `{group: {model: usd}}`. A group may serve a
+   * model through a different upstream than the one the global price was set
+   * from, so the square reads this before falling back to the model's own
+   * per-call price.
+   */
+  group_model_price?: Record<string, Record<string, number>>
   usable_group: Record<string, { desc: string; ratio: number }>
   model_square_group_descriptions?: Record<string, string>
   supported_endpoint: Record<string, string>

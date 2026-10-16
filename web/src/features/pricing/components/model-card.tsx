@@ -364,7 +364,8 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             usdExchangeRate,
             props.selectedGroup,
             undefined,
-            props.groupBillingSource
+            props.groupBillingSource,
+            props.groupPricingOverrides
           )}
           <span className='text-muted-foreground text-xs font-normal'>
             {' '}
@@ -422,32 +423,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       <CardContent className='flex flex-1 flex-col gap-2.5'>
         {/* The description and tags lead, because they tell a reader what the
             model is before the numbers tell them what it costs. */}
-        <div className='flex min-w-0 flex-col gap-1.5'>
-          <p className='text-muted-foreground line-clamp-1 text-xs leading-4 break-words'>
-            {props.model.description || t('No description available.')}
-          </p>
-          {tags.length > 0 && (
-            <div
-              role='group'
-              aria-label={t('Tags')}
-              className='text-muted-foreground flex min-w-0 items-baseline gap-1.5 text-xs'
-            >
-              <span className='shrink-0'>{t('Tags')}</span>
-              <span className='truncate' title={tags.join(', ')}>
-                {tags.slice(0, 2).join(', ')}
-              </span>
-              {tags.length > 2 && (
-                <span className='shrink-0' title={tags.slice(2).join(', ')}>
-                  +{tags.length - 2}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
         <div
           role='group'
           aria-label={t('Pricing')}
-          className='mt-auto flex min-w-0 flex-col gap-1.5'
+          className='flex min-w-0 flex-col gap-1.5'
         >
           {dynamicSummary?.providerCount && (
             <span className='text-muted-foreground text-xs break-words'>
@@ -523,6 +502,31 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               </dd>
             </div>
           )}
+        {/* The description and tags trail the numbers: the price is what a
+            reader scans for, and the prose is what they read once a candidate
+            is worth a second look. */}
+        <div className='mt-auto flex min-w-0 flex-col gap-1.5'>
+          <p className='text-muted-foreground line-clamp-1 text-xs leading-4 break-words'>
+            {props.model.description || t('No description available.')}
+          </p>
+          {tags.length > 0 && (
+            <div
+              role='group'
+              aria-label={t('Tags')}
+              className='text-muted-foreground flex min-w-0 items-baseline gap-1.5 text-xs'
+            >
+              <span className='shrink-0'>{t('Tags')}</span>
+              <span className='truncate' title={tags.join(', ')}>
+                {tags.slice(0, 2).join(', ')}
+              </span>
+              {tags.length > 2 && (
+                <span className='shrink-0' title={tags.slice(2).join(', ')}>
+                  +{tags.length - 2}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
         </dl>
       </CardContent>
       <CardFooter className='mt-auto border-0 bg-transparent pt-0'>

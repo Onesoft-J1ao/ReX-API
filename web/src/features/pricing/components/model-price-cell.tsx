@@ -32,7 +32,11 @@ import {
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
 import { isTokenBasedModel } from '../lib/model-helpers'
-import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  formatPrice,
+  formatRequestPrice,
+  type GroupPricingOverrides,
+} from '../lib/price'
 import { taskPriceLabel, taskUsageUnitLabel } from '../lib/task-price-display'
 import type { PricingModel, TokenUnit } from '../types'
 
@@ -42,6 +46,8 @@ export type ModelPriceCellOptions = {
   usdExchangeRate?: number
   showRechargePrice?: boolean
   selectedGroup?: string
+  /** Per-group per-model overrides, so a group repriced per call reads right. */
+  groupPricingOverrides?: GroupPricingOverrides
 }
 
 export function ModelPriceCell(props: {
@@ -243,7 +249,9 @@ export function ModelPriceCell(props: {
             options.priceRate,
             options.usdExchangeRate,
             options.selectedGroup,
-            false
+            false,
+            undefined,
+            options.groupPricingOverrides
           ),
         },
       ]

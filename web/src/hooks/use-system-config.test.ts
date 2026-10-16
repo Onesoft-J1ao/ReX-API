@@ -25,6 +25,7 @@ describe('mapStatusDataToConfig', () => {
     const config = mapStatusDataToConfig({
       site_appearance: {
         background_image: '/background.webp',
+        background_random_category: 'space',
         background_blur_opacity: 60,
         legal_background_enabled: false,
         default_theme: 'dark',
@@ -50,6 +51,7 @@ describe('mapStatusDataToConfig', () => {
 
     expect(config.appearance).toEqual({
       backgroundImage: '/background.webp',
+      backgroundRandomCategory: 'space',
       backgroundBlurOpacity: 60,
       legalBackgroundEnabled: false,
       defaultTheme: 'dark',

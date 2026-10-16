@@ -34,6 +34,7 @@ import {
   DEFAULT_PRICING_TABLE_PAGE_SIZE,
   DEFAULT_TOKEN_UNIT,
 } from '../constants'
+import type { GroupPricingOverrides } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import type { ModelPerfBadgeData } from './model-perf-badge'
 import { usePricingColumns } from './pricing-columns'
@@ -46,6 +47,7 @@ export interface PricingTableProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  groupPricingOverrides?: GroupPricingOverrides
   onModelClick?: (modelName: string) => void
   pageSize?: number
 }
@@ -60,6 +62,7 @@ export function PricingTable(props: PricingTableProps) {
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
     selectedGroup,
+    groupPricingOverrides,
     onModelClick,
   } = props
 
@@ -97,6 +100,7 @@ export function PricingTable(props: PricingTableProps) {
     usdExchangeRate,
     showRechargePrice,
     selectedGroup,
+    groupPricingOverrides,
     perfMap,
   })
 

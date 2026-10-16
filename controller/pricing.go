@@ -131,6 +131,12 @@ func GetPricing(c *gin.Context) {
 		billing_setting.GetGroupModelCacheRatioCopy(),
 		ratio_setting.GetGroupRatioCopy(),
 	)
+	// A group may also charge its own per-call price, which is how an image
+	// model is repriced without moving every other group that serves it.
+	groupModelPrice := filterGroupModelRatioByGroups(
+		billing_setting.GetGroupModelPriceCopy(),
+		ratio_setting.GetGroupRatioCopy(),
+	)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := pricingGroups[group]; !ok {
@@ -139,6 +145,7 @@ func GetPricing(c *gin.Context) {
 			delete(groupModelRatio, group)
 			delete(groupModelCompletionRatio, group)
 			delete(groupModelCacheRatio, group)
+			delete(groupModelPrice, group)
 		}
 	}
 
@@ -151,6 +158,7 @@ func GetPricing(c *gin.Context) {
 		"group_model_ratio":               groupModelRatio,
 		"group_model_completion_ratio":    groupModelCompletionRatio,
 		"group_model_cache_ratio":         groupModelCacheRatio,
+		"group_model_price":               groupModelPrice,
 		"usable_group":                    usableGroup,
 		"model_square_groups":             visibleGroups,
 		"model_square_group_descriptions": visibleDescriptions,

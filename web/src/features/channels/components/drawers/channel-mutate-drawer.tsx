@@ -139,6 +139,7 @@ import {
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_STATUS_LABELS,
   CHANNEL_TYPE_AGNES,
+  CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPE_TASK_PLUGIN,
@@ -195,6 +196,8 @@ import {
 } from '../../lib/channel-configuration'
 import {
   getChannelPluginExtensions,
+  readChannelPluginSettings,
+  readTaskExtendPluginKeys,
   supportsChannelPluginExtensions,
 } from '../../lib/channel-plugin-extensions'
 import { getChannelTypeConfig } from '../../lib/channel-type-config'
@@ -781,14 +784,35 @@ export function ChannelMutateDrawer({
     meta: { errorToast: false },
   })
   const canHavePluginExtensions = supportsChannelPluginExtensions(currentType)
+  // A New API channel only shows the plugins it was saved with, so the resolver
+  // needs the setting that names them — the form's live value while editing,
+  // the fetched row before the form has loaded.
+  const currentTaskExtendPluginKeys = form.watch('task_extend_plugin_keys')
+  const savedTaskExtendPluginKeys = useMemo(
+    () =>
+      readTaskExtendPluginKeys(
+        CHANNEL_TYPE_NEW_API,
+        readChannelPluginSettings(channelData?.data?.setting)
+      ),
+    [channelData?.data?.setting]
+  )
+  const pluginExtendKeys =
+    (currentTaskExtendPluginKeys?.length ?? 0) > 0
+      ? currentTaskExtendPluginKeys!
+      : savedTaskExtendPluginKeys
   const pluginExtensions = useMemo(() => {
     if (!canBindTaskPlugin || !taskPluginOptionsQuery.isSuccess) return []
-    return getChannelPluginExtensions(currentType, taskPluginOptionsQuery.data)
+    return getChannelPluginExtensions(
+      currentType,
+      taskPluginOptionsQuery.data,
+      pluginExtendKeys
+    )
   }, [
     canBindTaskPlugin,
     currentType,
     taskPluginOptionsQuery.isSuccess,
     taskPluginOptionsQuery.data,
+    pluginExtendKeys,
   ])
   const boundTaskPlugin =
     currentType === CHANNEL_TYPE_TASK_PLUGIN

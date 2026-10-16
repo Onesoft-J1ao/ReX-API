@@ -52,6 +52,7 @@ export function Pricing() {
     groupModelRatio,
     groupModelCompletionRatio,
     groupModelCacheRatio,
+    groupModelPrice,
     usableGroup,
     modelSquareGroupDescriptions,
     modelSquareGroups,
@@ -156,6 +157,7 @@ export function Pricing() {
             ratio: groupModelRatio,
             completion: groupModelCompletionRatio,
             cache: groupModelCacheRatio,
+            price: groupModelPrice,
           }}
           sortBy={sortBy}
           pageSize={appearance.modelSquareCardPageSize}

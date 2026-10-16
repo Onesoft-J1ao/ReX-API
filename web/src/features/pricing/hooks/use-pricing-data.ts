@@ -76,6 +76,7 @@ export function usePricingData(enabled = true) {
     groupModelRatio: data?.group_model_ratio,
     groupModelCompletionRatio: data?.group_model_completion_ratio,
     groupModelCacheRatio: data?.group_model_cache_ratio,
+    groupModelPrice: data?.group_model_price,
     modelSquareGroupDescriptions: data?.model_square_group_descriptions ?? {},
     usableGroup: Object.fromEntries(
       Object.entries(data?.usable_group ?? {}).map(([group, value]) => [

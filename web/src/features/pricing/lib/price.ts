@@ -92,8 +92,13 @@ function withGroupPricing(
   const ratio = overrides.ratio?.[group]?.[model.model_name]
   const completion = overrides.completion?.[group]?.[model.model_name]
   const cache = overrides.cache?.[group]?.[model.model_name]
+  const price = overrides.price?.[group]?.[model.model_name]
   return {
     ...model,
+    model_price:
+      typeof price === 'number' && Number.isFinite(price)
+        ? price
+        : model.model_price,
     model_ratio:
       typeof ratio === 'number' && Number.isFinite(ratio)
         ? ratio
@@ -114,6 +119,7 @@ export type GroupPricingOverrides = {
   ratio?: Record<string, Record<string, number>>
   completion?: Record<string, Record<string, number>>
   cache?: Record<string, Record<string, number>>
+  price?: Record<string, Record<string, number>>
 }
 
 /**
@@ -360,22 +366,28 @@ export function formatRequestPrice(
   usdExchangeRate = 1,
   selectedGroup?: string,
   showCurrencySymbol = true,
-  groupBillingSource?: Record<string, Record<string, string>>
+  groupBillingSource?: Record<string, Record<string, string>>,
+  groupPricingOverrides?: GroupPricingOverrides
 ): string {
   const perCallSource =
     model.quota_type === QUOTA_TYPE_VALUES.REQUEST ||
     getGroupPricingForModel(model, selectedGroup ?? '', groupBillingSource, 1)
       .source === 'price'
+  // A group may serve the model through a different upstream and charge its own
+  // per-call price; that figure replaces the model's global one for this group.
+  const priced = groupPricingOverrides
+    ? withGroupPricing(model, selectedGroup, groupPricingOverrides)
+    : model
   // A pinned model with no per-call price configured has nothing to charge per
   // request; the gateway rejects that pin rather than billing zero. A model
   // configured at zero is free, not unpriced, and falls through below.
-  if (!perCallSource || model.model_price == null) {
+  if (!perCallSource || priced.model_price == null) {
     return '-'
   }
 
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
-  let priceInUSD = model.model_price * displayGroupRatio
+  let priceInUSD = priced.model_price * displayGroupRatio
   if (priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) {
     return t('Free')
   }
