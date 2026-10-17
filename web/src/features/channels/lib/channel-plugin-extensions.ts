@@ -48,13 +48,17 @@ export function supportsChannelPluginExtensions(channelType: number): boolean {
 // so the administrator lists the plugins the channel is extended with. The
 // single task_plugin_key stays valid there and is shown together with the list.
 export function readTaskExtendPluginKeys(
-  channelType: number,
   setting:
     | Pick<ChannelSettings, 'task_plugin_key' | 'task_extend_plugin_keys'>
     | null
     | undefined
 ): string[] {
-  if (channelType !== CHANNEL_TYPE_NEW_API || !setting) return []
+  // CHANNEL_TYPE_NEW_API is 62, but an instance may predate a rename and still
+  // store the gateway under a different number. The reader is about the
+  // setting's shape, not the type's identity, and buildSettingJSON gates the
+  // write on the type, so reading must not silently drop a bound plugin and
+  // then persist the empty list on the next save.
+  if (!setting) return []
   const keys = Array.isArray(setting.task_extend_plugin_keys)
     ? setting.task_extend_plugin_keys.filter(
         (key): key is string => typeof key === 'string' && key.trim() !== ''

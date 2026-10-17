@@ -105,6 +105,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SecureVerificationDialog } from '@/features/auth/secure-verification'
+import { PluginIcon } from '@/features/task-plugins/components/plugin-icon'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import {
@@ -199,6 +200,7 @@ import {
   readChannelPluginSettings,
   readTaskExtendPluginKeys,
   supportsChannelPluginExtensions,
+  supportsNewAPIUpstream,
 } from '../../lib/channel-plugin-extensions'
 import { getChannelTypeConfig } from '../../lib/channel-type-config'
 import {
@@ -791,7 +793,6 @@ export function ChannelMutateDrawer({
   const savedTaskExtendPluginKeys = useMemo(
     () =>
       readTaskExtendPluginKeys(
-        CHANNEL_TYPE_NEW_API,
         readChannelPluginSettings(channelData?.data?.setting)
       ),
     [channelData?.data?.setting]
@@ -800,19 +801,45 @@ export function ChannelMutateDrawer({
     (currentTaskExtendPluginKeys?.length ?? 0) > 0
       ? currentTaskExtendPluginKeys!
       : savedTaskExtendPluginKeys
+  // The gateway serves a plugin's wire format only on that plugin's own native
+  // routes, so a plugin that does not declare new_api support cannot be bound
+  // here — the server rejects it, and offering it would only mislead.
+  const bindableUpstreamPlugins = useMemo(
+    () => (taskPluginOptionsQuery.data ?? []).filter(supportsNewAPIUpstream),
+    [taskPluginOptionsQuery.data]
+  )
+  const upstreamPluginOptions = useMemo(
+    () =>
+      bindableUpstreamPlugins.map((plugin) => ({
+        value: plugin.key,
+        label: plugin.name,
+        icon: <PluginIcon plugin={plugin} size={16} />,
+      })),
+    [bindableUpstreamPlugins]
+  )
+  // A New API channel resolves its chips from the bindable options, which load
+  // with the form, rather than from the raw plugin list whose query refires
+  // every time the form resets.
   const pluginExtensions = useMemo(() => {
-    if (!canBindTaskPlugin || !taskPluginOptionsQuery.isSuccess) return []
+    if (!canBindTaskPlugin) return []
+    if (currentType === CHANNEL_TYPE_NEW_API) {
+      return bindableUpstreamPlugins.filter((plugin) =>
+        pluginExtendKeys.includes(plugin.key)
+      )
+    }
+    if (!taskPluginOptionsQuery.isSuccess) return []
     return getChannelPluginExtensions(
       currentType,
       taskPluginOptionsQuery.data,
-      pluginExtendKeys
+      []
     )
   }, [
+    bindableUpstreamPlugins,
     canBindTaskPlugin,
     currentType,
+    pluginExtendKeys,
     taskPluginOptionsQuery.isSuccess,
     taskPluginOptionsQuery.data,
-    pluginExtendKeys,
   ])
   const boundTaskPlugin =
     currentType === CHANNEL_TYPE_TASK_PLUGIN
@@ -3423,6 +3450,42 @@ export function ChannelMutateDrawer({
                           }
                         />
                       </>
+                    )}
+                  {canBindTaskPlugin &&
+                    currentType === CHANNEL_TYPE_NEW_API && (
+                      <FormField
+                        control={form.control}
+                        name='task_extend_plugin_keys'
+                        render={({ field }) => (
+                          <FormItem className='space-y-3'>
+                            <div className='space-y-1'>
+                              <FormLabel>
+                                {t('Upstream task plugins')}
+                              </FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'A New API channel proxies another gateway, so list the task plugins installed on that gateway to publish their models here.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              {taskPluginOptionsQuery.isLoading ? (
+                                <Skeleton className='h-10 w-full' />
+                              ) : (
+                                <MultiSelect
+                                  options={upstreamPluginOptions}
+                                  selected={field.value ?? []}
+                                  onChange={field.onChange}
+                                  placeholder={t(
+                                    'Select the task plugins installed on the upstream gateway'
+                                  )}
+                                />
+                              )}
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     )}
                   {modelMappingGuardrail.exposedTargetModels.length > 0 && (
                     <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>

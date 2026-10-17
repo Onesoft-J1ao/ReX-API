@@ -316,7 +316,10 @@ test.each([
     if (savedUrl) await user.type(address, savedUrl)
     await user.click(screen.getByRole('button', { name: 'Update Channel' }))
     await waitFor(() => expect(put).toHaveBeenCalled())
-    expect(put.mock.calls[0]?.[1]).toMatchObject({ id: 42, base_url: savedUrl })
+    expect(put.mock.calls[0]?.[1]).toMatchObject({
+      id: 42,
+      base_url: savedUrl,
+    })
   }
 )
 
@@ -655,7 +658,9 @@ test('creating a migrated provider uses its plugin binding instead of the legacy
     .mockResolvedValue({ data: { success: true } })
   const user = userEvent.setup()
   render(<ConfigurationHarness />)
-  const plugin = await screen.findByRole('option', { name: 'Sora Plugin sora' })
+  const plugin = await screen.findByRole('option', {
+    name: 'Sora Plugin sora',
+  })
   expect(
     screen.queryByRole('option', { name: 'Sora Built-in #55' })
   ).not.toBeInTheDocument()
@@ -893,7 +898,9 @@ test('plugin model shortcuts truncate long names and omit plugins without model 
   const row = screen.getByRole('group', { name: 'Plugin extensions' })
   expect(row).toHaveClass('flex-wrap')
   expect(screen.getByText(name)).toHaveClass('truncate', 'max-w-36')
-  const trigger = screen.getByRole('button', { name: `${name} Selected 0 / 1` })
+  const trigger = screen.getByRole('button', {
+    name: `${name} Selected 0 / 1`,
+  })
   expect(trigger).toHaveAttribute('title', name)
   expect(trigger).toHaveClass('min-w-0', 'max-w-full')
   expect(screen.getAllByRole('button')).toHaveLength(1)
@@ -2605,7 +2612,10 @@ test('the header override passthrough template button confirms before filling th
 test('a New API channel binds upstream task plugins and publishes their models', async () => {
   const channel = channelSchema.parse({
     ...editingChannel,
-    type: 60,
+    // Reference the constant, not a literal: this id moved (a deploy branch
+    // once numbered New API 60, now 62) and a stale literal silently turned
+    // this test into an UnrealSpeech case.
+    type: CHANNEL_TYPE_NEW_API,
     base_url: 'https://gateway.example',
     models: 'gpt-5',
     setting: JSON.stringify({ task_extend_plugin_keys: ['video-a'] }),
@@ -2622,14 +2632,18 @@ test('a New API channel binds upstream task plugins and publishes their models',
     .mockResolvedValue({ data: { success: true } })
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={channel} />)
-  const extensions = within(
-    await screen.findByRole('group', { name: 'Plugin extensions' })
+  // The chips resolve from the row's setting until the saved row fills the
+  // form, so read them fresh after each interaction rather than holding the
+  // group captured while the form still showed its defaults.
+  const extensionGroup = () =>
+    within(screen.getByRole('group', { name: 'Plugin extensions' }))
+  await waitFor(() =>
+    expect(
+      extensionGroup().getByRole('button', { name: 'Video A Selected 0 / 1' })
+    ).toBeVisible()
   )
   expect(
-    extensions.getByRole('button', { name: 'Video A Selected 0 / 1' })
-  ).toBeVisible()
-  expect(
-    extensions.queryByRole('button', { name: /^Video B/ })
+    extensionGroup().queryByRole('button', { name: /^Video B/ })
   ).not.toBeInTheDocument()
 
   const selector = screen.getByRole('combobox', {
@@ -2641,16 +2655,19 @@ test('a New API channel binds upstream task plugins and publishes their models',
   ).not.toBeInTheDocument()
   await user.click(screen.getByRole('option', { name: /^Video B/ }))
   await user.keyboard('{Escape}')
-  expect(
-    extensions.getByRole('button', { name: 'Video B Selected 1 / 1' })
-  ).toBeVisible()
-  expect(screen.getByRole('button', { name: 'video-b-1' })).toBeVisible()
+  await waitFor(() =>
+    expect(
+      extensionGroup().getByRole('button', { name: 'Video B Selected 1 / 1' })
+    ).toBeVisible()
+  )
 
-  await user.click(selector)
-  await user.click(screen.getByRole('option', { name: /^Video A/ }))
-  await user.keyboard('{Escape}')
+  // video-a is bound from the start but no longer one of the options, so the
+  // chip can only be removed and must not gain an "add" affordance.
+  await user.click(
+    extensionGroup().getByRole('button', { name: /^Video A Selected 0 \/ 1/ })
+  )
   expect(
-    extensions.queryByRole('button', { name: /^Video A/ })
+    extensionGroup().queryByRole('button', { name: /^Video A/ })
   ).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'gpt-5' })).toBeVisible()
 

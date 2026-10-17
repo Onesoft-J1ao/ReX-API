@@ -29,6 +29,7 @@ import {
 import { channelSchema } from '../../types'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  buildSettingJSON,
   channelFormSchema,
   transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
@@ -191,17 +192,35 @@ describe('New API channel task plugin extensions', () => {
     expect(supportsNewAPIUpstream({})).toBe(false)
   })
 
-  test('reads the extension list together with a single key on New API channels only', () => {
+  test('reads the extension list together with a single key', () => {
     expect(
-      readTaskExtendPluginKeys(CHANNEL_TYPE_NEW_API, {
+      readTaskExtendPluginKeys({
         task_plugin_key: 'kling',
         task_extend_plugin_keys: ['doubao', 'kling', '', 'doubao'],
       })
     ).toEqual(['kling', 'doubao'])
-    expect(readTaskExtendPluginKeys(CHANNEL_TYPE_NEW_API, {})).toEqual([])
+    expect(readTaskExtendPluginKeys({})).toEqual([])
+    // Editing a channel re-reads its stored setting, so a gateway typed under
+    // the wrong number must still keep the plugins it was saved with.
+    const gateway = channelSchema.parse({
+      id: 43,
+      name: 'Stale gateway',
+      type: 60,
+      key: '',
+      status: 1,
+      created_time: 1,
+      test_time: 0,
+      response_time: 0,
+      balance_updated_time: 0,
+      models: 'kling-v2',
+      group: 'default',
+      setting: JSON.stringify({ task_extend_plugin_keys: ['kling'] }),
+    })
+    const form = transformChannelToFormDefaults(gateway)
+    expect(form.task_extend_plugin_keys).toEqual(['kling'])
     expect(
-      readTaskExtendPluginKeys(1, { task_extend_plugin_keys: ['doubao'] })
-    ).toEqual([])
+      JSON.parse(buildSettingJSON({ ...form, type: CHANNEL_TYPE_NEW_API }))
+    ).toMatchObject({ task_extend_plugin_keys: ['kling'] })
   })
 
   test('lists only bound plugins as extensions while other types keep declared channel types', () => {

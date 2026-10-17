@@ -585,7 +585,7 @@ export function transformChannelToFormDefaults(
       )
       extraSettings = {
         task_plugin_key: parsed.task_plugin_key || '',
-        task_extend_plugin_keys: readTaskExtendPluginKeys(channel.type, parsed),
+        task_extend_plugin_keys: readTaskExtendPluginKeys(parsed),
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
         use_responses_api: parsed.use_responses_api || false,
