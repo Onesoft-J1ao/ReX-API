@@ -25,16 +25,21 @@ import { useSystemConfigStore } from '@/stores/system-config-store'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { useBillingTime } from '../hooks/use-billing-time'
 import {
+  formatTaskUsageUnitPrice,
   getDynamicDisplayGroupRatio,
   getDynamicPriceUnitLabelKey,
   getDynamicPricingSummary,
   isDynamicPricingFree,
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
-import { isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getConfiguredGroupRatio,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
 import {
   formatPrice,
   formatRequestPrice,
+  resolveGroupTokenPrices,
   type GroupPricingOverrides,
 } from '../lib/price'
 import { taskPriceLabel, taskUsageUnitLabel } from '../lib/task-price-display'
@@ -46,8 +51,24 @@ export type ModelPriceCellOptions = {
   usdExchangeRate?: number
   showRechargePrice?: boolean
   selectedGroup?: string
+  /** Per-group pricing source overrides; absent when none are configured. */
+  groupBillingSource?: Record<string, Record<string, string>>
   /** Per-group per-model overrides, so a group repriced per call reads right. */
   groupPricingOverrides?: GroupPricingOverrides
+}
+
+/** Token prices are per million; the cell renders them in the selected unit. */
+function formatUsdPerMillion(
+  valuePerMillionTokens: number,
+  options: ModelPriceCellOptions
+): string {
+  return formatTaskUsageUnitPrice(valuePerMillionTokens, {
+    tokenUnit: options.tokenUnit ?? DEFAULT_TOKEN_UNIT,
+    showRechargePrice: options.showRechargePrice,
+    priceRate: options.priceRate,
+    usdExchangeRate: options.usdExchangeRate,
+    groupRatioMultiplier: 1,
+  })
 }
 
 export function ModelPriceCell(props: {
@@ -63,6 +84,21 @@ export function ModelPriceCell(props: {
   const tokenUnit = options.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const billingTime = useBillingTime(props.model.billing_expr)
+  // A group may pin this model to plain per-token billing with its own ratio.
+  // The expression then describes a price that group is never charged, which
+  // is exactly how a repriced group ends up advertising someone else's price.
+  const groupRatio = props.model.group_ratio ?? {}
+  const pinnedTokenPrices = (() => {
+    if (!options.selectedGroup) return null
+    const ratio = getConfiguredGroupRatio(groupRatio, options.selectedGroup)
+    return resolveGroupTokenPrices(
+      props.model,
+      options.selectedGroup,
+      options.groupBillingSource,
+      ratio,
+      options.groupPricingOverrides ?? {}
+    )
+  })()
   const dynamic = useMemo(
     () =>
       getDynamicPricingSummary(props.model, {
@@ -102,7 +138,30 @@ export function ModelPriceCell(props: {
     unit: tokenUnitLabel,
   })
 
-  if (dynamic) {
+  if (pinnedTokenPrices) {
+    metrics = [
+      {
+        label: t('Input'),
+        value: formatUsdPerMillion(pinnedTokenPrices.input, options),
+      },
+      {
+        label: t('Output'),
+        value: formatUsdPerMillion(pinnedTokenPrices.output, options),
+      },
+      ...(pinnedTokenPrices.cache == null
+        ? []
+        : [
+            {
+              label: t('Cache'),
+              value: formatUsdPerMillion(pinnedTokenPrices.cache, options),
+            },
+          ]),
+    ]
+    caption = t('{{currency}} / {{unit}} tokens', {
+      currency: currencyLabel,
+      unit: tokenUnitLabel,
+    })
+  } else if (dynamic) {
     if (
       isDynamicPricingFree(
         dynamic,

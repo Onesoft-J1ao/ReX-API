@@ -31,6 +31,7 @@ import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { useBillingTime } from '../hooks/use-billing-time'
 import { formatBillingCondition } from '../lib/billing-expression/condition-display'
 import {
+  formatTaskUsageUnitPrice,
   getCardExamplePrice,
   getDynamicDisplayGroupRatio,
   getDynamicPriceEntries,
@@ -42,9 +43,11 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { getGroupPricingForModel } from '../lib/group-pricing'
+import { getDisplayGroupRatio } from '../lib/model-helpers'
 import {
   formatPrice,
   formatRequestPrice,
+  resolveGroupTokenPrices,
   type GroupPricingOverrides,
 } from '../lib/price'
 import { taskPriceLabel, taskUsageUnitLabel } from '../lib/task-price-display'
@@ -79,20 +82,42 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   // token-priced. The token prices below would then describe a price nobody is
   // charged, so the card asks which source actually applies in the group the
   // viewer is looking at.
-  const effectiveSource = getGroupPricingForModel(
+  const groupPricing = getGroupPricingForModel(
     props.model,
     props.selectedGroup ?? '',
     props.groupBillingSource,
     1
-  ).source
+  )
+  const effectiveSource = groupPricing.source
+  // A group may pin this model to plain per-token billing with its own ratio.
+  // The expression tiers then describe a price this group never pays, so the
+  // card must show the pinned prices instead. Only an actual override counts:
+  // without one the group just follows the model's global mode.
+  const pinnedTokenPrices = useMemo(
+    () =>
+      props.selectedGroup
+        ? resolveGroupTokenPrices(
+            props.model,
+            props.selectedGroup,
+            props.groupBillingSource,
+            getDisplayGroupRatio(props.model, props.selectedGroup),
+            props.groupPricingOverrides ?? {}
+          )
+        : null,
+    [
+      props.model,
+      props.selectedGroup,
+      props.groupBillingSource,
+      props.groupPricingOverrides,
+    ]
+  )
   // The group pinned a token-priced model to per-request billing. The mode
   // badge still reads from the model, so the card says which one wins here.
   const pricedPerRequest =
     effectiveSource === 'price' && (props.model.model_price ?? 0) > 0
   const pricedPerToken =
     effectiveSource !== 'price' && props.model.quota_type !== 1
-  const perRequestOverride =
-    pricedPerRequest && props.model.quota_type !== 1
+  const perRequestOverride = pricedPerRequest && props.model.quota_type !== 1
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
   const endpoints = props.model.supported_endpoint_types || []
@@ -153,7 +178,8 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       const conditionText =
         'conditionText' in tier ? (tier.conditionText as string) : undefined
       const condition = conditionText
-        ? (formatBillingCondition(conditionText, t, i18n.language) ?? conditionText)
+        ? (formatBillingCondition(conditionText, t, i18n.language) ??
+          conditionText)
         : null
       return {
         key: `${tier.label}-${conditionText ?? ''}`,
@@ -171,7 +197,41 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       getDynamicDisplayGroupRatio(props.model, props.selectedGroup)
     )
   let priceSummary: ReactNode
-  if (dynamicSummary && dynamicIsFree) {
+  if (pinnedTokenPrices) {
+    const pinnedPrices: { type: PriceType; label: string; value: number }[] = [
+      { type: 'input', label: t('Input'), value: pinnedTokenPrices.input },
+      { type: 'output', label: t('Output'), value: pinnedTokenPrices.output },
+      ...(pinnedTokenPrices.cache == null
+        ? []
+        : [
+            {
+              type: 'cache' as const,
+              label: t('Cache Read'),
+              value: pinnedTokenPrices.cache,
+            },
+          ]),
+    ]
+    priceSummary = pinnedPrices.map((price) => (
+      <div key={price.type} className='flex min-w-0 flex-col gap-1'>
+        <span className='text-muted-foreground truncate text-xs whitespace-nowrap'>
+          {price.label}
+        </span>
+        <span className='font-mono text-[14px] font-semibold whitespace-nowrap tabular-nums'>
+          {formatTaskUsageUnitPrice(price.value, {
+            tokenUnit,
+            showRechargePrice,
+            priceRate,
+            usdExchangeRate,
+            groupRatioMultiplier: 1,
+          })}
+          <span className='text-muted-foreground text-xs font-normal'>
+            {' '}
+            / {tokenUnitLabel}
+          </span>
+        </span>
+      </div>
+    ))
+  } else if (dynamicSummary && dynamicIsFree) {
     priceSummary = (
       <span className='col-span-full font-mono text-[14px] font-semibold tabular-nums'>
         {t('Free')}
@@ -372,7 +432,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             / {t('request')}
           </span>
         </span>
-
       </div>
     )
   }
@@ -502,38 +561,35 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               </dd>
             </div>
           )}
-        {/* The description and tags trail the numbers: the price is what a
+          {/* The description and tags trail the numbers: the price is what a
             reader scans for, and the prose is what they read once a candidate
             is worth a second look. */}
-        <div className='mt-auto flex min-w-0 flex-col gap-1.5'>
-          <p className='text-muted-foreground line-clamp-1 text-xs leading-4 break-words'>
-            {props.model.description || t('No description available.')}
-          </p>
-          {tags.length > 0 && (
-            <div
-              role='group'
-              aria-label={t('Tags')}
-              className='text-muted-foreground flex min-w-0 items-baseline gap-1.5 text-xs'
-            >
-              <span className='shrink-0'>{t('Tags')}</span>
-              <span className='truncate' title={tags.join(', ')}>
-                {tags.slice(0, 2).join(', ')}
-              </span>
-              {tags.length > 2 && (
-                <span className='shrink-0' title={tags.slice(2).join(', ')}>
-                  +{tags.length - 2}
+          <div className='mt-auto flex min-w-0 flex-col gap-1.5'>
+            <p className='text-muted-foreground line-clamp-1 text-xs leading-4 break-words'>
+              {props.model.description || t('No description available.')}
+            </p>
+            {tags.length > 0 && (
+              <div
+                role='group'
+                aria-label={t('Tags')}
+                className='text-muted-foreground flex min-w-0 items-baseline gap-1.5 text-xs'
+              >
+                <span className='shrink-0'>{t('Tags')}</span>
+                <span className='truncate' title={tags.join(', ')}>
+                  {tags.slice(0, 2).join(', ')}
                 </span>
-              )}
-            </div>
-          )}
-        </div>
+                {tags.length > 2 && (
+                  <span className='shrink-0' title={tags.slice(2).join(', ')}>
+                    +{tags.length - 2}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </dl>
       </CardContent>
       <CardFooter className='mt-auto border-0 bg-transparent pt-0'>
-        <ModelPerfBadge
-          perf={props.perf}
-          className='pt-0.5'
-        >
+        <ModelPerfBadge perf={props.perf} className='pt-0.5'>
           <Button variant='ghost' size='sm' onClick={props.onClick}>
             {t('Details')}
             <ChevronRight aria-hidden className='size-3.5' />

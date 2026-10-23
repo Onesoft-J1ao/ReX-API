@@ -76,6 +76,41 @@ export function resolveModelRatio(
 }
 
 /**
+ * The per-million token prices a group actually charges this model.
+ *
+ * Two things can move a group off the model's global token price: the group
+ * pins the model to per-token billing (a model billed by expression or per
+ * request globally), or it carries its own ratio for the model. Both are
+ * applied by the gateway on the per-token path, so both change what the group
+ * pays — but neither shows up in the model's global figure. Rendering that
+ * global figure for such a group advertises a price nobody is charged.
+ *
+ * Returns null when the group bills by expression or per request (neither is a
+ * single token price), leaving those to their own rendering.
+ */
+export function resolveGroupTokenPrices(
+  model: PricingModel,
+  group: string,
+  groupBillingSource: Record<string, Record<string, string>> | undefined,
+  groupRatio: number,
+  overrides: GroupPricingOverrides
+): { input: number; output: number; cache: number | null } | null {
+  const pinned = groupBillingSource?.[group]?.[model.model_name]
+  if (pinned === 'price' || pinned === 'tiered_expr') return null
+  // Nothing moves this group off the model's global token price.
+  const ratioOverride = overrides.ratio?.[group]?.[model.model_name]
+  if (pinned !== 'ratio' && ratioOverride == null) return null
+  const priced = withGroupPricing(model, group, overrides)
+  if (priced.model_ratio == null) return null
+  const input = priced.model_ratio * 2 * groupRatio
+  const output = input * (priced.completion_ratio ?? 1)
+  const cache = hasRatio(priced.cache_ratio)
+    ? input * Number(priced.cache_ratio)
+    : null
+  return { input, output, cache }
+}
+
+/**
  * Apply a group's per-model overrides to a copy of the model.
  *
  * A model fed by a different upstream per group can differ in all three
@@ -319,7 +354,8 @@ export function formatFixedPrice(
   priceRate = 1,
   usdExchangeRate = 1,
   groupRatio: Record<string, number>,
-  groupBillingSource?: Record<string, Record<string, string>>
+  groupBillingSource?: Record<string, Record<string, string>>,
+  overrides: GroupPricingOverrides = {}
 ): string {
   // A group may pin a token-priced model to per-request billing, and then this
   // group is charged the model's per-call price.
@@ -334,7 +370,10 @@ export function formatFixedPrice(
   }
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
-  let priceInUSD = model.model_price * ratio
+  // A group may also carry its own per-call price for the model.
+  const perCallPrice =
+    overrides.price?.[group]?.[model.model_name] ?? model.model_price
+  let priceInUSD = perCallPrice * ratio
   if (priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) return t('Free')
 
   priceInUSD = applyRechargeRate(

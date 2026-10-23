@@ -47,6 +47,8 @@ export interface PricingTableProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  /** Per-group pricing source overrides; absent when none are configured. */
+  groupBillingSource?: Record<string, Record<string, string>>
   groupPricingOverrides?: GroupPricingOverrides
   onModelClick?: (modelName: string) => void
   pageSize?: number
@@ -62,6 +64,7 @@ export function PricingTable(props: PricingTableProps) {
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
     selectedGroup,
+    groupBillingSource,
     groupPricingOverrides,
     onModelClick,
   } = props
@@ -100,6 +103,7 @@ export function PricingTable(props: PricingTableProps) {
     usdExchangeRate,
     showRechargePrice,
     selectedGroup,
+    groupBillingSource,
     groupPricingOverrides,
     perfMap,
   })

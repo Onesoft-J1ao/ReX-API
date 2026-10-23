@@ -657,3 +657,86 @@ it('shows provider count, price range and missing-price status in both list and 
   expect(screen.getByText('0.4 – 0.8/s')).toBeVisible()
   expect(screen.getByText('$0.4 – $0.8')).toBeVisible()
 })
+
+// A group can be pinned to plain per-token billing with its own ratio on a
+// model that is otherwise billed by expression. Every surface that shows the
+// group a price has to read that override, or the group advertises the
+// expression's price while being charged the override's.
+it('shows the pinned per-token price for a group that overrides an expression model', async () => {
+  const pinned: PricingModel = {
+    ...model,
+    model_name: 'glm-5.3',
+    model_ratio: 0.45,
+    completion_ratio: 3.5,
+    cache_ratio: 0.4,
+    enable_groups: ['default', 'bare'],
+    group_ratio: { default: 1, bare: 0.06 },
+    billing_mode: 'tiered_expr',
+    billing_expr: 'tier("base", p * 7.5 + c * 26.25 + cr * 3)',
+    billing_usage_schema: undefined,
+  }
+  const overrides = {
+    ratio: { bare: { 'glm-5.3': 4.0833333333 } },
+    completion: { bare: { 'glm-5.3': 3.4489795918 } },
+    cache: { bare: { 'glm-5.3': 0.2653061224 } },
+  }
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  clients.push(client)
+  render(
+    <QueryClientProvider client={client}>
+      <ModelPriceCell
+        model={pinned}
+        options={{
+          selectedGroup: 'bare',
+          groupBillingSource: { bare: { 'glm-5.3': 'ratio' } },
+          groupPricingOverrides: overrides,
+        }}
+      />
+      <ModelCard
+        model={pinned}
+        onClick={vi.fn()}
+        selectedGroup='bare'
+        groupBillingSource={{ bare: { 'glm-5.3': 'ratio' } }}
+        groupPricingOverrides={overrides}
+      />
+    </QueryClientProvider>
+  )
+  expect(screen.getAllByText('$0.49')).toHaveLength(2)
+  expect(screen.getAllByText('$1.69')).toHaveLength(2)
+  expect(screen.getAllByText('$0.13')).toHaveLength(2)
+})
+
+it('keeps the expression price for a group that follows the global mode', async () => {
+  const shared: PricingModel = {
+    ...model,
+    model_name: 'glm-5.3',
+    model_ratio: 0.45,
+    completion_ratio: 3.5,
+    enable_groups: ['default', 'bare'],
+    group_ratio: { default: 1, bare: 0.06 },
+    billing_mode: 'tiered_expr',
+    billing_expr: 'tier("base", p * 7.5 + c * 26.25)',
+    billing_usage_schema: undefined,
+  }
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  clients.push(client)
+  render(
+    <QueryClientProvider client={client}>
+      <ModelPriceCell
+        model={shared}
+        options={{
+          selectedGroup: 'bare',
+          groupPricingOverrides: {
+            ratio: { bare: { other: 3 } },
+          },
+        }}
+      />
+    </QueryClientProvider>
+  )
+  expect(screen.getByText('0.45')).toBeVisible()
+  expect(screen.getByText('1.575')).toBeVisible()
+})

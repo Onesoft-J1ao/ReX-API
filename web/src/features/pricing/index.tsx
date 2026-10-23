@@ -173,6 +173,13 @@ export function Pricing() {
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
         selectedGroup={groupFilter}
+        groupBillingSource={groupBillingSource}
+        groupPricingOverrides={{
+          ratio: groupModelRatio,
+          completion: groupModelCompletionRatio,
+          cache: groupModelCacheRatio,
+          price: groupModelPrice,
+        }}
         onModelClick={handleModelClick}
         pageSize={appearance.modelSquareTablePageSize}
       />
