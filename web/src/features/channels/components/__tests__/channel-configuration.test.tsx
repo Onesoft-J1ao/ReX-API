@@ -2661,14 +2661,16 @@ test('a New API channel binds upstream task plugins and publishes their models',
     ).toBeVisible()
   )
 
-  // video-a is bound from the start but no longer one of the options, so the
-  // chip can only be removed and must not gain an "add" affordance.
-  await user.click(
-    extensionGroup().getByRole('button', { name: /^Video A Selected 0 \/ 1/ })
+  // Unbinding goes through the selector, not the chip: a chip click opens the
+  // model configuration dialog, which edits Models rather than the binding.
+  await user.click(selector)
+  await user.click(screen.getByRole('option', { name: /^Video A/ }))
+  await user.keyboard('{Escape}')
+  await waitFor(() =>
+    expect(
+      extensionGroup().queryByRole('button', { name: /^Video A/ })
+    ).not.toBeInTheDocument()
   )
-  expect(
-    extensionGroup().queryByRole('button', { name: /^Video A/ })
-  ).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'gpt-5' })).toBeVisible()
 
   await user.click(screen.getByRole('button', { name: 'Update Channel' }))

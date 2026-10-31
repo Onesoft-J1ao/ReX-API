@@ -192,7 +192,11 @@ func TestSetUserWallpaperRollsBackTheChargeWhenRecordingTheWallpaperFails(t *tes
 
 func TestSetUserWallpaperStartsAFreshAllowanceInANewMonth(t *testing.T) {
 	user := setupWallpaperTest(t, 1_000_000)
-	previousPeriod := WallpaperPeriod(time.Now().AddDate(0, -1, 0))
+	// First day of the current month minus one day, not AddDate(0,-1,0): on the
+	// 31st that normalizes to the 1st of the same month, so "last month" and
+	// "this month" become the same period and the test fails every 31st.
+	now := time.Now()
+	previousPeriod := WallpaperPeriod(time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).AddDate(0, 0, -1))
 	require.NoError(t, DB.Create(&UserWallpaper{
 		UserId:       user.Id,
 		WallpaperUrl: "https://cdn.example.com/old.png",

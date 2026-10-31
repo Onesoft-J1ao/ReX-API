@@ -3475,7 +3475,53 @@ export function ChannelMutateDrawer({
                                 <MultiSelect
                                   options={upstreamPluginOptions}
                                   selected={field.value ?? []}
-                                  onChange={field.onChange}
+                                  onChange={(keys) => {
+                                    field.onChange(keys)
+                                    // A bound upstream plugin publishes its models
+                                    // through this channel, so adding one has to
+                                    // add its model names to Models; unbinding it
+                                    // takes them back out. Leaving them behind
+                                    // advertises models the channel cannot route.
+                                    const previous = new Set(field.value ?? [])
+                                    const next = new Set(keys)
+                                    const added = keys.filter(
+                                      (key) => !previous.has(key)
+                                    )
+                                    const removed = [...previous].filter(
+                                      (key) => !next.has(key)
+                                    )
+                                    if (added.length === 0 && removed.length === 0) {
+                                      return
+                                    }
+                                    const dropped = new Set(
+                                      removed.flatMap(
+                                        (key) =>
+                                          bindableUpstreamPlugins.find(
+                                            (plugin) => plugin.key === key
+                                          )?.models ?? []
+                                      )
+                                    )
+                                    const gained = added.flatMap(
+                                      (key) =>
+                                        bindableUpstreamPlugins.find(
+                                          (plugin) => plugin.key === key
+                                        )?.models ?? []
+                                    )
+                                    const kept = parseModelsString(
+                                      form.getValues('models')
+                                    ).filter((model) => !dropped.has(model))
+                                    const merged = [...kept]
+                                    for (const model of gained) {
+                                      if (!merged.includes(model)) {
+                                        merged.push(model)
+                                      }
+                                    }
+                                    form.setValue(
+                                      'models',
+                                      formatModelsArray(merged),
+                                      { shouldDirty: true, shouldValidate: true }
+                                    )
+                                  }}
                                   placeholder={t(
                                     'Select the task plugins installed on the upstream gateway'
                                   )}

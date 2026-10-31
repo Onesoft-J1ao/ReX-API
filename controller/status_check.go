@@ -541,7 +541,6 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 	}
 
 	probeTs := time.Now().Unix()
-	intervalSec := int64(status_check_setting.GetIntervalMinutes() * 60)
 
 	summary := &groupHealthProbeSummary{Groups: len(groups)}
 	totalUnits := 0
@@ -728,8 +727,14 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 		}
 	}
 
-	// prune stale rows older than ~10 cycles so the tables stay trim
-	retentionCutoff := probeTs - intervalSec*10
+	// Keep a month of probe history. The page draws a 24h strip and the group
+	// cards answer "how has this been lately", so pruning to ten cycles (under
+	// an hour at the default cadence) threw away the very history the page
+	// reads: every refresh showed one fresh sample and nothing behind it.
+	// A month at a five-minute cadence is ~8.6k rows per group and ~35k per
+	// model, which the table handles.
+	const healthRetentionDays = 30
+	retentionCutoff := probeTs - int64(healthRetentionDays)*24*3600
 	if err := model.DeleteHealthBefore(retentionCutoff, retentionCutoff); err != nil {
 		common.SysError(fmt.Sprintf("group_health_probe: prune failed: %v", err))
 	}
