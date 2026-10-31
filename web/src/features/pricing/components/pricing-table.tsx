@@ -139,12 +139,16 @@ export function PricingTable(props: PricingTableProps) {
   }, [healthQuery.data])
 
   // Mirrors ModelCardGrid.perfFor so both views answer the same question the
-  // same way: a picked group shows that group's numbers or nothing at all.
+  // same way: a picked group shows that group's numbers when it has them, else
+  // the model's own passive rollup, else nothing.
   const perfFor = useCallback(
     (modelName: string): ModelPerfBadgeData | undefined => {
       if (!modelName) return undefined
       if (selectedGroup && selectedGroup !== FILTER_ALL) {
-        return healthByModelAndGroup.get(`${selectedGroup}|${modelName}`)
+        return (
+          healthByModelAndGroup.get(`${selectedGroup}|${modelName}`) ??
+          perfMap.get(modelName)
+        )
       }
       for (const [key, value] of healthByModelAndGroup) {
         if (key.endsWith(`|${modelName}`)) return value

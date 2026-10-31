@@ -701,11 +701,11 @@ describe('model cards', () => {
     expect(card.textContent).not.toContain('500ms')
   })
 
-  // A group the probe has not reached yet has no reading of its own. Borrowing
-  // another group's numbers made a brand-new group advertise a stranger's
-  // uptime, which is worse than an empty badge — it reads as a measurement of
-  // the group on screen.
-  it('shows no health numbers when the selected group has no reading', async () => {
+  // A group the probe has not reached and that carries no traffic for this model
+  // has no reading of its own. The card must not borrow *another group's* number
+  // (that advertised a stranger's uptime); when the model has no passive rollup
+  // either, it shows an empty badge.
+  it('shows no health numbers when neither the group nor the model has a reading', async () => {
     queryClient.setQueryData(['perf-metrics-summary', 24], {
       success: true,
       data: { models: [] },
@@ -754,6 +754,67 @@ describe('model cards', () => {
     })
     expect(cardElement.textContent).not.toContain('500ms')
     expect(cardElement.textContent).not.toContain('97.00%')
+  })
+
+  // The group on screen has no reading for this model, but the model has its own
+  // passive rollup — real data about the model. That rollup fills the badge
+  // instead of leaving it empty, so a group listing never looks blank.
+  it('falls back to the model passive rollup when the selected group has no reading', async () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: {
+        models: [
+          {
+            model_name: 'example-model',
+            success_rate: 91,
+            avg_latency_ms: 730,
+            avg_tps: 20,
+          },
+        ],
+      },
+    })
+    queryClient.setQueryData(['status-check'], {
+      success: true,
+      data: {
+        groups: [
+          {
+            group: 'probed-group',
+            models: [
+              {
+                model: 'example-model',
+                group: 'probed-group',
+                availability: 97,
+                latency_ms: 500,
+                has_active: true,
+                ok: true,
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={[
+            pricingModel({ enable_groups: ['probed-group', 'fresh-group'] }),
+          ]}
+          onModelClick={vi.fn()}
+          selectedGroup='fresh-group'
+        />
+      </QueryClientProvider>
+    )
+
+    const heading = await screen.findByRole('heading', {
+      name: 'example-model',
+    })
+    const card = heading.closest('.rounded-xl') as HTMLElement
+    await waitFor(() => {
+      expect(within(card).getByText('91.00%')).toBeVisible()
+    })
+    // The other group's probe number must not leak through the fallback.
+    expect(card.textContent).not.toContain('97.00%')
   })
 
   // A group whose models carry only passive traffic (no active probe yet) still

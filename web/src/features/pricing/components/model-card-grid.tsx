@@ -131,11 +131,15 @@ export function ModelCardGrid(props: ModelCardGridProps) {
       if (!modelName) return undefined
       const group = props.selectedGroup
       if (group && group !== FILTER_ALL) {
-        // The viewer picked a group, so the card must show that group's numbers
-        // or none. Falling back to another group's reading put one group's
-        // uptime on another group's card, which is worse than an empty badge:
-        // it reads as a measurement of the group being displayed.
-        return healthByModelAndGroup.get(`${group}|${modelName}`)
+        // Prefer the reading for the group on screen. When that group has none
+        // for this model — it carries no probe and no traffic there — fall back
+        // to the model's own passive rollup, which is real data about the model
+        // rather than another group's number. Only a model with neither shows
+        // an empty badge.
+        return (
+          healthByModelAndGroup.get(`${group}|${modelName}`) ??
+          perfMap.get(modelName)
+        )
       }
       // No group filter: the card stands for the model as a whole, so any
       // group's reading describes something real about it. The probe is the
