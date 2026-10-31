@@ -27,7 +27,9 @@ import {
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
   getSuccessRateDotClass,
   getSuccessRateLevel,
@@ -123,50 +125,53 @@ function ModelRow(props: { model: StatusModel }) {
   const hasData = model.has_data !== false
 
   return (
-    <div className='hover:bg-muted/40 flex flex-col gap-1 px-4 py-2.5 transition-colors sm:px-5'>
-      <div className='flex items-center gap-3'>
+    <div className='hover:bg-muted/40 flex flex-col gap-1.5 px-5 py-3 transition-colors sm:px-6'>
+      <div className='flex items-start gap-2.5'>
         <span
           className={cn(
-            'size-2 shrink-0 rounded-full',
+            'mt-1.5 size-2 shrink-0 rounded-full',
             hasData ? getSuccessRateDotClass(rate) : 'bg-muted'
           )}
         />
         <span
           className={cn(
-            'min-w-0 flex-1 truncate text-sm',
+            'min-w-0 flex-1 text-sm leading-5 break-words',
             hasData ? 'text-foreground' : 'text-muted-foreground'
           )}
+          title={model.model}
         >
           {model.model}
         </span>
-        {hasData && <HealthStrip series={model.series} />}
         {hasData ? (
-          <>
-            <span className='text-muted-foreground hidden shrink-0 font-mono text-xs tabular-nums sm:inline'>
-              {formatLatency(model.latency_ms)}
-            </span>
-            <span
-              className={cn(
-                'w-20 shrink-0 text-right font-mono text-sm font-semibold tabular-nums',
-                getSuccessRateTextClass(rate)
-              )}
-            >
-              {Number.isFinite(rate) ? `${rate.toFixed(0)}%` : '—'}
-            </span>
-          </>
+          <span
+            className={cn(
+              'shrink-0 text-right font-mono text-sm font-semibold tabular-nums',
+              getSuccessRateTextClass(rate)
+            )}
+          >
+            {Number.isFinite(rate) ? `${rate.toFixed(0)}%` : '—'}
+          </span>
         ) : (
-          <span className='text-muted-foreground w-20 shrink-0 text-right font-mono text-xs'>
+          <span className='text-muted-foreground shrink-0 font-mono text-xs'>
             {t('No data')}
           </span>
         )}
       </div>
+      {hasData && (
+        <div className='flex items-center justify-between gap-3 pl-[1.125rem]'>
+          <span className='text-muted-foreground shrink-0 font-mono text-xs tabular-nums'>
+            {formatLatency(model.latency_ms)}
+          </span>
+          <HealthStrip series={model.series} />
+        </div>
+      )}
       {errorText && !model.ok && (
-        <p className='text-destructive pl-5 font-mono text-xs leading-5'>
+        <p className='text-destructive pl-[1.125rem] font-mono text-xs leading-5 break-words'>
           {errorText}
         </p>
       )}
       {hasData && !model.has_active && (model.passive_requests ?? 0) > 0 && (
-        <p className='text-muted-foreground pl-5 font-mono text-xs'>
+        <p className='text-muted-foreground pl-[1.125rem] font-mono text-xs'>
           {t('Passive traffic only')} · {model.passive_success ?? 0}/
           {model.passive_requests}
         </p>
@@ -194,20 +199,26 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
     : models.slice(0, MODEL_PREVIEW_COUNT)
 
   return (
-    <div className='bg-card overflow-hidden rounded-xl border shadow-xs'>
-      <div className='border-b px-4 py-3 sm:px-5'>
-        <div className='flex items-center justify-between gap-3'>
-          <div className='flex min-w-0 items-center gap-3'>
+    <Card className='gap-0 overflow-hidden py-0 shadow-xs'>
+      <CardHeader className='gap-2 border-b px-5 py-4 sm:px-6'>
+        <div className='flex items-start justify-between gap-3'>
+          <div className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5'>
             <span className='text-muted-foreground font-mono text-xs tabular-nums'>
               {String(index + 1).padStart(2, '0')}
             </span>
-            <h3 className='text-foreground truncate text-sm font-semibold'>
+            <h3
+              className='text-foreground min-w-0 text-sm font-semibold break-words'
+              title={group.group}
+            >
               {group.group}
             </h3>
             {failed > 0 && (
-              <span className='text-destructive bg-destructive/10 rounded-full px-2 py-0.5 font-mono text-xs tracking-wide uppercase'>
+              <Badge
+                variant='destructive'
+                className='font-mono tracking-wide uppercase'
+              >
                 {t('{{count}} failing', { count: failed })}
-              </span>
+              </Badge>
             )}
           </div>
           <div className='flex shrink-0 items-center gap-3'>
@@ -221,7 +232,9 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
                   ? getSuccessRateTextClass(rate)
                   : 'text-muted-foreground'
               )}
-              title={observed ? undefined : t('No probes or traffic in this window')}
+              title={
+                observed ? undefined : t('No probes or traffic in this window')
+              }
             >
               {Number.isFinite(rate) ? `${rate.toFixed(0)}%` : '—'}
             </span>
@@ -236,7 +249,7 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
             )}
           </div>
         </div>
-        <div className='text-muted-foreground mt-1 flex items-center justify-between font-mono text-xs tabular-nums'>
+        <div className='text-muted-foreground flex items-center justify-between font-mono text-xs tabular-nums'>
           <span>
             {group.ok_probes}/{group.total_probes} {t('probes ok')}
           </span>
@@ -244,7 +257,7 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
             {group.models.length} {t('models')}
           </span>
         </div>
-        <div className='bg-muted mt-2 h-1 overflow-hidden rounded-full'>
+        <div className='bg-muted mt-1 h-1 overflow-hidden rounded-full'>
           <div
             className={cn(
               'h-full rounded-full transition-[width] duration-700 ease-out',
@@ -253,34 +266,36 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
             style={{ width: `${Math.min(100, Math.max(0, rate))}%` }}
           />
         </div>
-      </div>
-      <div className='divide-border/50 divide-y'>
-        {models.length === 0 ? (
-          <div className='text-muted-foreground px-4 py-4 text-sm sm:px-5'>
-            {t('No models reported')}
-          </div>
-        ) : (
-          visibleModels.map((model) => (
-            <ModelRow
-              key={`${model.model}-${model.channel_id ?? ''}`}
-              model={model}
-            />
-          ))
+      </CardHeader>
+      <CardContent className='p-0'>
+        <div className='divide-border/50 divide-y'>
+          {models.length === 0 ? (
+            <div className='text-muted-foreground px-5 py-5 text-sm sm:px-6'>
+              {t('No models reported')}
+            </div>
+          ) : (
+            visibleModels.map((model) => (
+              <ModelRow
+                key={`${model.model}-${model.channel_id ?? ''}`}
+                model={model}
+              />
+            ))
+          )}
+        </div>
+        {hiddenModelCount > 0 && (
+          <Button
+            variant='ghost'
+            className='text-muted-foreground hover:text-foreground border-border h-auto w-full rounded-none border-x-0 border-b-0 px-5 py-3 text-sm font-normal sm:px-6'
+            onClick={() => setShowAllModels((shown) => !shown)}
+            aria-expanded={showAllModels}
+          >
+            {showAllModels
+              ? t('Show fewer models')
+              : t('Show {{count}} more models', { count: hiddenModelCount })}
+          </Button>
         )}
-      </div>
-      {hiddenModelCount > 0 && (
-        <button
-          type='button'
-          className='text-muted-foreground hover:text-foreground focus-visible:outline-primary w-full border-t px-4 py-2.5 text-sm transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 sm:px-5'
-          onClick={() => setShowAllModels((shown) => !shown)}
-          aria-expanded={showAllModels}
-        >
-          {showAllModels
-            ? t('Show fewer models')
-            : t('Show {{count}} more models', { count: hiddenModelCount })}
-        </button>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -330,7 +345,7 @@ export function StatusPanel() {
   }, [groups])
 
   return (
-    <div className='mx-auto max-w-3xl space-y-6'>
+    <div className='mx-auto max-w-7xl space-y-6'>
       <div className='flex items-center justify-between gap-3'>
         <div>
           <h1 className='text-lg font-semibold'>{t('Channel Status')}</h1>
@@ -357,7 +372,7 @@ export function StatusPanel() {
       )}
 
       {hasData && (
-        <div className='grid gap-3 sm:grid-cols-3'>
+        <div className='grid gap-4 sm:grid-cols-3'>
           <SummaryTile
             icon={<ShieldCheck className='size-3.5' />}
             label={t('Groups')}
@@ -426,7 +441,7 @@ export function StatusPanel() {
     }
     return (
       <div className='space-y-4'>
-        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'>
+        <div className='grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3'>
           {groupList.map((group, idx) => (
             <GroupCard key={group.group} group={group} index={idx} />
           ))}

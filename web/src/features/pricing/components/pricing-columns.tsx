@@ -41,6 +41,8 @@ import { ModelPriceCell, type ModelPriceCellOptions } from './model-price-cell'
 
 export type PricingColumnsOptions = ModelPriceCellOptions & {
   perfMap?: Map<string, ModelPerfBadgeData>
+  /** Group-aware lookup; preferred over perfMap, which has no group dimension. */
+  perfFor?: (modelName: string) => ModelPerfBadgeData | undefined
 }
 
 export function usePricingColumns(
@@ -79,7 +81,11 @@ export function usePricingColumns(
       header: t('Status'),
       cell: ({ row }) => (
         <ModelPerfBadge
-          perf={options.perfMap?.get(row.original.model_name || '')}
+          perf={
+            options.perfFor
+              ? options.perfFor(row.original.model_name || '')
+              : options.perfMap?.get(row.original.model_name || '')
+          }
           className='min-w-56'
         />
       ),

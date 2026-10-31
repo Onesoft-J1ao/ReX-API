@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import type { Row, PaginationState } from '@tanstack/react-table'
-import { useState, useCallback, useEffect } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -28,11 +28,13 @@ import {
   useDataTable,
 } from '@/components/data-table'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { getStatusCheck } from '@/features/status/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import {
   DEFAULT_PRICING_TABLE_PAGE_SIZE,
   DEFAULT_TOKEN_UNIT,
+  FILTER_ALL,
 } from '../constants'
 import type { GroupPricingOverrides } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
@@ -88,14 +90,66 @@ export function PricingTable(props: PricingTableProps) {
     retry: false,
   })
 
-  const perfMap = new Map<string, ModelPerfBadgeData>()
-  for (const model of perfQuery.data?.data?.models ?? []) {
-    perfMap.set(model.model_name, {
-      ...model,
-      window_start: perfQuery.data?.data.window_start,
-      window_end: perfQuery.data?.data.window_end,
-    })
-  }
+  // Health is per (model, group), so the table needs the same group-keyed map
+  // the card grid builds. Without it every row shows the passive rollup, which
+  // has no group dimension and therefore cannot answer "how is this model doing
+  // in the group the viewer picked".
+  const healthQuery = useQuery({
+    queryKey: ['status-check'],
+    queryFn: async () => requireServerSuccess(await getStatusCheck()),
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+
+  const perfMap = useMemo(() => {
+    const map = new Map<string, ModelPerfBadgeData>()
+    for (const model of perfQuery.data?.data?.models ?? []) {
+      if (!model.model_name) continue
+      map.set(model.model_name, {
+        ...model,
+        window_start: perfQuery.data?.data.window_start,
+        window_end: perfQuery.data?.data.window_end,
+      })
+    }
+    return map
+  }, [perfQuery.data])
+
+  const healthByModelAndGroup = useMemo(() => {
+    const map = new Map<string, ModelPerfBadgeData>()
+    for (const group of healthQuery.data?.data?.groups ?? []) {
+      for (const model of group.models ?? []) {
+        if (!model.model || !model.has_active) continue
+        map.set(`${group.group}|${model.model}`, {
+          success_rate: model.availability,
+          avg_latency_ms: model.latency_ms,
+          // The probe does not measure throughput; the passive rollup below is
+          // the only source that can fill it.
+          avg_tps: 0,
+          recent_success_series: model.series?.map((bucket) => ({
+            ts: bucket.ts,
+            success_rate: bucket.ok_pct,
+          })),
+        })
+      }
+    }
+    return map
+  }, [healthQuery.data])
+
+  // Mirrors ModelCardGrid.perfFor so both views answer the same question the
+  // same way: a picked group shows that group's numbers or nothing at all.
+  const perfFor = useCallback(
+    (modelName: string): ModelPerfBadgeData | undefined => {
+      if (!modelName) return undefined
+      if (selectedGroup && selectedGroup !== FILTER_ALL) {
+        return healthByModelAndGroup.get(`${selectedGroup}|${modelName}`)
+      }
+      for (const [key, value] of healthByModelAndGroup) {
+        if (key.endsWith(`|${modelName}`)) return value
+      }
+      return perfMap.get(modelName)
+    },
+    [healthByModelAndGroup, perfMap, selectedGroup]
+  )
 
   const columns = usePricingColumns({
     tokenUnit,
@@ -106,6 +160,7 @@ export function PricingTable(props: PricingTableProps) {
     groupBillingSource,
     groupPricingOverrides,
     perfMap,
+    perfFor,
   })
 
   const { table } = useDataTable({

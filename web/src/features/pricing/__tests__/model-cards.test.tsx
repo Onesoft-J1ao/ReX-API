@@ -127,9 +127,7 @@ describe('model cards', () => {
   // the price has to come before the description rather than after it.
   it('places the price before the description', () => {
     const model = pricingModel({ description: 'A described model' })
-    const { container } = render(
-      <ModelCard model={model} onClick={vi.fn()} />
-    )
+    const { container } = render(<ModelCard model={model} onClick={vi.fn()} />)
     const price = screen.getByText('Input').closest('div')
     const description = screen.getByText('A described model')
     expect(price).not.toBeNull()
@@ -169,9 +167,7 @@ describe('model cards', () => {
     expect(screen.getByText('/ request')).toBeVisible()
     expect(screen.queryByText('Input')).not.toBeInTheDocument()
     // The card says so, because the mode badge still reads from the model.
-    expect(
-      screen.getByText('Billed per request in this group')
-    ).toBeVisible()
+    expect(screen.getByText('Billed per request in this group')).toBeVisible()
   })
 
   it('keeps token prices when no group overrides the model', () => {
@@ -290,9 +286,7 @@ describe('model cards', () => {
       within(endpointField).getByText(endpoints.slice(0, 2).join(', '))
     ).toBeVisible()
     expect(within(endpointField).getByText('+3')).toBeVisible()
-    expect(
-      within(endpointField).getByTitle(endpoints.join(', '))
-    ).toBeVisible()
+    expect(within(endpointField).getByTitle(endpoints.join(', '))).toBeVisible()
     expect(
       within(tagField).getByText('video-generation, high-resolution')
     ).toHaveAttribute('title', tags.join(', '))
@@ -545,9 +539,24 @@ describe('model cards', () => {
       success: true,
       data: {
         models: [
-          { model_name: 'claude-opus-5', success_rate: 70, avg_latency_ms: 1, avg_tps: 1 },
-          { model_name: 'claude-sonnet-5', success_rate: 98, avg_latency_ms: 1, avg_tps: 1 },
-          { model_name: 'gemini-3-flash', success_rate: 99, avg_latency_ms: 1, avg_tps: 1 },
+          {
+            model_name: 'claude-opus-5',
+            success_rate: 70,
+            avg_latency_ms: 1,
+            avg_tps: 1,
+          },
+          {
+            model_name: 'claude-sonnet-5',
+            success_rate: 98,
+            avg_latency_ms: 1,
+            avg_tps: 1,
+          },
+          {
+            model_name: 'gemini-3-flash',
+            success_rate: 99,
+            avg_latency_ms: 1,
+            avg_tps: 1,
+          },
         ],
       },
     })
@@ -689,6 +698,61 @@ describe('model cards', () => {
       expect(card.textContent).toContain('90.00s')
     })
     expect(card.textContent).not.toContain('500ms')
+  })
+
+  // A group the probe has not reached yet has no reading of its own. Borrowing
+  // another group's numbers made a brand-new group advertise a stranger's
+  // uptime, which is worse than an empty badge — it reads as a measurement of
+  // the group on screen.
+  it('shows no health numbers when the selected group has no reading', async () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: { models: [] },
+    })
+    queryClient.setQueryData(['status-check'], {
+      success: true,
+      data: {
+        groups: [
+          {
+            group: 'probed-group',
+            models: [
+              {
+                model: 'example-model',
+                group: 'probed-group',
+                availability: 97,
+                latency_ms: 500,
+                has_active: true,
+                ok: true,
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={[
+            pricingModel({ enable_groups: ['probed-group', 'fresh-group'] }),
+          ]}
+          onModelClick={vi.fn()}
+          selectedGroup='fresh-group'
+        />
+      </QueryClientProvider>
+    )
+
+    const heading = await screen.findByRole('heading', {
+      name: 'example-model',
+    })
+    const card = heading.closest('.rounded-xl')
+    expect(card).not.toBeNull()
+    const cardElement = card as HTMLElement
+    await waitFor(() => {
+      expect(within(cardElement).getByText('—')).toBeVisible()
+    })
+    expect(cardElement.textContent).not.toContain('500ms')
+    expect(cardElement.textContent).not.toContain('97.00%')
   })
 
   it('lights slots 23 and 18 when series has the current hour and five hours earlier', () => {

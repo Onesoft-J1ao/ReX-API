@@ -60,3 +60,6 @@ __pycache__/
 
 # Local credentials (never commit).
 .secrets/
+
+# 本地独立后端（本地预览用，不入库）
+.localdev/

@@ -33,8 +33,8 @@ import {
   SORT_OPTIONS,
 } from '../constants'
 import { modelFamilyRank } from '../lib/filters'
-import type { PricingModel, TokenUnit } from '../types'
 import type { GroupPricingOverrides } from '../lib/price'
+import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
 import type { ModelPerfBadgeData } from './model-perf-badge'
 
@@ -125,11 +125,15 @@ export function ModelCardGrid(props: ModelCardGridProps) {
       if (!modelName) return undefined
       const group = props.selectedGroup
       if (group && group !== FILTER_ALL) {
-        const scoped = healthByModelAndGroup.get(`${group}|${modelName}`)
-        if (scoped) return scoped
+        // The viewer picked a group, so the card must show that group's numbers
+        // or none. Falling back to another group's reading put one group's
+        // uptime on another group's card, which is worse than an empty badge:
+        // it reads as a measurement of the group being displayed.
+        return healthByModelAndGroup.get(`${group}|${modelName}`)
       }
-      // No group filter, or the filtered group has no reading for this model:
-      // fall back to any group, then to the passive rollup.
+      // No group filter: the card stands for the model as a whole, so any
+      // group's reading describes something real about it. The probe is the
+      // fresher signal, so it wins over the passive rollup.
       for (const [key, value] of healthByModelAndGroup) {
         if (key.endsWith(`|${modelName}`)) return value
       }
