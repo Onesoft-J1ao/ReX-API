@@ -118,7 +118,10 @@ export function PricingTable(props: PricingTableProps) {
     const map = new Map<string, ModelPerfBadgeData>()
     for (const group of healthQuery.data?.data?.groups ?? []) {
       for (const model of group.models ?? []) {
-        if (!model.model || !model.has_active) continue
+        // Keep every row that actually carries a reading (probe or passive
+        // traffic); skip a served model with neither, so the row keeps the "—"
+        // instead of an empty series.
+        if (!model.model || model.has_data === false) continue
         map.set(`${group.group}|${model.model}`, {
           success_rate: model.availability,
           avg_latency_ms: model.latency_ms,

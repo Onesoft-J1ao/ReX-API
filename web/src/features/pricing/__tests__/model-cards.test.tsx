@@ -576,8 +576,9 @@ describe('model cards', () => {
       </QueryClientProvider>
     )
 
-    // Claude leads, and inside it the more available model goes first. The
-    // later-family model keeps its place even though its rate is the highest.
+    // Claude leads, and inside it the more available model goes first. Models
+    // that carry a live reading outrank models with none, so the measured
+    // gemini leads the no-data grok even though gemini is the later family.
     expect(
       screen
         .getAllByRole('heading', { level: 3 })
@@ -585,8 +586,8 @@ describe('model cards', () => {
     ).toEqual([
       'claude-sonnet-5',
       'claude-opus-5',
-      'grok-4.7',
       'gemini-3-flash',
+      'grok-4.7',
     ])
   })
 
@@ -753,6 +754,57 @@ describe('model cards', () => {
     })
     expect(cardElement.textContent).not.toContain('500ms')
     expect(cardElement.textContent).not.toContain('97.00%')
+  })
+
+  // A group whose models carry only passive traffic (no active probe yet) still
+  // has real health numbers. Dropping passive-only rows made a whole group look
+  // empty the moment the viewer picked it, even though the all-groups view
+  // showed every one of its models.
+  it('shows a passive-only reading for the selected group', async () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: { models: [] },
+    })
+    queryClient.setQueryData(['status-check'], {
+      success: true,
+      data: {
+        groups: [
+          {
+            group: 'passive-group',
+            models: [
+              {
+                model: 'example-model',
+                group: 'passive-group',
+                availability: 88,
+                latency_ms: 640,
+                has_active: false,
+                has_data: true,
+                ok: true,
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={[pricingModel({ enable_groups: ['passive-group'] })]}
+          onModelClick={vi.fn()}
+          selectedGroup='passive-group'
+        />
+      </QueryClientProvider>
+    )
+
+    const heading = await screen.findByRole('heading', {
+      name: 'example-model',
+    })
+    const card = heading.closest('.rounded-xl') as HTMLElement
+    await waitFor(() => {
+      expect(within(card).getByText('88.00%')).toBeVisible()
+    })
+    expect(card.textContent).toContain('640ms')
   })
 
   it('lights slots 23 and 18 when series has the current hour and five hours earlier', () => {

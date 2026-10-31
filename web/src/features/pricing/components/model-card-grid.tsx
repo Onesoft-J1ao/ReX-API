@@ -86,7 +86,13 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     const map = new Map<string, ModelPerfBadgeData>()
     for (const group of healthQuery.data?.data?.groups ?? []) {
       for (const model of group.models ?? []) {
-        if (!model.model || !model.has_active) continue
+        // Only rows that actually carry a reading belong in the map: a served
+        // model with no probe and no traffic is `has_data === false`, and
+        // mapping it would paint an empty badge where there is no series. A
+        // passive-only row (has_active false but has_data true) is real traffic
+        // and must be kept, or a group whose models are all passive shows no
+        // health at all.
+        if (!model.model || model.has_data === false) continue
         map.set(`${group.group}|${model.model}`, {
           success_rate: model.availability,
           avg_latency_ms: model.latency_ms,
@@ -144,17 +150,25 @@ export function ModelCardGrid(props: ModelCardGridProps) {
 
   const orderedModels = useMemo(() => {
     if (props.sortBy !== SORT_OPTIONS.RECOMMENDED) return props.models
-    // Family first so a healthy model of a later family cannot jump the queue,
-    // then availability. The comparison falls back to zero for a model with no
-    // sample, and the sort is stable, so those keep their incoming order.
+    // Recommended order surfaces what a buyer can actually judge first:
+    //   1. Models with a live reading ahead of models with none. A card with no
+    //      health data tells the viewer nothing about whether it works, so it
+    //      must not push a measured model down the page.
+    //   2. Among models that both have (or both lack) a reading, preferred
+    //      families first.
+    //   3. Then higher availability first. The comparison falls back to zero for
+    //      a model with no sample, and the sort is stable, so ties and no-data
+    //      models keep their incoming order.
     return [...props.models].sort((a, b) => {
+      const aPerf = perfFor(a.model_name)
+      const bPerf = perfFor(b.model_name)
+      const aHasHealth = aPerf?.success_rate != null
+      const bHasHealth = bPerf?.success_rate != null
+      if (aHasHealth !== bHasHealth) return aHasHealth ? -1 : 1
       const family =
         modelFamilyRank(a.model_name) - modelFamilyRank(b.model_name)
       if (family !== 0) return family
-      return (
-        (perfFor(b.model_name)?.success_rate ?? 0) -
-        (perfFor(a.model_name)?.success_rate ?? 0)
-      )
+      return (bPerf?.success_rate ?? 0) - (aPerf?.success_rate ?? 0)
     })
   }, [props.models, props.sortBy, perfFor])
 

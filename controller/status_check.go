@@ -82,8 +82,17 @@ func GetStatusCheck(c *gin.Context) {
 	cfg := status_check_setting.GetSetting()
 	groups := status_check_setting.GetGroups()
 
-	intervalSec := int64(status_check_setting.GetIntervalMinutes() * 60)
-	since := time.Now().Unix() - intervalSec*2 // last 2 cycles
+	// A probe cycle writes its rows when it *finishes*, and a full cycle across
+	// every grouped channel takes far longer than two configured intervals (the
+	// interval spaces the starts, not the completions). Sizing this window off
+	// the interval therefore dropped every active probe the moment a slow cycle
+	// overran it, and the page fell back to passive traffic only — "no probe data
+	// at all". The latest-per-key queries already ignore superseded cycles, so a
+	// window wide enough to hold one completed cycle is all this needs; use the
+	// passive window so a reached model keeps its probe reading for as long as the
+	// traffic it is merged with.
+	passiveWindowHours := status_check_setting.GetPassiveWindowHours()
+	since := time.Now().Unix() - int64(passiveWindowHours)*3600
 
 	activeGroups, err := model.GetLatestGroupHealth(groups, since)
 	if err != nil {
@@ -96,9 +105,8 @@ func GetStatusCheck(c *gin.Context) {
 	}
 
 	// passive perf_metrics rollup across the configured window
-	hours := status_check_setting.GetPassiveWindowHours()
 	endTs := time.Now().Unix()
-	startTs := endTs - int64(hours)*3600
+	startTs := endTs - int64(passiveWindowHours)*3600
 	passiveSummary, err := model.GetPerfMetricsSummaryByGroup(startTs, endTs, groups)
 	if err != nil {
 		common.ApiError(c, err)
