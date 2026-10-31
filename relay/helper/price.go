@@ -86,7 +86,7 @@ func resolveAutoRoutePricingModel(c *gin.Context, modelName string) string {
 	if _, configured := ratio_setting.GetModelPrice(modelName, false); configured {
 		return modelName
 	}
-	if _, configured, _ := ratio_setting.GetModelRatio(modelName); configured {
+	if _, configured := ratio_setting.GetModelRatioPrice(modelName); configured {
 		return modelName
 	}
 	return routes[modelName][0]
@@ -192,10 +192,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		var matchName string
 		modelRatio, success, matchName = ratio_setting.GetModelRatio(billingModelName)
 		if !success {
-			acceptUnsetRatio := false
-			if info.UserSetting.AcceptUnsetRatioModel {
-				acceptUnsetRatio = true
-			}
+			// Self-use mode means "serve unpriced models anyway"; it is not a
+			// price. Without it the request is rejected rather than billed at
+			// the unpriced sentinel.
+			acceptUnsetRatio := operation_setting.SelfUseModeEnabled ||
+				info.UserSetting.AcceptUnsetRatioModel
 			if !acceptUnsetRatio {
 				return hosttypes.PriceData{}, modelPriceNotConfiguredError(matchName, info.UserId)
 			}
@@ -339,10 +340,8 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 			var ratioSuccess bool
 			var matchName string
 			modelRatio, ratioSuccess, matchName = ratio_setting.GetModelRatio(info.OriginModelName)
-			acceptUnsetRatio := false
-			if info.UserSetting.AcceptUnsetRatioModel {
-				acceptUnsetRatio = true
-			}
+			acceptUnsetRatio := operation_setting.SelfUseModeEnabled ||
+				info.UserSetting.AcceptUnsetRatioModel
 			if !ratioSuccess && !acceptUnsetRatio {
 				return hosttypes.PriceData{}, modelPriceNotConfiguredError(matchName, info.UserId)
 			}
@@ -409,7 +408,7 @@ func HasModelBillingConfig(modelName string) bool {
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true
 	}
-	if _, ok, _ := ratio_setting.GetModelRatio(modelName); ok {
+	if _, ok := ratio_setting.GetModelRatioPrice(modelName); ok {
 		return true
 	}
 	if billing_setting.GetBillingMode(modelName) != billing_setting.BillingModeTieredExpr {

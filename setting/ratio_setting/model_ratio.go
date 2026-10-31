@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -384,14 +383,36 @@ func handleThinkingBudgetModel(name, prefix, wildcard string) string {
 	return name
 }
 
+// GetModelRatio returns the stored per-token ratio for a model.
+//
+// The second result reports whether a ratio is actually configured. It used to
+// return the self-use-mode flag instead, so a deployment with self-use mode on
+// — the default for a private gateway — reported every unpriced model as
+// configured at the 37.5 sentinel. Callers that gate billing or publish prices
+// on this flag then treated the sentinel as a real price.
+//
+// The sentinel is still returned when nothing is configured, because callers
+// convert it into a quota and must not divide by zero; use GetModelRatioPrice
+// when the price itself matters.
 func GetModelRatio(name string) (float64, bool, string) {
 	name = FormatMatchingModelName(name)
 
 	ratio, ok := modelRatioMap.Get(name)
 	if !ok {
-		return 37.5, operation_setting.SelfUseModeEnabled, name
+		return 37.5, false, name
 	}
 	return ratio, true, name
+}
+
+// GetModelRatioPrice returns the per-token ratio only when the model has one.
+// Unlike GetModelRatio it never substitutes the unpriced sentinel, so a caller
+// can tell "free" from "not configured".
+func GetModelRatioPrice(name string) (float64, bool) {
+	ratio, ok, _ := GetModelRatio(name)
+	if !ok {
+		return 0, false
+	}
+	return ratio, true
 }
 
 func DefaultModelRatio2JSONString() string {
@@ -752,7 +773,7 @@ func GetModelRatioOrPrice(model string) (float64, bool, bool) { // price or rati
 	if usePrice {
 		return price, true, true
 	}
-	modelRatio, success, _ := GetModelRatio(model)
+	modelRatio, success := GetModelRatioPrice(model)
 	if success {
 		return modelRatio, false, true
 	}

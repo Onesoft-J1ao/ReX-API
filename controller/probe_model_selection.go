@@ -99,7 +99,7 @@ func probeModelRank(modelName string, groups []string) int {
 	if _, hasPrice := ratio_setting.GetModelPrice(modelName, false); hasPrice {
 		return probeRankFlatPrice
 	}
-	if ratio, exist, _ := ratio_setting.GetModelRatio(modelName); exist {
+	if ratio, exist := ratio_setting.GetModelRatioPrice(modelName); exist {
 		if ratio <= 1 {
 			return probeRankCheapRatio
 		}

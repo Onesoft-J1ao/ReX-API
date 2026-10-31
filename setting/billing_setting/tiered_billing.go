@@ -281,7 +281,7 @@ func validateGroupPricingSource(group, model, source string) error {
 			return fmt.Errorf("模型 %s 没有配置按次价格，分组 %q 无法按次计费", model, group)
 		}
 	case PricingSourceRatio:
-		if _, exists, _ := ratio_setting.GetModelRatio(model); !exists {
+		if _, exists := ratio_setting.GetModelRatioPrice(model); !exists {
 			return fmt.Errorf("模型 %s 没有配置按量倍率，分组 %q 无法按量计费", model, group)
 		}
 	case PricingSourceTieredExpr:

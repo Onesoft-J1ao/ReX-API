@@ -373,8 +373,9 @@ func updatePricing() {
 			pricing.QuotaType = 1
 		} else {
 			// Only publish the ratio when the model actually has one. The
-			// fallback the accessor returns is not a price.
-			if modelRatio, found, _ := ratio_setting.GetModelRatio(model); found {
+			// fallback the accessor returns is not a price, and publishing it
+			// showed every unpriced model at the same made-up figure.
+			if modelRatio, found := ratio_setting.GetModelRatioPrice(model); found {
 				pricing.ModelRatio = &modelRatio
 				pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
 			}
