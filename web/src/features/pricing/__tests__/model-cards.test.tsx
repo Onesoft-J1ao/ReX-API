@@ -38,7 +38,7 @@ import {
 import { CachedPriceCell } from '../components/cached-price-cell'
 import { ModelCard } from '../components/model-card'
 import { ModelCardGrid } from '../components/model-card-grid'
-import { SORT_OPTIONS } from '../constants'
+import { FILTER_ALL, SORT_OPTIONS } from '../constants'
 import { sortModels } from '../lib/filters'
 import type { PricingModel } from '../types'
 
@@ -756,6 +756,84 @@ describe('model cards', () => {
     expect(cardElement.textContent).not.toContain('97.00%')
   })
 
+  // With no group picked the card speaks for the model as a whole, so it must
+  // read the model-wide rollup — the one that spans every group the model is
+  // routed through. Reaching into whichever group came first in the response
+  // showed that group's uptime as the model's.
+  // The bug this locks: on production a model measured at 100% across its
+  // groups displayed 0.00% in the "all groups" view, because one group that
+  // happened to be listed first had failed.
+  it('shows the model-wide reading, not the first group, when no group is picked', async () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: {
+        models: [
+          {
+            model_name: 'claude-opus-4-6',
+            success_rate: 91.67,
+            avg_latency_ms: 1826,
+            avg_tps: 183.3,
+          },
+        ],
+      },
+    })
+    // The failing group is listed first, exactly as status-check orders them.
+    queryClient.setQueryData(['status-check'], {
+      success: true,
+      data: {
+        groups: [
+          {
+            group: 'ClaudeMax',
+            models: [
+              {
+                model: 'claude-opus-4-6',
+                availability: 0,
+                latency_ms: 900,
+                has_data: true,
+              },
+            ],
+          },
+          {
+            group: 'Claude企业池',
+            models: [
+              {
+                model: 'claude-opus-4-6',
+                availability: 95,
+                latency_ms: 1900,
+                has_data: true,
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={[
+            pricingModel({
+              model_name: 'claude-opus-4-6',
+              enable_groups: ['ClaudeMax', 'Claude企业池'],
+            }),
+          ]}
+          onModelClick={vi.fn()}
+          selectedGroup={FILTER_ALL}
+        />
+      </QueryClientProvider>
+    )
+
+    const heading = await screen.findByRole('heading', {
+      name: 'claude-opus-4-6',
+    })
+    const card = heading.closest('.rounded-xl') as HTMLElement
+    await waitFor(() => {
+      expect(within(card).getByText('91.67%')).toBeVisible()
+    })
+    expect(card.textContent).not.toContain('0.00%')
+    expect(card.textContent).not.toContain('95.00%')
+  })
+
   // The group on screen has no reading for this model, but the model has its own
   // passive rollup — real data about the model. That rollup fills the badge
   // instead of leaving it empty, so a group listing never looks blank.
@@ -843,14 +921,14 @@ describe('model cards', () => {
     expect(card.textContent).not.toContain('43.90%')
   })
 
-  // A model-wide figure this deployment measured itself still stands in for a
-  // group it carried no traffic for. Unlike a mirrored one it is our own data
-  // about the model, so it is a usable reading rather than another instance's.
-  // The bug this locks: a model we carried no traffic for showed the mirrored
-  // upstream's blended 43.90% on every group's card, next to an all-red strip.
-  // The mirror has no group dimension, so that figure is not a reading of the
-  // group on screen; the card must show no measurement instead of a borrowed one.
-  it('does not present a mirrored upstream figure as a group reading', async () => {
+  // A group card for a model this deployment carried no traffic for in that
+  // group still gets the model-wide figure, because the alternative is a card
+  // that says nothing at all. It is marked so the reader knows the number is the
+  // whole model's and came from the mirrored upstream.
+  // The bug this locks: the previous rule blanked every such card, so picking a
+  // group emptied the health strip on 263 of the 493 model/group pairs the
+  // production square advertises, while "all groups" showed a figure for each.
+  it('shows a mirrored model-wide figure on a group card, marked as mirrored', async () => {
     queryClient.setQueryData(['perf-metrics-summary', 24], {
       success: true,
       data: {
@@ -890,7 +968,64 @@ describe('model cards', () => {
     })
     const card = heading.closest('.rounded-xl') as HTMLElement
     await waitFor(() => {
-      expect(within(card).getByText('—')).toBeVisible()
+      expect(within(card).getByText('43.90%')).toBeVisible()
+    })
+    // The asterisk is the whole point: the figure is not this group's own.
+    expect(card.textContent).toContain('*')
+  })
+
+  // The group's own reading always outranks the mirrored model-wide one, so a
+  // group we do have data for never shows another instance's blend.
+  it('prefers the group reading over the mirrored model-wide figure', async () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: {
+        models: [
+          {
+            model_name: 'claude-opus-4-6',
+            success_rate: 43.9,
+            avg_latency_ms: 1826,
+            avg_tps: 183.3,
+            source: 'mirror',
+          },
+        ],
+        group_models: [
+          {
+            group: 'ClaudeMax',
+            model_name: 'claude-opus-4-6',
+            success_rate: 12.5,
+            avg_latency_ms: 900,
+            avg_tps: 100,
+          },
+        ],
+      },
+    })
+    queryClient.setQueryData(['status-check'], {
+      success: true,
+      data: { groups: [] },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={[
+            pricingModel({
+              model_name: 'claude-opus-4-6',
+              enable_groups: ['ClaudeMax'],
+            }),
+          ]}
+          onModelClick={vi.fn()}
+          selectedGroup='ClaudeMax'
+        />
+      </QueryClientProvider>
+    )
+
+    const heading = await screen.findByRole('heading', {
+      name: 'claude-opus-4-6',
+    })
+    const card = heading.closest('.rounded-xl') as HTMLElement
+    await waitFor(() => {
+      expect(within(card).getByText('12.50%')).toBeVisible()
     })
     expect(card.textContent).not.toContain('43.90%')
   })

@@ -29,10 +29,10 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import {
   DEFAULT_PRICING_PAGE_SIZE,
   DEFAULT_TOKEN_UNIT,
-  FILTER_ALL,
   SORT_OPTIONS,
 } from '../constants'
 import { modelFamilyRank } from '../lib/filters'
+import { resolveModelPerf } from '../lib/model-health'
 import type { GroupPricingOverrides } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
@@ -141,31 +141,19 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     return map
   }, [perfQuery.data])
 
+  const healthIndex = useMemo(
+    () => ({
+      probeByGroup: healthByModelAndGroup,
+      rollupByGroup: perfByGroupAndModel,
+      modelWide: perfMap,
+    }),
+    [healthByModelAndGroup, perfByGroupAndModel, perfMap]
+  )
+
   const perfFor = useCallback(
-    (modelName: string): ModelPerfBadgeData | undefined => {
-      if (!modelName) return undefined
-      const group = props.selectedGroup
-      if (group && group !== FILTER_ALL) {
-        // In order: this group's probe reading (freshest), then this group's own
-        // passive rollup. The model-wide figure comes last, and only when it was
-        // measured here — a `mirror` entry is another deployment's blend with no
-        // group dimension, so it must not be presented as this group's reading.
-        const local =
-          healthByModelAndGroup.get(`${group}|${modelName}`) ??
-          perfByGroupAndModel.get(`${group}|${modelName}`)
-        if (local) return local
-        const wide = perfMap.get(modelName)
-        return wide?.source === 'mirror' ? undefined : wide
-      }
-      // No group filter: the card stands for the model as a whole, so any
-      // group's reading describes something real about it. The probe is the
-      // fresher signal, so it wins over the passive rollup.
-      for (const [key, value] of healthByModelAndGroup) {
-        if (key.endsWith(`|${modelName}`)) return value
-      }
-      return perfMap.get(modelName)
-    },
-    [healthByModelAndGroup, perfByGroupAndModel, perfMap, props.selectedGroup]
+    (modelName: string): ModelPerfBadgeData | undefined =>
+      resolveModelPerf(healthIndex, modelName, props.selectedGroup),
+    [healthIndex, props.selectedGroup]
   )
 
   const orderedModels = useMemo(() => {

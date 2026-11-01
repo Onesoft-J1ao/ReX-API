@@ -222,7 +222,7 @@ func GetStatusCheck(c *gin.Context) {
 			activeAvail := active.Availability
 			// passive weighted into availability
 			passiveAvail := passiveGroupAvailability(passive, group)
-			dto.Availability = mergeAvailability(activeAvail, passiveAvail, true, passiveAvail >= 0)
+			dto.Availability = mergeAvailability(activeAvail, passiveAvail, passiveGroupRequests(passive, group))
 			dto.Observed = true
 		} else {
 			// no active probe, fall back to all-passive
@@ -306,14 +306,27 @@ func mergeHealthRow(m model.ModelHealth, passive map[string]model.PerfMetricSumm
 		activeAvail = 100
 	}
 	var passiveAvail float64 = -1
+	var passiveRequests int64
+	var passiveLatencyMs int64
 	if p, ok := passive[group+"|"+m.ModelName]; ok {
 		dto.PassiveRequests = p.RequestCount
 		dto.PassiveSuccess = p.SuccessCount
+		passiveRequests = p.RequestCount
 		if p.RequestCount > 0 {
 			passiveAvail = float64(p.SuccessCount) / float64(p.RequestCount) * 100
+			passiveLatencyMs = p.TotalLatencyMs / p.RequestCount
 		}
 	}
-	dto.Availability = mergeAvailability(activeAvail, passiveAvail, true, passiveAvail >= 0)
+	// The row's latency should describe the model as this group serves it, so
+	// the group's own traffic wins over the probe once there is any. A probe
+	// duration is the whole request, and a failed one measures how fast the
+	// failure came back — 45ms is a round trip to nowhere, not a response time.
+	if passiveRequests > 0 {
+		dto.LatencyMs = passiveLatencyMs
+	} else if !m.Ok {
+		dto.LatencyMs = 0
+	}
+	dto.Availability = mergeAvailability(activeAvail, passiveAvail, float64(passiveRequests))
 	dto.Level = GradeAvailability(dto.Availability)
 	return dto
 }
@@ -335,22 +348,39 @@ func passiveOnlyRow(s model.PerfMetricSummaryByGroup, group string) modelHealthD
 	}
 }
 
-// mergeAvailability 50/50 if both sides present; 100% on whichever exists.
-// activeAvail/0, passiveAvail: NaN/或 -1 when absent.
-func mergeAvailability(activeAvail, passiveAvail float64, hasActive, hasPassive bool) float64 {
-	if hasActive && hasPassive {
-		return (activeAvail + passiveAvail) / 2
-	}
-	if hasActive {
+// mergeAvailability combines the probe and the passive rollup.
+//
+// The two sides are weighted by how much evidence each carries: the probe is a
+// single request, so it counts as one sample against the group's real traffic.
+// Averaging them 50/50 instead let one failed probe halve a group's measured
+// uptime — a model with 17 good requests out of 17 read 50%, and the status
+// strip next to it, which is built from the requests alone, was all green. With
+// no passive traffic the probe is all there is, so it stands alone.
+// passiveAvail is -1 when absent.
+func mergeAvailability(activeAvail, passiveAvail, passiveRequests float64) float64 {
+	if passiveAvail < 0 || passiveRequests <= 0 {
 		return activeAvail
 	}
-	if hasPassive {
-		return passiveAvail
-	}
-	return 100 // unknown optimistic
+	// One probe, passiveRequests observed requests.
+	return (activeAvail + passiveAvail*passiveRequests) / (1 + passiveRequests)
 }
 
 func passiveGroupAvailability(passive map[string]model.PerfMetricSummaryByGroup, group string) float64 {
+	totalReq, totalSucc := passiveGroupCounts(passive, group)
+	if totalReq == 0 {
+		return -1
+	}
+	return float64(totalSucc) / float64(totalReq) * 100
+}
+
+// passiveGroupRequests is the sample size behind passiveGroupAvailability, used
+// to weight that figure against a single probe.
+func passiveGroupRequests(passive map[string]model.PerfMetricSummaryByGroup, group string) float64 {
+	totalReq, _ := passiveGroupCounts(passive, group)
+	return float64(totalReq)
+}
+
+func passiveGroupCounts(passive map[string]model.PerfMetricSummaryByGroup, group string) (int64, int64) {
 	totalReq, totalSucc := int64(0), int64(0)
 	for _, p := range passive {
 		if !strings.EqualFold(p.Group, group) {
@@ -359,10 +389,7 @@ func passiveGroupAvailability(passive map[string]model.PerfMetricSummaryByGroup,
 		totalReq += p.RequestCount
 		totalSucc += p.SuccessCount
 	}
-	if totalReq == 0 {
-		return -1
-	}
-	return float64(totalSucc) / float64(totalReq) * 100
+	return totalReq, totalSucc
 }
 
 // GradeAvailability thresholds mirrored from web/src/features/performance-metrics/lib/format.ts
@@ -655,13 +682,23 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 
 			// One live probe per (channel, model); fan the same outcome out
 			// to every configured group that owns this channel.
+			//
+			// A failed probe says nothing about latency: the request may have
+			// been rejected here before it ever reached the upstream (an
+			// unconfigured price answers in 1ms), or failed at the first hop of
+			// a long route. Reporting that duration as the model's latency put
+			// "1ms" next to a model that never answered.
+			reportedLatency := latMs
+			if !ok {
+				reportedLatency = 0
+			}
 			for _, g := range groupsForModel {
 				probedGroups[g] = struct{}{}
 				mh := model.ModelHealth{
 					ModelName: modelName,
 					Group:     g,
 					ProbeTs:   probeTs,
-					LatencyMs: latMs,
+					LatencyMs: reportedLatency,
 					Ok:        ok,
 					ErrorCode: errCode,
 					ErrorMsg:  errMsg,
@@ -677,13 +714,13 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 					perfmetrics.Record(perfmetrics.Sample{
 						Model:     modelName,
 						Group:     g,
-						LatencyMs: latMs,
+						LatencyMs: reportedLatency,
 						Success:   ok,
 					})
 				}
 				accG := acc[g]
 				accG.total++
-				accG.latSum += latMs
+				accG.latSum += reportedLatency
 				if ok {
 					accG.ok++
 				}

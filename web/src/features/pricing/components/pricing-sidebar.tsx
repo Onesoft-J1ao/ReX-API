@@ -51,6 +51,11 @@ type FilterOption = {
   value: string
   label: string
   count?: number
+  /**
+   * Shown instead of `count` when set. A group chip has both a ratio and a
+   * model count, so `suffix` carries the ratio and `count` becomes the trailing
+   * "· 3" in the label.
+   */
   suffix?: string
   icon?: ReactNode
 }
@@ -194,6 +199,11 @@ function FilterChip(props: {
         <span className='shrink-0'>{props.option.icon}</span>
       )}
       <span className='truncate'>{props.option.label}</span>
+      {props.option.suffix && props.option.count != null && (
+        <span className='text-muted-foreground shrink-0 text-xs tabular-nums'>
+          · {props.option.count}
+        </span>
+      )}
       {(props.option.suffix || props.option.count != null) && (
         <span
           className={cn(
@@ -283,10 +293,17 @@ export function PricingSidebar(props: PricingSidebarProps) {
     {
       value: FILTER_ALL,
       label: t('All Groups'),
+      count: props.models.length,
     },
     ...props.groups.map((group) => ({
       value: group,
       label: group,
+      // As in every other facet here, the badge says how many models the
+      // option currently holds. Without it a group that serves nothing looks
+      // the same as one that serves half the listing.
+      count: countBy(props.models, (model) =>
+        (model.enable_groups ?? []).includes(group)
+      ),
       suffix: formatGroupRatio(props.groupRatios?.[group]),
     })),
   ]

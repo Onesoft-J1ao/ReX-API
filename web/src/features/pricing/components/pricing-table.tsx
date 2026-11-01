@@ -34,8 +34,8 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import {
   DEFAULT_PRICING_TABLE_PAGE_SIZE,
   DEFAULT_TOKEN_UNIT,
-  FILTER_ALL,
 } from '../constants'
+import { resolveModelPerf } from '../lib/model-health'
 import type { GroupPricingOverrides } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import type { ModelPerfBadgeData } from './model-perf-badge'
@@ -153,25 +153,19 @@ export function PricingTable(props: PricingTableProps) {
     return map
   }, [healthQuery.data])
 
-  // Mirrors ModelCardGrid.perfFor so both views answer the same question the
-  // same way: the picked group's probe reading, then its own passive rollup,
-  // then a model-wide figure only if this deployment measured it.
+  // Mirrors ModelCardGrid: both views answer the same question, so both go
+  // through resolveModelPerf rather than keeping a second copy of the rules.
   const perfFor = useCallback(
-    (modelName: string): ModelPerfBadgeData | undefined => {
-      if (!modelName) return undefined
-      if (selectedGroup && selectedGroup !== FILTER_ALL) {
-        const local =
-          healthByModelAndGroup.get(`${selectedGroup}|${modelName}`) ??
-          perfByGroupAndModel.get(`${selectedGroup}|${modelName}`)
-        if (local) return local
-        const wide = perfMap.get(modelName)
-        return wide?.source === 'mirror' ? undefined : wide
-      }
-      for (const [key, value] of healthByModelAndGroup) {
-        if (key.endsWith(`|${modelName}`)) return value
-      }
-      return perfMap.get(modelName)
-    },
+    (modelName: string): ModelPerfBadgeData | undefined =>
+      resolveModelPerf(
+        {
+          probeByGroup: healthByModelAndGroup,
+          rollupByGroup: perfByGroupAndModel,
+          modelWide: perfMap,
+        },
+        modelName,
+        selectedGroup
+      ),
     [healthByModelAndGroup, perfByGroupAndModel, perfMap, selectedGroup]
   )
 

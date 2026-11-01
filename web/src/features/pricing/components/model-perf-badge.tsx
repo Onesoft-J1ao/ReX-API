@@ -100,13 +100,13 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
             )}
             className='text-muted-foreground flex items-center justify-between gap-1 text-[13px] leading-4'
           >
-            <span title={mirrored ? t('Measured by the mirrored upstream, not by this group') : undefined}>
+            <span title={mirrored ? t('Measured by the mirrored upstream for the model, not for this group') : undefined}>
               {t('Status')}
               {mirrored && <span aria-hidden>*</span>}
             </span>
             <span
               className='font-mono'
-              title={mirrored ? t('Mirrored upstream figure; this group has no measurement of its own') : undefined}
+              title={mirrored ? t('Mirrored upstream figure for the whole model; this group has no measurement of its own') : undefined}
             >
               {hasSuccessRate ? `${successRate.toFixed(2)}%` : '—'}
             </span>
