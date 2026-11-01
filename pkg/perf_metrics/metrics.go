@@ -393,14 +393,124 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		WindowStart: startTs,
 		WindowEnd:   endTs,
 		Models:      mergeUpstreamModels(models, hours),
+		GroupModels: buildGroupModels(startTs, endTs, groups, allowedGroups),
 	}, nil
 }
 
+// buildGroupModels splits the same figures by group. It reads the group column
+// that QuerySummaryAll's model-wide pass deliberately drops, so a card scoped to
+// one group shows that group's own uptime instead of an average across every
+// group the model is routed through.
+//
+// Only locally measured rows are included: the mirrored upstream summary has no
+// group dimension at all, so lending its numbers to a group would put another
+// deployment's uptime on this group's card.
+func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[string]struct{}) []GroupModelSummary {
+	rows, err := model.GetPerfMetricsGroupBucketsAll(startTs, endTs, groups)
+	if err != nil {
+		return nil
+	}
+
+	type key struct{ group, model string }
+	totals := map[key]counters{}
+	buckets := map[key]map[int64]counters{}
+	for _, row := range rows {
+		if row.ModelName == StatusCheckProbeModel {
+			continue
+		}
+		if allowed != nil {
+			if _, ok := allowed[row.Group]; !ok {
+				continue
+			}
+		}
+		k := key{group: row.Group, model: row.ModelName}
+		if buckets[k] == nil {
+			buckets[k] = map[int64]counters{}
+		}
+		value := counters{
+			requestCount:   row.RequestCount,
+			successCount:   row.SuccessCount,
+			totalLatencyMs: row.TotalLatencyMs,
+			outputTokens:   row.OutputTokens,
+			generationMs:   row.GenerationMs,
+		}
+		current := totals[k]
+		mergeStatusCounters(&current, value)
+		totals[k] = current
+		bucket := buckets[k][row.BucketTs]
+		mergeStatusCounters(&bucket, value)
+		buckets[k][row.BucketTs] = bucket
+	}
+
+	// hot buckets hold in-flight samples for models probed this cycle; without
+	// them a freshly probed group reads as empty until the next flush.
+	hotBuckets.Range(func(k any, value any) bool {
+		bucket := k.(bucketKey)
+		if bucket.model == StatusCheckProbeModel {
+			return true
+		}
+		if bucket.bucketTs < startTs || bucket.bucketTs > endTs {
+			return true
+		}
+		if allowed != nil {
+			if _, ok := allowed[bucket.group]; !ok {
+				return true
+			}
+		}
+		snap := value.(*atomicBucket).snapshot()
+		if snap.requestCount == 0 {
+			return true
+		}
+		key := key{group: bucket.group, model: bucket.model}
+		if buckets[key] == nil {
+			buckets[key] = map[int64]counters{}
+		}
+		current := totals[key]
+		mergeStatusCounters(&current, snap)
+		totals[key] = current
+		return true
+	})
+
+	out := make([]GroupModelSummary, 0, len(totals))
+	for k, total := range totals {
+		if total.requestCount == 0 {
+			continue
+		}
+		avgTps := 0.0
+		if total.generationMs > 0 {
+			avgTps = float64(total.outputTokens) / (float64(total.generationMs) / 1000.0)
+		}
+		out = append(out, GroupModelSummary{
+			Group:               k.group,
+			ModelName:           k.model,
+			AvgLatencyMs:        total.totalLatencyMs / total.requestCount,
+			SuccessRate:         math.Round(successRate(total)*100) / 100,
+			AvgTps:              math.Round(avgTps*100) / 100,
+			RecentSuccessSeries: recentSuccessSeries(buckets[k]),
+			RecentLatencySeries: recentLatencySeries(buckets[k]),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Group != out[j].Group {
+			return out[i].Group < out[j].Group
+		}
+		return out[i].ModelName < out[j].ModelName
+	})
+	return out
+}
+
+// SourceMirror marks numbers that came from another deployment's public
+// summary. It has no group dimension, so a per-group card must not present it as
+// a reading of the group on screen.
+const SourceMirror = "mirror"
+
 // mergeUpstreamModels overlays the mirrored upstream summary on our own numbers.
-// The upstream sees the same models served by the same kind of instance, so for
-// a model it reports it is the better source: it samples traffic we never
-// carried, which matters most for pay-per-request models we no longer probe.
-// Models it does not report keep our own data.
+//
+// Our own rows always win for a model we served: they are the only figures that
+// belong to *this* deployment and to a specific group. The mirror fills in the
+// models we carried no traffic for at all, and those entries are marked
+// SourceMirror so a group-scoped card can tell the difference between "this group
+// is at 43%" and "another instance's blended figure for this model is 43%".
 //
 // Upstream entries carry no request count, so they sort after models we have
 // actually served; ordering stays "busiest local model first".
@@ -442,7 +552,10 @@ func mergeUpstreamModelsServedBy(local []ModelSummary, hours int, served map[str
 	}
 
 	merged := make([]ModelSummary, 0, len(local)+len(upstream.Models))
-	seen := make(map[string]struct{}, len(upstream.Models))
+	localNames := make(map[string]struct{}, len(local))
+	for _, model := range local {
+		localNames[model.ModelName] = struct{}{}
+	}
 	for _, model := range upstream.Models {
 		if model.ModelName == "" {
 			continue
@@ -456,25 +569,17 @@ func mergeUpstreamModelsServedBy(local []ModelSummary, hours int, served map[str
 				continue
 			}
 		}
-		model.RequestCount = 0
-		merged = append(merged, model)
-		seen[model.ModelName] = struct{}{}
-	}
-	for _, model := range local {
-		if _, mirrored := seen[model.ModelName]; mirrored {
-			if len(model.RecentLatencySeries) == 0 {
-				continue
-			}
-			for i := range merged {
-				if merged[i].ModelName == model.ModelName && len(merged[i].RecentLatencySeries) == 0 {
-					merged[i].RecentLatencySeries = model.RecentLatencySeries
-					break
-				}
-			}
+		// Our own rows win. They are the only figures about this deployment, and
+		// the only ones that can be split by group; letting the mirror overwrite
+		// them is what made every group show one instance's blended number.
+		if _, ours := localNames[model.ModelName]; ours {
 			continue
 		}
+		model.RequestCount = 0
+		model.Source = SourceMirror
 		merged = append(merged, model)
 	}
+	merged = append(merged, local...)
 	sort.Slice(merged, func(i, j int) bool {
 		return merged[i].RequestCount > merged[j].RequestCount
 	})

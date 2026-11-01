@@ -51,9 +51,10 @@ func upstreamServer(t *testing.T, body string) *httptest.Server {
 	return server
 }
 
-// The mirrored upstream is the primary source: it samples models we never
-// carried, which is what keeps pay-per-request models off our own probe budget.
-func TestMergeUpstreamModelsUpstreamWinsForSharedModels(t *testing.T) {
+// Our own rows win for a model we served. They are the only figures about this
+// deployment and the only ones that can be split by group; letting the mirror
+// overwrite them is what made every group report one instance's blended number.
+func TestMergeUpstreamModelsKeepsOurRowsForSharedModels(t *testing.T) {
 	server := upstreamServer(t, `{"success":true,"data":{"models":[
 		{"model_name":"shared","avg_latency_ms":1234,"success_rate":99.5,"avg_tps":42.5}
 	]}}`)
@@ -72,9 +73,35 @@ func TestMergeUpstreamModelsUpstreamWinsForSharedModels(t *testing.T) {
 		byName[model.ModelName] = model
 	}
 	require.Len(t, merged, 2)
-	assert.EqualValues(t, 1234, byName["shared"].AvgLatencyMs, "the upstream value must replace ours")
-	assert.EqualValues(t, 99.5, byName["shared"].SuccessRate)
-	assert.EqualValues(t, 500, byName["local-only"].AvgLatencyMs, "a model the upstream omits keeps our data")
+	assert.EqualValues(t, 9999, byName["shared"].AvgLatencyMs, "our own rows must not be replaced by the mirror")
+	assert.EqualValues(t, 10, byName["shared"].SuccessRate)
+	assert.Empty(t, byName["shared"].Source, "a locally measured model carries no mirror marker")
+	assert.EqualValues(t, 500, byName["local-only"].AvgLatencyMs)
+}
+
+// A model we carried no traffic for is filled from the mirror, and marked so a
+// group-scoped card can tell it is another deployment's blended number rather
+// than a reading of the group on screen.
+func TestMergeUpstreamModelsMarksModelsOnlyTheMirrorKnows(t *testing.T) {
+	server := upstreamServer(t, `{"success":true,"data":{"models":[
+		{"model_name":"mirrored-only","avg_latency_ms":1234,"success_rate":43.9,"avg_tps":42.5}
+	]}}`)
+	withUpstreamSetting(t, server.URL)
+	primeUpstreamMirror(t, 24)
+
+	merged := mergeUpstreamModels([]ModelSummary{
+		{ModelName: "local-model", AvgLatencyMs: 500, SuccessRate: 88, RequestCount: 5},
+	}, 24)
+
+	byName := map[string]ModelSummary{}
+	for _, model := range merged {
+		byName[model.ModelName] = model
+	}
+	require.Contains(t, byName, "mirrored-only")
+	assert.Equal(t, SourceMirror, byName["mirrored-only"].Source,
+		"a mirrored figure with no group dimension must be labelled as such")
+	assert.Zero(t, byName["mirrored-only"].RequestCount,
+		"we carried none of that traffic, so it has no request count")
 }
 
 // A model we have actually served sorts ahead of a mirrored one, because only

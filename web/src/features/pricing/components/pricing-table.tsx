@@ -101,6 +101,21 @@ export function PricingTable(props: PricingTableProps) {
     retry: false,
   })
 
+  // The same split ModelCardGrid reads: `models` blends every group together,
+  // `group_models` keeps them apart.
+  const perfByGroupAndModel = useMemo(() => {
+    const map = new Map<string, ModelPerfBadgeData>()
+    for (const model of perfQuery.data?.data?.group_models ?? []) {
+      if (!model.group || !model.model_name) continue
+      map.set(`${model.group}|${model.model_name}`, {
+        ...model,
+        window_start: perfQuery.data?.data.window_start,
+        window_end: perfQuery.data?.data.window_end,
+      })
+    }
+    return map
+  }, [perfQuery.data])
+
   const perfMap = useMemo(() => {
     const map = new Map<string, ModelPerfBadgeData>()
     for (const model of perfQuery.data?.data?.models ?? []) {
@@ -139,23 +154,25 @@ export function PricingTable(props: PricingTableProps) {
   }, [healthQuery.data])
 
   // Mirrors ModelCardGrid.perfFor so both views answer the same question the
-  // same way: a picked group shows that group's numbers when it has them, else
-  // the model's own passive rollup, else nothing.
+  // same way: the picked group's probe reading, then its own passive rollup,
+  // then a model-wide figure only if this deployment measured it.
   const perfFor = useCallback(
     (modelName: string): ModelPerfBadgeData | undefined => {
       if (!modelName) return undefined
       if (selectedGroup && selectedGroup !== FILTER_ALL) {
-        return (
+        const local =
           healthByModelAndGroup.get(`${selectedGroup}|${modelName}`) ??
-          perfMap.get(modelName)
-        )
+          perfByGroupAndModel.get(`${selectedGroup}|${modelName}`)
+        if (local) return local
+        const wide = perfMap.get(modelName)
+        return wide?.source === 'mirror' ? undefined : wide
       }
       for (const [key, value] of healthByModelAndGroup) {
         if (key.endsWith(`|${modelName}`)) return value
       }
       return perfMap.get(modelName)
     },
-    [healthByModelAndGroup, perfMap, selectedGroup]
+    [healthByModelAndGroup, perfByGroupAndModel, perfMap, selectedGroup]
   )
 
   const columns = usePricingColumns({

@@ -35,6 +35,13 @@ export type ModelPerfBadgeData = {
   avg_tps: number
   recent_success_series?: SuccessRatePoint[]
   recent_latency_series?: { ts: number; latency_ms: number }[]
+  /**
+   * Where the numbers came from. `mirror` means another deployment's aggregate,
+   * which has no group dimension — it describes that instance's traffic for the
+   * model, not ours and not the group on screen. The badge marks it so a figure
+   * we never measured is not mistaken for a measurement of this group.
+   */
+  source?: string
 }
 
 export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -58,6 +65,10 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
     Number.isFinite(successRate) &&
     successRate >= 0 &&
     successRate <= 100
+  // Another deployment's blended figure. It has no group dimension, so it cannot
+  // answer "how is this model doing in this group" — only "how is it doing
+  // somewhere". The number stays useful, but it says where it came from.
+  const mirrored = props.perf?.source === 'mirror'
   // Hourly points use the server window, including the current partial hour.
   // Hours without traffic stay gray. Slot 23 is the current, partial hour.
   const statusRates = useMemo(() => {
@@ -89,8 +100,14 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
             )}
             className='text-muted-foreground flex items-center justify-between gap-1 text-[13px] leading-4'
           >
-            <span>{t('Status')}</span>
-            <span className='font-mono'>
+            <span title={mirrored ? t('Measured by the mirrored upstream, not by this group') : undefined}>
+              {t('Status')}
+              {mirrored && <span aria-hidden>*</span>}
+            </span>
+            <span
+              className='font-mono'
+              title={mirrored ? t('Mirrored upstream figure; this group has no measurement of its own') : undefined}
+            >
               {hasSuccessRate ? `${successRate.toFixed(2)}%` : '—'}
             </span>
           </dt>

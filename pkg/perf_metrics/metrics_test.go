@@ -236,6 +236,22 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			require.Len(t, summary.Models, 1)
 			assert.Equal(t, 99.01, summary.Models[0].SuccessRate)
 			assert.Equal(t, 99.01, summary.Models[0].RecentSuccessSeries[0].SuccessRate)
+			// The model-wide figure above blends both groups. The per-group split
+			// must keep them apart: group "a" carried only successes while group
+			// "b" contributed the one failure, so a card scoped to either group
+			// reads its own number rather than the blend.
+			require.Len(t, summary.GroupModels, 2)
+			byGroup := map[string]GroupModelSummary{}
+			for _, row := range summary.GroupModels {
+				byGroup[row.Group] = row
+			}
+			require.Contains(t, byGroup, "a")
+			require.Contains(t, byGroup, "b")
+			assert.Equal(t, "test-model", byGroup["a"].ModelName)
+			assert.InDelta(t, 100.0, byGroup["a"].SuccessRate, 0.01)
+			assert.InDelta(t, 0.0, byGroup["b"].SuccessRate, 0.01)
+			assert.NotEqual(t, byGroup["a"].SuccessRate, byGroup["b"].SuccessRate,
+				"two groups must not report one model-wide number")
 			encoded, err := common.Marshal(summary)
 			require.NoError(t, err)
 			assert.NotContains(t, string(encoded), "request_count")

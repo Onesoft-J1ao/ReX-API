@@ -8095,7 +8095,9 @@
     "、": ", ",
     "动漫": "Anime",
     "，": ", ",
-    "，and ": ", and "
+    "，and ": ", and ",
+    "Measured by the mirrored upstream, not by this group": "Measured by the mirrored upstream, not by this group",
+    "Mirrored upstream figure; this group has no measurement of its own": "Mirrored upstream figure; this group has no measurement of its own"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -110,9 +110,24 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     return map
   }, [healthQuery.data])
 
-  // The passive rollup has no group dimension at all, so it stands in only for a
-  // model no probe has reported. The probe is the fresher signal, so a model it
-  // already covered keeps that reading.
+  // The passive rollup split by group. `models` holds a model-wide figure that
+  // blends every group the model is routed through — using it for a group card
+  // is what made ClaudeMax and Claude企业池 show one identical number.
+  // `group_models` keeps them apart; the model-wide map stays for a group this
+  // deployment carried no traffic for, and for gateways that do not send it.
+  const perfByGroupAndModel = useMemo(() => {
+    const map = new Map<string, ModelPerfBadgeData>()
+    for (const model of perfQuery.data?.data?.group_models ?? []) {
+      if (!model.group || !model.model_name) continue
+      map.set(`${model.group}|${model.model_name}`, {
+        ...model,
+        window_start: perfQuery.data?.data.window_start,
+        window_end: perfQuery.data?.data.window_end,
+      })
+    }
+    return map
+  }, [perfQuery.data])
+
   const perfMap = useMemo(() => {
     const map = new Map<string, ModelPerfBadgeData>()
     for (const model of perfQuery.data?.data?.models ?? []) {
@@ -131,15 +146,16 @@ export function ModelCardGrid(props: ModelCardGridProps) {
       if (!modelName) return undefined
       const group = props.selectedGroup
       if (group && group !== FILTER_ALL) {
-        // Prefer the reading for the group on screen. When that group has none
-        // for this model — it carries no probe and no traffic there — fall back
-        // to the model's own passive rollup, which is real data about the model
-        // rather than another group's number. Only a model with neither shows
-        // an empty badge.
-        return (
+        // In order: this group's probe reading (freshest), then this group's own
+        // passive rollup. The model-wide figure comes last, and only when it was
+        // measured here — a `mirror` entry is another deployment's blend with no
+        // group dimension, so it must not be presented as this group's reading.
+        const local =
           healthByModelAndGroup.get(`${group}|${modelName}`) ??
-          perfMap.get(modelName)
-        )
+          perfByGroupAndModel.get(`${group}|${modelName}`)
+        if (local) return local
+        const wide = perfMap.get(modelName)
+        return wide?.source === 'mirror' ? undefined : wide
       }
       // No group filter: the card stands for the model as a whole, so any
       // group's reading describes something real about it. The probe is the
@@ -149,7 +165,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
       }
       return perfMap.get(modelName)
     },
-    [healthByModelAndGroup, perfMap, props.selectedGroup]
+    [healthByModelAndGroup, perfByGroupAndModel, perfMap, props.selectedGroup]
   )
 
   const orderedModels = useMemo(() => {

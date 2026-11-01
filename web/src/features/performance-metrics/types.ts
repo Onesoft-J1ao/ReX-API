@@ -67,6 +67,22 @@ export type PerfModelSummary = {
   request_count?: number
 }
 
+/**
+ * One model's numbers inside one group. Health is per (model, group): the same
+ * model routed through two groups is two independent upstreams, so a card scoped
+ * to a group must read this rather than the model-wide `models` rollup, which
+ * blends every group together.
+ */
+export type PerfGroupModelSummary = {
+  group: string
+  model_name: string
+  avg_latency_ms: number
+  success_rate: number
+  avg_tps: number
+  recent_success_series?: SuccessRatePoint[]
+  recent_latency_series?: LatencyPoint[]
+}
+
 export type PerfSummaryAllData = {
   success: boolean
   message?: string
@@ -75,6 +91,8 @@ export type PerfSummaryAllData = {
     window_start?: number
     window_end?: number
     models: PerfModelSummary[]
+    /** Per-group split of the same figures; absent on older gateways. */
+    group_models?: PerfGroupModelSummary[]
   }
 }
 

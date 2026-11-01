@@ -110,6 +110,26 @@ type ModelSummary struct {
 	RecentSuccessSeries []SuccessRatePoint `json:"recent_success_series,omitempty"`
 	RecentLatencySeries []LatencyPoint     `json:"recent_latency_series,omitempty"`
 	RequestCount        int64              `json:"-"`
+	// Source names where the numbers came from. "mirror" means another
+	// deployment's aggregate, which has no group dimension: the figure describes
+	// that instance's traffic for the model, not ours and not one of our groups.
+	// A card showing it must say so, or a model we carried no traffic for appears
+	// measured when nothing here was measured.
+	Source string `json:"source,omitempty"`
+}
+
+// GroupModelSummary is one model's numbers inside one group. Health is per
+// (model, group): the same model routed through two groups is two independent
+// upstreams with independent uptime, so a card scoped to a group must read the
+// row for that group rather than a model-wide average that blends them.
+type GroupModelSummary struct {
+	Group               string             `json:"group"`
+	ModelName           string             `json:"model_name"`
+	AvgLatencyMs        int64              `json:"avg_latency_ms"`
+	SuccessRate         float64            `json:"success_rate"`
+	AvgTps              float64            `json:"avg_tps"`
+	RecentSuccessSeries []SuccessRatePoint `json:"recent_success_series,omitempty"`
+	RecentLatencySeries []LatencyPoint     `json:"recent_latency_series,omitempty"`
 }
 
 type SummaryAllResult struct {
@@ -117,6 +137,11 @@ type SummaryAllResult struct {
 	WindowStart int64          `json:"window_start"`
 	WindowEnd   int64          `json:"window_end"`
 	Models      []ModelSummary `json:"models"`
+	// GroupModels carries the same figures split by group. `Models` stays as the
+	// model-wide rollup the overview reads; a per-group card uses this instead,
+	// because averaging groups together is exactly what makes two groups show
+	// one group's numbers.
+	GroupModels []GroupModelSummary `json:"group_models,omitempty"`
 }
 
 type bucketKey struct {
