@@ -7,12 +7,16 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 // upstreamRefreshInterval is how often the mirror is refreshed. The upstream
@@ -46,8 +50,14 @@ type upstreamCacheEntry struct {
 	result SummaryAllResult
 }
 
+type upstreamDetailCacheEntry struct {
+	at     time.Time
+	result QueryResult
+}
+
 type upstreamCacheKey struct {
 	source string
+	model  string
 	hours  int
 }
 
@@ -57,6 +67,11 @@ type upstreamCacheKey struct {
 var upstreamSummaryCache struct {
 	sync.Mutex
 	entries map[upstreamCacheKey]upstreamCacheEntry
+}
+
+var upstreamDetailCache struct {
+	sync.Mutex
+	entries map[upstreamCacheKey]upstreamDetailCacheEntry
 }
 
 var (
@@ -102,6 +117,19 @@ func fetchUpstreamSummaryFor(source string, hours int) (SummaryAllResult, bool) 
 	entry, ok := upstreamSummaryCache.entries[upstreamCacheKey{source: source, hours: hours}]
 	if !ok || len(entry.result.Models) == 0 {
 		return SummaryAllResult{}, false
+	}
+	return entry.result, true
+}
+
+func fetchUpstreamDetailFor(source, model string, hours int) (QueryResult, bool) {
+	if !upstreamConfiguredFor(source) || strings.TrimSpace(model) == "" {
+		return QueryResult{}, false
+	}
+	upstreamDetailCache.Lock()
+	defer upstreamDetailCache.Unlock()
+	entry, ok := upstreamDetailCache.entries[upstreamCacheKey{source: source, model: model, hours: hours}]
+	if !ok || entry.result.ModelName != model {
+		return QueryResult{}, false
 	}
 	return entry.result, true
 }
@@ -167,6 +195,7 @@ func upstreamRefreshLoop(hours []int) {
 		time.Sleep(upstreamRetryInterval)
 		refreshAllUpstreamSummaries(hours)
 	}
+	go upstreamDetailRefreshLoop()
 	ticker := time.NewTicker(upstreamRefreshInterval)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -176,6 +205,86 @@ func upstreamRefreshLoop(hours []int) {
 
 // refreshAllUpstreamSummaries reports whether at least one window was stored, so
 // the loop knows whether the mirror is still cold.
+const upstreamDetailRefreshInterval = 15 * time.Minute
+
+func upstreamDetailRefreshLoop() {
+	refreshAllUpstreamDetails()
+	ticker := time.NewTicker(upstreamDetailRefreshInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		refreshAllUpstreamDetails()
+	}
+}
+
+func refreshAllUpstreamDetails() {
+	groups := ratioGroupsForHealthMirror()
+	groupURLs, err := model.GetEnabledGroupBaseURLs(groups)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("perf metrics upstream detail mapping failed: %s", err.Error()))
+		return
+	}
+	modelsBySource := make(map[string]map[string]struct{})
+	for group, bases := range groupURLs {
+		for _, base := range bases {
+			source := upstreamSourceForBaseURL(base)
+			upstreamGroup := upstreamHealthGroup(source, group)
+			if source == "" || upstreamGroup == "" {
+				continue
+			}
+			if modelsBySource[source] == nil {
+				modelsBySource[source] = make(map[string]struct{})
+			}
+			for _, modelName := range model.GetGroupEnabledModels(group) {
+				modelsBySource[source][modelName] = struct{}{}
+			}
+		}
+	}
+	jobs := make([]struct {
+		source string
+		model  string
+	}, 0)
+	for source, modelSet := range modelsBySource {
+		summary, ok := fetchUpstreamSummaryFor(source, 24)
+		if !ok {
+			continue
+		}
+		models := make([]string, 0, len(modelSet))
+		for _, upstreamModel := range summary.Models {
+			if _, served := modelSet[upstreamModel.ModelName]; served {
+				models = append(models, upstreamModel.ModelName)
+			}
+		}
+		sort.Strings(models)
+		for _, modelName := range models {
+			jobs = append(jobs, struct {
+				source string
+				model  string
+			}{source: source, model: modelName})
+		}
+	}
+	semaphore := make(chan struct{}, 4)
+	var waitGroup sync.WaitGroup
+	for _, job := range jobs {
+		job := job
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			refreshUpstreamDetail(job.source, job.model, 24)
+		}()
+	}
+	waitGroup.Wait()
+}
+
+func ratioGroupsForHealthMirror() []string {
+	groups := make([]string, 0, len(ratio_setting.GetGroupRatioCopy()))
+	for group := range ratio_setting.GetGroupRatioCopy() {
+		groups = append(groups, group)
+	}
+	return groups
+}
+
 func refreshAllUpstreamSummaries(hours []int) bool {
 	stored := false
 	for source := range perf_metrics_setting.GetSetting().UpstreamSummaryUrls {
@@ -194,6 +303,25 @@ func refreshAllUpstreamSummaries(hours []int) bool {
 		}
 	}
 	return stored
+}
+
+func refreshUpstreamDetail(source, model string, hours int) bool {
+	if !upstreamConfiguredFor(source) || strings.TrimSpace(model) == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), perf_metrics_setting.GetUpstreamTimeout())
+	defer cancel()
+	result, err := requestUpstreamDetail(ctx, upstreamDetailURL(source, model, hours))
+	if err != nil || result.ModelName == "" || len(result.Groups) == 0 {
+		return false
+	}
+	upstreamDetailCache.Lock()
+	if upstreamDetailCache.entries == nil {
+		upstreamDetailCache.entries = map[upstreamCacheKey]upstreamDetailCacheEntry{}
+	}
+	upstreamDetailCache.entries[upstreamCacheKey{source: source, model: model, hours: hours}] = upstreamDetailCacheEntry{at: time.Now(), result: result}
+	upstreamDetailCache.Unlock()
+	return true
 }
 
 // refreshUpstreamSummary fetches and stores one window, reporting whether the
@@ -252,6 +380,41 @@ func requestUpstreamSummary(ctx context.Context, url string) (SummaryAllResult, 
 	}
 	if !envelope.Success {
 		return SummaryAllResult{}, errors.New("upstream reported failure")
+	}
+	return envelope.Data, nil
+}
+
+func upstreamDetailURL(source, model string, hours int) string {
+	base := strings.TrimRight(strings.TrimSpace(upstreamSummaryUrlBase(source)), "/")
+	return fmt.Sprintf("%s?model=%s&hours=%d", strings.Replace(base, "/summary", "", 1), url.QueryEscape(model), hours)
+}
+
+func requestUpstreamDetail(ctx context.Context, url string) (QueryResult, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	resp, err := getUpstreamClient(perf_metrics_setting.GetUpstreamTimeout()).Do(req)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return QueryResult{}, fmt.Errorf("upstream detail returned status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, upstreamMaxBytes+1))
+	if err != nil {
+		return QueryResult{}, err
+	}
+	var envelope struct {
+		Success bool        `json:"success"`
+		Data    QueryResult `json:"data"`
+	}
+	if err := common.Unmarshal(body, &envelope); err != nil {
+		return QueryResult{}, err
+	}
+	if !envelope.Success {
+		return QueryResult{}, errors.New("upstream detail reported failure")
 	}
 	return envelope.Data, nil
 }

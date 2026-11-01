@@ -533,6 +533,26 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 					if _, exists := localKeys[k]; exists {
 						continue
 					}
+					upstreamGroup := upstreamHealthGroup(source, group)
+					if upstreamGroup == "" {
+						continue
+					}
+					detail, ok := fetchUpstreamDetailFor(source, mirror.ModelName, 24)
+					if !ok {
+						continue
+					}
+					matchedGroup := false
+					for _, detailGroup := range detail.Groups {
+						if detailGroup.Group != upstreamGroup {
+							continue
+						}
+						mirror = modelSummaryFromGroup(mirror, detailGroup)
+						matchedGroup = true
+						break
+					}
+					if !matchedGroup {
+						continue
+					}
 					out = append(out, GroupModelSummary{
 						Group:               group,
 						ModelName:           mirror.ModelName,
@@ -555,6 +575,23 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 		return out[i].ModelName < out[j].ModelName
 	})
 	return out
+}
+
+func upstreamHealthGroup(source, localGroup string) string {
+	return perf_metrics_setting.GetSetting().UpstreamHealthGroups[source][localGroup]
+}
+
+func modelSummaryFromGroup(model ModelSummary, group GroupResult) ModelSummary {
+	model.AvgLatencyMs = group.AvgLatencyMs
+	model.SuccessRate = group.SuccessRate
+	model.AvgTps = group.AvgTps
+	model.RecentSuccessSeries = make([]SuccessRatePoint, 0, len(group.Series))
+	model.RecentLatencySeries = make([]LatencyPoint, 0, len(group.Series))
+	for _, point := range group.Series {
+		model.RecentSuccessSeries = append(model.RecentSuccessSeries, SuccessRatePoint{Ts: point.Ts, SuccessRate: point.SuccessRate})
+		model.RecentLatencySeries = append(model.RecentLatencySeries, LatencyPoint{Ts: point.Ts, LatencyMs: point.AvgLatencyMs})
+	}
+	return model
 }
 
 func upstreamSourceForBaseURL(baseURL string) string {

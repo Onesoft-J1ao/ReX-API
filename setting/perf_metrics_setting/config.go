@@ -21,6 +21,9 @@ type PerfMetricsSetting struct {
 	// UpstreamSummaryUrls mirrors model health from each configured upstream.
 	// Keys are stable source names used by channel base-url mapping.
 	UpstreamSummaryUrls map[string]string `json:"upstream_summary_urls"`
+	// UpstreamHealthGroups maps local billing groups to the upstream group whose
+	// per-model detail should be shown on that local group's cards.
+	UpstreamHealthGroups map[string]map[string]string `json:"upstream_health_groups"`
 	// UpstreamEnabled gates the fetch. The upstream is a third party, so this is
 	// on by default but can be turned off without losing the URL.
 	UpstreamEnabled bool `json:"upstream_enabled"`
@@ -43,6 +46,20 @@ var perfMetricsSetting = PerfMetricsSetting{
 		"furry":   "https://api.furry.vg/api/perf-metrics/summary",
 		"sheapi":  "https://www.sheapi.cc/api/perf-metrics/summary",
 		"mcapple": "https://api.mcapple.top/api/perf-metrics/summary",
+	},
+	UpstreamHealthGroups: map[string]map[string]string{
+		"sheapi": {
+			"ClaudeMax":  "cc-max",
+			"Claude企业池":  "kiro-企业池",
+			"Codex特惠":    "plus_0720",
+			"Codex不降智":   "codex-不降智",
+			"Codex不降智高缓": "codex-不降智-高缓",
+			"国模稳定":       "deepseek",
+		},
+		"mcapple": {
+			"国模低价": "workbuddy",
+			"国模破甲": "国模破甲",
+		},
 	},
 	UpstreamEnabled:        true,
 	UpstreamTimeoutSeconds: 30,
