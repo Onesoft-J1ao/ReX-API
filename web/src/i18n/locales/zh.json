@@ -8118,6 +8118,7 @@
     "No outage hours in the last 24 hours": "最近 24 小时无全故障小时",
     "{{count}} outage hours": "{{count}} 个全故障小时",
     "Outage hours": "全故障小时",
+    "Measured for the model as a whole; this group carried no traffic for it": "整个模型的测量值；本分组没有该模型的流量",
     "Average over the {{observed}} of {{total}} hours with a measurement; the rest of the day has none.": "按 {{total}} 小时中有测量的 {{observed}} 小时平均；其余小时没有数据。",
     "Success-rate samples for the last 24 hours; {{observed}} of {{total}} hours measured, gray bars have none.": "最近 24 小时成功率采样；{{total}} 小时中有 {{observed}} 小时有数据，灰色表示无数据。"
   },

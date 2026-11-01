@@ -42,6 +42,13 @@ export type ModelPerfBadgeData = {
    * we never measured is not mistaken for a measurement of this group.
    */
   source?: string
+  /**
+   * False when the card fell back to the model-wide rollup because this group
+   * carried no traffic for the model. The number still describes the model, but
+   * it is not this group's measurement — and without saying so, two groups that
+   * both lack data show what looks like identical health.
+   */
+  groupScoped?: boolean
 }
 
 export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -69,6 +76,10 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
   // answer "how is this model doing in this group" — only "how is it doing
   // somewhere". The number stays useful, but it says where it came from.
   const mirrored = props.perf?.source === 'mirror'
+  // The card fell back to the model-wide rollup because this group had no
+  // traffic for the model. The figure is real, but it is the model's, not this
+  // group's — which is why two groups without data otherwise look identical.
+  const borrowed = props.perf?.groupScoped === false
   // Hourly points use the server window, including the current partial hour.
   //
   // `window_start` comes from the perf summary or the status check. A reading
@@ -136,6 +147,10 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
     rateTitle = t(
       'Mirrored upstream figure for the whole model; this group has no measurement of its own'
     )
+  } else if (borrowed) {
+    rateTitle = t(
+      'Measured for the model as a whole; this group carried no traffic for it'
+    )
   }
   const stripTitle = partialDay
     ? t(
@@ -143,6 +158,18 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         { observed: observedHours, total: STATUS_SLOTS.length }
       )
     : t('Recent success-rate samples; gray bars indicate missing data.')
+
+  // Says whose measurement the Status figure is, when it is not this group's.
+  let statusLabelTitle: string | undefined
+  if (mirrored) {
+    statusLabelTitle = t(
+      'Measured by the mirrored upstream for the model, not for this group'
+    )
+  } else if (borrowed) {
+    statusLabelTitle = t(
+      'Measured for the model as a whole; this group carried no traffic for it'
+    )
+  }
 
   return (
     <div
@@ -160,9 +187,14 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
             )}
             className='text-muted-foreground flex items-center justify-between gap-1 text-[13px] leading-4'
           >
-            <span title={mirrored ? t('Measured by the mirrored upstream for the model, not for this group') : undefined}>
+            <span title={statusLabelTitle}>
               {t('Status')}
               {mirrored && <span aria-hidden>*</span>}
+              {borrowed && (
+                <span aria-hidden className='ml-0.5'>
+                  †
+                </span>
+              )}
             </span>
             <span
               className='font-mono'

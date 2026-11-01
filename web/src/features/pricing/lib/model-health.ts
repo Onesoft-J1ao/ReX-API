@@ -25,6 +25,13 @@ import { FILTER_ALL } from '../constants'
  */
 export type ModelPerfReading = {
   source?: string
+  /**
+   * False when the reading describes the model across all its groups rather
+   * than the group on screen — the card fell back to the model-wide rollup
+   * because this group carried no traffic for the model. Absent means the
+   * reading belongs to the group it is shown in.
+   */
+  groupScoped?: boolean
 }
 
 /**
@@ -45,11 +52,16 @@ export type ModelPerfIndex<T extends ModelPerfReading> = {
  *
  * With a group selected, our own data for that group wins in order of
  * freshness: the probe, then the passive rollup. A model this deployment
- * carried no traffic for in that group has neither, and the model-wide figure
- * is then the only number available. It is shown rather than blanked — a card
- * with no reading at all tells a buyer nothing — but it keeps its `source`
- * so the badge can mark a mirrored figure as another deployment's measurement
- * of the model, not of the group on screen.
+ * carried no traffic for in that group has neither, so the model-wide figure is
+ * the only number available. It is shown rather than blanked — a card with no
+ * reading at all tells a buyer nothing — but it is marked `groupScoped: false`
+ * so the card can say it describes the model, not the group.
+ *
+ * That mark matters when a model is routed through several groups and none of
+ * them has data: every one of those cards falls back to the same model-wide
+ * figure, and without the mark two different groups look like they have
+ * identical health. The numbers really are identical — they are not this
+ * group's numbers at all.
  *
  * Without a group the card stands for the model as a whole, so the model-wide
  * figure is the right one: it is the rollup across every group the model is
@@ -66,11 +78,12 @@ export function resolveModelPerf<T extends ModelPerfReading>(
   if (!modelName) return undefined
   if (selectedGroup && selectedGroup !== FILTER_ALL) {
     const key = `${selectedGroup}|${modelName}`
-    return (
-      index.probeByGroup.get(key) ??
-      index.rollupByGroup.get(key) ??
-      index.modelWide.get(modelName)
-    )
+    const own = index.probeByGroup.get(key) ?? index.rollupByGroup.get(key)
+    if (own) return own
+    const wide = index.modelWide.get(modelName)
+    if (!wide) return undefined
+    // Borrowed from the model-wide rollup: it says nothing about this group.
+    return { ...wide, groupScoped: false }
   }
   const wide = index.modelWide.get(modelName)
   if (wide) return wide

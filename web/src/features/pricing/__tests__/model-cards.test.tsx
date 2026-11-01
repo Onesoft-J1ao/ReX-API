@@ -921,6 +921,59 @@ describe('model cards', () => {
     expect(card.textContent).not.toContain('43.90%')
   })
 
+  // Two groups that both carried no traffic for a model fall back to the same
+  // model-wide figure, so their cards read identically. That is not a bug in
+  // the numbers — there is only one number — but the card has to say it is the
+  // model's, or the two groups look like they share health data.
+  // The bug this locks: Claude企业池 and ClaudeMax both showed 44.00% / 1.52% /
+  // 86.72% for claude-opus-4-6 / sonnet-4-6 / opus-5-5 because neither group had
+  // traffic for them and both borrowed the same mirrored model-wide rollup.
+  it('marks a group card that borrowed the model-wide figure', async () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: {
+        models: [
+          {
+            model_name: 'claude-opus-4-6',
+            success_rate: 44,
+            avg_latency_ms: 1826,
+            avg_tps: 183.3,
+            source: 'mirror',
+          },
+        ],
+      },
+    })
+    queryClient.setQueryData(['status-check'], {
+      success: true,
+      data: { groups: [] },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={[
+            pricingModel({
+              model_name: 'claude-opus-4-6',
+              enable_groups: ['ClaudeMax'],
+            }),
+          ]}
+          onModelClick={vi.fn()}
+          selectedGroup='ClaudeMax'
+        />
+      </QueryClientProvider>
+    )
+
+    const heading = await screen.findByRole('heading', {
+      name: 'claude-opus-4-6',
+    })
+    const card = heading.closest('.rounded-xl') as HTMLElement
+    await waitFor(() => {
+      expect(within(card).getByText('44.00%')).toBeVisible()
+    })
+    // The dagger marks a figure borrowed from the model-wide rollup.
+    expect(card.textContent).toContain('†')
+  })
+
   // A group card for a model this deployment carried no traffic for in that
   // group still gets the model-wide figure, because the alternative is a card
   // that says nothing at all. It is marked so the reader knows the number is the
