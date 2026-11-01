@@ -111,6 +111,45 @@ describe('StatusPanel unobserved models and groups', () => {
     expect(screen.queryByText(/failing/)).not.toBeInTheDocument()
   })
 
+  // The "N failing" badge sits next to the row's own percentage, so the two
+  // must agree. `ok` is the last probe alone: one failed probe next to hundreds
+  // of successful requests left the row showing 82% while the badge called it
+  // failing. Only a row measured below the warning line counts.
+  it('does not count a model as failing when its own availability is healthy', async () => {
+    renderPanel(
+      response([
+        model('healthy-model'),
+        model('probe-failed-but-serving', {
+          availability: 82,
+          level: 'warning',
+          ok: false,
+          has_active: true,
+          passive_requests: 377,
+          passive_success: 309,
+        }),
+      ])
+    )
+
+    await screen.findByText('probe-failed-but-serving')
+    expect(screen.queryByText(/failing/)).not.toBeInTheDocument()
+  })
+
+  it('counts a model as failing when its own availability is low', async () => {
+    renderPanel(
+      response([
+        model('healthy-model'),
+        model('really-down', {
+          availability: 12,
+          level: 'critical',
+          ok: false,
+          has_active: true,
+        }),
+      ])
+    )
+
+    expect(await screen.findByText(/1 failing/)).toBeInTheDocument()
+  })
+
   it('marks an unobserved group without hiding its models', async () => {
     renderPanel(response([model('healthy-model')], false))
 

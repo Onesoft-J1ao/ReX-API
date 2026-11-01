@@ -60,6 +60,20 @@ const LEVEL_RANK: Record<HealthLevel | 'unknown', number> = {
 const STRIP_BUCKETS = 24
 
 /**
+ * Whether a row counts towards the "N failing" badges.
+ *
+ * The badge sits next to the same number the row displays, so it has to agree
+ * with it. `ok` is the last probe alone: one failed probe next to 377 successful
+ * requests left the row showing 82% while the badge called it failing. Only a
+ * row that is actually measured and actually below the warning line counts.
+ */
+function isFailingModel(model: StatusModel): boolean {
+  if (model.has_data === false) return false
+  if (!Number.isFinite(model.availability)) return false
+  return model.availability < 70
+}
+
+/**
  * How many model rows a group card shows before collapsing. A group can route
  * dozens of models, and rendering them all makes the page one long scroll, so
  * the card lists the first few and offers the rest behind a toggle. Failing
@@ -189,9 +203,11 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
   const observed = group.observed !== false
   const models = useMemo(() => sortModels(group.models), [group.models])
   // A model with no data is not a failing one, so it must not inflate the count.
-  const failed = group.models.filter(
-    (model) => !model.ok && model.has_data !== false
-  ).length
+  // The test is the availability the row displays, not the probe result: a
+  // single failed probe beside hundreds of successful requests is not a failing
+  // model, and counting `!ok` reported four of them as down while the same rows
+  // showed 50% and above.
+  const failed = group.models.filter(isFailingModel).length
   const [showAllModels, setShowAllModels] = useState(false)
   const hiddenModelCount = models.length - MODEL_PREVIEW_COUNT
   const visibleModels = showAllModels
@@ -320,10 +336,9 @@ export function StatusPanel() {
   const summary = useMemo(() => {
     const list = groups ?? []
     const models = list.flatMap((group) => group.models)
-    // Same rule as the per-group badge: an unobserved model is not failing.
-    const failing = models.filter(
-      (model) => !model.ok && model.has_data !== false
-    ).length
+    // Same rule as the per-group badge: an unobserved model is not failing, and
+    // neither is one whose own availability is healthy.
+    const failing = models.filter(isFailingModel).length
     const probes = list.reduce((sum, group) => sum + group.total_probes, 0)
     const okProbes = list.reduce((sum, group) => sum + group.ok_probes, 0)
     // An unobserved group's 100% is an assumption; letting it into the worst-case
