@@ -130,6 +130,9 @@ type GroupModelSummary struct {
 	AvgTps              float64            `json:"avg_tps"`
 	RecentSuccessSeries []SuccessRatePoint `json:"recent_success_series,omitempty"`
 	RecentLatencySeries []LatencyPoint     `json:"recent_latency_series,omitempty"`
+	// Source marks model-wide upstream mirrors mapped to a local group. The
+	// source is informational only; it is never treated as local traffic.
+	Source string `json:"source,omitempty"`
 }
 
 type SummaryAllResult struct {

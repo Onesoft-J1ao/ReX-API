@@ -354,6 +354,48 @@ func (channel *Channel) GetGroups() []string {
 	return groups
 }
 
+// GetEnabledGroupBaseURLs returns the distinct upstream base URLs serving each
+// enabled group. Health mirrors are selected by this mapping because upstream
+// summary APIs are model-wide and must not be applied to an unrelated group.
+func GetEnabledGroupBaseURLs(groups []string) (map[string][]string, error) {
+	wanted := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		if trimmed := strings.TrimSpace(group); trimmed != "" {
+			wanted[trimmed] = struct{}{}
+		}
+	}
+
+	var channels []Channel
+	if err := DB.Select("base_url", commonGroupCol, "status").
+		Where("status = ?", common.ChannelStatusEnabled).
+		Find(&channels).Error; err != nil {
+		return nil, err
+	}
+
+	result := make(map[string][]string, len(wanted))
+	seen := make(map[string]map[string]struct{}, len(wanted))
+	for _, channel := range channels {
+		baseURL := strings.TrimRight(channel.GetBaseURL(), "/")
+		if baseURL == "" {
+			continue
+		}
+		for _, group := range channel.GetGroups() {
+			if _, ok := wanted[group]; !ok {
+				continue
+			}
+			if seen[group] == nil {
+				seen[group] = make(map[string]struct{})
+			}
+			if _, ok := seen[group][baseURL]; ok {
+				continue
+			}
+			seen[group][baseURL] = struct{}{}
+			result[group] = append(result[group], baseURL)
+		}
+	}
+	return result, nil
+}
+
 func (channel *Channel) GetOtherInfo() map[string]any {
 	otherInfo := make(map[string]any)
 	if channel.OtherInfo != "" {

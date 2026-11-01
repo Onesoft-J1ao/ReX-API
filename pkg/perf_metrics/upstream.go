@@ -46,12 +46,17 @@ type upstreamCacheEntry struct {
 	result SummaryAllResult
 }
 
+type upstreamCacheKey struct {
+	source string
+	hours  int
+}
+
 // upstreamSummaryCache holds the last successful mirror per requested window.
 // A window nobody has asked for has no entry, and the request that asks for it
 // reports no mirror rather than a different window's numbers.
 var upstreamSummaryCache struct {
 	sync.Mutex
-	entries map[int]upstreamCacheEntry
+	entries map[upstreamCacheKey]upstreamCacheEntry
 }
 
 var (
@@ -84,13 +89,17 @@ func getUpstreamClient(timeout time.Duration) *http.Client {
 // cannot be stalled behind an upstream that takes longer to answer than the
 // request is willing to wait.
 func fetchUpstreamSummary(hours int) (SummaryAllResult, bool) {
-	if !upstreamConfigured() {
+	return fetchUpstreamSummaryFor("furry", hours)
+}
+
+func fetchUpstreamSummaryFor(source string, hours int) (SummaryAllResult, bool) {
+	if !upstreamConfiguredFor(source) {
 		return SummaryAllResult{}, false
 	}
 
 	upstreamSummaryCache.Lock()
 	defer upstreamSummaryCache.Unlock()
-	entry, ok := upstreamSummaryCache.entries[hours]
+	entry, ok := upstreamSummaryCache.entries[upstreamCacheKey{source: source, hours: hours}]
 	if !ok || len(entry.result.Models) == 0 {
 		return SummaryAllResult{}, false
 	}
@@ -122,16 +131,32 @@ func upstreamModelSummary(modelName string, hours int) (ModelSummary, bool) {
 }
 
 func upstreamConfigured() bool {
+	return upstreamConfiguredFor("furry")
+}
+
+func upstreamSummaryUrl(hours int) string {
+	return upstreamSummaryUrlFor("furry", hours)
+}
+
+func upstreamConfiguredFor(source string) bool {
 	setting := perf_metrics_setting.GetSetting()
 	if !setting.UpstreamEnabled {
 		return false
 	}
-	return strings.TrimSpace(setting.UpstreamSummaryUrl) != ""
+	return strings.TrimSpace(upstreamSummaryUrlBase(source)) != ""
 }
 
-func upstreamSummaryUrl(hours int) string {
-	base := strings.TrimSpace(perf_metrics_setting.GetSetting().UpstreamSummaryUrl)
+func upstreamSummaryUrlFor(source string, hours int) string {
+	base := strings.TrimSpace(upstreamSummaryUrlBase(source))
 	return fmt.Sprintf("%s?hours=%d", strings.TrimRight(base, "/"), hours)
+}
+
+func upstreamSummaryUrlBase(source string) string {
+	setting := perf_metrics_setting.GetSetting()
+	if source == "furry" && strings.TrimSpace(setting.UpstreamSummaryUrl) != "" {
+		return setting.UpstreamSummaryUrl
+	}
+	return setting.UpstreamSummaryUrls[source]
 }
 
 // upstreamRefreshLoop keeps the mirrored summary warm. It refreshes on start so
@@ -153,9 +178,19 @@ func upstreamRefreshLoop(hours []int) {
 // the loop knows whether the mirror is still cold.
 func refreshAllUpstreamSummaries(hours []int) bool {
 	stored := false
-	for _, window := range hours {
-		if refreshUpstreamSummary(window) {
-			stored = true
+	for source := range perf_metrics_setting.GetSetting().UpstreamSummaryUrls {
+		for _, window := range hours {
+			if refreshUpstreamSummaryFor(source, window) {
+				stored = true
+			}
+		}
+	}
+	// Keep the legacy single-url setting working when the source map is absent.
+	if len(perf_metrics_setting.GetSetting().UpstreamSummaryUrls) == 0 {
+		for _, window := range hours {
+			if refreshUpstreamSummaryFor("furry", window) {
+				stored = true
+			}
 		}
 	}
 	return stored
@@ -164,13 +199,17 @@ func refreshAllUpstreamSummaries(hours []int) bool {
 // refreshUpstreamSummary fetches and stores one window, reporting whether the
 // mirror was updated.
 func refreshUpstreamSummary(hours int) bool {
-	if !upstreamConfigured() {
+	return refreshUpstreamSummaryFor("furry", hours)
+}
+
+func refreshUpstreamSummaryFor(source string, hours int) bool {
+	if !upstreamConfiguredFor(source) {
 		return false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), perf_metrics_setting.GetUpstreamTimeout())
 	defer cancel()
 
-	result, err := requestUpstreamSummary(ctx, upstreamSummaryUrl(hours))
+	result, err := requestUpstreamSummary(ctx, upstreamSummaryUrlFor(source, hours))
 	if err != nil || len(result.Models) == 0 {
 		if err != nil {
 			common.SysLog(fmt.Sprintf("perf metrics upstream fetch failed, keeping the previous mirror: %s", err.Error()))
@@ -180,9 +219,9 @@ func refreshUpstreamSummary(hours int) bool {
 
 	upstreamSummaryCache.Lock()
 	if upstreamSummaryCache.entries == nil {
-		upstreamSummaryCache.entries = map[int]upstreamCacheEntry{}
+		upstreamSummaryCache.entries = map[upstreamCacheKey]upstreamCacheEntry{}
 	}
-	upstreamSummaryCache.entries[hours] = upstreamCacheEntry{at: time.Now(), result: result}
+	upstreamSummaryCache.entries[upstreamCacheKey{source: source, hours: hours}] = upstreamCacheEntry{at: time.Now(), result: result}
 	upstreamSummaryCache.Unlock()
 	return true
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -490,6 +491,63 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 			RecentLatencySeries: recentLatencySeries(buckets[k]),
 		})
 	}
+
+	// Upstream summaries are model-wide and have no local group dimension. Map
+	// each source only onto groups whose enabled channels use that source, and
+	// only for models that group actually serves. This fills cold groups without
+	// pretending a different provider's traffic was local traffic.
+	localKeys := make(map[key]struct{}, len(out))
+	for _, row := range out {
+		localKeys[key{group: row.Group, model: row.ModelName}] = struct{}{}
+	}
+	groupURLs, err := model.GetEnabledGroupBaseURLs(groups)
+	if err == nil {
+		servedByGroup := make(map[string]map[string]struct{}, len(groups))
+		for _, group := range groups {
+			servedByGroup[group] = make(map[string]struct{})
+			for _, name := range model.GetGroupEnabledModels(group) {
+				servedByGroup[group][name] = struct{}{}
+			}
+		}
+		summaries := make(map[string]SummaryAllResult)
+		for group, bases := range groupURLs {
+			for _, base := range bases {
+				source := upstreamSourceForBaseURL(base)
+				if source == "" {
+					continue
+				}
+				if _, ok := summaries[source]; !ok {
+					if summary, ok := fetchUpstreamSummaryFor(source, 24); ok {
+						summaries[source] = summary
+					}
+				}
+				summary, ok := summaries[source]
+				if !ok {
+					continue
+				}
+				for _, mirror := range summary.Models {
+					if _, served := servedByGroup[group][mirror.ModelName]; !served {
+						continue
+					}
+					k := key{group: group, model: mirror.ModelName}
+					if _, exists := localKeys[k]; exists {
+						continue
+					}
+					out = append(out, GroupModelSummary{
+						Group:               group,
+						ModelName:           mirror.ModelName,
+						AvgLatencyMs:        mirror.AvgLatencyMs,
+						SuccessRate:         mirror.SuccessRate,
+						AvgTps:              mirror.AvgTps,
+						RecentSuccessSeries: mirror.RecentSuccessSeries,
+						RecentLatencySeries: mirror.RecentLatencySeries,
+						Source:              SourceMirror + ":" + source,
+					})
+					localKeys[k] = struct{}{}
+				}
+			}
+		}
+	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Group != out[j].Group {
 			return out[i].Group < out[j].Group
@@ -497,6 +555,20 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 		return out[i].ModelName < out[j].ModelName
 	})
 	return out
+}
+
+func upstreamSourceForBaseURL(baseURL string) string {
+	host := strings.ToLower(baseURL)
+	switch {
+	case strings.Contains(host, "furry.vg"):
+		return "furry"
+	case strings.Contains(host, "sheapi"):
+		return "sheapi"
+	case strings.Contains(host, "mcapple.top"):
+		return "mcapple"
+	default:
+		return ""
+	}
 }
 
 // SourceMirror marks numbers that came from another deployment's public

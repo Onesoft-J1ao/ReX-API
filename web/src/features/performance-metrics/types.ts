@@ -81,6 +81,7 @@ export type PerfGroupModelSummary = {
   avg_tps: number
   recent_success_series?: SuccessRatePoint[]
   recent_latency_series?: LatencyPoint[]
+  source?: string
 }
 
 export type PerfSummaryAllData = {

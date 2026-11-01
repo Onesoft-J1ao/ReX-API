@@ -18,6 +18,9 @@ type PerfMetricsSetting struct {
 	// that already samples them is a cheaper source of the same numbers. The
 	// upstream wins for models it knows about; our own data fills the rest.
 	UpstreamSummaryUrl string `json:"upstream_summary_url"`
+	// UpstreamSummaryUrls mirrors model health from each configured upstream.
+	// Keys are stable source names used by channel base-url mapping.
+	UpstreamSummaryUrls map[string]string `json:"upstream_summary_urls"`
 	// UpstreamEnabled gates the fetch. The upstream is a third party, so this is
 	// on by default but can be turned off without losing the URL.
 	UpstreamEnabled bool `json:"upstream_enabled"`
@@ -35,7 +38,12 @@ var perfMetricsSetting = PerfMetricsSetting{
 	BucketTime:               "hour",
 	RetentionDays:            0,
 
-	UpstreamSummaryUrl:     "https://ai.furry.vg/api/perf-metrics/summary",
+	UpstreamSummaryUrl: "https://ai.furry.vg/api/perf-metrics/summary",
+	UpstreamSummaryUrls: map[string]string{
+		"furry":   "https://api.furry.vg/api/perf-metrics/summary",
+		"sheapi":  "https://www.sheapi.cc/api/perf-metrics/summary",
+		"mcapple": "https://api.mcapple.top/api/perf-metrics/summary",
+	},
 	UpstreamEnabled:        true,
 	UpstreamTimeoutSeconds: 30,
 }

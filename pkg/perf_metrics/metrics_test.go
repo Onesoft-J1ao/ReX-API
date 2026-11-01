@@ -359,8 +359,8 @@ func seedUpstreamMirror(t *testing.T, hours int, models ...ModelSummary) {
 
 	upstreamSummaryCache.Lock()
 	previousEntries := upstreamSummaryCache.entries
-	upstreamSummaryCache.entries = map[int]upstreamCacheEntry{
-		hours: {result: SummaryAllResult{Models: models}},
+	upstreamSummaryCache.entries = map[upstreamCacheKey]upstreamCacheEntry{
+		{source: "furry", hours: hours}: {result: SummaryAllResult{Models: models}},
 	}
 	upstreamSummaryCache.Unlock()
 
