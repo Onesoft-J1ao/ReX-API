@@ -33,15 +33,13 @@ import {
   formatUptimePct,
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
-import type {
-  PerformanceGroup,
-  PerformanceSeriesPoint,
-} from '@/features/performance-metrics/types'
+import type { PerformanceSeriesPoint } from '@/features/performance-metrics/types'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import type { UptimeDayPoint } from '../lib/mock-stats'
+import { toGroupUptimeSeries, toUptimeSeries } from '../lib/uptime-series'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { UptimeSparkline } from './model-details-uptime-sparkline'
@@ -83,12 +81,6 @@ type PerformanceRow = {
   avg_tps: number
 }
 
-function toUptimePct(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  const clamped = Math.min(100, Math.max(0, value))
-  return Math.round(clamped * 100) / 100
-}
-
 function toLatencySeries(series: PerformanceSeriesPoint[]) {
   return series.flatMap((point) => {
     const measuredTtft = point.avg_ttft_ms > 0
@@ -102,27 +94,6 @@ function toLatencySeries(series: PerformanceSeriesPoint[]) {
         measuredTtft,
       },
     ]
-  })
-}
-
-function toUptimeSeries(series: PerformanceSeriesPoint[]): UptimeDayPoint[] {
-  return series.map((point) => ({
-    date: new Date(point.ts * 1000).toISOString(),
-    uptime_pct: toUptimePct(point.success_rate),
-    incidents: point.success_rate < 100 ? 1 : 0,
-    outage_minutes: 0,
-  }))
-}
-
-function toGroupUptimeSeries(group: PerformanceGroup): UptimeDayPoint[] {
-  return group.series.map((point) => {
-    const successRate = toUptimePct(point.success_rate)
-    return {
-      date: new Date(point.ts * 1000).toISOString(),
-      uptime_pct: successRate,
-      incidents: successRate < 100 ? 1 : 0,
-      outage_minutes: 0,
-    }
   })
 }
 
@@ -214,10 +185,10 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           value={formatUptimePct(successRate)}
           hint={
             incidentCount > 0
-              ? t('{{count}} incidents in the last 24 hours', {
+              ? t('{{count}} outage hours in the last 24 hours', {
                   count: incidentCount,
                 })
-              : t('No incidents in the last 24 hours')
+              : t('No outage hours in the last 24 hours')
           }
           valueClassName={getSuccessRateTextClass(successRate)}
         />
@@ -330,7 +301,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
               incidentCount > 0 ? (
                 <span className='text-warning inline-flex items-center gap-1'>
                   <AlertTriangle className='size-3.5' />
-                  {t('{{count}} incidents', {
+                  {t('{{count}} outage hours', {
                     count: incidentCount,
                   })}
                 </span>

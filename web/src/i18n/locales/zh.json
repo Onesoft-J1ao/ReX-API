@@ -8113,7 +8113,11 @@
     "，": "，",
     "，and ": "，并",
     "Measured by the mirrored upstream for the model, not for this group": "由镜像上游测得，是整个模型的数值，不是本分组的",
-    "Mirrored upstream figure for the whole model; this group has no measurement of its own": "镜像上游的数值，是整个模型的；本分组没有自己的测量"
+    "Mirrored upstream figure for the whole model; this group has no measurement of its own": "镜像上游的数值，是整个模型的；本分组没有自己的测量",
+    "{{count}} outage hours in the last 24 hours": "最近 24 小时有 {{count}} 个全故障小时",
+    "No outage hours in the last 24 hours": "最近 24 小时无全故障小时",
+    "{{count}} outage hours": "{{count}} 个全故障小时",
+    "Outage hours": "全故障小时"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -235,7 +235,7 @@ export function UptimeTrendChart(props: {
               value: (d: { uptime: number }) => `${d.uptime.toFixed(2)}%`,
             },
             {
-              key: t('Incidents'),
+              key: t('Outage hours'),
               value: (d: { incidents: number }) => `${d.incidents}`,
             },
             {

@@ -8097,7 +8097,11 @@
     "，": ", ",
     "，and ": ", and ",
     "Measured by the mirrored upstream for the model, not for this group": "Measured by the mirrored upstream for the model, not for this group",
-    "Mirrored upstream figure for the whole model; this group has no measurement of its own": "Mirrored upstream figure for the whole model; this group has no measurement of its own"
+    "Mirrored upstream figure for the whole model; this group has no measurement of its own": "Mirrored upstream figure for the whole model; this group has no measurement of its own",
+    "{{count}} outage hours in the last 24 hours": "{{count}} outage hours in the last 24 hours",
+    "No outage hours in the last 24 hours": "No outage hours in the last 24 hours",
+    "{{count}} outage hours": "{{count}} outage hours",
+    "Outage hours": "Outage hours"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
