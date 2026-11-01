@@ -145,11 +145,16 @@ describe('server performance summaries', () => {
     }
   )
 
-  it('shows the server summary and series incident count for model details instead of averaging groups', () => {
+  it('shows the server summary and series outage count for model details instead of averaging groups', () => {
     renderModelDetails()
     expect(screen.getByText('99.01%')).toBeVisible()
     expect(screen.queryByText('50.00%')).not.toBeInTheDocument()
-    expect(screen.getByText('1 incidents in the last 24 hours')).toBeVisible()
+    // The only hour in the fixture answered 99.01% of its requests, so it is not
+    // an outage hour: the count names hours with no successful request at all,
+    // not hours that merely fell short of 100%.
+    expect(
+      screen.getByText('No outage hours in the last 24 hours')
+    ).toBeVisible()
   })
 
   it('feeds the uptime chart from the backend series rather than group averages', async () => {
