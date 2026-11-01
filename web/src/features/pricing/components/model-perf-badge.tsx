@@ -70,12 +70,22 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
   // somewhere". The number stays useful, but it says where it came from.
   const mirrored = props.perf?.source === 'mirror'
   // Hourly points use the server window, including the current partial hour.
-  // Hours without traffic stay gray. Slot 23 is the current, partial hour.
+  //
+  // `window_start` comes from the perf summary or the status check. A reading
+  // built from the status check carries its own points but not always that
+  // origin — an older gateway omits it — and requiring it blanked the strip even
+  // though the points were there. Buckets sit on hour boundaries, so the
+  // earliest point is a valid origin when the server does not name one.
   const statusRates = useMemo(() => {
-    const windowStart = props.perf?.window_start
+    const points = props.perf?.recent_success_series ?? []
+    const earliest = points.reduce<number | undefined>(
+      (min, point) => (min == null || point.ts < min ? point.ts : min),
+      undefined
+    )
+    const windowStart = props.perf?.window_start ?? earliest
     if (windowStart == null) return STATUS_SLOTS.map(() => undefined)
     const ratesByHour = new Map<number, number>()
-    for (const point of props.perf?.recent_success_series ?? []) {
+    for (const point of points) {
       ratesByHour.set(point.ts, point.success_rate)
     }
     return STATUS_SLOTS.map((slot) => {
@@ -83,6 +93,56 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
       return ratesByHour.get(hourStart)
     })
   }, [props.perf?.recent_success_series, props.perf?.window_start])
+
+  // Only hours that were actually observed say anything. A model that answered
+  // for one hour is not "0% healthy for the day" — nothing is known about the
+  // other 23 — so the badge averages the hours it has and names that count.
+  const observedHours = statusRates.filter(
+    (rate): rate is number => rate != null && Number.isFinite(rate)
+  ).length
+  const partialDay = observedHours > 0 && observedHours < STATUS_SLOTS.length
+  const sampledRate =
+    observedHours > 0
+      ? statusRates.reduce<number>((sum, rate) => sum + (rate ?? 0), 0) /
+        observedHours
+      : undefined
+  // A partly sampled day is described by the hours that were sampled: the
+  // server's figure spans the whole window, and pairing it with a strip of
+  // mostly empty slots reads as "0% while every visible bar is red". A fully
+  // sampled day, or one with no hourly points at all, keeps the server figure.
+  let shownRate: number | undefined
+  if (partialDay) {
+    shownRate = sampledRate
+  } else if (hasSuccessRate) {
+    shownRate = successRate
+  } else {
+    shownRate = sampledRate
+  }
+  const hasShownRate =
+    shownRate != null &&
+    Number.isFinite(shownRate) &&
+    shownRate >= 0 &&
+    shownRate <= 100
+  const shownRateText = hasShownRate ? `${shownRate?.toFixed(2)}%` : '—'
+
+  // Why the percentage is not simply the server's window figure, when it is not.
+  let rateTitle: string | undefined
+  if (partialDay) {
+    rateTitle = t(
+      'Average over the {{observed}} of {{total}} hours with a measurement; the rest of the day has none.',
+      { observed: observedHours, total: STATUS_SLOTS.length }
+    )
+  } else if (mirrored) {
+    rateTitle = t(
+      'Mirrored upstream figure for the whole model; this group has no measurement of its own'
+    )
+  }
+  const stripTitle = partialDay
+    ? t(
+        'Success-rate samples for the last 24 hours; {{observed}} of {{total}} hours measured, gray bars have none.',
+        { observed: observedHours, total: STATUS_SLOTS.length }
+      )
+    : t('Recent success-rate samples; gray bars indicate missing data.')
 
   return (
     <div
@@ -106,9 +166,9 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
             </span>
             <span
               className='font-mono'
-              title={mirrored ? t('Mirrored upstream figure for the whole model; this group has no measurement of its own') : undefined}
+              title={rateTitle}
             >
-              {hasSuccessRate ? `${successRate.toFixed(2)}%` : '—'}
+              {shownRateText}
             </span>
           </dt>
           <dd
@@ -116,9 +176,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
             aria-label={t(
               'Recent success-rate samples; gray bars indicate missing data.'
             )}
-            title={t(
-              'Recent success-rate samples; gray bars indicate missing data.'
-            )}
+            title={stripTitle}
             className='mt-0.5 flex h-2.5 w-20 items-center gap-px'
           >
             {STATUS_SLOTS.map((slot) => {

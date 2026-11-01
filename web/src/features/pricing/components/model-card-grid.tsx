@@ -104,6 +104,10 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             ts: bucket.ts,
             success_rate: bucket.ok_pct,
           })),
+          // The status check reports hourly points against its own window, which
+          // is not the perf summary's. The badge needs an origin to place them;
+          // without one it drew a strip of gray for data it had.
+          window_start: healthQuery.data?.data?.window_start,
         })
       }
     }

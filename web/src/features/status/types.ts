@@ -75,6 +75,11 @@ export interface StatusGroup {
 export interface StatusCheckData {
   announcement: string
   groups: StatusGroup[]
+  /**
+   * Hour the per-model `series` buckets are anchored to. Absent on gateways
+   * older than this field; a strip falls back to its earliest bucket then.
+   */
+  window_start?: number
 }
 
 export interface StatusCheckResponse {

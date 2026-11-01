@@ -7851,7 +7851,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
@@ -8117,7 +8117,9 @@
     "{{count}} outage hours in the last 24 hours": "最近 24 小时有 {{count}} 个全故障小时",
     "No outage hours in the last 24 hours": "最近 24 小时无全故障小时",
     "{{count}} outage hours": "{{count}} 个全故障小时",
-    "Outage hours": "全故障小时"
+    "Outage hours": "全故障小时",
+    "Average over the {{observed}} of {{total}} hours with a measurement; the rest of the day has none.": "按 {{total}} 小时中有测量的 {{observed}} 小时平均；其余小时没有数据。",
+    "Success-rate samples for the last 24 hours; {{observed}} of {{total}} hours measured, gray bars have none.": "最近 24 小时成功率采样；{{total}} 小时中有 {{observed}} 小时有数据，灰色表示无数据。"
   },
   "Time range": "时间范围",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

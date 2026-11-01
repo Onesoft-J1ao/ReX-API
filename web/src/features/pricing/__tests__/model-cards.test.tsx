@@ -1210,6 +1210,68 @@ describe('model cards', () => {
     vi.useRealTimers()
   })
 
+  // The percentage and the strip must describe the same thing. A model sampled
+  // for only a few hours used to show the server's whole-window figure beside a
+  // strip with one red bar — "0%" next to "one hour measured" — and a single
+  // green bar beside "50%". When the day is only partly sampled the badge now
+  // averages the hours it actually has.
+  it('averages the observed hours when the day is only partly sampled', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
+    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
+
+    render(
+      <ModelCard
+        model={pricingModel()}
+        onClick={vi.fn()}
+        perf={{
+          avg_latency_ms: 1200,
+          avg_tps: 42,
+          // The server's whole-window figure, which the strip cannot explain.
+          success_rate: 0,
+          window_start: currentHourStart - 23 * 3600,
+          recent_success_series: [
+            { ts: currentHourStart, success_rate: 100 },
+            { ts: currentHourStart - 1 * 3600, success_rate: 50 },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText('75.00%')).toBeVisible()
+    expect(screen.queryByText('0.00%')).not.toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  // A fully sampled day keeps the server's figure: it is measured over real
+  // request counts, which an average of hourly percentages would distort.
+  it('keeps the server figure when every hour has a sample', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
+    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
+    const windowStart = currentHourStart - 23 * 3600
+
+    render(
+      <ModelCard
+        model={pricingModel()}
+        onClick={vi.fn()}
+        perf={{
+          avg_latency_ms: 1200,
+          avg_tps: 42,
+          success_rate: 12.34,
+          window_start: windowStart,
+          recent_success_series: Array.from({ length: 24 }, (_, slot) => ({
+            ts: windowStart + slot * 3600,
+            success_rate: 100,
+          })),
+        }}
+      />
+    )
+
+    expect(screen.getByText('12.34%')).toBeVisible()
+    vi.useRealTimers()
+  })
+
   it('keeps all 24 slots gray when recent_success_series is undefined', () => {
     render(
       <ModelCard

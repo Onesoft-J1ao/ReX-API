@@ -8101,7 +8101,9 @@
     "{{count}} outage hours in the last 24 hours": "{{count}} outage hours in the last 24 hours",
     "No outage hours in the last 24 hours": "No outage hours in the last 24 hours",
     "{{count}} outage hours": "{{count}} outage hours",
-    "Outage hours": "Outage hours"
+    "Outage hours": "Outage hours",
+    "Average over the {{observed}} of {{total}} hours with a measurement; the rest of the day has none.": "Average over the {{observed}} of {{total}} hours with a measurement; the rest of the day has none.",
+    "Success-rate samples for the last 24 hours; {{observed}} of {{total}} hours measured, gray bars have none.": "Success-rate samples for the last 24 hours; {{observed}} of {{total}} hours measured, gray bars have none."
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

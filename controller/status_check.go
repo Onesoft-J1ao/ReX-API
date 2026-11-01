@@ -74,6 +74,11 @@ type groupHealthDTO struct {
 type statusCheckResponse struct {
 	Announcement string           `json:"announcement"`
 	Groups       []groupHealthDTO `json:"groups"`
+	// WindowStart is the hour the per-model `series` buckets are anchored to.
+	// The model square draws each series as a 24-slot strip, and a strip needs
+	// to know which hour slot 0 is; the perf summary's window is computed from a
+	// different setting, so borrowing that one placed bars on the wrong hours.
+	WindowStart int64 `json:"window_start"`
 }
 
 // GetStatusCheck /api/status-check — merge active probe results (group_health /
@@ -126,8 +131,15 @@ func GetStatusCheck(c *gin.Context) {
 		return
 	}
 	seriesByModel := map[string][]statusBucketDTO{}
+	// The strip's slot 0 is the earliest bucket actually returned, not the
+	// query cutoff: the cutoff is wall-clock and unaligned, so anchoring on it
+	// left the first hour empty and shifted every bar by one.
+	var earliestBucket int64
 	for _, b := range buckets {
 		key := b.Group + "|" + b.ModelName
+		if earliestBucket == 0 || b.BucketTs < earliestBucket {
+			earliestBucket = b.BucketTs
+		}
 		okPct := 0
 		if b.RequestCount > 0 {
 			okPct = int(float64(b.SuccessCount) / float64(b.RequestCount) * 100)
@@ -146,7 +158,22 @@ func GetStatusCheck(c *gin.Context) {
 
 	excluded := status_check_setting.GetExcludedModelsMap()
 
-	out := statusCheckResponse{Announcement: cfg.Announcement, Groups: []groupHealthDTO{}}
+	// WindowStart is the first hour bucket the query can return. startTs is the
+	// wall-clock cutoff and need not sit on an hour boundary, while bucket_ts
+	// always does, so anchoring a strip on startTs would put every bar one slot
+	// off whenever the request landed mid-hour.
+	// WindowStart is the hour the per-model `series` buckets are anchored to.
+	// It is the earliest bucket the query actually returned; falling back to the
+	// aligned cutoff only when nothing came back, so a strip with no data still
+	// has a defined origin.
+	if earliestBucket == 0 {
+		earliestBucket = startTs - startTs%3600
+	}
+	out := statusCheckResponse{
+		Announcement: cfg.Announcement,
+		Groups:       []groupHealthDTO{},
+		WindowStart:  earliestBucket,
+	}
 	for _, group := range groups {
 		dto := groupHealthDTO{Group: group, Models: []modelHealthDTO{}}
 
