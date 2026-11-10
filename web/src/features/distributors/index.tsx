@@ -166,42 +166,45 @@ export function Distributors() {
             })}
           </div>
         )}
-      </SectionPageLayout.Content>
 
-      <DistributorEditor
-        open={editorOpen}
-        userGroup={editing}
-        groups={editorGroups}
-        existing={editorExisting}
-        onOpenChange={(open) => {
-          if (!open) {
+        {/* Dialogs live inside the content slot: SectionPageLayout only renders
+            its Title/Actions/Content children and drops anything else, so a
+            sibling dialog never mounts. */}
+        <DistributorEditor
+          open={editorOpen}
+          userGroup={editing}
+          groups={editorGroups}
+          existing={editorExisting}
+          onOpenChange={(open) => {
+            if (!open) {
+              setCreating(false)
+              setEditing(null)
+            }
+          }}
+          onSaved={async () => {
             setCreating(false)
             setEditing(null)
-          }
-        }}
-        onSaved={async () => {
-          setCreating(false)
-          setEditing(null)
-          await queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-        }}
-      />
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+          }}
+        />
 
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null)
-        }}
-        title={t('Delete distributor')}
-        desc={t(
-          'Members of {{name}} will fall back to each group’s normal ratio.',
-          { name: deleting ?? '' }
-        )}
-        destructive
-        isLoading={remove.isPending}
-        handleConfirm={() => {
-          if (deleting) remove.mutate(deleting)
-        }}
-      />
+        <ConfirmDialog
+          open={deleting !== null}
+          onOpenChange={(open) => {
+            if (!open) setDeleting(null)
+          }}
+          title={t('Delete distributor')}
+          desc={t(
+            'Members of {{name}} will fall back to each group’s normal ratio.',
+            { name: deleting ?? '' }
+          )}
+          destructive
+          isLoading={remove.isPending}
+          handleConfirm={() => {
+            if (deleting) remove.mutate(deleting)
+          }}
+        />
+      </SectionPageLayout.Content>
     </SectionPageLayout>
   )
 }
