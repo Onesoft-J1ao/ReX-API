@@ -142,6 +142,13 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
                 variant='info'
                 copyText={String(profile.id)}
               />
+              {profile.is_distributor && (
+                <StatusBadge
+                  label={t('Distributor')}
+                  variant='success'
+                  copyable={false}
+                />
+              )}
             </div>
 
             <div className='text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:gap-x-4 sm:text-sm'>

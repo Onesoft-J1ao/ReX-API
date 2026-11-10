@@ -49,6 +49,8 @@ export interface UserProfile {
   email?: string
   /** User group */
   group: string
+  /** True when this user group carries its own per-group price overrides. */
+  is_distributor?: boolean
   /** Current quota balance */
   quota: number
   /** Total used quota */

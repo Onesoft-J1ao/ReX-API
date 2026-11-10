@@ -38,12 +38,21 @@ func distributorReserved(group string) bool {
 }
 
 // GetDistributors returns the current overrides plus the inputs the editor
-// needs: every group that can be priced, and the users currently sitting in a
-// distributor group.
+// needs: every group that can actually serve traffic, and the users currently
+// sitting in a distributor group.
+//
+// The group list comes from the ability table, not from the ratio table: a
+// ratio entry with no enabled channel is a leftover, and offering it in the
+// editor is how an empty "distributor" row ended up on the model square.
 func GetDistributors(c *gin.Context) {
 	overrides := ratio_setting.GetGroupGroupRatioCopy()
-	groups := make([]string, 0, len(ratio_setting.GetGroupRatioCopy()))
-	for name := range ratio_setting.GetGroupRatioCopy() {
+	served, err := model.GetGroupsWithEnabledChannel()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	groups := make([]string, 0, len(served))
+	for name := range served {
 		groups = append(groups, name)
 	}
 	sort.Strings(groups)

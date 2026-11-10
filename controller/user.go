@@ -549,6 +549,10 @@ func buildSelfUserData(user *model.User) map[string]any {
 		"wechat_id":         user.WeChatId,
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,
+		// A distributor is a user group that carries its own per-group price
+		// overrides. The profile header shows that identity so a distributor can
+		// tell why their prices differ from the public ones.
+		"is_distributor":    ratio_setting.HasGroupGroupRatio(user.Group),
 		"quota":             user.Quota,
 		"gift_quota":        user.GiftQuota,
 		"used_quota":        user.UsedQuota,

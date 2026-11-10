@@ -120,6 +120,13 @@ func CheckGroupRatio(jsonStr string) error {
 	return nil
 }
 
+// HasGroupGroupRatio reports whether this user group carries its own price
+// overrides. That is what makes it a distributor.
+func HasGroupGroupRatio(userGroup string) bool {
+	_, ok := groupGroupRatioMap.Get(userGroup)
+	return ok
+}
+
 // GetGroupGroupRatioCopy returns a copy with independent nested maps so callers
 // can build a new table without mutating the running billing configuration.
 func GetGroupGroupRatioCopy() map[string]map[string]float64 {
