@@ -58,6 +58,7 @@ import { Route as AuthenticatedSecurityIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedStatusIndexRouteImport } from './routes/_authenticated/status/index'
 import { Route as AuthenticatedStatusPerfRouteImport } from './routes/_authenticated/status/perf'
 import { Route as AuthenticatedStatusSentinelRouteImport } from './routes/_authenticated/status/sentinel'
+import { Route as AuthenticatedDistributorsIndexRouteImport } from './routes/_authenticated/distributors/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
 import { Route as AuthenticatedSupportIndexRouteImport } from './routes/_authenticated/support/index'
 import { Route as AuthenticatedSystemInfoIndexRouteImport } from './routes/_authenticated/system-info/index'
@@ -349,6 +350,12 @@ const AuthenticatedStatusSentinelRoute =
     path: '/status/sentinel',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedDistributorsIndexRoute =
+  AuthenticatedDistributorsIndexRouteImport.update({
+    id: '/distributors/',
+    path: '/distributors/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSubscriptionsIndexRoute =
   AuthenticatedSubscriptionsIndexRouteImport.update({
     id: '/subscriptions/',
@@ -577,6 +584,7 @@ export interface FileRoutesByFullPath {
   '/registrar/': typeof AuthenticatedRegistrarIndexRoute
   '/security/': typeof AuthenticatedSecurityIndexRoute
   '/status/': typeof AuthenticatedStatusIndexRoute
+  '/distributors/': typeof AuthenticatedDistributorsIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/support/': typeof AuthenticatedSupportIndexRoute
   '/system-info/': typeof AuthenticatedSystemInfoIndexRoute
@@ -655,6 +663,7 @@ export interface FileRoutesByTo {
   '/registrar': typeof AuthenticatedRegistrarIndexRoute
   '/security': typeof AuthenticatedSecurityIndexRoute
   '/status': typeof AuthenticatedStatusIndexRoute
+  '/distributors': typeof AuthenticatedDistributorsIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
   '/support': typeof AuthenticatedSupportIndexRoute
   '/system-info': typeof AuthenticatedSystemInfoIndexRoute
@@ -737,6 +746,7 @@ export interface FileRoutesById {
   '/_authenticated/registrar/': typeof AuthenticatedRegistrarIndexRoute
   '/_authenticated/security/': typeof AuthenticatedSecurityIndexRoute
   '/_authenticated/status/': typeof AuthenticatedStatusIndexRoute
+  '/_authenticated/distributors/': typeof AuthenticatedDistributorsIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/_authenticated/support/': typeof AuthenticatedSupportIndexRoute
   '/_authenticated/system-info/': typeof AuthenticatedSystemInfoIndexRoute
@@ -1375,6 +1385,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStatusSentinelRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/distributors/': {
+      id: '/_authenticated/distributors/'
+      path: '/distributors'
+      fullPath: '/distributors/'
+      preLoaderRoute: typeof AuthenticatedDistributorsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/subscriptions/': {
       id: '/_authenticated/subscriptions/'
       path: '/subscriptions'
@@ -1702,6 +1719,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRegistrarIndexRoute: typeof AuthenticatedRegistrarIndexRoute
   AuthenticatedSecurityIndexRoute: typeof AuthenticatedSecurityIndexRoute
   AuthenticatedStatusIndexRoute: typeof AuthenticatedStatusIndexRoute
+  AuthenticatedDistributorsIndexRoute: typeof AuthenticatedDistributorsIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedSupportIndexRoute: typeof AuthenticatedSupportIndexRoute
   AuthenticatedSystemInfoIndexRoute: typeof AuthenticatedSystemInfoIndexRoute
@@ -1740,6 +1758,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRegistrarIndexRoute: AuthenticatedRegistrarIndexRoute,
   AuthenticatedSecurityIndexRoute: AuthenticatedSecurityIndexRoute,
   AuthenticatedStatusIndexRoute: AuthenticatedStatusIndexRoute,
+  AuthenticatedDistributorsIndexRoute: AuthenticatedDistributorsIndexRoute,
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,
   AuthenticatedSupportIndexRoute: AuthenticatedSupportIndexRoute,
   AuthenticatedSystemInfoIndexRoute: AuthenticatedSystemInfoIndexRoute,

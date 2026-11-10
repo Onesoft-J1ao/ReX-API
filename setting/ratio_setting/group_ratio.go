@@ -98,10 +98,6 @@ func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {
 	return ratio, true
 }
 
-func GetGroupGroupRatioCopy() map[string]map[string]float64 {
-	return groupGroupRatioMap.ReadAll()
-}
-
 func GroupGroupRatio2JSONString() string {
 	return groupGroupRatioMap.MarshalJSONString()
 }
