@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -72,6 +72,13 @@ export function Distributors() {
 
   const data: DistributorData | undefined = query.data
   const distributors = data?.distributors ?? []
+  // Stable identities so the editor's effects do not see a new object on every
+  // parent render and reset what the operator is typing.
+  const editorGroups = useMemo(() => data?.groups ?? [], [data?.groups])
+  const editorExisting = useMemo(
+    () => data?.overrides ?? {},
+    [data?.overrides]
+  )
 
   const editorOpen = creating || editing !== null
 
@@ -164,8 +171,8 @@ export function Distributors() {
       <DistributorEditor
         open={editorOpen}
         userGroup={editing}
-        groups={data?.groups ?? []}
-        existing={data?.overrides ?? {}}
+        groups={editorGroups}
+        existing={editorExisting}
         onOpenChange={(open) => {
           if (!open) {
             setCreating(false)

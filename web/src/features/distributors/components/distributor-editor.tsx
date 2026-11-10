@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -55,11 +55,19 @@ export function DistributorEditor(props: DistributorEditorProps) {
   const [draft, setDraft] = useState<Draft>({})
   const [fill, setFill] = useState('')
 
+  // `existing` is rebuilt on every parent render (a fresh `?? {}`), so keying
+  // this effect on the object would reset the draft while the operator is
+  // typing. Key it on the identity of what is being edited instead, and read
+  // `existing` through a ref so the reset only happens when the editor opens
+  // or switches to a different group.
+  const existingRef = useRef(props.existing)
+  existingRef.current = props.existing
+
   useEffect(() => {
     if (!props.open) return
     if (props.userGroup) {
       setName(props.userGroup)
-      const rows = props.existing[props.userGroup] ?? {}
+      const rows = existingRef.current[props.userGroup] ?? {}
       setDraft(
         Object.fromEntries(
           Object.entries(rows).map(([group, ratio]) => [group, String(ratio)])
@@ -70,7 +78,7 @@ export function DistributorEditor(props: DistributorEditorProps) {
       setDraft({})
     }
     setFill('')
-  }, [props.open, props.userGroup, props.existing])
+  }, [props.open, props.userGroup])
 
   const filled = useMemo(
     () => Object.values(draft).filter((value) => value.trim() !== '').length,
