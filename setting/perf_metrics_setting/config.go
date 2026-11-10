@@ -48,17 +48,23 @@ var perfMetricsSetting = PerfMetricsSetting{
 		"mcapple": "https://api.mcapple.top/api/perf-metrics/summary",
 	},
 	UpstreamHealthGroups: map[string]map[string]string{
+		"furry": {
+			// Local groups whose names differ from the upstream's. Same-name
+			// groups need no entry: the lookup falls back to the group itself.
+			"ClaudeKiro": "ClaudeKiro",
+		},
 		"sheapi": {
-			"ClaudeMax":  "cc-max",
-			"Claude企业池":  "kiro-企业池",
-			"Codex特惠":    "plus_0720",
-			"Codex不降智":   "codex-不降智",
-			"Codex不降智高缓": "codex-不降智-高缓",
-			"国模稳定":       "deepseek",
+			"ClaudeMax":    "cc-max",
+			"Kiro正价高缓":     "kiro-高缓",
+			"Codex特惠":      "plus_0720",
+			"Codex不降智":     "codex-不降智",
+			"Codex不降智高缓":   "codex-不降智-高缓",
+			"CodexPro企业稳定": "codex-不降智",
+			"deepseek稳定":   "deepseek",
 		},
 		"mcapple": {
-			"国模低价": "workbuddy",
-			"国模破甲": "国模破甲",
+			"国模低价":  "workbuddy",
+			"free2": "workbuddy",
 		},
 	},
 	UpstreamEnabled:        true,

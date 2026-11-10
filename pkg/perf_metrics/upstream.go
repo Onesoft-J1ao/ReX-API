@@ -145,6 +145,45 @@ func UpstreamCoversModel(modelName string) bool {
 	return ok
 }
 
+// UpstreamCoversModelInGroup reports whether the upstream that serves this local
+// group already mirrors the model.
+//
+// The old check asked the furry mirror for every group. A model present in
+// furry but absent from the upstream actually behind the group (SheAPI,
+// McApple) was treated as covered and therefore never probed, so those cards
+// stayed blank forever. Health has to come from the upstream that serves the
+// group, not from whichever mirror happens to be largest.
+func UpstreamCoversModelInGroup(modelName string, groups []string) bool {
+	if strings.TrimSpace(modelName) == "" {
+		return false
+	}
+	for _, group := range groups {
+		source := UpstreamSourceForGroup(group)
+		if source == "" {
+			// No mirror backs this group, so nothing upstream covers the model:
+			// our own probe is the only possible source of a reading.
+			continue
+		}
+		if upstreamSourceHasModel(source, modelName) {
+			return true
+		}
+	}
+	return false
+}
+
+func upstreamSourceHasModel(source, modelName string) bool {
+	mirrored, ok := fetchUpstreamSummaryFor(source, 24)
+	if !ok {
+		return false
+	}
+	for _, model := range mirrored.Models {
+		if model.ModelName == modelName {
+			return true
+		}
+	}
+	return false
+}
+
 func upstreamModelSummary(modelName string, hours int) (ModelSummary, bool) {
 	mirrored, ok := fetchUpstreamSummary(hours)
 	if !ok {

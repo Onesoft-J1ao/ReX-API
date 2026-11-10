@@ -657,10 +657,14 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 		if probeModel == "" {
 			continue
 		}
-		// A model the upstream mirror does not report has no health data unless we
-		// ask it ourselves, so every such model is probed even when it is
-		// paid. Models the mirror does report stay on the free-only filter.
-		uncovered := uncoveredProbeModels(ch, perfmetrics.UpstreamCoversModel)
+		// A model the upstream that serves this group does not report has no
+		// health data unless we ask it ourselves, so every such model is probed
+		// even when it is paid. Coverage is decided per group: asking the furry
+		// mirror about a SheAPI/McApple group marked its models covered and left
+		// their cards blank forever.
+		uncovered := uncoveredProbeModels(ch, func(modelName string) bool {
+			return perfmetrics.UpstreamCoversModelInGroup(modelName, relevant)
+		})
 		uncoveredSet := make(map[string]struct{}, len(uncovered))
 		models := []string{probeModel}
 		for _, name := range uncovered {

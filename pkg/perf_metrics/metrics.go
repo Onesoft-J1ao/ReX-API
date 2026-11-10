@@ -578,7 +578,13 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 }
 
 func upstreamHealthGroup(source, localGroup string) string {
-	return perf_metrics_setting.GetSetting().UpstreamHealthGroups[source][localGroup]
+	// An explicit mapping wins. Otherwise the local group is assumed to be named
+	// the same as the upstream's — which is true for most groups, and is the only
+	// way a newly added group gets a reading without a config change.
+	if mapped := perf_metrics_setting.GetSetting().UpstreamHealthGroups[source][localGroup]; mapped != "" {
+		return mapped
+	}
+	return localGroup
 }
 
 func modelSummaryFromGroup(model ModelSummary, group GroupResult) ModelSummary {
@@ -606,6 +612,26 @@ func upstreamSourceForBaseURL(baseURL string) string {
 	default:
 		return ""
 	}
+}
+
+// UpstreamSourceForGroup names the mirrored upstream behind a local group, or
+// "" when the group is served by something we do not mirror. A group may be
+// served by several channels; the first recognised source wins, because the
+// caller only needs to know whether a mirror can answer for this group.
+func UpstreamSourceForGroup(group string) string {
+	if strings.TrimSpace(group) == "" {
+		return ""
+	}
+	bases, err := model.GetEnabledGroupBaseURLs([]string{group})
+	if err != nil {
+		return ""
+	}
+	for _, base := range bases[group] {
+		if source := upstreamSourceForBaseURL(base); source != "" {
+			return source
+		}
+	}
+	return ""
 }
 
 // SourceMirror marks numbers that came from another deployment's public
