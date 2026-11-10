@@ -248,6 +248,12 @@ export function useSidebarData(): SidebarData {
             icon: CreditCard,
           },
           {
+            title: t('Distributors'),
+            url: '/distributors',
+            icon: Users,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
             title: t('Refund Requests'),
             url: '/refunds',
             icon: RotateCcw,

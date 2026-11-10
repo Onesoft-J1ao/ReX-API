@@ -121,6 +121,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/users': { section: 'admin', module: 'user' },
   '/redemption-codes': { section: 'admin', module: 'redemption' },
   '/subscriptions': { section: 'admin', module: 'subscription' },
+  '/distributors': { section: 'admin', module: 'subscription' },
   // Refund requests are part of the subscription/billing surface, so they reuse
   // that sidebar module gate instead of introducing a new config key.
   '/refunds': { section: 'admin', module: 'subscription' },

@@ -3,6 +3,7 @@ package ratio_setting
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -97,6 +98,10 @@ func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {
 	return ratio, true
 }
 
+func GetGroupGroupRatioCopy() map[string]map[string]float64 {
+	return groupGroupRatioMap.ReadAll()
+}
+
 func GroupGroupRatio2JSONString() string {
 	return groupGroupRatioMap.MarshalJSONString()
 }
@@ -117,4 +122,26 @@ func CheckGroupRatio(jsonStr string) error {
 		}
 	}
 	return nil
+}
+
+// GetGroupGroupRatioCopy returns a copy with independent nested maps so callers
+// can build a new table without mutating the running billing configuration.
+func GetGroupGroupRatioCopy() map[string]map[string]float64 {
+	source := groupGroupRatioMap.ReadAll()
+	copied := make(map[string]map[string]float64, len(source))
+	for userGroup, ratios := range source {
+		copied[userGroup] = maps.Clone(ratios)
+	}
+	return copied
+}
+
+// IsDistributorUserGroup reports whether a user group has a per-group ratio
+// override table. That table is what makes a group a downstream reseller group:
+// its members are charged the override instead of the public group ratio.
+func IsDistributorUserGroup(userGroup string) bool {
+	if userGroup == "" {
+		return false
+	}
+	_, ok := groupGroupRatioMap.Get(userGroup)
+	return ok
 }
