@@ -172,6 +172,55 @@ func FillModelSquareStates(rows []*Model, configured map[string][]int, connectio
 	return nil
 }
 
+// GetDisabledModelMatcher returns a predicate reporting whether a concrete model
+// name is disabled by the models catalog.
+//
+// `models.status != 1` is the operator's off switch, and a row with a name rule
+// (prefix/suffix/contains) disables every concrete name it matches. The public
+// catalog already honours it, but the health probe and the upstream mirror walk
+// channels directly, so they kept requesting models the operator had switched
+// off — eleven `naiwa/*` names were still probed every cycle and every one of
+// them failed, dragging that group's availability down.
+//
+// Returns nil when nothing is disabled, which lets callers skip the check.
+func GetDisabledModelMatcher() (func(string) bool, error) {
+	var records []Model
+	if err := DB.Select("model_name", "status", "name_rule").
+		Where("status <> ?", 1).
+		Find(&records).Error; err != nil {
+		return nil, err
+	}
+	return newDisabledMatcherForTest(records), nil
+}
+
+// newDisabledMatcherForTest builds the predicate from already-loaded rows, so the
+// rule precedence can be exercised without a database.
+func newDisabledMatcherForTest(records []Model) func(string) bool {
+	if len(records) == 0 {
+		return nil
+	}
+	exact := make(map[string]struct{}, len(records))
+	rules := make([]Model, 0, len(records))
+	for i := range records {
+		if records[i].NameRule == NameRuleExact {
+			exact[records[i].ModelName] = struct{}{}
+			continue
+		}
+		rules = append(rules, records[i])
+	}
+	return func(name string) bool {
+		if _, ok := exact[name]; ok {
+			return true
+		}
+		for i := range rules {
+			if rules[i].MatchesName(name) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 // GetConfiguredModelChannels includes disabled channels and reads no credentials.
 func GetConfiguredModelChannels() (map[string][]int, error) {
 	var channels []Channel

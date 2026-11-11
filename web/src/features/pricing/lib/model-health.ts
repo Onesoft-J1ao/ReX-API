@@ -48,6 +48,36 @@ export type ModelPerfIndex<T extends ModelPerfReading> = {
 }
 
 /**
+ * True when a reading came from another deployment's mirror rather than from
+ * this one. `source` is "mirror" on the model-wide rollup and
+ * "mirror:<source>" on a group row.
+ */
+function isMirrored(reading: ModelPerfReading): boolean {
+  return reading.source?.startsWith('mirror') === true
+}
+
+/**
+ * The first reading this deployment measured for a model in any group.
+ *
+ * Used only for the unfiltered square, where a card stands for the model as a
+ * whole. A probe is our own request through our own router, so it is a better
+ * answer to "is this model up for us" than another instance's blended figure.
+ */
+function firstOwnReading<T extends ModelPerfReading>(
+  index: ModelPerfIndex<T>,
+  modelName: string
+): T | undefined {
+  const suffix = `|${modelName}`
+  for (const [key, value] of index.probeByGroup) {
+    if (key.endsWith(suffix) && !isMirrored(value)) return value
+  }
+  for (const [key, value] of index.rollupByGroup) {
+    if (key.endsWith(suffix) && !isMirrored(value)) return value
+  }
+  return undefined
+}
+
+/**
  * Pick the reading a card should show.
  *
  * With a group selected, our own data for that group wins in order of
@@ -86,9 +116,12 @@ export function resolveModelPerf<T extends ModelPerfReading>(
     return { ...wide, groupScoped: false }
   }
   const wide = index.modelWide.get(modelName)
+  if (wide && !isMirrored(wide)) return wide
+  // The model-wide figure is another deployment's number. The unfiltered
+  // square used to show it unconditionally, so every model whose upstream runs
+  // at ~60% painted the whole page red while our own probes read 98-100%.
+  const own = firstOwnReading(index, modelName)
+  if (own) return own
   if (wide) return wide
-  for (const [key, value] of index.probeByGroup) {
-    if (key.endsWith(`|${modelName}`)) return value
-  }
   return undefined
 }

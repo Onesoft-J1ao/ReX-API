@@ -572,6 +572,33 @@ func selectFlexibleProbeGroups(groups []string, now int64) ([]string, error) {
 	return eligible, nil
 }
 
+// probeUnserved reports whether a probe failure means "this model is not routed
+// in this group" rather than "the model is unhealthy". Both cases are decided by
+// our own router before the request reaches an upstream: a group that does not
+// carry the model answers "no available channel", and a model with no price
+// answers model_price_error. Recording them as failures made an idle group look
+// like an outage — 1111 such rows in one day dragged default to 5% uptime.
+func probeUnserved(result channelTestResult) bool {
+	message := ""
+	if result.localErr != nil {
+		message = result.localErr.Error()
+	}
+	if result.newAPIError != nil && result.newAPIError.Err != nil {
+		message += " " + result.newAPIError.Err.Error()
+	}
+	for _, marker := range []string{
+		"无可用渠道",
+		"no available channel",
+		"model_price_error",
+		"model price not configured",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func runGroupHealthProbe(ctx context.Context, report func(processed, total int)) (*groupHealthProbeSummary, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -604,6 +631,14 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 	}
 
 	probeTs := time.Now().Unix()
+
+	// Models the operator disabled in the catalog must not be probed: they are
+	// not on the square, so a probe spends a real request to learn about a model
+	// nobody can call, and its failure counts against the group's availability.
+	disabledModel, err := model.GetDisabledModelMatcher()
+	if err != nil {
+		common.SysLog("group_health_probe: disabled-model lookup failed: " + err.Error())
+	}
 
 	summary := &groupHealthProbeSummary{Groups: len(groups)}
 	totalUnits := 0
@@ -679,8 +714,24 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 		uncovered := uncoveredProbeModels(ch, func(modelName string) bool {
 			return perfmetrics.UpstreamCoversModelInGroup(modelName, relevant)
 		})
+		// A model the catalog disabled is not served, so it is neither the probe
+		// model nor an uncovered model worth asking about.
+		if disabledModel != nil {
+			if disabledModel(probeModel) {
+				probeModel = ""
+			}
+			uncovered = lo.Filter(uncovered, func(name string, _ int) bool {
+				return !disabledModel(name)
+			})
+		}
+		if probeModel == "" && len(uncovered) == 0 {
+			continue
+		}
 		uncoveredSet := make(map[string]struct{}, len(uncovered))
-		models := []string{probeModel}
+		models := make([]string, 0, len(uncovered)+1)
+		if probeModel != "" {
+			models = append(models, probeModel)
+		}
 		for _, name := range uncovered {
 			uncoveredSet[name] = struct{}{}
 			if name != probeModel {
@@ -713,6 +764,13 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 			latMs := time.Since(tik).Milliseconds()
 
 			ok := result.localErr == nil && result.newAPIError == nil
+			// A pair this deployment does not route is not a health signal: the
+			// request never left the router. Writing it would count "we do not
+			// serve this here" as "the model is down" and pull the group's
+			// availability down for every model it does serve.
+			if !ok && probeUnserved(result) {
+				continue
+			}
 			errCode := 0
 			errMsg := ""
 			if result.newAPIError != nil {

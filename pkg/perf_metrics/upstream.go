@@ -263,6 +263,11 @@ func refreshAllUpstreamDetails() {
 		return
 	}
 	modelsBySource := make(map[string]map[string]struct{})
+	disabledModel, disabledErr := model.GetDisabledModelMatcher()
+	if disabledErr != nil {
+		common.SysLog(fmt.Sprintf("perf metrics disabled-model lookup failed: %s", disabledErr.Error()))
+		disabledModel = nil
+	}
 	for group, bases := range groupURLs {
 		for _, base := range bases {
 			source := upstreamSourceForBaseURL(base)
@@ -274,6 +279,9 @@ func refreshAllUpstreamDetails() {
 				modelsBySource[source] = make(map[string]struct{})
 			}
 			for _, modelName := range model.GetGroupEnabledModels(group) {
+				if disabledModel != nil && disabledModel(modelName) {
+					continue
+				}
 				modelsBySource[source][modelName] = struct{}{}
 			}
 		}

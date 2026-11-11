@@ -1192,7 +1192,7 @@ describe('model cards', () => {
     expect(card.textContent).toContain('640ms')
   })
 
-  it('lights slots 23 and 18 when series has the current hour and five hours earlier', () => {
+  it('lights only the hours that carry a sample', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
     const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
@@ -1219,14 +1219,11 @@ describe('model cards', () => {
         name: 'Recent success-rate samples; gray bars indicate missing data.',
       }).children,
     ]
-    // The strip covers only the sampled span, so two points five hours apart
-    // render six slots instead of padding the other eighteen out to a day.
-    expect(spans).toHaveLength(6)
+    // Only hours with a reading are drawn: two samples five hours apart render
+    // two bars, not six with four gray gaps between them.
+    expect(spans).toHaveLength(2)
     expect(spans[0].classList.contains('bg-muted-foreground/15')).toBe(false)
-    expect(spans[5].classList.contains('bg-muted-foreground/15')).toBe(false)
-    spans.slice(1, 5).forEach((slot) => {
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
+    expect(spans[1].classList.contains('bg-muted-foreground/15')).toBe(false)
     vi.useRealTimers()
   })
 

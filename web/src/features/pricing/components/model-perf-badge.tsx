@@ -107,20 +107,16 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
 
   // A model observed for one hour out of 24 must not render as 23 empty slots
   // beside a single dot: at this width the padding reads as "mostly down".
-  // Trim to the span that actually has readings so the bar's length carries the
-  // sample count, and an empty slot inside that span still means "no data for
-  // this hour" rather than "outside the observed window".
-  const visibleRates = useMemo(() => {
-    let first = -1
-    let last = -1
-    statusRates.forEach((rate, index) => {
-      if (rate == null || !Number.isFinite(rate)) return
-      if (first < 0) first = index
-      last = index
-    })
-    if (first < 0) return []
-    return statusRates.slice(first, last + 1)
-  }, [statusRates])
+  // Only the hours that carry a reading are drawn, so the bar's length *is* the
+  // sample count. Keeping the gaps made a two-sample model look like a day-long
+  // outage with one green cell in it.
+  const visibleRates = useMemo(
+    () =>
+      statusRates.filter(
+        (rate): rate is number => rate != null && Number.isFinite(rate)
+      ),
+    [statusRates]
+  )
 
   // Only hours that were actually observed say anything. A model that answered
   // for one hour is not "0% healthy for the day" — nothing is known about the
@@ -235,12 +231,12 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
                   aria-hidden
                   className={cn(
                     'h-full w-[3px] shrink-0 rounded-full',
-                    rate != null &&
-                      Number.isFinite(rate) &&
-                      rate >= 0 &&
-                      rate <= 100
-                      ? getSuccessRateDotClass(rate)
-                      : 'bg-muted-foreground/15'
+                    getSuccessRateDotClass(rate),
+                    // A mirrored figure is another deployment's measurement of
+                    // the same model, not ours. Keeping its tier colour but at
+                    // half strength separates "our green" from "their red"
+                    // without hiding a bad upstream.
+                    mirrored && 'opacity-50'
                   )}
                 />
               )

@@ -350,6 +350,13 @@ func updatePricing() {
 	pricingMap = make([]Pricing, 0)
 	pluginGeneration := jsplugin.DefaultRegistry.Generation()
 	for model, groups := range modelGroupsMap {
+		// A metadata row with status != 1 disables the model, and a prefix/suffix/
+		// contains rule disables every concrete name it matches. Checking only the
+		// exact row left a disabled `naiwa/` prefix rule still advertising its
+		// twelve models on the square and in the health mirror.
+		if meta, ok := metaMap[model]; ok && meta.Status != 1 {
+			continue
+		}
 		pricing := Pricing{
 			ModelName:              model,
 			EnableGroup:            groups.Items(),
@@ -358,10 +365,6 @@ func updatePricing() {
 
 		// 补充模型元数据（描述、标签、供应商、状态）
 		if meta, ok := metaMap[model]; ok {
-			// 若模型被禁用(status!=1)，则直接跳过，不返回给前端
-			if meta.Status != 1 {
-				continue
-			}
 			pricing.Description = meta.Description
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags

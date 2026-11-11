@@ -502,10 +502,17 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 	}
 	groupURLs, err := model.GetEnabledGroupBaseURLs(groups)
 	if err == nil {
+		disabledModel, disabledErr := model.GetDisabledModelMatcher()
+		if disabledErr != nil {
+			disabledModel = nil
+		}
 		servedByGroup := make(map[string]map[string]struct{}, len(groups))
 		for _, group := range groups {
 			servedByGroup[group] = make(map[string]struct{})
 			for _, name := range model.GetGroupEnabledModels(group) {
+				if disabledModel != nil && disabledModel(name) {
+					continue
+				}
 				servedByGroup[group][name] = struct{}{}
 			}
 		}
@@ -657,6 +664,10 @@ func mergeUpstreamModels(local []ModelSummary, hours int) []ModelSummary {
 // the set the model square advertises. It returns nil when nothing is served or
 // the lookup came back empty, and a nil set disables the filter so a database
 // hiccup degrades to the previous behaviour instead of blanking the page.
+//
+// Models the operator disabled in the catalog are removed too: the square
+// already hides them, so mirroring their health would put a card's worth of
+// numbers on a model nobody can call.
 func servedModelNames() map[string]struct{} {
 	// GetEnabledModels reads through the shared handle and panics when no
 	// database has been opened, which is the state a caller that only merges a
@@ -671,6 +682,13 @@ func servedModelNames() map[string]struct{} {
 	served := make(map[string]struct{}, len(names))
 	for _, name := range names {
 		served[name] = struct{}{}
+	}
+	if disabled, err := model.GetDisabledModelMatcher(); err == nil && disabled != nil {
+		for name := range served {
+			if disabled(name) {
+				delete(served, name)
+			}
+		}
 	}
 	return served
 }
