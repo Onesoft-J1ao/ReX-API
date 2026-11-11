@@ -6366,6 +6366,7 @@
     "Multiplier for {{group}}": "{{group}} 的倍率",
     "{{group}} needs a positive number": "{{group}} 需要填正数",
     "Fill in at least one group": "至少填写一个分组",
+    "Only groups with an enabled channel are listed; a group without one cannot serve a request and is rejected on save.": "只列出有启用渠道的分组；没有渠道的分组无法提供服务，保存时会被拒绝。",
     "Subtract": "减少",
     "Success": "成功",
     "Success rate": "成功率",

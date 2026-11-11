@@ -104,6 +104,15 @@ func SaveDistributor(c *gin.Context) {
 	}
 
 	known := ratio_setting.GetGroupRatioCopy()
+	// Only groups with an enabled channel can actually serve a request, so a
+	// ratio written for a leftover group is dead config that still shows up in
+	// the editor. Reject it instead of silently accepting an entry nobody can
+	// be charged for.
+	served, err := model.GetGroupsWithEnabledChannel()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 	cleaned := make(map[string]float64, len(req.Ratios))
 	for group, ratio := range req.Ratios {
 		group = strings.TrimSpace(group)
@@ -114,6 +123,13 @@ func SaveDistributor(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "unknown group: " + group,
+			})
+			return
+		}
+		if _, ok := served[group]; !ok {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": group + " has no enabled channel and cannot be priced",
 			})
 			return
 		}

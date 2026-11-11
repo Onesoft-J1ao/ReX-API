@@ -6353,6 +6353,7 @@
     "Multiplier for {{group}}": "Multiplier for {{group}}",
     "{{group}} needs a positive number": "{{group}} needs a positive number",
     "Fill in at least one group": "Fill in at least one group",
+    "Only groups with an enabled channel are listed; a group without one cannot serve a request and is rejected on save.": "Only groups with an enabled channel are listed; a group without one cannot serve a request and is rejected on save.",
     "Subtract": "Subtract",
     "Success": "Success",
     "Success rate": "Success rate",

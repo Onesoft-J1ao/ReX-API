@@ -173,6 +173,11 @@ export function DistributorEditor(props: DistributorEditorProps) {
               total: props.groups.length,
             })}
           </p>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Only groups with an enabled channel are listed; a group without one cannot serve a request and is rejected on save.'
+            )}
+          </p>
 
           <ScrollArea className='min-h-0 flex-1 rounded-md border'>
             <div className='flex flex-col divide-y'>
