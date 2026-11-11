@@ -344,10 +344,14 @@ func refreshAllUpstreamDetails() {
 		if _, ok := coveredGroups[group]; ok {
 			continue
 		}
-		// Only a group whose upstream we actually mirror can be missing a
-		// reading. A group served by an unmirrored upstream (mjiutang, a
-		// self-hosted relay) never had one to begin with, and listing it here
-		// sent the reader looking for a mapping that cannot exist.
+		// Only a group with something to measure can be missing a reading. A
+		// group whose channels expose no enabled model has no row to mirror,
+		// and one served by an unmirrored upstream (mjiutang, a self-hosted
+		// relay) never had one to begin with. Listing either here sent the
+		// reader looking for a mapping that cannot exist.
+		if len(model.GetGroupEnabledModels(group)) == 0 {
+			continue
+		}
 		mirrored := false
 		for _, base := range bases {
 			if upstreamSourceForBaseURL(base) != "" {
