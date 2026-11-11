@@ -303,6 +303,24 @@ func refreshAllUpstreamDetails() {
 	}
 	semaphore := make(chan struct{}, 4)
 	var waitGroup sync.WaitGroup
+	// Track per-group coverage so a group that silently mirrors nothing shows
+	// up in the log. Adding a channel without an entry in
+	// upstream_health_groups is the usual cause, and the symptom is a card
+	// with no strip rather than an error.
+	coveredGroups := make(map[string]struct{}, len(groupURLs))
+	var coveredLock sync.Mutex
+	groupsByModel := make(map[string][]string)
+	for group, bases := range groupURLs {
+		for _, base := range bases {
+			source := upstreamSourceForBaseURL(base)
+			if source == "" {
+				continue
+			}
+			for _, modelName := range model.GetGroupEnabledModels(group) {
+				groupsByModel[source+"\x00"+modelName] = append(groupsByModel[source+"\x00"+modelName], group)
+			}
+		}
+	}
 	for _, job := range jobs {
 		job := job
 		waitGroup.Add(1)
@@ -310,10 +328,28 @@ func refreshAllUpstreamDetails() {
 			defer waitGroup.Done()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
-			refreshUpstreamDetail(job.source, job.model, 24)
+			if refreshUpstreamDetail(job.source, job.model, 24) {
+				coveredLock.Lock()
+				for _, g := range groupsByModel[job.source+"\x00"+job.model] {
+					coveredGroups[g] = struct{}{}
+				}
+				coveredLock.Unlock()
+			}
 		}()
 	}
 	waitGroup.Wait()
+
+	uncovered := make([]string, 0)
+	for group := range groupURLs {
+		if _, ok := coveredGroups[group]; !ok {
+			uncovered = append(uncovered, group)
+		}
+	}
+	if len(uncovered) > 0 {
+		sort.Strings(uncovered)
+		common.SysLog("perf metrics: no mirrored health for groups " + strings.Join(uncovered, ", ") +
+			" — check perf_metrics_setting.upstream_health_groups")
+	}
 }
 
 func ratioGroupsForHealthMirror() []string {

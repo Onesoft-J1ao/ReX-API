@@ -105,6 +105,23 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
     })
   }, [props.perf?.recent_success_series, props.perf?.window_start])
 
+  // A model observed for one hour out of 24 must not render as 23 empty slots
+  // beside a single dot: at this width the padding reads as "mostly down".
+  // Trim to the span that actually has readings so the bar's length carries the
+  // sample count, and an empty slot inside that span still means "no data for
+  // this hour" rather than "outside the observed window".
+  const visibleRates = useMemo(() => {
+    let first = -1
+    let last = -1
+    statusRates.forEach((rate, index) => {
+      if (rate == null || !Number.isFinite(rate)) return
+      if (first < 0) first = index
+      last = index
+    })
+    if (first < 0) return []
+    return statusRates.slice(first, last + 1)
+  }, [statusRates])
+
   // Only hours that were actually observed say anything. A model that answered
   // for one hour is not "0% healthy for the day" — nothing is known about the
   // other 23 — so the badge averages the hours it has and names that count.
@@ -209,10 +226,9 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
               'Recent success-rate samples; gray bars indicate missing data.'
             )}
             title={stripTitle}
-            className='mt-0.5 flex h-2.5 w-20 items-center gap-px'
+            className='mt-0.5 flex h-2.5 items-center gap-px'
           >
-            {STATUS_SLOTS.map((slot) => {
-              const rate = statusRates[slot]
+            {visibleRates.map((rate, slot) => {
               return (
                 <span
                   key={slot}
