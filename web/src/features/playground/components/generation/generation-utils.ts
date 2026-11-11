@@ -228,8 +228,17 @@ export function selectGenerationModels(
   meta: Map<string, GenerationModelMeta>,
   kind: GenerationKind
 ): ModelOption[] {
+  // An operator-configured list is an extra allowance, not the only source: it
+  // names models the capability filter might miss, and the capability filter
+  // still decides the rest. Treating it as the whole list meant every newly
+  // added image model stayed invisible until someone edited the setting by
+  // hand, which is the complaint that produced this change.
+  const capable = filterModelsForGeneration(models, meta, kind)
   if (published && published.length > 0) {
-    return filterGenerationModels(models, published)
+    const allowed = new Set(published)
+    const pinned = models.filter((model) => allowed.has(model.value))
+    const seen = new Set(pinned.map((model) => model.value))
+    return [...pinned, ...capable.filter((model) => !seen.has(model.value))]
   }
-  return filterModelsForGeneration(models, meta, kind)
+  return capable
 }

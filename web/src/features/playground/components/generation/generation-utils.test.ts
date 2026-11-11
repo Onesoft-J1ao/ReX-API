@@ -213,17 +213,42 @@ describe('generation model filtering', () => {
     expect(values(result)).toEqual(['mystery-a'])
   })
 
-  test('an operator-configured list wins over the capability filter', () => {
+  test('an operator-configured list is an extra allowance, not the whole list', () => {
+    // The pinned model is text-only, so it is kept only because the operator
+    // named it; every capable model still shows up on its own.
     const meta = metaFor({
       'Kimi-K3': { endpoints: ['openai'], outputs: ['text'] },
+      'gpt-image-2': { endpoints: ['image-generation'], outputs: ['image'] },
+      'gpt-image-9': { endpoints: ['image-generation'], outputs: [] },
     })
     const result = selectGenerationModels(
-      options('Kimi-K3', 'gpt-image-2'),
+      options('Kimi-K3', 'gpt-image-2', 'gpt-image-9'),
       ['Kimi-K3'],
       meta,
       'image'
     )
-    expect(values(result)).toEqual(['Kimi-K3'])
+    expect(values(result)).toEqual([
+      'Kimi-K3',
+      'gpt-image-2',
+      'gpt-image-9',
+    ])
+  })
+
+  test('a newly added image model appears without touching the setting', () => {
+    // Regression: the image picker used to be exactly the configured list, so a
+    // model the operator enabled on a channel stayed invisible until the
+    // setting was edited by hand.
+    const meta = metaFor({
+      'gpt-image-2': { endpoints: ['image-generation'], outputs: ['image'] },
+      'gpt-image-3': { endpoints: ['image-generation'], outputs: [] },
+    })
+    const result = selectGenerationModels(
+      options('gpt-image-2', 'gpt-image-3'),
+      ['gpt-image-2'],
+      meta,
+      'image'
+    )
+    expect(values(result)).toEqual(['gpt-image-2', 'gpt-image-3'])
   })
 
   test('falls back to the capability filter when no list is configured', () => {
