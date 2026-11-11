@@ -1219,18 +1219,18 @@ describe('model cards', () => {
         name: 'Recent success-rate samples; gray bars indicate missing data.',
       }).children,
     ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot, index) => {
-      if (index === 18 || index === 23) {
-        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
-        return
-      }
+    // The strip covers only the sampled span, so two points five hours apart
+    // render six slots instead of padding the other eighteen out to a day.
+    expect(spans).toHaveLength(6)
+    expect(spans[0].classList.contains('bg-muted-foreground/15')).toBe(false)
+    expect(spans[5].classList.contains('bg-muted-foreground/15')).toBe(false)
+    spans.slice(1, 5).forEach((slot) => {
       expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
     })
     vi.useRealTimers()
   })
 
-  it('keeps all 24 slots gray when a series point is 24 hours before the current hour', () => {
+  it('renders an empty strip when the only series point is 24 hours before the current hour', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
     const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
@@ -1256,10 +1256,9 @@ describe('model cards', () => {
         name: 'Recent success-rate samples; gray bars indicate missing data.',
       }).children,
     ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot) => {
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
+    // The point sits outside the server window, so there is no sampled span to
+    // draw. An empty strip says "no measurement" instead of faking 24 grays.
+    expect(spans).toHaveLength(0)
     vi.useRealTimers()
   })
 
@@ -1325,7 +1324,7 @@ describe('model cards', () => {
     vi.useRealTimers()
   })
 
-  it('keeps all 24 slots gray when recent_success_series is undefined', () => {
+  it('renders an empty strip when recent_success_series is undefined', () => {
     render(
       <ModelCard
         model={pricingModel()}
@@ -1339,10 +1338,7 @@ describe('model cards', () => {
         name: 'Recent success-rate samples; gray bars indicate missing data.',
       }).children,
     ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot) => {
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
+    expect(spans).toHaveLength(0)
   })
 
   it('uses the server window even when the browser clock is a day ahead', () => {
@@ -1371,14 +1367,11 @@ describe('model cards', () => {
         name: 'Recent success-rate samples; gray bars indicate missing data.',
       }).children,
     ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot, index) => {
-      if (index === 18) {
-        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
-        return
-      }
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
+    // Only slot 18 carries a reading, so the trimmed strip is one bar. Placing
+    // it at 18 proves the origin came from the server window (47h back), not
+    // from the browser clock — the point would be outside 24 slots otherwise.
+    expect(spans).toHaveLength(1)
+    expect(spans[0].classList.contains('bg-muted-foreground/15')).toBe(false)
     vi.useRealTimers()
   })
 })
