@@ -36,12 +36,27 @@ type ModelHealth struct {
 
 func (ModelHealth) TableName() string { return "model_health" }
 
+// modelHealthErrorMsgLimit matches the varchar(512) column. MySQL runs in
+// strict mode, so a longer value makes the whole upsert fail and the probe row
+// never lands — a group then looks unmeasured rather than failed. Upstream
+// errors routinely carry a full HTML body, so the message is clamped here.
+const modelHealthErrorMsgLimit = 512
+
+func clampErrorMsg(msg string) string {
+	runes := []rune(msg)
+	if len(runes) <= modelHealthErrorMsgLimit {
+		return msg
+	}
+	return string(runes[:modelHealthErrorMsgLimit])
+}
+
 // UpsertModelHealth writes one probe result. (model, group, probe_ts) is unique,
 // so re-probing the same cycle replaces the row (assign, not accumulate).
 func UpsertModelHealth(m *ModelHealth) error {
 	if m == nil {
 		return nil
 	}
+	m.ErrorMsg = clampErrorMsg(m.ErrorMsg)
 	return DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: "model_name"},
