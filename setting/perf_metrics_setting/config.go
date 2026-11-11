@@ -47,30 +47,12 @@ var perfMetricsSetting = PerfMetricsSetting{
 		"sheapi":  "https://www.sheapi.cc/api/perf-metrics/summary",
 		"mcapple": "https://api.mcapple.top/api/perf-metrics/summary",
 	},
-	UpstreamHealthGroups: map[string]map[string]string{
-		"furry": {
-			// Local groups whose names differ from the upstream's. Same-name
-			// groups need no entry: the lookup falls back to the group itself.
-			"ClaudeKiro": "ClaudeKiro",
-		},
-		"sheapi": {
-			"ClaudeMax":    "cc-max",
-			"Kiro正价高缓":     "kiro-高缓",
-			"Codex特惠":      "plus_0720",
-			"Codex不降智":     "codex-不降智",
-			"Codex不降智高缓":   "codex-不降智-高缓",
-			"CodexPro企业稳定": "codex-不降智",
-			"deepseek稳定":   "deepseek",
-			// The upstream calls this group gpt-image-2; ours drops the version
-			// suffix. Without the mapping the image cards stayed blank even
-			// though SheAPI reports a 12-15 point series for every model.
-			"gpt-image": "gpt-image-2",
-		},
-		"mcapple": {
-			"国模低价":  "workbuddy",
-			"free2": "workbuddy",
-		},
-	},
+	// Health-mirror mappings live in the options store
+	// (perf_metrics_setting.upstream_health_groups), not here: they change
+	// whenever a channel is renamed or swapped, and baking them into the binary
+	// meant a rebuild per rename. An unset or unknown group falls back to the
+	// local group name in upstreamHealthGroup.
+	UpstreamHealthGroups:   map[string]map[string]string{},
 	UpstreamEnabled:        true,
 	UpstreamTimeoutSeconds: 30,
 }

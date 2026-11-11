@@ -80,6 +80,9 @@ interface DetailSegment {
   text: string
   muted?: boolean
   danger?: boolean
+  /** A cache-hit reading: shown in success colour so a discounted read is not
+   *  mistaken for the standard price. */
+  success?: boolean
 }
 
 function formatRatioCompact(ratio: number | undefined): string {
@@ -235,7 +238,7 @@ function buildTypeDetailSegments(
       if (cacheEntries.length > 0) {
         segments.push({
           text: `${t('Cache')} ${formatPriceList(cacheEntries, false)}`,
-          muted: true,
+          success: true,
         })
       }
 
@@ -301,9 +304,12 @@ function buildTypeDetailSegments(
         ].filter(Boolean) as string[]
 
         if (cacheEntries.length > 0) {
-          segments.push({
+          // A cache hit is what the operator is looking for here: it is the
+          // price actually charged, so it leads the cell instead of hiding
+          // behind the standard rate.
+          segments.unshift({
             text: `${t('Cache')} ${formatPriceList(cacheEntries, false)}`,
-            muted: true,
+            success: true,
           })
         }
       }
@@ -834,6 +840,8 @@ export function useCommonLogsColumns(
           primaryTextClass = 'text-muted-foreground'
         } else if (primary?.danger) {
           primaryTextClass = 'text-destructive'
+        } else if (primary?.success) {
+          primaryTextClass = 'text-success'
         }
         let detailPreview = <span className='text-muted-foreground'>—</span>
         if (primary) {
