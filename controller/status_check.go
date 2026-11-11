@@ -578,7 +578,7 @@ func selectFlexibleProbeGroups(groups []string, now int64) ([]string, error) {
 // carry the model answers "no available channel", and a model with no price
 // answers model_price_error. Recording them as failures made an idle group look
 // like an outage — 1111 such rows in one day dragged default to 5% uptime.
-func probeUnserved(result channelTestResult) bool {
+func probeUnserved(result testResult) bool {
 	message := ""
 	if result.localErr != nil {
 		message = result.localErr.Error()
