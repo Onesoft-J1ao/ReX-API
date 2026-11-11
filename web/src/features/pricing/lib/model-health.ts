@@ -32,6 +32,14 @@ export type ModelPerfReading = {
    * reading belongs to the group it is shown in.
    */
   groupScoped?: boolean
+  /**
+   * The window figure the badge renders. Optional so a caller may pass a reading
+   * that only carries the series; the aggregator below needs both to combine
+   * several groups.
+   */
+  success_rate?: number
+  /** The per-hour samples the strip draws. */
+  recent_success_series?: { ts: number; success_rate: number }[]
 }
 
 /**
@@ -59,9 +67,9 @@ function isMirrored(reading: ModelPerfReading): boolean {
 /**
  * The first reading this deployment measured for a model in any group.
  *
- * Used only for the unfiltered square, where a card stands for the model as a
- * whole. A probe is our own request through our own router, so it is a better
- * answer to "is this model up for us" than another instance's blended figure.
+ * Kept for callers that want a single group's figure rather than an average;
+ * the unfiltered square uses aggregateGroupReadings instead, because picking one
+ * group arbitrarily made the same model read differently between page loads.
  */
 function firstOwnReading<T extends ModelPerfReading>(
   index: ModelPerfIndex<T>,
@@ -75,6 +83,60 @@ function firstOwnReading<T extends ModelPerfReading>(
     if (key.endsWith(suffix) && !isMirrored(value)) return value
   }
   return undefined
+}
+
+/**
+ * Combine every group-scoped reading of one model into a single figure.
+ *
+ * This is what the unfiltered square should show: the model as *we* serve it,
+ * averaged over the groups that actually carry it. The alternative — the
+ * upstream's own model-wide number — blends groups we do not route through, so
+ * a model we serve at 100% in every group still showed 65% and painted the
+ * whole page red.
+ *
+ * Rates are averaged per hour so the strip and the badge describe the same
+ * hours; a model present in one group simply reproduces that group.
+ */
+function aggregateGroupReadings<T extends ModelPerfReading>(
+  index: ModelPerfIndex<T>,
+  modelName: string
+): T | undefined {
+  const suffix = `|${modelName}`
+  const readings: T[] = []
+  const seen = new Set<T>()
+  for (const map of [index.probeByGroup, index.rollupByGroup]) {
+    for (const [key, value] of map) {
+      if (!key.endsWith(suffix) || seen.has(value)) continue
+      seen.add(value)
+      readings.push(value)
+    }
+  }
+  if (readings.length === 0) return undefined
+  if (readings.length === 1) return readings[0]
+
+  const rates = readings
+    .map((reading) => reading.success_rate)
+    .filter((rate): rate is number => rate != null && Number.isFinite(rate))
+  const merged = new Map<number, { sum: number; n: number }>()
+  for (const reading of readings) {
+    for (const point of reading.recent_success_series ?? []) {
+      const slot = merged.get(point.ts) ?? { sum: 0, n: 0 }
+      slot.sum += point.success_rate
+      slot.n += 1
+      merged.set(point.ts, slot)
+    }
+  }
+  const series = [...merged.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([ts, slot]) => ({ ts, success_rate: slot.sum / slot.n }))
+
+  return {
+    ...readings[0],
+    success_rate: rates.length
+      ? rates.reduce((sum, rate) => sum + rate, 0) / rates.length
+      : readings[0].success_rate,
+    recent_success_series: series,
+  }
 }
 
 /**
@@ -117,9 +179,12 @@ export function resolveModelPerf<T extends ModelPerfReading>(
   }
   const wide = index.modelWide.get(modelName)
   if (wide && !isMirrored(wide)) return wide
-  // The model-wide figure is another deployment's number. The unfiltered
-  // square used to show it unconditionally, so every model whose upstream runs
-  // at ~60% painted the whole page red while our own probes read 98-100%.
+  // The model-wide figure is another deployment's number, blended across groups
+  // we do not route through. The unfiltered square used to show it
+  // unconditionally, so every model whose upstream runs at ~60% painted the
+  // whole page red while each of our groups read 98-100%.
+  const aggregated = aggregateGroupReadings(index, modelName)
+  if (aggregated) return aggregated
   const own = firstOwnReading(index, modelName)
   if (own) return own
   if (wide) return wide
