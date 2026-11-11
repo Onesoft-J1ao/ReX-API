@@ -61,6 +61,10 @@ var perfMetricsSetting = PerfMetricsSetting{
 			"Codex不降智高缓":   "codex-不降智-高缓",
 			"CodexPro企业稳定": "codex-不降智",
 			"deepseek稳定":   "deepseek",
+			// The upstream calls this group gpt-image-2; ours drops the version
+			// suffix. Without the mapping the image cards stayed blank even
+			// though SheAPI reports a 12-15 point series for every model.
+			"gpt-image": "gpt-image-2",
 		},
 		"mcapple": {
 			"国模低价":  "workbuddy",

@@ -578,6 +578,7 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 	}
 	groups := status_check_setting.GetGroups()
 	excluded := status_check_setting.GetExcludedModelsMap()
+	excludedGroups := status_check_setting.GetExcludedGroupsMap()
 
 	// Flexible pacing narrows the cycle to the groups that actually need a
 	// probe. Off by default, in which case this returns the configured groups
@@ -653,6 +654,19 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 		// channel test, and fall back to the first model the channel serves.
 		// Models the upstream mirror does not report are probed as well: that
 		// is the only health data those models will ever have.
+		// A group listed in ExcludedGroups is never probed: a per-request image
+		// group costs real money on every call and the mirror cannot substitute
+		// for that, so the operator opts the whole group out rather than us
+		// guessing from its model prices.
+		if excludedGroups != nil {
+			relevant = lo.Filter(relevant, func(g string, _ int) bool {
+				_, skip := excludedGroups[g]
+				return !skip
+			})
+			if len(relevant) == 0 {
+				continue
+			}
+		}
 		probeModel := pickProbeModel(ch)
 		if probeModel == "" {
 			continue

@@ -14,8 +14,13 @@ type StatusCheckSetting struct {
 	ProbeIntervalMinutes int    `json:"probe_interval_minutes"` // default 10 (keep宽松 to dodge upstream rate-limit)
 	Groups               string `json:"groups"`                 // comma-separated group names probed
 	ExcludedModels       string `json:"excluded_models"`        // comma-separated model slugs to skip
-	Announcement         string `json:"announcement"`           // markdown body shown at top of /status
-	PassiveWindowHours   int    `json:"passive_window_hours"`   // default 24, perf_metrics merge window
+	// ExcludedGroups skips a group entirely, no matter how cheap its models
+	// look. ExcludedModels is per model and cannot express "this group costs
+	// four cents every single probe": a per-request image group has no cheap
+	// model to fall back on, so the only correct answer is to never probe it.
+	ExcludedGroups     string `json:"excluded_groups"`      // comma-separated group names never probed
+	Announcement       string `json:"announcement"`         // markdown body shown at top of /status
+	PassiveWindowHours int    `json:"passive_window_hours"` // default 24, perf_metrics merge window
 	// ProbeFreeModelsOnly skips probing any group whose ratio is not zero. A
 	// probe is a real upstream request, so probing a pay-per-request model
 	// bills us every cycle for a signal the mirrored upstream already reports.
@@ -45,6 +50,7 @@ var statusCheckSetting = StatusCheckSetting{
 	ProbeIntervalMinutes:         10,
 	Groups:                       "default",
 	ExcludedModels:               "",
+	ExcludedGroups:               "",
 	Announcement:                 "",
 	PassiveWindowHours:           24,
 	ProbeFreeModelsOnly:          true,
@@ -142,4 +148,24 @@ func GetFlexibleMaxConsecutiveProbes() int {
 // probe cycle.
 func ShouldProbeOnlyFreeModels() bool {
 	return statusCheckSetting.ProbeFreeModelsOnly
+}
+
+// GetExcludedGroupsMap returns the groups the scheduled probe must never touch.
+// A group listed here is skipped even when the mirror cannot report it, because
+// a probe there costs real money per request.
+func GetExcludedGroupsMap() map[string]struct{} {
+	raw := strings.TrimSpace(statusCheckSetting.ExcludedGroups)
+	if raw == "" {
+		return nil
+	}
+	m := map[string]struct{}{}
+	for _, p := range strings.Split(raw, ",") {
+		if t := strings.TrimSpace(p); t != "" {
+			m[t] = struct{}{}
+		}
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	return m
 }
