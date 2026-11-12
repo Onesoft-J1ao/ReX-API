@@ -606,6 +606,12 @@ func SetApiRouter(router *gin.Engine) {
 			groupRoute.GET("/distributor", controller.GetDistributors)
 			groupRoute.PUT("/distributor", controller.SaveDistributor)
 			groupRoute.DELETE("/distributor", controller.DeleteDistributor)
+			// Membership: list who is a distributor, search users to promote, and
+			// assign one. Separate from the multiplier endpoints above because they
+			// answer a different question (who, not how much).
+			groupRoute.GET("/distributor/members", controller.GetDistributorMembers)
+			groupRoute.GET("/distributor/candidates", controller.SearchDistributorCandidates)
+			groupRoute.PUT("/distributor/member", controller.AssignDistributor)
 		}
 
 		prefillGroupRoute := apiRouter.Group("/prefill_group")

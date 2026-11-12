@@ -56,3 +56,54 @@ export async function deleteDistributor(userGroup: string): Promise<void> {
     params: { user_group: userGroup },
   })
 }
+
+/** One user who can be promoted to, or demoted from, a distributor group. */
+export type DistributorUser = {
+  id: number
+  username: string
+  email: string
+  group: string
+  quota: number
+  status: number
+}
+
+export type DistributorMembers = {
+  groups: string[]
+  members: DistributorUser[]
+}
+
+export async function getDistributorMembers(): Promise<DistributorMembers> {
+  const res = await api.get<{ success: boolean; data: DistributorMembers }>(
+    '/api/group/distributor/members'
+  )
+  return res.data.data
+}
+
+/**
+ * Find users to promote. An empty query returns the newest users, an all-digit
+ * query matches an id exactly, anything else matches username or email.
+ */
+export async function searchDistributorCandidates(
+  query: string
+): Promise<DistributorUser[]> {
+  const res = await api.get<{ success: boolean; data: DistributorUser[] }>(
+    '/api/group/distributor/candidates',
+    { params: { q: query } }
+  )
+  return res.data.data ?? []
+}
+
+/** Move a user into a distributor group; an empty group restores the default. */
+export async function assignDistributor(
+  userId: number,
+  userGroup: string
+): Promise<{ previous: string; group: string }> {
+  const res = await api.put<{
+    success: boolean
+    data: { previous: string; group: string }
+  }>('/api/group/distributor/member', {
+    user_id: userId,
+    user_group: userGroup,
+  })
+  return res.data.data
+}

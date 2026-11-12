@@ -42,6 +42,7 @@ import {
   type DistributorData,
 } from './api'
 import { DistributorEditor } from './components/distributor-editor'
+import { DistributorMembers } from './components/distributor-members'
 
 const QUERY_KEY = ['distributors']
 
@@ -98,6 +99,11 @@ export function Distributors() {
             'A distributor group pays a different multiplier per group. Members of that group are charged the override instead of the group’s normal ratio.'
           )}
         </p>
+        {/* Membership sits above the multiplier cards: "who is a distributor"
+            is what an operator does first, then decides what they pay. */}
+        <div className='mb-6'>
+          <DistributorMembers />
+        </div>
         {query.isLoading ? (
           <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
             {Array.from({ length: 3 }).map((_, index) => (

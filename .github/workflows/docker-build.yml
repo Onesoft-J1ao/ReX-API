@@ -10,6 +10,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      export_tgz:
+        description: '同时导出 80MB 镜像 tgz（消耗 Artifacts 配额）'
+        type: boolean
+        default: false
 
 env:
   IMAGE: ghcr.io/onesoft-j1ao/rex-api
@@ -93,7 +98,13 @@ jobs:
 
       # 服务器网络受墙时 GHCR 拉不动，就从这个 artifact 下载 tgz 再
       # `docker load`。gzip 后约 80MB（镜像本体 333MB），远小于 save 出的 tar。
+      #
+      # 默认不导出：GitHub Artifacts 的存储配额是按仓库共享的，每次构建都传
+      # 一个 80MB 的 tgz 会在几次部署后把配额吃满，让整个 workflow 因为
+      # "Artifact storage quota has been hit" 变红（镜像其实已经推送成功）。
+      # 需要 tgz 时手动触发 workflow_dispatch 并勾选 export_tgz。
       - name: Export compressed image
+        if: inputs.export_tgz == true || github.event.inputs.export_tgz == 'true'
         run: |
           docker pull --quiet ${{ env.IMAGE }}:${{ steps.version.outputs.sha }}
           docker save ${{ env.IMAGE }}:${{ steps.version.outputs.sha }} | gzip \
@@ -101,9 +112,10 @@ jobs:
           ls -la rex-api-*.tgz
 
       - name: Upload image tgz
+        if: inputs.export_tgz == true || github.event.inputs.export_tgz == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: rex-api-image-${{ steps.version.outputs.sha }}
           path: rex-api-*.tgz
-          retention-days: 14
+          retention-days: 3
           compression-level: 0
