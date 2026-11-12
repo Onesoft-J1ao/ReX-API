@@ -20,6 +20,7 @@ import { CalendarClock, Crown, Package } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
@@ -80,6 +81,7 @@ interface Props {
 
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
@@ -285,6 +287,13 @@ export function SubscriptionPurchaseDialog(props: Props) {
       const res = await paySubscriptionBalance({ plan_id: plan.id })
       if (res.success) {
         toast.success(t('Subscription purchased successfully'))
+        // A plan can unlock a group without touching the user's primary group
+        // (a subscription-gated group). The picker reads /api/user/self/groups,
+        // which is cached, so without this the buyer sees no new group until a
+        // reload — which is exactly the bug that made the group look missing.
+        await queryClient.invalidateQueries({ queryKey: ['user-groups'] })
+        await queryClient.invalidateQueries({ queryKey: ['playground'] })
+        await queryClient.invalidateQueries({ queryKey: ['subscription-self'] })
         void props.onPurchaseSuccess?.()
         props.onOpenChange(false)
       } else {
