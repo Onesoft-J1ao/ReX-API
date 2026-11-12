@@ -269,7 +269,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       // with the body; `fixed` honours them and the table scrolls sideways.
       tableLayout='fixed'
       tableClassName={cn(
-        '[&_[data-slot=table]]:text-sm [&_[data-slot=table]_td]:text-sm [&_[data-slot=table]_td_*]:text-sm [&_[data-slot=table]_th]:text-sm [&_[data-slot=table]_th_*]:text-sm'
+        '[&_[data-slot=table]]:text-xs [&_[data-slot=table]_td]:text-xs [&_[data-slot=table]_td_*]:text-xs [&_[data-slot=table]_th]:text-xs [&_[data-slot=table]_th_*]:text-xs'
       )}
       mobile={
         <UsageLogsMobileList
@@ -305,7 +305,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
             key={row.id}
             row={row}
             className={cn('transition-colors', tintClass)}
-            getColumnClassName={() => (isCommon ? 'py-2' : 'py-3')}
+            getColumnClassName={() => (isCommon ? 'py-1.5' : 'py-3')}
           />
         )
       }}
