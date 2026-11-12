@@ -39,6 +39,23 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 	return filtered
 }
 
+// pruneUnservedGroups drops groups no enabled channel can serve, so the picker
+// and the model list never advertise a group that will always fail.
+//
+// The viewer's own group is exempt: a group such as "distributor" is an
+// identity marker by design and carries no channel at all. Deleting it would
+// strip the only label that tells that user what they are.
+func pruneUnservedGroups(usableGroup map[string]string, served map[string]struct{}, ownGroup string) {
+	for name := range usableGroup {
+		if name == ownGroup {
+			continue
+		}
+		if _, ok := served[name]; !ok {
+			delete(usableGroup, name)
+		}
+	}
+}
+
 func GetPricing(c *gin.Context) {
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
@@ -84,11 +101,7 @@ func GetPricing(c *gin.Context) {
 		if err != nil {
 			common.SysError("failed to load groups with enabled channels: " + err.Error())
 		} else {
-			for name := range usableGroup {
-				if _, ok := served[name]; !ok {
-					delete(usableGroup, name)
-				}
-			}
+			pruneUnservedGroups(usableGroup, served, group)
 			// The visible list is what the picker renders, so a group pruned
 			// from usable_group must not survive there either.
 			visibleGroups = slices.DeleteFunc(visibleGroups, func(name string) bool {

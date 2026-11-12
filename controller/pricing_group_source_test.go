@@ -89,3 +89,29 @@ func TestFilterGroupBillingSourceDoesNotMutateInput(t *testing.T) {
 	assert.Contains(t, sources, "gone", "filtering must not strip the caller's map")
 	assert.Contains(t, sources, "vip")
 }
+
+// An identity group has no channel by design, so pruning it would leave the
+// viewer with no label describing what they are. Only other dead groups go.
+func TestPruneUnservedGroupsKeepsOwnGroup(t *testing.T) {
+	usable := map[string]string{
+		"distributor": "\U0001F7E0 downstream reseller",
+		"gone":        "stale group",
+		"vip":         "served",
+	}
+	served := map[string]struct{}{"vip": {}}
+
+	pruneUnservedGroups(usable, served, "distributor")
+
+	assert.Contains(t, usable, "distributor", "the viewer's own group must survive")
+	assert.Contains(t, usable, "vip")
+	assert.NotContains(t, usable, "gone")
+}
+
+func TestPruneUnservedGroupsDropsAllWhenOwnGroupIsServed(t *testing.T) {
+	usable := map[string]string{"vip": "served", "gone": "stale"}
+	served := map[string]struct{}{"vip": {}}
+
+	pruneUnservedGroups(usable, served, "vip")
+
+	assert.Equal(t, map[string]string{"vip": "served"}, usable)
+}
