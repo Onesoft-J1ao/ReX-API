@@ -2,7 +2,7 @@
 
 > 本文档汇总 ReX-API（new-api fork）运维与开发中沉淀的实战经验。
 > 每一节都是踩过坑之后写下的，**不是从文档抄的**。
-> 最后更新：2026-10-03
+> 最后更新：2026-11-13
 
 ---
 
@@ -69,6 +69,38 @@ wsl -d Ubuntu-24.04 -- bash -lc 'cd /mnt/d/.../build-ctx && docker build -t rex-
 ```
 
 构建上下文用 `git archive HEAD | tar -x` 生成，避免把 `.git` 和工作区垃圾带进去。
+
+### 2.5 现用流程：GitHub Actions 构建 + GHCR 拉取 ⚠️
+
+本机构建会 OOM，**一律推 GitHub Actions**：
+
+```
+push 到 deploy/v0.27.0
+  → workflow "CI"（前端 typecheck/test + 后端 build/test）
+  → workflow "Publish Docker image (Multi-arch)"
+  → 镜像 ghcr.io/onesoft-j1ao/rex-api:<short-sha>
+  → 服务器 docker pull + 重建容器
+```
+
+部署脚本：`work/_deploy_ghcr6.py`（改文件里的 tag 即可）。
+它 replay 当前容器的 spec（env / network / ports），旧容器 rename 保留供回滚：
+
+```bash
+docker rm -f ReX-API && docker rename ReX-API-prev-<tag>-bak ReX-API && docker start ReX-API
+```
+
+**注意**：
+- GitHub Artifacts 配额会满 —— 镜像 tgz 默认不上传，需要时手动勾 `export_tgz`
+- 轮询 CI 用 `gh run list --workflow CI --limit 1`，不要用 `gh run view --branch`（不接受）
+
+### 2.6 CI 挂了先看失败 job，不要看全量日志
+
+```bash
+gh run view <run-id> -R Onesoft-J1ao/ReX-API --log-failed
+```
+
+如果失败点是 `toHaveFocus()` / `toHaveValue()` 这类 DOM 状态断言，
+而同一测试上一轮是绿的，**先怀疑 flaky（异步未包 waitFor）**，而不是新代码引入的 bug。
 
 ---
 
@@ -170,6 +202,110 @@ apply 一次就把毛利抹掉，下次运行又报，**来回震荡**。
 **改价后必须验证**：apply 后重新跑 check，报告应变空（或只剩真实差异）。
 若仍满，说明比较基准和写入公式不一致。
 
+### 4.4 成本公式：与缓存率无关 ⚠️
+
+```
+quota = 表达式输出 / 1e6 × QuotaPerUnit(500000) × groupRatio
+上游成本 = total_amount × (上游倍率 / 我方倍率) / QuotaPerUnit
+```
+
+**关键结论：成本只由 total_amount 决定，与用户缓存率完全无关。**
+缓存率只影响用户能跑多少 token，不影响我们付多少。
+
+做套餐/额度时只需问一件事：`total_amount × (上游/我方) / 500000 < 售价`？
+
+实例（ds套餐，我方 0.04 / 上游 0.03）：
+
+| total_amount | 显示 ◗ | 上游成本 | 卖 ¥2 毛利 |
+|---|---|---|---|
+| 500,000 | 1.00 | ¥0.75 | ¥1.25 (62%) |
+| 1,000,000 | 2.00 | ¥1.50 | ¥0.50 (25%) |
+| **1,333,333** | **2.67** | **¥2.00** | **¥0（保本上限）** |
+| 2,000,000 | 4.00 | ¥3.00 | **−¥1.00（亏）** |
+
+**保本上限 = 售价 / (上游倍率/我方倍率) × QuotaPerUnit**。超过必亏。
+
+### 4.5 系数反算会留下长小数 ⚠️
+
+上游的 `billing_expr` 系数是**整数**（`p * 2 + c * 10 + cr * 0.2`）。
+如果先算出「最终单价」再除以倍率反推系数，会得到 `2.555555556` 这种值，
+前端价格显示成 `$0.6388889`，非常难看。
+
+**正确做法**：系数直接写「上游整数 × 调整倍数」，用 3 位以内小数。
+
+排查：`grep -oE '\d+\.\d{7,}'` 扫 `billing_expr`，任何 >6 位小数都是反算残留。
+
+反算残留的另一个副作用：**各字段倍数不一致**。
+实测 CodexPro企业稳定 的 in/out/cc 都是 ×1.25，但 cr 是 ×1.32/1.16/1.65/1.09
+—— 说明缓存价当初是单独算的，且算错了。
+
+### 4.6 分组配置的四张表必须对齐 ⚠️
+
+分组要在前端可见、可定价，需要**四处同时存在**：
+
+| 表 | 作用 | 缺了会怎样 |
+|---|---|---|
+| `group_ratio_setting.group_ratio` | **运行时真源** | 无法定价（按 1 算或 0） |
+| `GroupRatio` | 旧 key，后台界面读写 | 界面显示与实际不符 |
+| `UserUsableGroups` | 用户可见性 | 用户看不到该分组 |
+| `abilities` + `channels` | 有渠道才能服务 | 被 `HideModelsWithoutEnabledChannel` 过滤 |
+
+**踩坑记录**：`distributor` 只写了 `GroupRatio` 和 `UserUsableGroups`，
+漏了 `group_ratio_setting.group_ratio`，结果 DB 里 `GroupRatio[Grok]=0.17`
+但线上 API 返回 0.1 —— 因为运行时读的是后者。
+
+**两个 key 必须同步写**。验证方法：
+
+```python
+json.loads(raw("GroupRatio")) == json.loads(raw("group_ratio_setting.group_ratio"))
+```
+
+### 4.7 死配置会卡住保存操作 ⚠️
+
+渠道被禁用后，分组在 `group_pricing_source` / `group_model_*` 里仍有条目。
+这些条目**不出现在编辑界面**（列表只渲染有渠道的分组），但保存时会整份提交，
+后端逐条校验 → 报 `X has no enabled channel and cannot be priced`，
+而用户根本看不到 X，也就无法删除 → **死锁**。
+
+修法（已落地 `1f9970c`）：
+- 后端：`SaveDistributor` 遇到无渠道分组 **跳过**而不是拒绝
+- 前端：回填草稿时只填 `props.groups` 里有的（有渠道的）
+
+定期清理：
+
+```python
+served = 有启用渠道的分组集合
+for key in ("group_pricing_source", "group_model_ratio", "group_model_price",
+            "group_model_cache_ratio", "group_model_completion_ratio"):
+    for g in list(load(key)):
+        if g not in served: del load(key)[g]
+```
+
+### 4.8 价格配置体检清单
+
+改完价格或新增分组后，跑这 7 项：
+
+```
+[ ] 1. billing_expr 里没有 >6 位小数
+[ ] 2. 有 expr 的模型 mode 必须是 tiered_expr；mode=tiered_expr 必须有 expr
+[ ] 3. GroupRatio 与 group_ratio_setting.group_ratio 完全一致
+[ ] 4. 每个有渠道的分组都有倍率
+[ ] 5. group_pricing_source 里没有无渠道分组
+[ ] 6. group_model_* 四张表里没有无渠道分组
+[ ] 7. UserUsableGroups 里每个分组都有倍率
+```
+
+对应脚本见 `work/_audit_final.py`（输出 OK/!! 逐项）。
+
+### 4.9 上游「拿货价」与「公开价」不同
+
+上游站对 distributor 身份会返回**更低的 group_ratio**。
+实测 furry：匿名 `/api/pricing` 显示 `Grok = 0.17`，
+但 distributor 视角是 `0.15` —— **0.17 是他们的零售价，0.15 才是我们的拿货价**。
+
+**判断方法**：拿到的报价低于站上公开价时，先确认自己是不是 distributor，
+否则会把「上游零售价」当成本算毛利，实际毛利被高估。
+
 ---
 
 ## 五、源码陷阱
@@ -204,6 +340,72 @@ ChannelTypeDummy        // ← 靠 iota 自动变 68，和 OpenCode 撞了！
 
 `SyncOptions` 每 60 秒从数据库重读配置（`SYNC_FREQUENCY`，默认 60）。
 改完配置等一轮即可生效，**不用重启容器**。
+
+> 例外：`consoleSetting` 等部分是启动时加载的内存配置，改 DB 后仍需
+> `docker restart ReX-API`；通过后台界面保存会自动热更新。
+
+### 5.4 缓存命中率分母：不能把 cache 加回 prompt ⚠️
+
+日志里的 `prompt_tokens` **已经是完整 prompt**：
+Anthropic 的「未缓存余量」和 OpenAI 的 `prompt_cache_hit_tokens`
+在写库前已被归一化成一个数。
+
+旧代码 `分母 = prompt + cache_read + cache_write` 把缓存读算了两遍，
+结果每条 DeepSeek 请求都显示 ~50%，不管实际命中多少。
+
+**正确公式**：`命中率 = cache_read / (prompt_tokens + cache_write)`
+
+验证数据（真实日志）：
+
+| prompt | cache_read | 旧算法 | 新算法 |
+|---|---|---|---|
+| 23,384 | 23,168 | 49.77% | **99.08%** |
+| 700,909 | 672,104 | 48.95% | **95.89%** |
+
+交叉验证：Claude 三条 `897/700`、`601/469`、`1473/1149` 新算法都是 ~78.0%，
+高度一致 —— 如果 `prompt_tokens` 真是「未缓存余量」，这三条会分别只有
+197/132/324，不可能这么稳定。
+
+已落地：`88585d2`，公式抽到 `getCacheHitPercent()` 并带 5 个单测。
+
+### 5.5 无渠道分组会被从模型广场删掉
+
+`controller/pricing.go` 的 `HideModelsWithoutEnabledChannel` 会删掉
+所有「没有启用渠道」的分组。
+
+身份标识类分组（如 `distributor`）**按设计就没有渠道**，所以必被删。
+
+修法（已落地 `bc90227`）：`pruneUnservedGroups` 豁免「用户自己的分组」：
+
+```go
+for name := range usableGroup {
+    if name == ownGroup { continue }   // 身份分组不删
+    if _, ok := served[name]; !ok { delete(usableGroup, name) }
+}
+```
+
+注意：未登录访客的 `ownGroup` 为空，所以匿名访问仍然看不到该分组（正确）。
+
+### 5.6 前端测试的异步聚焦必须包在 waitFor 里
+
+`ModelMappingEditor` 的聚焦链路是：
+`useEffect(draftRequest) → requestAnimationFrame → setRows → useEffect(rows) → focus()`
+
+测试若只 `waitFor` 了「行数」，然后同步断言 `toHaveFocus()`，
+在 CI 机器上必然 race（本地快就过、CI 慢就挂）。
+
+**任何跨 rAF / 跨 commit 的 DOM 状态断言都要包 `waitFor`。**
+
+### 5.7 固定列网格不适合长短不一的分组名
+
+分组筛选器原来用 `grid-cols-2` + canvas 测量决定哪些 chip 跨列：
+短名（`Grok`、`NIM`）被拉成大方块，长名（`CodexPro企业稳定`）还是截断，
+还多出 105 行测量 hook。
+
+改成 `flex flex-wrap` + chip 自适应宽度后，短名紧凑、长名完整显示，
+代码也少了 92 行。
+
+**经验：标签宽度差异大时，用流式布局而不是固定列网格。**
 
 ---
 
@@ -313,6 +515,8 @@ docker logs ReX-API 2>&1 | grep "syncing options" | tail -2
 | 主题 | 关键词 |
 |---|---|
 | 镜像放哪 | `/opt/1panel/apps/ReX-API/rexapi_linearteam/` |
+| 构建/部署 | GitHub Actions + GHCR，`work/_deploy_ghcr6.py` |
+| CI 红了 | `gh run view <id> --log-failed`；先疑 flaky |
 | 计费配置不生效 | 反斜杠层数、`json.Unmarshal` 静默失败 |
 | 验证数据库内容 | `SELECT HEX(value)` |
 | 传脚本 | `base64 -w0`，不要 heredoc |
@@ -322,3 +526,11 @@ docker logs ReX-API 2>&1 | grep "syncing options" | tail -2
 | 毛利被抹掉 | 哨兵比较基准未含 margin |
 | 并行分支合并 | 必扫静默重复符号 |
 | 磁盘满 | `go clean -cache` / 清 `bun-cache` / 重启 docker |
+| **价格显示长小数** | 系数是反算残留，改回「上游整数 × 倍数」 |
+| **改了倍率不生效** | 只写了 `GroupRatio`，漏 `group_ratio_setting.group_ratio` |
+| **保存分销商报错** | 无渠道分组的死配置，清理 `group_model_*` |
+| **套餐卖一份亏一份** | 成本只看 `total_amount`，与缓存率无关 |
+| **缓存率总是 50%** | 分母重复加了 cache_read |
+| **分组看不到** | 无渠道分组被 `HideModelsWithoutEnabledChannel` 删了 |
+| **成本算高了** | 把上游零售价当拿货价（忘了 distributor 折扣） |
+| **价格体检** | `work/_audit_final.py` 七项逐项 OK/!! |
