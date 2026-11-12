@@ -68,9 +68,16 @@ export function DistributorEditor(props: DistributorEditorProps) {
     if (props.userGroup) {
       setName(props.userGroup)
       const rows = existingRef.current[props.userGroup] ?? {}
+      // Only seed rows the editor can render. The stored overrides may contain
+      // groups whose channel was disabled afterwards; they are invisible in the
+      // list, so keeping them in the draft would resubmit text the operator
+      // cannot see or delete.
+      const visible = new Set(props.groups)
       setDraft(
         Object.fromEntries(
-          Object.entries(rows).map(([group, ratio]) => [group, String(ratio)])
+          Object.entries(rows)
+            .filter(([group]) => visible.has(group))
+            .map(([group, ratio]) => [group, String(ratio)])
         )
       )
     } else {

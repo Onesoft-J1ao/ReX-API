@@ -104,10 +104,11 @@ func SaveDistributor(c *gin.Context) {
 	}
 
 	known := ratio_setting.GetGroupRatioCopy()
-	// Only groups with an enabled channel can actually serve a request, so a
-	// ratio written for a leftover group is dead config that still shows up in
-	// the editor. Reject it instead of silently accepting an entry nobody can
-	// be charged for.
+	// Only groups with an enabled channel can actually serve a request. An entry
+	// for a group whose channel was disabled afterwards is dead config: it
+	// cannot price anything, and the editor never renders it, so a save would
+	// resubmit text the operator cannot see or remove. Drop such entries instead
+	// of failing the whole request; a typo in the group name is still rejected.
 	served, err := model.GetGroupsWithEnabledChannel()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
@@ -127,11 +128,11 @@ func SaveDistributor(c *gin.Context) {
 			return
 		}
 		if _, ok := served[group]; !ok {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"success": false,
-				"message": group + " has no enabled channel and cannot be priced",
-			})
-			return
+			// A stale entry from a group whose channel was disabled later. It
+			// cannot price anything, and the editor never rendered it, so
+			// rejecting the whole save would trap the operator: every save
+			// resubmits the text they cannot see or remove. Drop it instead.
+			continue
 		}
 		if ratio <= 0 || ratio > maxDistributorRatio {
 			c.JSON(http.StatusBadRequest, gin.H{
