@@ -583,7 +583,7 @@ func updateOptionMap(key string, value string) (err error) {
 			}
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" || key == "CapEnabled" || key == "ForceCheckinCaptcha" || key == "ForceRedemptionCaptcha" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" || key == "CapEnabled" || key == "ForceCheckinCaptcha" || key == "ForceRedemptionCaptcha" || key == "ForceRecordIpLog" {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
