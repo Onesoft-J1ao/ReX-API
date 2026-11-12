@@ -98,7 +98,7 @@ test('a new row focuses its request field and both fields offer searchable model
   )
   await user.click(screen.getByRole('button', { name: 'Add Mapping' }))
   const source = screen.getByRole('combobox', { name: 'Request Model Name' })
-  expect(source).toHaveFocus()
+  await waitFor(() => expect(source).toHaveFocus())
   expect(source).toHaveAttribute('aria-expanded', 'true')
   await user.click(screen.getByRole('option', { name: 'alpha-model' }))
   expect(source).toHaveValue('alpha-model')
@@ -196,9 +196,11 @@ test('a draft request with only the upstream name focuses the request field, and
     ).toHaveLength(2)
   )
   expect(screen.getByDisplayValue('up-1')).toBeVisible()
-  expect(
-    screen.getAllByRole('combobox', { name: 'Request Model Name' })[1]
-  ).toHaveFocus()
+  await waitFor(() =>
+    expect(
+      screen.getAllByRole('combobox', { name: 'Request Model Name' })[1]
+    ).toHaveFocus()
+  )
 
   view.rerender(
     <ModelMappingEditor
