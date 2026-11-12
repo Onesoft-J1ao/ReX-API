@@ -57,6 +57,7 @@ import type { UsageLog } from '../../data/schema'
 import {
   formatModelName,
   decodeBillingExprB64,
+  getCacheHitPercent,
   getTieredBillingSummary,
   hasAnyCacheTokens,
   parseLogOther,
@@ -740,18 +741,12 @@ export function useCommonLogsColumns(
           : other?.cache_creation_tokens || 0
 
         // A cache hit is what makes a request cheap, so the share of the prompt
-        // that was served from cache is shown next to the raw counts. The
-        // denominator is the prompt the request actually billed against:
-        // Anthropic reports prompt_tokens as the *uncached* remainder, so the
-        // cached share has to include both cache reads and cache writes or the
-        // percentage reads far too low. Fall back to prompt_tokens alone when
-        // nothing was written, which is the common steady-state case.
-        const cacheDenominator =
-          promptTokens + cacheReadTokens + cacheWriteTokens
-        const cacheHitPct =
-          cacheDenominator > 0
-            ? (cacheReadTokens / cacheDenominator) * 100
-            : 0
+        // that was served from cache is shown next to the raw counts.
+        const cacheHitPct = getCacheHitPercent(
+          promptTokens,
+          cacheReadTokens,
+          cacheWriteTokens
+        )
         const showCacheHitPct = cacheReadTokens > 0 && cacheHitPct > 0
 
         return (
