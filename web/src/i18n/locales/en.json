@@ -8125,7 +8125,17 @@
     "Outage hours": "Outage hours",
     "Measured for the model as a whole; this group carried no traffic for it": "Measured for the model as a whole; this group carried no traffic for it",
     "Average over the {{observed}} of {{total}} hours with a measurement; the rest of the day has none.": "Average over the {{observed}} of {{total}} hours with a measurement; the rest of the day has none.",
-    "Success-rate samples for the last 24 hours; {{observed}} of {{total}} hours measured, gray bars have none.": "Success-rate samples for the last 24 hours; {{observed}} of {{total}} hours measured, gray bars have none."
+    "Success-rate samples for the last 24 hours; {{observed}} of {{total}} hours measured, gray bars have none.": "Success-rate samples for the last 24 hours; {{observed}} of {{total}} hours measured, gray bars have none.",
+    "Assign to group": "Assign to group",
+    "Current members": "Current members",
+    "Distributor members": "Distributor members",
+    "No email": "No email",
+    "No users in any distributor group yet.": "No users in any distributor group yet.",
+    "Revoked distributor identity": "Revoked distributor identity",
+    "Select a distributor group": "Select a distributor group",
+    "Selected": "Selected",
+    "User id, username or email": "User id, username or email",
+    "No matches": "No matches"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

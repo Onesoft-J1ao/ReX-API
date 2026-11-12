@@ -234,3 +234,17 @@ describe('usage facts billing details', () => {
     expect(screen.getByText('Total Cost')).toBeInTheDocument()
   })
 })
+
+test('shows the client user agent on a consume log', () => {
+  const queryClient = renderDetails({
+    user_agent:
+      'Codex Desktop/0.167.0-alpha.3.2 (Windows 10.0.19045; x86_64)',
+    reasoning_effort: 'medium',
+  })
+
+  // The user agent was only rendered on login audits before, so a relay log hid
+  // which client produced the request. Reasoning effort already had its own row.
+  expect(rowValue('User Agent')).toContain('Codex Desktop/0.167.0')
+
+  queryClient.clear()
+})

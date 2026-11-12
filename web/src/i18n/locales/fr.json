@@ -8095,7 +8095,17 @@
     "、": ", ",
     "动漫": "Animés",
     "，": ", ",
-    "，and ": " et "
+    "，and ": " et ",
+    "Assign to group": "Assigner au groupe",
+    "Current members": "Membres actuels",
+    "Distributor members": "Membres distributeurs",
+    "No email": "Aucun e-mail",
+    "No users in any distributor group yet.": "Aucun utilisateur dans un groupe distributeur pour l''instant.",
+    "Revoked distributor identity": "Identité de distributeur révoquée",
+    "Select a distributor group": "Sélectionner un groupe distributeur",
+    "Selected": "Sélectionné",
+    "User id, username or email": "ID utilisateur, nom d''utilisateur ou e-mail",
+    "No matches": "Aucun résultat"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -8095,7 +8095,17 @@
     "、": "、",
     "动漫": "アニメ",
     "，": "、",
-    "，and ": "、"
+    "，and ": "、",
+    "Assign to group": "グループに割り当て",
+    "Current members": "現在のメンバー",
+    "Distributor members": "ディストリビューターメンバー",
+    "No email": "メールなし",
+    "No users in any distributor group yet.": "ディストリビューターグループにユーザーがまだいません。",
+    "Revoked distributor identity": "ディストリビューター権限を取り消しました",
+    "Select a distributor group": "ディストリビューターグループを選択",
+    "Selected": "選択済み",
+    "User id, username or email": "ユーザーID、ユーザー名、またはメール",
+    "No matches": "一致するものがありません"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

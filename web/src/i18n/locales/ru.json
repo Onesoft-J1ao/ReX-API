@@ -8095,7 +8095,17 @@
     "、": ", ",
     "动漫": "Аниме",
     "，": ", ",
-    "，and ": " и "
+    "，and ": " и ",
+    "Assign to group": "Назначить в группу",
+    "Current members": "Текущие участники",
+    "Distributor members": "Участники-дистрибьюторы",
+    "No email": "Нет почты",
+    "No users in any distributor group yet.": "Пока нет пользователей ни в одной группе дистрибьюторов.",
+    "Revoked distributor identity": "Статус дистрибьютора отозван",
+    "Select a distributor group": "Выберите группу дистрибьюторов",
+    "Selected": "Выбрано",
+    "User id, username or email": "ID пользователя, имя или почта",
+    "No matches": "Нет совпадений"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -619,6 +619,19 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const reasoningEffortVariant = getReasoningEffortVariant(
     other?.reasoning_effort
   )
+  // Client metadata is recorded on relay logs too, not just login audits, and
+  // it is what tells an operator which SDK build produced a request. The
+  // reasoning effort is set per request and explains why an identical prompt
+  // billed differently, so both belong on the consume view.
+  const clientFields =
+    isConsume && !isViolation
+      ? ([
+          other?.user_agent && {
+            label: t('User Agent'),
+            value: String(other.user_agent),
+          },
+        ].filter(Boolean) as Array<{ label: string; value: string }>)
+      : []
 
   return (
     <Dialog
@@ -747,6 +760,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
               }
             />
           )}
+
+          {clientFields.map((field) => (
+            <DetailRow
+              key={field.label}
+              label={field.label}
+              value={<span className='break-all'>{field.value}</span>}
+            />
+          ))}
         </div>
 
         {/* Request conversion (admin only, not for refund) */}

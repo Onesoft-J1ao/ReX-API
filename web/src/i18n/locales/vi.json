@@ -8095,7 +8095,17 @@
     "、": ", ",
     "动漫": "Anime",
     "，": ", ",
-    "，and ": " và "
+    "，and ": " và ",
+    "Assign to group": "Gán vào nhóm",
+    "Current members": "Thành viên hiện tại",
+    "Distributor members": "Thành viên nhà phân phối",
+    "No email": "Không có email",
+    "No users in any distributor group yet.": "Chưa có người dùng nào trong nhóm nhà phân phối.",
+    "Revoked distributor identity": "Đã thu hồi danh phận nhà phân phối",
+    "Select a distributor group": "Chọn nhóm nhà phân phối",
+    "Selected": "Đã chọn",
+    "User id, username or email": "ID người dùng, tên đăng nhập hoặc email",
+    "No matches": "Không có kết quả"
   },
   "Time range": "Time range",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"

@@ -8095,7 +8095,17 @@
     "、": "、",
     "动漫": "動漫",
     "，": "，",
-    "，and ": "，並"
+    "，and ": "，並",
+    "Assign to group": "分配到分組",
+    "Current members": "目前成員",
+    "Distributor members": "下游成員",
+    "No email": "無電子郵件",
+    "No users in any distributor group yet.": "目前沒有使用者位於任何下游分組。",
+    "Revoked distributor identity": "已撤銷下游身分",
+    "Select a distributor group": "選擇下游分組",
+    "Selected": "已選擇",
+    "User id, username or email": "使用者 ID、使用者名稱或電子郵件",
+    "No matches": "無符合結果"
   },
   "Time range": "時間範圍",
   "Start ≤ end: within the day; start > end: across midnight": "Start ≤ end: within the day; start > end: across midnight"
