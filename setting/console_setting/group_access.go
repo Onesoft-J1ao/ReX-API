@@ -24,6 +24,11 @@ type GroupAccessCondition struct {
 	Days      int      `json:"days,omitempty"`
 	MinQuota  int      `json:"min_quota,omitempty"`
 	MinSpend  int      `json:"min_spend,omitempty"`
+	// PlanTitles matches users holding an ACTIVE subscription to any of these
+	// plan titles. A group gated this way is the "you bought the plan, so you
+	// can now pick this group" case: the group appears in the picker only while
+	// the subscription is live, without touching the user's primary group.
+	PlanTitles []string `json:"plan_titles,omitempty"`
 }
 
 // GroupAccessRule supports nested boolean expressions. A rule may contain
@@ -82,6 +87,25 @@ func normalizeCondition(condition GroupAccessCondition) (GroupAccessCondition, e
 		if condition.MinSpend < 0 || condition.MinSpend > maxGroupAccessQuota {
 			return GroupAccessCondition{}, fmt.Errorf("minimum spend must be between 0 and %d", maxGroupAccessQuota)
 		}
+	case "subscription", "has_subscription", "plan":
+		condition.Type = "subscription"
+		seen := make(map[string]struct{}, len(condition.PlanTitles))
+		titles := make([]string, 0, len(condition.PlanTitles))
+		for _, title := range condition.PlanTitles {
+			title = strings.TrimSpace(title)
+			if title == "" {
+				continue
+			}
+			if _, exists := seen[title]; exists {
+				continue
+			}
+			seen[title] = struct{}{}
+			titles = append(titles, title)
+		}
+		if len(titles) == 0 {
+			return GroupAccessCondition{}, errors.New("subscription condition needs at least one plan title")
+		}
+		condition.PlanTitles = titles
 	default:
 		return GroupAccessCondition{}, fmt.Errorf("unsupported group access condition %q", condition.Type)
 	}

@@ -12,6 +12,11 @@ type groupAccessUser struct {
 	user        *model.User
 	providers   map[string]struct{}
 	customSlugs map[int]string
+	// planTitles is loaded lazily: most rules never ask about subscriptions, and
+	// this struct is built on every model-list request.
+	planTitles    map[string]struct{}
+	planTitlesErr error
+	planTitlesSet bool
 }
 
 func loadGroupAccessUser(userID int) (*groupAccessUser, error) {
@@ -66,6 +71,22 @@ func (u *groupAccessUser) hasOAuth(provider string) bool {
 	return ok
 }
 
+func (u *groupAccessUser) hasActivePlan(titles []string) bool {
+	if !u.planTitlesSet {
+		u.planTitlesSet = true
+		u.planTitles, u.planTitlesErr = model.GetActiveSubscriptionPlanTitles(u.user.Id)
+	}
+	if u.planTitlesErr != nil {
+		return false
+	}
+	for _, title := range titles {
+		if _, ok := u.planTitles[strings.TrimSpace(title)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func (u *groupAccessUser) evaluateCondition(condition console_setting.GroupAccessCondition) bool {
 	switch condition.Type {
 	case "oauth":
@@ -85,6 +106,8 @@ func (u *groupAccessUser) evaluateCondition(condition console_setting.GroupAcces
 		return u.user.Quota >= condition.MinQuota
 	case "spend", "min_spend", "user_spend":
 		return u.user.UsedQuota >= condition.MinSpend
+	case "subscription", "has_subscription", "plan":
+		return u.hasActivePlan(condition.PlanTitles)
 	default:
 		return false
 	}

@@ -739,6 +739,21 @@ export function useCommonLogsColumns(
           ? cacheWrite5m + cacheWrite1h
           : other?.cache_creation_tokens || 0
 
+        // A cache hit is what makes a request cheap, so the share of the prompt
+        // that was served from cache is shown next to the raw counts. The
+        // denominator is the prompt the request actually billed against:
+        // Anthropic reports prompt_tokens as the *uncached* remainder, so the
+        // cached share has to include both cache reads and cache writes or the
+        // percentage reads far too low. Fall back to prompt_tokens alone when
+        // nothing was written, which is the common steady-state case.
+        const cacheDenominator =
+          promptTokens + cacheReadTokens + cacheWriteTokens
+        const cacheHitPct =
+          cacheDenominator > 0
+            ? (cacheReadTokens / cacheDenominator) * 100
+            : 0
+        const showCacheHitPct = cacheReadTokens > 0 && cacheHitPct > 0
+
         return (
           <div className='flex flex-col gap-0.5'>
             <span className='font-mono text-xs font-medium tabular-nums'>
@@ -748,8 +763,13 @@ export function useCommonLogsColumns(
             {(cacheReadTokens > 0 || cacheWriteTokens > 0) && (
               <div className='flex items-center gap-1 text-xs'>
                 {cacheReadTokens > 0 && (
-                  <span className='text-muted-foreground'>
+                  <span className='text-success'>
                     {t('Cache')}↓ {cacheReadTokens.toLocaleString()}
+                    {showCacheHitPct && (
+                      <span className='ml-1 tabular-nums opacity-80'>
+                        ({cacheHitPct.toFixed(2)}%)
+                      </span>
+                    )}
                   </span>
                 )}
                 {cacheWriteTokens > 0 && (

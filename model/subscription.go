@@ -1038,12 +1038,14 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 }
 
 func finalizeSubscriptionCompletion(result subscriptionCompletionResult) {
-	if result.upgradeGroup != "" && result.userID > 0 {
-		refreshSubscriptionUserGroupCache(result.userID, "subscription payment completion")
-	}
 	if result.userID <= 0 {
 		return
 	}
+	// Refresh unconditionally, not only when the plan upgraded the user's group.
+	// A group gated by a subscription condition appears in the picker the moment
+	// an active subscription exists, so a plan that leaves the primary group
+	// alone still changes what this user can select.
+	refreshSubscriptionUserGroupCache(result.userID, "subscription payment completion")
 	InvalidateUserSubscriptionRateLimitCache(result.userID)
 	msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", result.planTitle, result.money, result.paymentMethod)
 	RecordLog(result.userID, LogTypeTopup, msg)
@@ -1275,6 +1277,40 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 		return nil, err
 	}
 	return buildSubscriptionSummaries(subs), nil
+}
+
+// GetActiveSubscriptionPlanTitles returns the titles of the plans this user
+// currently holds an active subscription to.
+//
+// Group access rules use it to gate a group on "bought this plan": the group
+// appears in the picker while the subscription runs, and disappears when it
+// expires, without the plan ever touching the user's primary group.
+func GetActiveSubscriptionPlanTitles(userId int) (map[string]struct{}, error) {
+	titles := make(map[string]struct{})
+	if userId <= 0 {
+		return titles, nil
+	}
+	now := common.GetTimestamp()
+	var planIds []int
+	if err := DB.Model(&UserSubscription{}).
+		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Distinct("plan_id").
+		Pluck("plan_id", &planIds).Error; err != nil {
+		return nil, err
+	}
+	if len(planIds) == 0 {
+		return titles, nil
+	}
+	var plans []SubscriptionPlan
+	if err := DB.Where("id IN ?", planIds).Find(&plans).Error; err != nil {
+		return nil, err
+	}
+	for _, plan := range plans {
+		if title := strings.TrimSpace(plan.Title); title != "" {
+			titles[title] = struct{}{}
+		}
+	}
+	return titles, nil
 }
 
 // GetActiveSubscriptionAvailability reports whether the user has any active

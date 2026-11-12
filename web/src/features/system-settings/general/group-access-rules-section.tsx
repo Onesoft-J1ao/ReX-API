@@ -60,6 +60,7 @@ type AccessCondition = {
   days?: number
   min_quota?: number
   min_spend?: number
+  plan_titles?: string[]
   editorId?: string
 }
 type AccessRule = {
@@ -105,6 +106,9 @@ function conditionForType(
   }
   if (type === 'balance') {
     return { type, min_quota: current.min_quota || 0 }
+  }
+  if (type === 'subscription') {
+    return { type, plan_titles: current.plan_titles || [] }
   }
   return { type: 'spend', min_spend: current.min_spend || 0 }
 }
@@ -190,6 +194,10 @@ export function GroupAccessRulesSection({
       },
       { value: 'balance', label: t('Minimum balance') },
       { value: 'spend', label: t('User spend') },
+      {
+        value: 'subscription',
+        label: t('Active subscription plan'),
+      },
     ],
     [t]
   )
@@ -261,6 +269,26 @@ export function GroupAccessRulesSection({
                 const item = target?.[conditionIndex]
                 if (item) {
                   item.providers = event.target.value
+                    .split(',')
+                    .map((entry) => entry.trim())
+                    .filter(Boolean)
+                }
+              })
+            }
+          />
+        ) : condition.type === 'subscription' ? (
+          <Input
+            value={(condition.plan_titles || []).join(', ')}
+            placeholder={t('Plan titles, comma separated')}
+            onChange={(event) =>
+              updateRules((rules) => {
+                const target =
+                  ruleIndex === null
+                    ? rules[groupIndex]?.conditions
+                    : rules[groupIndex]?.rules?.[ruleIndex]?.conditions
+                const item = target?.[conditionIndex]
+                if (item) {
+                  item.plan_titles = event.target.value
                     .split(',')
                     .map((entry) => entry.trim())
                     .filter(Boolean)
