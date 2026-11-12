@@ -664,6 +664,52 @@ export function useCommonLogsColumns(
     },
     size: 160,
   })
+  // Both are recorded on every relay request. The detail dialog shows them,
+  // but the list is where a bad batch gets triaged — which client sent it and
+  // from where are the two facts that separate a broken SDK from a broken
+  // channel. Visible to every user, not just admins: the requester is the one
+  // who knows which of their own tools broke.
+  columns.push({
+    id: 'ip',
+    size: 130,
+    header: t('IP Address'),
+    accessorFn: (row) => row.ip,
+    cell: function IpCell({ row }) {
+      const ip = row.original.ip
+      if (!ip) return null
+      return (
+        <span className='text-muted-foreground font-mono text-xs tabular-nums'>
+          {ip}
+        </span>
+      )
+    },
+  })
+  columns.push({
+    id: 'user_agent',
+    size: 180,
+    header: t('User Agent'),
+    accessorFn: (row) => parseLogOther(row.other)?.user_agent ?? '',
+    cell: function UserAgentCell({ row }) {
+      const ua = parseLogOther(row.original.other)?.user_agent
+      if (!ua) return null
+      return (
+        <TooltipProvider delay={300}>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className='text-muted-foreground max-w-[180px] truncate font-mono text-xs' />
+              }
+            >
+              {ua}
+            </TooltipTrigger>
+            <TooltipContent side='top' className='max-w-xs break-all'>
+              {ua}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    },
+  })
   columns.push(
     {
       accessorKey: 'model_name',
@@ -677,13 +723,13 @@ export function useCommonLogsColumns(
 
         return (
           <div className='flex w-full min-w-0 flex-col gap-0.5'>
-              <ModelBadge
-                modelName={modelInfo.name}
-                actualModel={modelInfo.actualModel}
-                responseModel={modelInfo.responseModel}
-                modelIcon={log.model_icon}
-                providerIcon={log.provider_icon}
-              />
+            <ModelBadge
+              modelName={modelInfo.name}
+              actualModel={modelInfo.actualModel}
+              responseModel={modelInfo.responseModel}
+              modelIcon={log.model_icon}
+              providerIcon={log.provider_icon}
+            />
           </div>
         )
       },

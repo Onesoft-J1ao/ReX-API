@@ -65,6 +65,19 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 	}
 }
 
+// appendUserAgent records the client that issued the request. Without it a log
+// row says what was charged but not which SDK produced the call, so a broken
+// client and a broken channel look identical. It is public: the requester is
+// the one who knows which of their own tools is misbehaving.
+func appendUserAgent(ctx *gin.Context, other *model.LogOther) {
+	if ctx == nil || ctx.Request == nil || other == nil {
+		return
+	}
+	if ua := strings.TrimSpace(ctx.Request.UserAgent()); ua != "" {
+		other.SetPublic("user_agent", ua)
+	}
+}
+
 // AppendRelayLogAdminInfo records relay routing and conversion diagnostics in
 // the admin-only scope shared by successful and failed request logs.
 func AppendRelayLogAdminInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
@@ -125,6 +138,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	AppendRelayLogAdminInfo(ctx, relayInfo, other)
 	AppendResponseModelLogInfo(relayInfo, other)
 	appendRequestPath(ctx, relayInfo, other)
+	appendUserAgent(ctx, other)
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)
 	appendBillingInfo(relayInfo, other)
