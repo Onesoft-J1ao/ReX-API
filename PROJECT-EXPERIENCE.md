@@ -75,7 +75,7 @@ wsl -d Ubuntu-24.04 -- bash -lc 'cd /mnt/d/.../build-ctx && docker build -t rex-
 本机构建会 OOM，**一律推 GitHub Actions**：
 
 ```
-push 到 deploy/v0.27.0
+push 到 deploy
   → workflow "CI"（前端 typecheck/test + 后端 build/test）
   → workflow "Publish Docker image (Multi-arch)"
   → 镜像 ghcr.io/onesoft-j1ao/rex-api:<short-sha>
