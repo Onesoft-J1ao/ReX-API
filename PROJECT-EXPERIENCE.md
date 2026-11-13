@@ -502,6 +502,36 @@ MaiBot 不是容器，是 `maibot-kurisu.service`，配置在 `/opt/maibot-kuris
 再看 `journalctl -u maibot-kurisu --since '3 minutes ago'` 有没有模型报错。
 `model_config.toml.bak-<时间>` 就地留备份。
 
+### 4.16 群内发码插件 `onesoft.redeem-grant`
+
+群主 / 管理员在群里发 `发放@某人 0.01元`，机器人用 root 的访问令牌建一张等额兑换码，
+通过**本群临时会话**私聊发给对方，群里只回执一句。
+
+| 项 | 值 |
+|---|---|
+| 服务器路径 | `/opt/maibot-kurisu/app/plugins/onesoft_redeem-grant/` |
+| 本地源码 | `D:\Code\MaiBot\plugins\onesoft_redeem-grant\` |
+| 兑换比例 | `quota_per_yuan = 500000`（1 元 = $1 额度） |
+| 审计日志 | `/opt/maibot-kurisu/app/data/redeem_grant_audit.jsonl`（含明文兑换码） |
+| 鉴权 | `users.access_token`（root，32 位，明文列，`Authorization: Bearer`） |
+
+四个必须记住的坑（都是实测踩出来的）：
+
+1. **`ON_MESSAGE` 事件是死代码**：`src/chat/message_receive/bot.py:872` 那行是注释掉的，
+   `@EventHandler(EventType.ON_MESSAGE)` 永远不会触发。要用
+   `@HookHandler(hook="chat.receive.after_process", mode=HookMode.BLOCKING)`，
+   返回 `{"action": "abort"}` 阻止消息继续进 LLM。
+2. **`reportSelfMessage: false`**（NapCat `onebot11_*.json`）：机器人账号自己发的消息不会回传给
+   MaiBot。用机器人号自测永远收不到——必须用另一个 QQ 发。
+3. **手打 `@昵称` 不产生 at 段**：QQ 里必须从弹出成员列表点选，否则 NapCat 只给一个 text 段，
+   插件拿不到 QQ 号。插件已加兜底：按群昵称 `get_group_member_list` 反查，唯一命中才发。
+4. **NapCat 长跑后 NTQQ 消息内核会假死**：`get_status` 仍报 `online/good`，但收发全部失败，
+   `retcode 1200 / EventChecker Failed: NodeIKernelMsgService/sendMsg`。
+   处理：`docker restart napcat-kurisu`（可能要重新扫码，二维码在容器内 `/app/napcat/cache/qrcode.png`）。
+
+验收标准：群里出现「已处理：兑换码将通过本群临时会话发送给 X（QQ号）」，
+被 @ 的人收到临时会话，`redemptions` 表新增一行且 `quota = 金额 × 500000`。
+
 ---
 
 ## 五、源码陷阱
@@ -737,3 +767,4 @@ docker logs ReX-API 2>&1 | grep "syncing options" | tail -2
 | **新增上游渠道** | 见 4.13：channels+abilities+两张倍率表+UserUsableGroups+探测列表+镜像映射 |
 | **分组改名** | 见 4.14：9 张表 + 6 组配置，`logs.group` 不动 |
 | **MaiBot 换模型** | 见 4.15：key 有分组限制，先单模型试通再改 `model_config.toml` |
+| **群内发码没反应** | 见 4.16：ON_MESSAGE 是死代码 / 自消息不回传 / 手打 @ 无 at 段 |
