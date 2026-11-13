@@ -184,6 +184,59 @@ func upstreamSourceHasModel(source, modelName string) bool {
 	return false
 }
 
+// UpstreamMirrorRow returns the mirrored per-group numbers for one model.
+//
+// /status serves probe results, and a probe covers one model per channel, so a
+// group that carries no traffic showed every other model blank even though the
+// upstream already measured them. The caller asks per (group, model) and gets a
+// row already narrowed to the upstream group this local group maps to.
+func UpstreamMirrorRow(source, localGroup, modelName string, hours int) (GroupModelSummary, bool) {
+	if strings.TrimSpace(source) == "" || strings.TrimSpace(modelName) == "" {
+		return GroupModelSummary{}, false
+	}
+	upstreamGroup := upstreamHealthGroup(source, localGroup)
+	if upstreamGroup == "" {
+		return GroupModelSummary{}, false
+	}
+	summary, ok := fetchUpstreamSummaryFor(source, hours)
+	if !ok {
+		return GroupModelSummary{}, false
+	}
+	var mirror ModelSummary
+	found := false
+	for _, item := range summary.Models {
+		if item.ModelName == modelName {
+			mirror = item
+			found = true
+			break
+		}
+	}
+	if !found {
+		return GroupModelSummary{}, false
+	}
+	detail, ok := fetchUpstreamDetailFor(source, modelName, hours)
+	if !ok {
+		return GroupModelSummary{}, false
+	}
+	for _, detailGroup := range detail.Groups {
+		if detailGroup.Group != upstreamGroup {
+			continue
+		}
+		mirror = modelSummaryFromGroup(mirror, detailGroup)
+		return GroupModelSummary{
+			Group:               localGroup,
+			ModelName:           mirror.ModelName,
+			AvgLatencyMs:        mirror.AvgLatencyMs,
+			SuccessRate:         mirror.SuccessRate,
+			AvgTps:              mirror.AvgTps,
+			RecentSuccessSeries: mirror.RecentSuccessSeries,
+			RecentLatencySeries: mirror.RecentLatencySeries,
+			Source:              SourceMirror + ":" + source,
+		}, true
+	}
+	return GroupModelSummary{}, false
+}
+
 func upstreamModelSummary(modelName string, hours int) (ModelSummary, bool) {
 	mirrored, ok := fetchUpstreamSummary(hours)
 	if !ok {

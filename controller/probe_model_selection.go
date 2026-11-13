@@ -29,22 +29,44 @@ const (
 //
 // A channel's configured test model still wins when set: the operator chose it
 // deliberately, and the scheduled channel test already uses it.
-func pickProbeModel(channel *model.Channel) string {
+func pickProbeModel(channel *model.Channel, groups []string) string {
 	if channel == nil {
 		return ""
 	}
+	// Only a model these groups actually serve can answer a probe. A channel's
+	// configured test model often outlives the group's model list, and probing
+	// it made a healthy group answer "no available channel" every cycle.
+	allowed := map[string]struct{}{}
+	for _, group := range groups {
+		for _, name := range model.GetGroupEnabledModels(group) {
+			if trimmed := strings.TrimSpace(name); trimmed != "" {
+				allowed[trimmed] = struct{}{}
+			}
+		}
+	}
 	if channel.TestModel != nil {
 		if configured := strings.TrimSpace(*channel.TestModel); configured != "" {
-			return configured
+			if len(allowed) == 0 {
+				return configured
+			}
+			if _, ok := allowed[configured]; ok {
+				return configured
+			}
 		}
 	}
 
-	groups := channel.GetGroups()
 	candidates := make([]string, 0, 8)
 	for _, name := range channel.GetModels() {
-		if trimmed := strings.TrimSpace(name); trimmed != "" {
-			candidates = append(candidates, trimmed)
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
 		}
+		if len(allowed) > 0 {
+			if _, ok := allowed[trimmed]; !ok {
+				continue
+			}
+		}
+		candidates = append(candidates, trimmed)
 	}
 	if len(candidates) == 0 {
 		return ""

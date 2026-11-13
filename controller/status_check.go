@@ -54,6 +54,9 @@ type modelHealthDTO struct {
 	// rather than as a healthy model, and it contributes to no availability
 	// average — an unobserved model is not a working one.
 	HasData bool `json:"has_data"`
+	// Source names the mirror a row was filled from ("mirror:furry" and so on).
+	// Empty means the row is ours: a probe result or our own traffic.
+	Source string `json:"source,omitempty"`
 }
 
 type groupHealthDTO struct {
@@ -216,6 +219,13 @@ func GetStatusCheck(c *gin.Context) {
 		// it.
 		served := servedModelsForGroup(group)
 
+		// The upstream that serves this group, when one of the mirrored
+		// deployments does. Models the group serves that neither a probe nor our
+		// own traffic reached are filled from that mirror below, so a group is
+		// not left blank just because we only probe one of its models.
+		mirrorSource := perfmetrics.UpstreamSourceForGroup(group)
+		mirrorAvailSum, mirrorAvailCount := 0.0, 0
+
 		// models in this group come from active probe rows; if no active row yet,
 		// fall back to passive perf_metrics models for this group.
 		modelRows, err := model.GetLatestModelHealth(group, since)
@@ -223,12 +233,33 @@ func GetStatusCheck(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+		// A row's numbers come from the upstream that serves the group when the
+		// mirror carries them. That is the per-group reading the upstream plaza
+		// shows, and it covers every model the group offers instead of the one
+		// model our probe happened to pick — which is why two groups whose
+		// channels point at different upstream groups used to show one identical
+		// figure. Our probe and our own traffic remain the fallback for groups no
+		// mirror backs (国模破甲, free1, self-hosted relays).
+		mirrorRow := func(name string) (modelHealthDTO, bool) {
+			row, ok := perfmetrics.UpstreamMirrorRow(mirrorSource, group, name, 24)
+			if !ok {
+				return modelHealthDTO{}, false
+			}
+			mirrorAvailSum += row.SuccessRate
+			mirrorAvailCount++
+			return mirrorHealthRow(row), true
+		}
+
 		seen := map[string]bool{}
 		for _, m := range modelRows {
 			if !modelIsAdvertised(served, m.ModelName, excluded) {
 				continue
 			}
 			seen[m.ModelName] = true
+			if row, ok := mirrorRow(m.ModelName); ok {
+				dto.Models = append(dto.Models, row)
+				continue
+			}
 			dto.Models = append(dto.Models, mergeHealthRow(m, passive, group))
 		}
 		// passive-only models (no active probe yet) — cold start fallback
@@ -242,12 +273,22 @@ func GetStatusCheck(c *gin.Context) {
 			if !modelIsAdvertised(served, s.ModelName, excluded) {
 				continue
 			}
+			seen[s.ModelName] = true
+			if row, ok := mirrorRow(s.ModelName); ok {
+				dto.Models = append(dto.Models, row)
+				continue
+			}
 			dto.Models = append(dto.Models, passiveOnlyRow(s, group))
 		}
 
-		// Attach the observed history strip to every row (probe-backed and
-		// passive-only alike) so the card can render a per-model timeline.
+		// Attach our own observed history strip to rows that do not already
+		// carry one. A mirrored row brings the upstream's strip; overwriting it
+		// with an empty local series erased exactly the data this card exists to
+		// show.
 		for i := range dto.Models {
+			if len(dto.Models[i].Series) > 0 {
+				continue
+			}
 			dto.Models[i].Series = seriesByModel[group+"|"+dto.Models[i].ModelName]
 		}
 
@@ -265,6 +306,12 @@ func GetStatusCheck(c *gin.Context) {
 					continue
 				}
 				seen[name] = true
+				if row, ok := perfmetrics.UpstreamMirrorRow(mirrorSource, group, name, 24); ok {
+					dto.Models = append(dto.Models, mirrorHealthRow(row))
+					mirrorAvailSum += row.SuccessRate
+					mirrorAvailCount++
+					continue
+				}
 				dto.Models = append(dto.Models, modelHealthDTO{
 					ModelName: name,
 					Group:     group,
@@ -275,23 +322,30 @@ func GetStatusCheck(c *gin.Context) {
 		}
 
 		// group-level roll-up
-		if active, ok := activeByGroup[group]; ok && active.TotalProbes > 0 {
+		active, hasActive := activeByGroup[group]
+		if hasActive && active.TotalProbes > 0 {
 			dto.TotalProbes = active.TotalProbes
 			dto.OkProbes = active.OkProbes
 			dto.AvgLatencyMs = active.AvgLatencyMs
-			activeAvail := active.Availability
-			// passive weighted into availability
-			passiveAvail := passiveGroupAvailability(passive, group)
-			dto.Availability = mergeAvailability(activeAvail, passiveAvail, passiveGroupRequests(passive, group))
+		}
+		passiveAvail := passiveGroupAvailability(passive, group)
+		switch {
+		case mirrorAvailCount > 0:
+			// The rows on this card are mirrored numbers, so the headline has to
+			// be built from the same evidence. Averaging probe results over
+			// models the mirror disagrees about is what put a 43% group total
+			// above a card whose rows were all red.
+			dto.Availability = mirrorAvailSum / float64(mirrorAvailCount)
 			dto.Observed = true
-		} else {
-			// no active probe, fall back to all-passive
-			passiveAvail := passiveGroupAvailability(passive, group)
+		case hasActive && active.TotalProbes > 0:
+			dto.Availability = mergeAvailability(active.Availability, passiveAvail, passiveGroupRequests(passive, group))
+			dto.Observed = true
+		case passiveAvail >= 0:
 			dto.Availability = passiveAvail
-			if dto.Availability < 0 {
-				dto.Availability = 100 // unknown → optimistic
-			}
-			dto.Observed = passiveAvail >= 0
+			dto.Observed = true
+		default:
+			dto.Availability = 100 // unknown → optimistic
+			dto.Observed = false
 		}
 		dto.Level = GradeAvailability(dto.Availability)
 
@@ -389,6 +443,37 @@ func mergeHealthRow(m model.ModelHealth, passive map[string]model.PerfMetricSumm
 	dto.Availability = mergeAvailability(activeAvail, passiveAvail, float64(passiveRequests))
 	dto.Level = GradeAvailability(dto.Availability)
 	return dto
+}
+
+// mirrorHealthRow turns a mirrored upstream card into the row the status page
+// renders. The numbers belong to the upstream that serves this group, not to our
+// own traffic, so the row carries no channel and no probe flag — but it carries
+// the upstream's own 24h strip, which is what makes a card look alive on a group
+// whose other models we never probe.
+func mirrorHealthRow(row perfmetrics.GroupModelSummary) modelHealthDTO {
+	series := make([]statusBucketDTO, 0, len(row.RecentSuccessSeries))
+	latencyByTs := make(map[int64]int64, len(row.RecentLatencySeries))
+	for _, p := range row.RecentLatencySeries {
+		latencyByTs[p.Ts] = p.LatencyMs
+	}
+	for _, p := range row.RecentSuccessSeries {
+		series = append(series, statusBucketDTO{
+			Ts:        p.Ts,
+			OkPct:     int(p.SuccessRate),
+			LatencyMs: latencyByTs[p.Ts],
+		})
+	}
+	return modelHealthDTO{
+		ModelName:    row.ModelName,
+		Group:        row.Group,
+		Availability: row.SuccessRate,
+		Level:        GradeAvailability(row.SuccessRate),
+		LatencyMs:    row.AvgLatencyMs,
+		Ok:           row.SuccessRate >= 70,
+		Series:       series,
+		HasData:      len(series) > 0 || row.SuccessRate > 0,
+		Source:       row.Source,
+	}
 }
 
 func passiveOnlyRow(s model.PerfMetricSummaryByGroup, group string) modelHealthDTO {
@@ -735,7 +820,7 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 				continue
 			}
 		}
-		probeModel := pickProbeModel(ch)
+		probeModel := pickProbeModel(ch, relevant)
 		if probeModel == "" {
 			continue
 		}
@@ -922,4 +1007,3 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 
 	return summary, nil
 }
-
