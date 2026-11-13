@@ -306,6 +306,62 @@ for key in ("group_pricing_source", "group_model_ratio", "group_model_price",
 **判断方法**：拿到的报价低于站上公开价时，先确认自己是不是 distributor，
 否则会把「上游零售价」当成本算毛利，实际毛利被高估。
 
+### 4.10 价格显示 `-` 的真正条件
+
+模型卡片显示 `-` 只有一个原因：**它既没有 `ModelRatio` / `ModelPrice`，也不是 `tiered_expr`**。
+分组倍率为 0 并不会让卡片显示 0——它只是把「已有价格」乘成 0；模型本身没有比例时前端算不出数字。
+
+实测（2026-11-13，只读排查）：
+
+| 分组 | 模型数 | 无价 | 例子 |
+|---|---:|---:|---|
+| free1 | 54 | 18 | `selfdeploy/d3`、`MiniMax-M2.7-free`、`glm-5.3-flash-free`、`kolors` |
+| free2 | 10 | 3 | `grok-imagine-video`、`grok-4.20-multi-agent-0309`、`grok-composer-2.5-fast` |
+
+修复方式二选一：
+- 给模型写 `ModelRatio=0`（免费组下显示 `0 / 1M`，比 `-` 直观）；
+- 或按次计费写 `ModelPrice`。
+两者都不写，卡片就会一直显示 `-`，且**探针会报「价格未配置」直接失败**。
+
+### 4.11 健康镜像 vs 自己探测：两条完全独立的链路
+
+| 链路 | 数据源 | 落点 | 5 分钟刷新 |
+|---|---|---|---|
+| 镜像 | 上游 `/api/perf-metrics/summary` + `?model=&hours=` | `/api/perf-metrics/summary`（模型广场/详情） | 是 |
+| 探针 | 本站真实请求（`model_health` / `group_health`） | `/api/status-check`（`/status` 页面） | 是（默认 5 分钟） |
+
+**关键事实：`/status` 不读镜像。** `GetStatusCheck` 只合并探针行 + 本站 `perf_metric` 流量，
+所以「上游有绿色、我们 /status 全空」是设计使然，不是同步失败。
+镜像有没有生效，要看 `/api/perf-metrics/summary` 里带 `source=mirror` 的行数
+（实测 171 个模型里 124 个来自镜像）。
+
+**上游对 UA 的拦截容易被误判**：用 Python `urllib` 默认 UA 请求 furry / sheapi 的
+`/api/perf-metrics/summary` 会 403，但换成 `Go-http-client/1.1` / `curl` / 浏览器 UA 全部 200。
+Go 客户端默认就发 `Go-http-client/1.1`，所以镜像本身没被拦——排查时别拿 Python 默认 UA 当证据。
+
+### 4.12 探针长期全红的排查顺序
+
+先查 `model_health` 近 24h 的 `ok` 比例和 `error_msg`：
+
+```sql
+SELECT `group`, model_name, COUNT(*) c, SUM(ok) okc, LEFT(MAX(error_msg),80)
+FROM model_health
+WHERE probe_ts > UNIX_TIMESTAMP()-86400
+GROUP BY `group`, model_name ORDER BY c DESC;
+```
+
+实测的四类原因：
+
+| 现象 | error_msg | 原因 |
+|---|---|---|
+| 全 503 | `No available channel for model gpt-5.5` | 探针选了该分组**不服务**的模型（渠道测试模型残留） |
+| 全 403 HTML | `<!DOCTYPE html>` | 上游站点拦截（Cloudflare/防盗链） |
+| 全 403 文本 | `The API key group has been deleted` | 上游 key 的分组已被删 |
+| 报价格错误 | `模型 xxx 的价格未配置` | 模型无价（见 4.10），探针在计价阶段就失败 |
+
+另外：分组渠道关掉后 `model_health` 会停止写入（观察最后一条 `probe_ts` 即可判断该组是否还在服务）。
+
+
 ---
 
 ## 五、源码陷阱
@@ -534,3 +590,7 @@ docker logs ReX-API 2>&1 | grep "syncing options" | tail -2
 | **分组看不到** | 无渠道分组被 `HideModelsWithoutEnabledChannel` 删了 |
 | **成本算高了** | 把上游零售价当拿货价（忘了 distributor 折扣） |
 | **价格体检** | `work/_audit_final.py` 七项逐项 OK/!! |
+| **卡片价格显示 `-`** | 模型缺 ModelRatio/ModelPrice，不是分组问题 |
+| **上游有数据但 /status 空** | `/status` 只读探针，镜像只进 `/api/perf-metrics/summary` |
+| **镜像 403** | 上游挡 Python 默认 UA，Go/curl/浏览器 UA 正常 |
+| **探针长期全红** | 查 `model_health.error_msg`：503 选错模型 / 403 被拦 / 价格未配置 |
