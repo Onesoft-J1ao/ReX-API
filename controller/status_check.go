@@ -108,7 +108,7 @@ func GetStatusCheck(c *gin.Context) {
 	// The configured list still decides order and can narrow the set; groups
 	// missing from it (anything added since it was written) are appended, and
 	// names whose channels are gone are dropped by GetGroupsExcluding.
-	groups := statusCheckSetting.GetGroupsExcluding(squareGroups)
+	groups := status_check_setting.GetGroupsExcluding(squareGroups)
 	listed := map[string]struct{}{}
 	for _, g := range groups {
 		listed[g] = struct{}{}
@@ -922,3 +922,4 @@ func runGroupHealthProbe(ctx context.Context, report func(processed, total int))
 
 	return summary, nil
 }
+
