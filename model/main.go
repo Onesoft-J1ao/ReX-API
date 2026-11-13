@@ -233,6 +233,12 @@ func InitLogDB() (err error) {
 		common.SetLogDatabaseType(common.MainDatabaseType())
 		initCol()
 		if common.IsMasterNode {
+			// LogContent is written through LOG_DB, which is the main DB here, so
+			// it has to be migrated on this branch too. Without it the review
+			// page queried a table that nothing ever created.
+			if err := LOG_DB.AutoMigrate(&LogContent{}); err != nil {
+				return err
+			}
 			return MigrateAuditLogs()
 		}
 		return
@@ -457,7 +463,6 @@ func migrateDBFast() error {
 		{&PriceSentinelEditToken{}, "PriceSentinelEditToken"},
 		{&GroupHealth{}, "GroupHealth"},
 		{&ModelHealth{}, "ModelHealth"},
-		{&LogContent{}, "LogContent"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -511,7 +516,10 @@ func migrateLOGDB() error {
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		return migrateClickHouseLogDB()
 	}
-	return LOG_DB.AutoMigrate(&Log{})
+	// LogContent is read and written through LOG_DB, so it has to live in the
+	// log database. Registering it with the main-DB migration list created no
+	// table whenever LOG_SQL_DSN pointed somewhere else.
+	return LOG_DB.AutoMigrate(&Log{}, &LogContent{})
 }
 
 func migrateClickHouseLogDB() error {

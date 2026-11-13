@@ -23,6 +23,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Dialog } from '@/components/dialog'
+import { SectionPageLayout } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,7 +37,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Dialog } from '@/components/dialog'
 import { formatTimestamp } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
@@ -273,151 +274,154 @@ export function ContentReview() {
   }
 
   return (
-    <div className='flex flex-col gap-4'>
-      <div className='flex flex-wrap items-end justify-between gap-2'>
-        <div className='flex flex-wrap items-end gap-2'>
-          <div className='flex flex-col gap-1.5'>
-            <Label htmlFor='content-review-username'>{t('Username')}</Label>
-            <Input
-              id='content-review-username'
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              placeholder={t('Filter by username')}
-              className='w-56'
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') onSearch()
-              }}
-            />
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('Content Review')}</SectionPageLayout.Title>
+      <SectionPageLayout.Actions>
+        <Button variant='outline' size='sm' render={<a href={exportHref} />}>
+          <Download className='size-4' />
+          {t('Export')}
+        </Button>
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => setConfirmCleanup(true)}
+        >
+          <RefreshCw className='size-4' />
+          {t('Clean up')}
+        </Button>
+      </SectionPageLayout.Actions>
+      <SectionPageLayout.Content>
+        <div className='flex flex-col gap-4'>
+          <div className='flex flex-wrap items-end gap-2'>
+            <div className='flex flex-col gap-1.5'>
+              <Label htmlFor='content-review-username'>{t('Username')}</Label>
+              <Input
+                id='content-review-username'
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder={t('Filter by username')}
+                className='w-56'
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') onSearch()
+                }}
+              />
+            </div>
+            <Button variant='outline' size='sm' onClick={onSearch}>
+              {t('Search')}
+            </Button>
           </div>
-          <Button variant='outline' size='sm' onClick={onSearch}>
-            {t('Search')}
-          </Button>
-        </div>
-        <div className='flex items-center gap-2'>
-          <Button variant='outline' size='sm' render={<a href={exportHref} />}>
-            <Download className='size-4' />
-            {t('Export')}
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => setConfirmCleanup(true)}
-          >
-            <RefreshCw className='size-4' />
-            {t('Clean up')}
-          </Button>
-        </div>
-      </div>
 
-      <ConfirmDialog
-        open={confirmCleanup}
-        onOpenChange={setConfirmCleanup}
-        title={t('Prune records past the retention window?')}
-        desc={t(
-          'Records older than the configured retention days will be deleted.'
-        )}
-        destructive
-        handleConfirm={() => cleanupMutation.mutate()}
-        isLoading={cleanupMutation.isPending}
-        confirmText={t('Clean up')}
-      />
+          <ConfirmDialog
+            open={confirmCleanup}
+            onOpenChange={setConfirmCleanup}
+            title={t('Prune records past the retention window?')}
+            desc={t(
+              'Records older than the configured retention days will be deleted.'
+            )}
+            destructive
+            handleConfirm={() => cleanupMutation.mutate()}
+            isLoading={cleanupMutation.isPending}
+            confirmText={t('Clean up')}
+          />
 
-      <Card>
-        <CardContent className='p-0'>
-          {listQuery.isLoading ? (
-            <p className='text-muted-foreground p-8 text-center text-sm'>
-              {t('Loading...')}
-            </p>
-          ) : listQuery.isError ? (
-            <p className='text-destructive p-8 text-center text-sm'>
-              {t('Failed to load')}
-            </p>
-          ) : rows.length === 0 ? (
-            <p className='text-muted-foreground p-8 text-center text-sm'>
-              {t(
-                'No records yet. New requests are captured while the switch is on.'
+          <Card>
+            <CardContent className='p-0'>
+              {listQuery.isLoading ? (
+                <p className='text-muted-foreground p-8 text-center text-sm'>
+                  {t('Loading...')}
+                </p>
+              ) : listQuery.isError ? (
+                <p className='text-destructive p-8 text-center text-sm'>
+                  {t('Failed to load')}
+                </p>
+              ) : rows.length === 0 ? (
+                <p className='text-muted-foreground p-8 text-center text-sm'>
+                  {t(
+                    'No records yet. New requests are captured while the switch is on.'
+                  )}
+                </p>
+              ) : (
+                <div className='divide-y'>
+                  {rows.map((row) => (
+                    <button
+                      key={row.id}
+                      type='button'
+                      className='hover:bg-muted/40 w-full cursor-pointer px-4 py-3 text-left'
+                      onClick={() => {
+                        setDetailId(row.id)
+                        setDetailOpen(true)
+                      }}
+                    >
+                      <div className='flex flex-wrap items-center gap-2 text-xs'>
+                        <span className='font-mono'>#{row.id}</span>
+                        <span className='text-muted-foreground'>
+                          {formatTime(row.created_at)}
+                        </span>
+                        <span className='font-medium'>{row.model_name}</span>
+                        <span className='text-muted-foreground'>
+                          {t('User')} ID: {row.user_id}
+                        </span>
+                        {row.token_name && (
+                          <span className='text-muted-foreground'>
+                            {t('Token')}: {row.token_name}
+                          </span>
+                        )}
+                        {row.truncated && (
+                          <Badge variant='secondary' className='text-xs'>
+                            {t('Truncated')}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className='text-muted-foreground mt-1 line-clamp-1 text-sm'>
+                        {row.request_preview || '—'}
+                      </p>
+                      <p className='mt-0.5 line-clamp-1 text-sm'>
+                        {row.response_preview || '—'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
               )}
-            </p>
-          ) : (
-            <div className='divide-y'>
-              {rows.map((row) => (
-                <button
-                  key={row.id}
-                  type='button'
-                  className='hover:bg-muted/40 w-full cursor-pointer px-4 py-3 text-left'
-                  onClick={() => {
-                    setDetailId(row.id)
-                    setDetailOpen(true)
-                  }}
+            </CardContent>
+          </Card>
+
+          {totalPages > 1 && (
+            <div className='text-muted-foreground flex items-center justify-between gap-3 text-sm'>
+              <span>
+                {t('Page {{current}} of {{total}}', {
+                  current: page,
+                  total: totalPages,
+                })}
+              </span>
+              <div className='flex gap-2'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  disabled={page <= 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
                 >
-                  <div className='flex flex-wrap items-center gap-2 text-xs'>
-                    <span className='font-mono'>#{row.id}</span>
-                    <span className='text-muted-foreground'>
-                      {formatTime(row.created_at)}
-                    </span>
-                    <span className='font-medium'>{row.model_name}</span>
-                    <span className='text-muted-foreground'>
-                      {t('User')} ID: {row.user_id}
-                    </span>
-                    {row.token_name && (
-                      <span className='text-muted-foreground'>
-                        {t('Token')}: {row.token_name}
-                      </span>
-                    )}
-                    {row.truncated && (
-                      <Badge variant='secondary' className='text-xs'>
-                        {t('Truncated')}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className='text-muted-foreground mt-1 line-clamp-1 text-sm'>
-                    {row.request_preview || '—'}
-                  </p>
-                  <p className='mt-0.5 line-clamp-1 text-sm'>
-                    {row.response_preview || '—'}
-                  </p>
-                </button>
-              ))}
+                  {t('Previous page')}
+                </Button>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((current) => current + 1)}
+                >
+                  {t('Next page')}
+                </Button>
+              </div>
             </div>
           )}
-        </CardContent>
-      </Card>
 
-      {totalPages > 1 && (
-        <div className='text-muted-foreground flex items-center justify-between gap-3 text-sm'>
-          <span>
-            {t('Page {{current}} of {{total}}', {
-              current: page,
-              total: totalPages,
-            })}
-          </span>
-          <div className='flex gap-2'>
-            <Button
-              variant='outline'
-              size='sm'
-              disabled={page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              {t('Previous page')}
-            </Button>
-            <Button
-              variant='outline'
-              size='sm'
-              disabled={page >= totalPages}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              {t('Next page')}
-            </Button>
-          </div>
+          <DetailDialog
+            id={detailId}
+            open={detailOpen}
+            onOpenChange={setDetailOpen}
+            onDeleted={() => void listQuery.refetch()}
+          />
         </div>
-      )}
-
-      <DetailDialog
-        id={detailId}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        onDeleted={() => void listQuery.refetch()}
-      />
-    </div>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }
