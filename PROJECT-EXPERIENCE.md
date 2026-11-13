@@ -480,6 +480,28 @@ model_square_group_descriptions / console_setting.group_access_rules / LandingMo
 
 脚本：`work/_rename_group.py`（默认 dry run，`--apply` 才写）。
 
+### 4.15 MaiBot 模型配置（宿主机 systemd 服务）
+
+MaiBot 不是容器，是 `maibot-kurisu.service`，配置在 `/opt/maibot-kurisu/app/config/`：
+
+| 文件 | 作用 |
+|---|---|
+| `bot_config.toml` | 机器人本体与 `[webui]`（端口 8041、`allowed_ips`；登录 token 在 `data/webui.json`） |
+| `model_config.toml` | `[[api_providers]]` + `[[models]]` + `[model_task_config.*]` 任务模型 |
+
+改模型三步：备份 → 改 `model_config.toml` → `systemctl restart maibot-kurisu`。
+
+⚠️ **上游 key 是分组绑定的**：`/api/pricing` 会列出几百个模型，但实际能用哪些由 key 所属分组决定。
+不在该分组里的模型会直接返回 `分组 X 下模型 Y 无可用渠道 (distributor)`。
+上 key 前先用目标模型发一次 `POST /v1/chat/completions` 验证，别照价格页的模型列表配。
+
+⚠️ **模型名要和上游完全一致**：furry 的 `deepseek-v4.1-flash` 在特惠分组里叫
+`deepseek-v4.1-flash-1017`，写错就是 `model_not_found`。
+
+改完验证：`systemctl is-active maibot-kurisu`、`curl -o /dev/null -w '%{http_code}' http://127.0.0.1:8041/`（200），
+再看 `journalctl -u maibot-kurisu --since '3 minutes ago'` 有没有模型报错。
+`model_config.toml.bak-<时间>` 就地留备份。
+
 ---
 
 ## 五、源码陷阱
@@ -709,6 +731,9 @@ docker logs ReX-API 2>&1 | grep "syncing options" | tail -2
 | **成本算高了** | 把上游零售价当拿货价（忘了 distributor 折扣） |
 | **价格体检** | `work/_audit_final.py` 七项逐项 OK/!! |
 | **卡片价格显示 `-`** | 模型缺 ModelRatio/ModelPrice，不是分组问题 |
-| **上游有数据但 /status 空** | `/status` 只读探针，镜像只进 `/api/perf-metrics/summary` |
+| **上游有数据但 /status 空** | 先查 `upstream_health_groups` 映射，再看 `/api/status-check` 该行有无 `source` |
 | **镜像 403** | 上游挡 Python 默认 UA，Go/curl/浏览器 UA 正常 |
 | **探针长期全红** | 查 `model_health.error_msg`：503 选错模型 / 403 被拦 / 价格未配置 |
+| **新增上游渠道** | 见 4.13：channels+abilities+两张倍率表+UserUsableGroups+探测列表+镜像映射 |
+| **分组改名** | 见 4.14：9 张表 + 6 组配置，`logs.group` 不动 |
+| **MaiBot 换模型** | 见 4.15：key 有分组限制，先单模型试通再改 `model_config.toml` |
