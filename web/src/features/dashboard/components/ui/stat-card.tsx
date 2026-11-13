@@ -189,7 +189,7 @@ function BarSparkline(props: { values?: number[]; tone: StatCardTone }) {
   const sparkline = normalizeSparkline(props.values)
 
   return (
-    <div className='flex h-8 items-end gap-1' aria-hidden='true'>
+    <div className='flex h-6 items-end gap-1' aria-hidden='true'>
       {sparkline.map((bucket) => (
         <span
           key={bucket.position}
@@ -207,18 +207,18 @@ function BarSparkline(props: { values?: number[]; tone: StatCardTone }) {
 
 function StatCardDetails(props: { details: StatCardDetail[] }) {
   return (
-    <div className='grid grid-cols-2 gap-2'>
+    <div className='grid grid-cols-2 gap-1.5'>
       {props.details.map((detail) => (
         <div
           key={detail.label}
-          className='bg-muted/40 rounded-xl border border-transparent px-2.5 py-2'
+          className='bg-muted/40 rounded-lg border border-transparent px-2 py-1.5'
         >
           <div className='text-muted-foreground truncate text-xs leading-none font-medium'>
             {detail.label}
           </div>
           <div
             className={cn(
-              'mt-1.5 truncate text-xs font-semibold tabular-nums',
+              'mt-1 truncate text-xs font-semibold tabular-nums',
               DETAIL_TONE_CLASSES[detail.tone ?? 'default']
             )}
             title={detail.value}
@@ -257,7 +257,7 @@ export function StatCard(props: StatCardProps) {
   } else if (props.error) {
     valueContent = (
       <div className='flex flex-col gap-1'>
-        <div className='text-muted-foreground mt-0.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:text-2xl'>
+        <div className='text-muted-foreground mt-0.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:text-xl'>
           --
         </div>
         <p
@@ -273,7 +273,7 @@ export function StatCard(props: StatCardProps) {
   } else {
     valueContent = (
       <div className='flex flex-col gap-1'>
-        <div className='text-foreground font-mono text-base font-semibold tracking-tight break-all tabular-nums sm:text-2xl'>
+        <div className='text-foreground font-mono text-base font-semibold tracking-tight break-all tabular-nums sm:text-xl'>
           {props.value}
         </div>
         <p
@@ -300,7 +300,7 @@ export function StatCard(props: StatCardProps) {
   return (
     <div
       className={cn(
-        'group flex flex-col justify-between sm:min-h-32 sm:gap-3',
+        'group flex flex-col justify-between sm:min-h-24 sm:gap-2',
         props.compactMobile ? 'gap-1' : 'gap-1.5'
       )}
     >

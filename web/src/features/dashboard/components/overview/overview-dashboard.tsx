@@ -656,15 +656,15 @@ export function OverviewDashboard() {
         )}
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-        <div className='flex flex-col gap-4'>
+        <div className='flex flex-col gap-3'>
           <div id={setupGuideId} hidden={!setupGuideExpanded}>
             {setupGuideExpanded && (
-              <CardStaggerContainer className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>
-                <CardStaggerItem className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>
-                  <div className='relative h-full overflow-hidden p-4 sm:p-5'>
+              <CardStaggerContainer className='grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]'>
+                <CardStaggerItem className='bg-card h-full overflow-hidden rounded-xl border shadow-xs'>
+                  <div className='relative h-full overflow-hidden p-3 sm:p-4'>
                     <SetupGuideBackdrop />
-                    <div className='relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]'>
-                      <div className='flex min-w-0 flex-col gap-5'>
+                    <div className='relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]'>
+                      <div className='flex min-w-0 flex-col gap-4'>
                         <div className='flex flex-wrap items-start justify-between gap-3'>
                           <div className='flex max-w-2xl flex-col gap-1'>
                             <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wider uppercase'>
@@ -674,7 +674,7 @@ export function OverviewDashboard() {
                               />
                               {t('Get started')}
                             </div>
-                            <h3 className='text-xl font-semibold tracking-tight sm:text-2xl'>
+                            <h3 className='text-lg font-semibold tracking-tight sm:text-xl'>
                               {t('Build on your API gateway in minutes')}
                             </h3>
                             <p className='text-muted-foreground max-w-xl text-sm leading-relaxed'>
@@ -701,7 +701,7 @@ export function OverviewDashboard() {
                           </div>
                         </div>
 
-                        <ol className='bg-background/45 rounded-2xl border p-2 backdrop-blur'>
+                        <ol className='bg-background/45 rounded-xl border p-1.5 backdrop-blur'>
                           {startSteps.map((step, index) => (
                             <StartStepItem
                               key={step.title}
@@ -721,8 +721,8 @@ export function OverviewDashboard() {
                   </div>
                 </CardStaggerItem>
 
-                <CardStaggerItem className='bg-card h-full rounded-2xl border p-4 shadow-xs sm:p-5'>
-                  <div className='flex h-full flex-col gap-4'>
+                <CardStaggerItem className='bg-card h-full rounded-xl border p-3 shadow-xs sm:p-4'>
+                  <div className='flex h-full flex-col gap-3'>
                     <div className='flex flex-col gap-1'>
                       <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                         {t('Recommended actions')}
@@ -743,7 +743,7 @@ export function OverviewDashboard() {
           </div>
           {!setupGuideExpanded && !setupComplete && (
             <CardStaggerContainer>
-              <CardStaggerItem className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
+              <CardStaggerItem className='bg-card overflow-hidden rounded-xl border shadow-xs'>
                 <div className='relative overflow-hidden px-4 py-3 sm:px-5'>
                   <SetupGuideBackdrop compact />
                   <div className='relative flex flex-wrap items-center justify-between gap-3'>
@@ -802,7 +802,7 @@ export function OverviewDashboard() {
           {showContentPanels && (
             <CardStaggerContainer
               className={cn(
-                'grid grid-cols-1 gap-4',
+                'grid grid-cols-1 gap-3',
                 showLeftContentPanels &&
                   showUptimePanel &&
                   'xl:grid-cols-[minmax(0,1fr)_22rem]'
@@ -811,7 +811,7 @@ export function OverviewDashboard() {
               {showLeftContentPanels && (
                 <div
                   className={cn(
-                    'grid min-w-0 grid-cols-1 gap-4',
+                    'grid min-w-0 grid-cols-1 gap-3',
                     (showApiInfoPanel ||
                       showAnnouncementsPanel ||
                       showFAQPanel ||

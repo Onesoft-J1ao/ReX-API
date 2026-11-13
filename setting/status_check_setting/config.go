@@ -86,6 +86,22 @@ func GetGroups() []string {
 	return out
 }
 
+// GetGroupsExcluding drops names that are no longer served, keeping the
+// configured order. The status page rendered the raw list, so a group whose
+// channel was disabled months ago still had a card while every group the
+// operator added later was missing. The caller passes the groups that actually
+// have an enabled channel; this only removes dead names from config.
+func GetGroupsExcluding(served map[string]struct{}) []string {
+	groups := GetGroups()
+	kept := make([]string, 0, len(groups))
+	for _, g := range groups {
+		if _, ok := served[g]; ok {
+			kept = append(kept, g)
+		}
+	}
+	return kept
+}
+
 // GetExcludedModelsMap builds a set lookup; nil/empty map means "no exclusions".
 func GetExcludedModelsMap() map[string]struct{} {
 	raw := strings.TrimSpace(statusCheckSetting.ExcludedModels)

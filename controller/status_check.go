@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/status_check_setting"
 
@@ -85,7 +86,39 @@ type statusCheckResponse struct {
 // model_health tables) with passive perf_metrics rollup into one payload.
 func GetStatusCheck(c *gin.Context) {
 	cfg := status_check_setting.GetSetting()
-	groups := status_check_setting.GetGroups()
+	// The page promises to mirror the model square, so the group set must come
+	// from what actually serves traffic, not from a hand-kept list. The
+	// configured list still decides the order and can hide a group, but a group
+	// missing from it (every group added since the list was written) now shows
+	// up, and a group whose channels were all disabled drops out.
+	servedGroups, err := model.GetGroupsWithEnabledChannel()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Same gate the model square uses: a group is shown when it is listed in
+	// UserUsableGroups and still has an enabled channel. Anything else is either
+	// a group with no traffic capability or an internal one the square hides.
+	squareGroups := map[string]struct{}{}
+	for g := range setting.GetUserUsableGroupsCopy() {
+		if _, ok := servedGroups[g]; ok {
+			squareGroups[g] = struct{}{}
+		}
+	}
+	// The configured list still decides order and can narrow the set; groups
+	// missing from it (anything added since it was written) are appended, and
+	// names whose channels are gone are dropped by GetGroupsExcluding.
+	groups := statusCheckSetting.GetGroupsExcluding(squareGroups)
+	listed := map[string]struct{}{}
+	for _, g := range groups {
+		listed[g] = struct{}{}
+	}
+	for g := range squareGroups {
+		if _, ok := listed[g]; !ok {
+			groups = append(groups, g)
+		}
+	}
+	sort.Strings(groups)
 
 	// A probe cycle writes its rows when it *finishes*, and a full cycle across
 	// every grouped channel takes far longer than two configured intervals (the

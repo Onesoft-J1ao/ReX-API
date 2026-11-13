@@ -22,7 +22,6 @@ import {
   ClipboardList,
   FileSearch,
   CreditCard,
-  Cpu,
   Download,
   ExternalLink,
   FileText,
@@ -110,14 +109,10 @@ export function useSidebarData(): SidebarData {
             icon: Activity,
           },
           {
-            title: t('Status Check'),
-            url: '/status/perf',
-            icon: Cpu,
-          },
-          {
-            // Two views of channel health: the perf view above reads relay
-            // traffic (cache hit rate, TTFT history), this one reads live probe
-            // results and the mirrored upstream page.
+            // One entry on purpose. The relay-traffic view (/status/perf) and
+            // the probe view (/status) showed the same models with the same
+            // latency and availability numbers, so only the merged page is
+            // linked; /status/perf redirects here.
             title: t('Channel Status'),
             url: '/status',
             icon: Radio,
