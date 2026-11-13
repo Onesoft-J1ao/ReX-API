@@ -150,7 +150,12 @@ func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCusto
 				config.SupportedEndpointTypesForModel(ability.Model), ability.Model)
 		}
 	}
-	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+	// The model's own capability still decides which endpoint leads. Applying
+	// this only to custom channels left every image model behind a standard
+	// relay channel advertised as chat-only, so the playground image tab dropped
+	// it no matter what the operator configured.
+	return common.WithModelCapabilityEndpoints(
+		common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model), ability.Model)
 }
 
 // loadPricingAdvancedCustomConfigs runs inside updatePricing while

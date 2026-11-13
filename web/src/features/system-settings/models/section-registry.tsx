@@ -48,6 +48,10 @@ const MODELS_SECTIONS = [
               settings['global.thinking_model_blacklist'],
               '[]'
             ),
+            image_generation_models: formatJsonForEditor(
+              settings['global.image_generation_models'],
+              '[]'
+            ),
             chat_completions_to_responses_policy: formatJsonForEditor(
               settings['global.chat_completions_to_responses_policy'],
               '{}'

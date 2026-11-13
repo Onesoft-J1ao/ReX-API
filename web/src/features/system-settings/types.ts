@@ -322,6 +322,7 @@ export type ContentSettings = {
 export type ModelSettings = {
   'global.pass_through_request_enabled': boolean
   'global.thinking_model_blacklist': string
+  'global.image_generation_models': string
   'global.chat_completions_to_responses_policy': string
   'global.responses_to_chat_completions_policy': string
   'global.effort_model_routes': string

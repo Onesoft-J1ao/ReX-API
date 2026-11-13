@@ -108,6 +108,12 @@ const effortModelRoutesExample = JSON.stringify(
   2
 )
 
+const imageModelsExample = JSON.stringify(
+  ['gpt-image', 'nano-banana', 'seedream-4'],
+  null,
+  2
+)
+
 const jsonString = z.string().refine((value) => {
   const trimmed = value.trim()
   if (!trimmed) return true
@@ -123,6 +129,7 @@ const schema = z.object({
   global: z.object({
     pass_through_request_enabled: z.boolean(),
     thinking_model_blacklist: jsonString,
+    image_generation_models: jsonString,
     chat_completions_to_responses_policy: jsonString,
     responses_to_chat_completions_policy: jsonString,
     effort_model_routes: jsonString,
@@ -139,6 +146,7 @@ type GlobalModelSettingsFormInput = z.input<typeof schema>
 type FlatGlobalModelSettings = {
   'global.pass_through_request_enabled': boolean
   'global.thinking_model_blacklist': string
+  'global.image_generation_models': string
   'global.chat_completions_to_responses_policy': string
   'global.responses_to_chat_completions_policy': string
   'global.effort_model_routes': string
@@ -153,6 +161,10 @@ const flattenGlobalValues = (
     values.global.pass_through_request_enabled,
   'global.thinking_model_blacklist': normalizeJsonText(
     values.global.thinking_model_blacklist,
+    '[]'
+  ),
+  'global.image_generation_models': normalizeJsonText(
+    values.global.image_generation_models,
     '[]'
   ),
   'global.chat_completions_to_responses_policy': normalizeJsonText(
@@ -290,6 +302,33 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                 <FormDescription>
                   {t(
                     'Models listed here skip automatic -thinking / -nothinking suffix handling. Matched names are also exempt from @-modifier parsing and 400 validation. Prefix an entry with re: to match the full model name as a Go regular expression, for example re:.*@sha256:.*'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='global.image_generation_models'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Image generation models')}</FormLabel>
+                <FormControl>
+                  <JsonCodeEditor
+                    value={field.value}
+                    onChange={(value) => field.onChange(value)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    textareaRef={field.ref}
+                    placeholder={`${t('Example:')}\n${imageModelsExample}`}
+                    heightClassName='h-32 min-h-32 max-h-32'
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Models listed here (plus any model whose name matches the built-in list) are offered in the playground image tab. Leave empty to use the built-in list. Each entry is a case-insensitive substring; prefix it with prefix: to match the model name prefix only.'
                   )}
                 </FormDescription>
                 <FormMessage />

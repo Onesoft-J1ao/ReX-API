@@ -55,9 +55,22 @@ func IsOpenAIResponseOnlyModel(modelName string) bool {
 	return false
 }
 
+// ImageGenerationModelSource lets the settings layer supply the image-model
+// list. The built-in list stays the default so an instance that never touches
+// the setting behaves exactly as before; a configured list replaces it, which is
+// how a newly added image model becomes selectable in the playground without a
+// rebuild.
+var ImageGenerationModelSource func() []string
+
 func IsImageGenerationModel(modelName string) bool {
 	modelName = strings.ToLower(modelName)
-	for _, m := range ImageGenerationModels {
+	list := ImageGenerationModels
+	if ImageGenerationModelSource != nil {
+		if configured := ImageGenerationModelSource(); len(configured) > 0 {
+			list = configured
+		}
+	}
+	for _, m := range list {
 		if prefix, ok := strings.CutPrefix(m, "prefix:"); ok {
 			if strings.HasPrefix(modelName, prefix) {
 				return true

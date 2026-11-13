@@ -27,6 +27,7 @@ import {
 const defaultModelSettings: ModelSettings = {
   'global.pass_through_request_enabled': false,
   'global.thinking_model_blacklist': '[]',
+  'global.image_generation_models': '[]',
   'global.chat_completions_to_responses_policy': '{}',
   'global.responses_to_chat_completions_policy': '{}',
   'global.effort_model_routes': '{}',

@@ -68,6 +68,10 @@ type GlobalSettings struct {
 	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy `json:"chat_completions_to_responses_policy"`
 	ResponsesToChatCompletionsPolicy ResponsesToChatCompletionsPolicy `json:"responses_to_chat_completions_policy"`
 	EffortModelRoutes                map[string]map[string]string     `json:"effort_model_routes"`
+	// ImageGenerationModels overrides the built-in image-model name list. Empty
+	// means "use the built-in list"; matching is the same substring/prefix rule,
+	// so an entry covers a whole family.
+	ImageGenerationModels []string `json:"image_generation_models"`
 }
 
 // 默认配置
@@ -92,7 +96,8 @@ var defaultOpenaiSettings = GlobalSettings{
 		Enabled:     false,
 		AllChannels: true,
 	},
-	EffortModelRoutes: map[string]map[string]string{},
+	EffortModelRoutes:     map[string]map[string]string{},
+	ImageGenerationModels: []string{},
 }
 
 func (s *GlobalSettings) RouteModelByEffort(modelName, effort string) (string, bool) {
@@ -133,6 +138,11 @@ var globalSettings = defaultOpenaiSettings
 func init() {
 	// 注册到全局配置管理器
 	config.GlobalConfig.Register("global", &globalSettings)
+	// The capability check lives in common, which cannot import this package
+	// (the dependency runs the other way), so hand it a reader instead.
+	common.ImageGenerationModelSource = func() []string {
+		return globalSettings.ImageGenerationModels
+	}
 }
 
 func GetGlobalSettings() *GlobalSettings {
