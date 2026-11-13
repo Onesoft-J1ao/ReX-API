@@ -430,6 +430,19 @@ VALUES (1, CONVERT(X'<hex>' USING utf8mb4), 1, CONVERT(X'<hex>' USING utf8mb4),
 
 中文一律 hex，不拼字符串（见 3.3 / 3.4）。
 
+**`channels.models` 是逗号分隔字符串，不是 JSON 数组 ⚠️**
+写成 `["m"]` 不会报错，但重启后 `InitChannelCache` 会把它当成一个模型名再 append 一次，
+分组里就多出一个名叫 `["m"]` 的模型（价格页、模型广场都会出现）。
+正确写法：`m1,m2`。判断方法：
+
+```sql
+SELECT id, HEX(models) FROM channels WHERE id=<id>;   -- 看到 5B226D225D 就是错的
+```
+
+**缓存价别忘**：卡片上的缓存价来自 `CacheRatio[model]`，分组再按
+`billing_setting.group_model_cache_ratio[G][M]` 覆盖。只写 `ModelRatio` 时缓存价显示 `-`。
+上游 `/api/pricing` 的 `cache_ratio` 字段直接照抄即可（1017 = 0.02，即输入价的 2%）。
+
 **⑦ 重启 + 四条验收**
 
 ```bash
