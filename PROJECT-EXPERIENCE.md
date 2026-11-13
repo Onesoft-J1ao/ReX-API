@@ -323,17 +323,20 @@ for key in ("group_pricing_source", "group_model_ratio", "group_model_price",
 - 或按次计费写 `ModelPrice`。
 两者都不写，卡片就会一直显示 `-`，且**探针会报「价格未配置」直接失败**。
 
-### 4.11 健康镜像 vs 自己探测：两条完全独立的链路
+### 4.11 健康镜像 vs 自己探测：镜像优先，探针兜底
 
 | 链路 | 数据源 | 落点 | 5 分钟刷新 |
 |---|---|---|---|
 | 镜像 | 上游 `/api/perf-metrics/summary` + `?model=&hours=` | `/api/perf-metrics/summary`（模型广场/详情） | 是 |
 | 探针 | 本站真实请求（`model_health` / `group_health`） | `/api/status-check`（`/status` 页面） | 是（默认 5 分钟） |
 
-**关键事实：`/status` 不读镜像。** `GetStatusCheck` 只合并探针行 + 本站 `perf_metric` 流量，
-所以「上游有绿色、我们 /status 全空」是设计使然，不是同步失败。
-镜像有没有生效，要看 `/api/perf-metrics/summary` 里带 `source=mirror` 的行数
-（实测 171 个模型里 124 个来自镜像）。
+**2026-11-13 起，`/status` 也读镜像**（`72755eb`）：`GetStatusCheck` 先按 `(本地分组, 模型)` 查上游 detail，
+命中就用上游的可用率 + 上游自己的 24h 绿条；没有镜像源的分组才回落到探针 + 本站流量。
+
+- 镜像行带 `source=mirror:<source>`（furry / sheapi / mcapple）。
+- 一个分组只探 1 个模型，镜像没接上时同组其余模型全空 —— 这正是「同一模型在不同分组数字一模一样」的成因。
+- 排查：`/api/status-check` 该行有没有 `source`；`perf_metrics_setting.upstream_health_groups` 有没有该分组映射。
+- `/api/perf-metrics/summary` 仍是模型广场那条链路（171 个模型里 124 个来自镜像）。
 
 **上游对 UA 的拦截容易被误判**：用 Python `urllib` 默认 UA 请求 furry / sheapi 的
 `/api/perf-metrics/summary` 会 403，但换成 `Go-http-client/1.1` / `curl` / 浏览器 UA 全部 200。
@@ -361,6 +364,108 @@ GROUP BY `group`, model_name ORDER BY c DESC;
 
 另外：分组渠道关掉后 `model_health` 会停止写入（观察最后一条 `probe_ts` 即可判断该组是否还在服务）。
 
+
+### 4.13 新增上游渠道标准流程（2026-11-13 实操）
+
+以 `Deepseek限时特惠`（furry 上游 0.050 → 我方 0.06，无峰谷）为例。
+
+**① 确认拿货价与目标分组**
+
+```bash
+curl -s -H "Authorization: Bearer sk-..." https://<上游>/api/user/groups
+```
+
+返回每个分组的 `ratio` / `desc` / `default_model`。`desc` 写「无峰谷」的就是不分峰谷的分组。
+不要拿匿名 `/api/pricing` 的 group_ratio 当成本 —— 那是零售价（见 4.9）。
+
+**② 确认模型与基础倍率**
+
+```bash
+curl -s -H "Authorization: Bearer sk-..." https://<上游>/api/pricing
+```
+
+在 `data[]` 里筛 `enable_groups` 包含该分组的模型，取 `model_ratio` / `completion_ratio`（`quota_type=0` 按 token）。
+
+**③ 卖价公式**
+
+```
+我方单价($/1M) = model_ratio × 我方分组倍率 × 2
+```
+
+例：`0.5 × 0.06 × 2 = $0.06/1M` 输入；输出 ×4 = `$0.24/1M`。
+上游成本 `0.5 × 0.05 × 2 = $0.05 / $0.20` → 毛利 16.7%。
+
+**④ 「无峰谷」= 按 ratio，不写表达式**
+
+模型已有全局 `tiered_expr`（峰谷）时，只在**本分组**覆盖，别动全局：
+
+```
+billing_setting.group_pricing_source[G][M]          = "ratio"
+billing_setting.group_model_ratio[G][M]             = 0.5   # 上游基础倍率
+billing_setting.group_model_completion_ratio[G][M]  = 4
+```
+
+**⑤ 必须同时写入的位置（缺一即残）**
+
+| 位置 | 内容 |
+|---|---|
+| `channels` | 渠道行（type=1、status=1、group、models、base_url、key） |
+| `abilities` | `(group, model, channel_id, enabled=1)`，否则模型广场直接过滤掉（见 5.5） |
+| `group_ratio_setting.group_ratio` | 运行时真源倍率 |
+| `GroupRatio` | 后台界面倍率，必须与上一条一致（见 4.6） |
+| `UserUsableGroups` | 分组简介 / 用户可见性 |
+| `ModelRatio` / `CompletionRatio` | 模型基础倍率；缺了卡片显示 `-`（见 4.10） |
+| `status_check_setting.groups` | 加进探测列表（裸逗号串，不带外层引号） |
+| `perf_metrics_setting.upstream_health_groups.<source>` | 本地分组 → 上游分组名，健康绿条靠它镜像 |
+
+**⑥ 插渠道用 hex 字面量**
+
+```sql
+INSERT INTO channels (type, `key`, status, name, created_time, priority, auto_ban,
+                      `group`, models, base_url, balance_updated_time, used_quota)
+VALUES (1, CONVERT(X'<hex>' USING utf8mb4), 1, CONVERT(X'<hex>' USING utf8mb4),
+        UNIX_TIMESTAMP(), 0, 1, CONVERT(X'<hex>' USING utf8mb4),
+        CONVERT(X'<hex>' USING utf8mb4), CONVERT(X'<hex>' USING utf8mb4), 0, 0);
+```
+
+中文一律 hex，不拼字符串（见 3.3 / 3.4）。
+
+**⑦ 重启 + 四条验收**
+
+```bash
+docker restart ReX-API
+```
+
+1. 分组出现在 `/api/status-check`；
+2. 模型行有 `source=mirror:<source>`，`series` 接近 24 小时；
+3. 价格 = ③ 的算式（模型广场卡片不为 `-`）；
+4. 用新 key 直连一次 `POST /v1/chat/completions` 返回 200。
+
+**⑧ 备份**
+
+脚本先 dump `channels options abilities` 到 `/root/billing-backup/<name>-<时间>.sql.gz`，出事直接回灌。
+现成脚本：`work/_add_limited_ds.py`（默认 dry run，`--apply` 才写）。
+
+### 4.14 分组改名清单 ⚠️
+
+改名要同步这些位置，漏一个就是「分组显示但无价」或「老 token 失效」：
+
+```
+channels.group / abilities.group / tokens.group / users.group
+group_health.group / model_health.group / perf_metrics.group
+status_check_probe_states.group / tasks.group
+GroupRatio / group_ratio_setting.group_ratio
+UserUsableGroups / group_ratio_setting.group_group_ratio[<身份>]
+billing_setting.group_model_{ratio,completion_ratio,price,cache_ratio}
+billing_setting.group_pricing_source
+perf_metrics_setting.upstream_health_groups.<source>
+status_check_setting.groups（裸逗号串）
+model_square_group_descriptions / console_setting.group_access_rules / LandingModels.serviceRoutes[].group
+```
+
+`logs.group` **不改** —— 那是历史账单，改了等于篡改过去的分组归属。
+
+脚本：`work/_rename_group.py`（默认 dry run，`--apply` 才写）。
 
 ---
 
