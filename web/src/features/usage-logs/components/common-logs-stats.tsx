@@ -33,6 +33,14 @@ import { useLogsViewScope, useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
+function formatTokenCount(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '0'
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`
+  return String(Math.round(value))
+}
+
 function StatBadge(props: {
   label: string
   value: string | number
@@ -107,8 +115,8 @@ export function CommonLogsStats() {
         accent='bg-destructive/65'
       />
       <StatBadge
-        label={t('TPM')}
-        value={stats?.tpm || 0}
+        label={t('Total Tokens')}
+        value={formatTokenCount(stats?.tpm || 0)}
         accent='bg-neutral/70'
       />
     </div>

@@ -103,6 +103,11 @@ func settleTopUp(tx *gorm.DB, topUp *TopUp, quota int, updates map[string]any) (
 		if err := creditTopUpQuota(tx, topUp.UserId, quota, updates); err != nil {
 			return 0, err
 		}
+		// 充值成功后登记邀请返利（24 小时后由后台任务入账）。
+		// 放在同一事务里，订单与返利要么一起成立、要么一起回滚。
+		if err := maybeCreateInviteCommission(tx, topUp, quota); err != nil {
+			return 0, err
+		}
 		return quota, nil
 	}
 

@@ -52,7 +52,8 @@ export function buildChatCompletionPayload(
     payload.top_p = config.top_p
   }
 
-  if (parameterEnabled.max_tokens) {
+  // 不强制限制输出长度：只有显式开启且填了正数才发送 max_tokens
+  if (parameterEnabled.max_tokens && config.max_tokens > 0) {
     payload.max_tokens = config.max_tokens
   }
 
