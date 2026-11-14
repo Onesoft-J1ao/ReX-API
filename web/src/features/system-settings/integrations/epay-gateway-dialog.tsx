@@ -113,6 +113,10 @@ export function EpayGatewayDialog(props: EpayGatewayDialogProps) {
       gateway
         ? {
             ...gateway,
+            enabled: gateway.enabled ?? true,
+            schedule_enabled: gateway.schedule_enabled ?? false,
+            schedule_start: gateway.schedule_start ?? '',
+            schedule_end: gateway.schedule_end ?? '',
             pay_methods: JSON.stringify(gateway.pay_methods, null, 2),
           }
         : {
