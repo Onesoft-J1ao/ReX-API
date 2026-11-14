@@ -106,12 +106,7 @@ export function AffiliateCommissionTable() {
             <Skeleton className='h-6 w-full' />
           </div>
         )}
-        {!isLoading && rows.length === 0 && (
-          <div className='text-muted-foreground p-4 text-center text-xs'>
-            {t('No referral rebate records yet')}
-          </div>
-        )}
-        {!isLoading && rows.length > 0 && (
+        {!isLoading && (
           <div className='overflow-x-auto'>
             <table className='w-full text-xs'>
               <thead className='text-muted-foreground border-b'>
@@ -137,6 +132,16 @@ export function AffiliateCommissionTable() {
                 </tr>
               </thead>
               <tbody>
+                {rows.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className='text-muted-foreground px-3 py-6 text-center'
+                    >
+                      {t('No referral rebate records yet')}
+                    </td>
+                  </tr>
+                )}
                 {rows.map((row) => (
                   <tr key={row.id} className='border-b last:border-0'>
                     <td className='px-3 py-2 font-mono'>{row.invitee_id}</td>

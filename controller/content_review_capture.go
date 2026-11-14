@@ -3,6 +3,7 @@ package controller
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -52,15 +53,17 @@ func extractRequestText(relayFormat types.RelayFormat, request dto.Request) stri
 // body. Non-stream JSON bodies parse directly; SSE bodies (the frames the
 // gateway streamed to the client) are re-parsed frame by frame.
 func extractResponseText(c *gin.Context) string {
-	raw, ok := c.Get(ContentReviewCapturedBodyKey)
-	if !ok {
+	body, _ := c.Get(ContentReviewCapturedBodyKey)
+	payload, _ := body.([]byte)
+	if len(payload) == 0 {
+		// Relay calls this before ContentReviewCapture's c.Next() returns, so the
+		// context key is not set yet; read the tee'd writer directly.
+		payload = middleware.CapturedResponseBody(c)
+	}
+	if len(payload) == 0 {
 		return ""
 	}
-	body, ok := raw.([]byte)
-	if !ok || len(body) == 0 {
-		return ""
-	}
-	trimmed := strings.TrimSpace(string(body))
+	trimmed := strings.TrimSpace(string(payload))
 	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
 		return service.ExtractResponseTextFromUpstreamBody([]byte(trimmed))
 	}

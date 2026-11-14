@@ -34,6 +34,18 @@ func (w *contentReviewResponseWriter) WriteString(s string) (int, error) {
 	return w.Write([]byte(s))
 }
 
+// CapturedResponseBody returns the bytes teed so far by the capture writer.
+//
+// The relay handler calls the content capture *inside* its own execution, i.e.
+// before this middleware's c.Next() returns and sets the context key. Reading
+// the wrapper directly is therefore the only way the handler can see the reply.
+func CapturedResponseBody(c *gin.Context) []byte {
+	if w, ok := c.Writer.(*contentReviewResponseWriter); ok {
+		return append([]byte(nil), w.body.Bytes()...)
+	}
+	return nil
+}
+
 // ContentReviewMaxResponseBytes bounds one captured reply. Review sampling does
 // not need the whole stream; 256 KiB covers any reply worth reading.
 const ContentReviewMaxResponseBytes = 256 << 10

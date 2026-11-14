@@ -63,8 +63,27 @@ func UpsertLogContent(requestId string, userId int64, modelName, tokenName, requ
 		TokenName:    tokenName,
 		Truncated:    reqTrunc || respTrunc,
 	}
-	err := LOG_DB.Where("request_id = ?", requestId).
-		Assign(row).FirstOrCreate(&row).Error
+	// 先按 request_id 找行；找到就只覆盖本次带来的非空字段，避免写入回复时
+	// 把先前存好的 request_text 清空。
+	var existing LogContent
+	err := LOG_DB.Where("request_id = ?", requestId).First(&existing).Error
+	if err == nil {
+		updates := map[string]any{
+			"user_id":    row.UserId,
+			"model_name": row.ModelName,
+			"token_name": row.TokenName,
+			"truncated":  row.Truncated,
+		}
+		if reqText != "" {
+			updates["request_text"] = reqText
+		}
+		if respText != "" {
+			updates["response_text"] = respText
+		}
+		err = LOG_DB.Model(&LogContent{}).Where("id = ?", existing.Id).Updates(updates).Error
+	} else {
+		err = LOG_DB.Create(&row).Error
+	}
 	if err != nil {
 		common.SysError("log_content: upsert failed: " + err.Error())
 	}
