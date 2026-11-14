@@ -99,14 +99,16 @@ function HealthStrip(props: { series?: StatusBucket[] }) {
       className='flex min-w-0 items-end justify-end gap-1 overflow-hidden'
     >
       {buckets.map((bucket) => {
-        const idle = bucket.requests === 0
+        const idle = bucket.requests === 0 && !bucket.mirrored
         return (
           <span
             key={bucket.ts}
             title={
               idle
                 ? t('No traffic this hour')
-                : `${bucket.ok_pct}% · ${bucket.requests} · ${formatLatency(bucket.latency_ms)}`
+                : bucket.mirrored
+                  ? `${bucket.ok_pct}% · ${t('Upstream mirror')}`
+                  : `${bucket.ok_pct}% · ${bucket.requests} · ${formatLatency(bucket.latency_ms)}`
             }
             className={cn(
               'h-4 w-[3px] shrink-0 rounded-full',

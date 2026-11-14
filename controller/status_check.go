@@ -33,6 +33,11 @@ type statusBucketDTO struct {
 	Requests  int64 `json:"requests"`
 	OkPct     int   `json:"ok_pct"`
 	LatencyMs int64 `json:"latency_ms"`
+	// Mirrored marks a bucket whose rate came from the upstream mirror. The
+	// upstream series carries no request counts, so Requests is 0 even though
+	// the hour was measured; the strip must colour it by OkPct instead of
+	// treating it as idle.
+	Mirrored bool `json:"mirrored,omitempty"`
 }
 
 type modelHealthDTO struct {
@@ -461,6 +466,7 @@ func mirrorHealthRow(row perfmetrics.GroupModelSummary) modelHealthDTO {
 			Ts:        p.Ts,
 			OkPct:     int(p.SuccessRate),
 			LatencyMs: latencyByTs[p.Ts],
+			Mirrored:  true,
 		})
 	}
 	return modelHealthDTO{

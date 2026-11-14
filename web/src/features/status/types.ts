@@ -36,6 +36,8 @@ export interface StatusBucket {
   requests: number
   ok_pct: number
   latency_ms: number
+  /** Upstream mirror bucket: the hour was measured but carries no request count. */
+  mirrored?: boolean
 }
 
 export interface StatusModel {
