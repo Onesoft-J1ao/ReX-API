@@ -645,6 +645,45 @@ go clean -cache && go clean -modcache
 
 不要删 `%USERPROFILE%\.cache\codex-runtimes`：正在跑的 CLI 运行时就在里面。
 
+### 4.22 NapCat 掉登录：风控 + 巡检告警
+
+**先分清两种「掉登录」**：
+
+| 现象 | 证据 | 处理 |
+|---|---|---|
+| QQ 侧风控踢下线 | 日志出现 `serverErrorCode:168`「账号近期存在安全风险…」 | 手机 QQ 登录该号完成安全验证；别多设备同时登 |
+| 进程被资源干掉 | `docker inspect` 里 `restarts>0`，或 dmesg 有 cgroup OOM | 提高容器内存上限，见下 |
+
+实测这台机器 2026-11 的掉线是**第一种**；服务器本身没问题（磁盘 65%、无近期 OOM、
+容器 `restarts=0`）。NapCat 原来限制 768 MB，已调到：
+
+```bash
+docker update --memory 1280m --memory-swap 1536m napcat-kurisu
+```
+
+**巡检 + 邮件告警**（脚本 `/root/napcat_health.py`，cron 每 5 分钟）：
+
+```bash
+*/5 * * * * /opt/maibot-kurisu/app/.venv/bin/python /root/napcat_health.py >/dev/null 2>&1
+```
+
+- 通过 OneBot WS `get_status` 判断在线；
+- 只在**状态变化**时写 `/var/log/napcat-health.log`，并给 `1987800833@qq.com` 发信；
+- 首次运行只记录状态、不发信，避免部署时误报；
+- SMTP 复用站点配置（`smtp.resend.com:587` STARTTLS，发件人
+  `noreply@auth0.j1ao.vip`），凭据写在 `/root/napcat_health.conf`（600）。
+
+排查顺序：
+
+```bash
+tail -20 /var/log/napcat-health.log
+docker logs --since 30m napcat-kurisu | grep -iE 'Login Error|二维码|下线'
+docker inspect napcat-kurisu --format '{{.State.Status}} restarts={{.RestartCount}}'
+```
+
+注意：**每重启一次 NapCat 都可能触发一次设备验证**，非必要不要重启；
+换 QQ 号或长期被 168 拦，优先在手机端养号/开设备锁。
+
 ---
 
 ## 五、源码陷阱
@@ -884,4 +923,5 @@ docker logs ReX-API 2>&1 | grep "syncing options" | tail -2
 | **套餐额度串组** | 见 4.18：`wallet_only_groups` whitelist |
 | **内容审查没回复** | 见 4.19：捕获时序 + `CapturedResponseBody` |
 | **充值手续费不对** | 见 4.20：`fee_rate` 是百分数且只认网关配置 |
+| **NapCat 掉登录** | 见 4.22：`serverErrorCode:168` 是风控；巡检日志 + 邮件告警 |
 | **群内发码没反应** | 见 4.16：ON_MESSAGE 是死代码 / 自消息不回传 / 手打 @ 无 at 段 |
