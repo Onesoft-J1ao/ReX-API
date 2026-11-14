@@ -479,7 +479,7 @@ export function RechargeFormCard({
                             )
                           )}
                           <span className='flex min-w-0 flex-col items-start gap-0.5'>
-                            <span className='max-w-full truncate'>
+                            <span className='max-w-full text-left leading-tight break-words whitespace-normal'>
                               {method.name}
                             </span>
                             {disabledLabel && (

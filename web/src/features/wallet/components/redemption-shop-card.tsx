@@ -47,6 +47,11 @@ export function RedemptionShopCard() {
             variant='success'
             copyable={false}
           />
+          <StatusBadge
+            label={t('No service fee')}
+            variant='info'
+            copyable={false}
+          />
           <span className='text-muted-foreground text-xs'>
             {t('Opens in a new tab')}
           </span>

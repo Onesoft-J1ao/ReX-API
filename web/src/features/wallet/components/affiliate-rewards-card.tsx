@@ -74,26 +74,29 @@ export function AffiliateRewardsCard({
               {t('Referral Program')}
             </h3>
             <p className='text-muted-foreground line-clamp-1 text-xs'>
-              {t(
-                'Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.'
-              )}
+              {t('Share your invite link and earn referral rewards.')}
             </p>
           </div>
         </div>
 
         <div className='grid grid-cols-3 gap-1.5 text-center'>
           {[
-            [t('Pending'), formatQuota(user?.aff_quota ?? 0)],
-            [t('Total Earned'), formatQuota(user?.aff_history_quota ?? 0)],
-            [t('Invites'), String(user?.aff_count ?? 0)],
+            [t('Pending Registration Reward'), formatQuota(user?.aff_quota ?? 0)],
+            [
+              t('Total Registration Reward'),
+              formatQuota(user?.aff_history_quota ?? 0),
+            ],
+            [`${t('Invites')}: ${user?.aff_count ?? 0}`, ''],
           ].map(([label, value]) => (
             <div key={label}>
               <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
                 {label}
               </div>
-              <div className='mt-0.5 truncate text-sm font-semibold tabular-nums'>
-                {value}
-              </div>
+              {value ? (
+                <div className='mt-0.5 truncate text-sm font-semibold tabular-nums'>
+                  {value}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

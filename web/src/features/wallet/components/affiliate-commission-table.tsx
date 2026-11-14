@@ -77,7 +77,6 @@ export function AffiliateCommissionTable() {
   return (
     <Card data-card-hover='false' className='py-0'>
       <CardHeader className='gap-2 border-b p-3 sm:p-4'>
-        <div className='text-sm font-semibold'>{t('Referral Rewards')}</div>
         <p className='text-muted-foreground text-xs leading-relaxed'>
           {t(
             'Invitees earn a 7.5% rebate for each of their first 10 fiat top-ups above 15 CNY. The rebate is credited to your balance 24 hours later. Rewards are for platform usage only and cannot be withdrawn. Gifted quota, redemption codes, subscriptions, crypto payments and manual top-ups do not count.'
@@ -160,6 +159,11 @@ export function AffiliateCommissionTable() {
             </table>
           </div>
         )}
+        <div className='text-muted-foreground border-t px-3 py-2 text-xs'>
+          {t('Total')}: {formatQuota(
+            (data?.pending ?? 0) + (data?.credited ?? 0) + (data?.cancelled ?? 0)
+          )}
+        </div>
       </CardContent>
     </Card>
   )
