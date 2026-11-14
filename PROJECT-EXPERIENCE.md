@@ -546,11 +546,11 @@ ModelRatio[m]
 
 **只看 `ModelRatio` 会误判**：按次计费（`ModelPrice`）、表达式计费、分组级 pin 都算有价。
 
-脚本：`work/check_unpriced_models.py`
+脚本：`scripts/check_unpriced_models.py`
 
 ```bash
-python work/check_unpriced_models.py          # 人类可读
-python work/check_unpriced_models.py --json   # 机器可读
+python scripts/check_unpriced_models.py          # 人类可读
+python scripts/check_unpriced_models.py --json   # 机器可读
 # 退出码 0=全部有价 1=有未定价 2=查询失败
 ```
 
@@ -880,7 +880,7 @@ docker logs ReX-API 2>&1 | grep "syncing options" | tail -2
 | **新增上游渠道** | 见 4.13：channels+abilities+两张倍率表+UserUsableGroups+探测列表+镜像映射 |
 | **分组改名** | 见 4.14：9 张表 + 6 组配置，`logs.group` 不动 |
 | **MaiBot 换模型** | 见 4.15：key 有分组限制，先单模型试通再改 `model_config.toml` |
-| **卡片价格显示 `-`（未定价）** | `work/check_unpriced_models.py`，见 4.17 |
+| **卡片价格显示 `-`（未定价）** | `scripts/check_unpriced_models.py`，见 4.17 |
 | **套餐额度串组** | 见 4.18：`wallet_only_groups` whitelist |
 | **内容审查没回复** | 见 4.19：捕获时序 + `CapturedResponseBody` |
 | **充值手续费不对** | 见 4.20：`fee_rate` 是百分数且只认网关配置 |
