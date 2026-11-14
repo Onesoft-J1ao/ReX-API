@@ -31,7 +31,7 @@ func GetTopUpInfo(c *gin.Context) {
 
 	// 获取支付方式
 	payMethods := make([]map[string]string, 0, len(operation_setting.PayMethods)+4)
-	for _, gateway := range operation_setting.GetEpayGateways() {
+	for _, gateway := range operation_setting.GetAvailableEpayGateways() {
 		for _, method := range gateway.PayMethods {
 			if method["type"] == model.PaymentMethodWaffoPancake {
 				continue
@@ -498,6 +498,14 @@ func RequestEpay(c *gin.Context) {
 	gateway := epayGatewayForMethod(req.PaymentMethod, req.EpayGatewayID)
 	if gateway == nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付方式不存在"})
+		return
+	}
+	if !operation_setting.IsEpayGatewayAvailable(gateway) {
+		message := "该支付方式当前未开放"
+		if label := gateway.ScheduleLabel(); label != "" {
+			message = fmt.Sprintf("该支付方式仅在 %s 开放", label)
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": message})
 		return
 	}
 	client := getEpayClientForGateway(gateway.ID)

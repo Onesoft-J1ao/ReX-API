@@ -73,6 +73,21 @@ export function EpayGatewayDialog(props: EpayGatewayDialogProps) {
     key: z.string().trim().min(1, t('Secret key is required')),
     enabled: z.boolean(),
     pay_methods: z.string(),
+    schedule_enabled: z.boolean(),
+    schedule_start: z
+      .string()
+      .trim()
+      .refine(
+        (value) => value === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(value),
+        t('Use HH:MM (24-hour clock)')
+      ),
+    schedule_end: z
+      .string()
+      .trim()
+      .refine(
+        (value) => value === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(value),
+        t('Use HH:MM (24-hour clock)')
+      ),
   })
   type FormValues = z.infer<typeof schema>
 
@@ -86,6 +101,9 @@ export function EpayGatewayDialog(props: EpayGatewayDialogProps) {
       key: '',
       enabled: true,
       pay_methods: '[]',
+      schedule_enabled: false,
+      schedule_start: '',
+      schedule_end: '',
     },
   })
 
@@ -105,6 +123,9 @@ export function EpayGatewayDialog(props: EpayGatewayDialogProps) {
             key: '',
             enabled: true,
             pay_methods: '[]',
+            schedule_enabled: false,
+            schedule_start: '',
+            schedule_end: '',
           }
     )
   }, [form, props.editData, props.open])
@@ -121,6 +142,14 @@ export function EpayGatewayDialog(props: EpayGatewayDialogProps) {
       key: values.key.trim(),
       enabled: values.enabled,
       pay_methods: payMethods,
+      schedule_enabled: values.schedule_enabled,
+      schedule_start: values.schedule_enabled
+        ? values.schedule_start || '00:00'
+        : '',
+      schedule_end: values.schedule_enabled
+        ? values.schedule_end || '23:59'
+        : '',
+      schedule_timezone: props.editData?.schedule_timezone || 'Asia/Shanghai',
     })
     props.onOpenChange(false)
   }
@@ -267,6 +296,74 @@ export function EpayGatewayDialog(props: EpayGatewayDialogProps) {
                 </FormItem>
               )}
             />
+          </div>
+
+          <div className='space-y-3 rounded-lg border p-3'>
+            <FormField
+              control={form.control}
+              name='schedule_enabled'
+              render={({ field }) => (
+                <FormItem className='flex items-center justify-between gap-4'>
+                  <div className='space-y-1'>
+                    <FormLabel>{t('Business hours only')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Outside the window this gateway is hidden from users and cannot create orders. Callbacks still settle.'
+                      )}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked)
+                        if (checked) {
+                          if (!form.getValues('schedule_start')) {
+                            form.setValue('schedule_start', '08:00')
+                          }
+                          if (!form.getValues('schedule_end')) {
+                            form.setValue('schedule_end', '21:00')
+                          }
+                        }
+                      }}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            {form.watch('schedule_enabled') ? (
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='schedule_start'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Window start')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='08:00' {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='schedule_end'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Window end')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='21:00' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('24-hour HH:MM, evaluated in Asia/Shanghai.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            ) : null}
           </div>
 
           <FormField

@@ -64,7 +64,7 @@ func redemptionPurchasePaymentMethods() []string {
 		methods = append(methods, method)
 	}
 	if isEpayTopUpEnabled() {
-		for _, gateway := range operation_setting.GetEpayGateways() {
+		for _, gateway := range operation_setting.GetAvailableEpayGateways() {
 			for _, method := range gateway.PayMethods {
 				add(method["type"])
 			}

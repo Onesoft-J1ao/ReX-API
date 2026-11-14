@@ -28,6 +28,10 @@ export type EpayGatewayData = {
   key: string
   enabled: boolean
   pay_methods: PaymentMethodData[]
+  schedule_enabled?: boolean
+  schedule_start?: string
+  schedule_end?: string
+  schedule_timezone?: string
 }
 
 function isPaymentMethod(value: unknown): value is PaymentMethodData {
