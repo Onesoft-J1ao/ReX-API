@@ -489,6 +489,61 @@ func TransferAffQuota(c *gin.Context) {
 	common.ApiSuccessI18n(c, i18n.MsgUserTransferSuccess, nil)
 }
 
+// affCommissionDTO 是返利明细里给用户看的一行。
+type affCommissionDTO struct {
+	Id          int     `json:"id"`
+	InviteeId   int     `json:"invitee_id"`
+	Money       float64 `json:"money"`
+	Quota       int     `json:"quota"`
+	Status      string  `json:"status"`
+	AvailableAt int64   `json:"available_at"`
+	CreditedAt  int64   `json:"credited_at"`
+}
+
+// GetAffCommissions 返回当前用户作为邀请人的返利明细与汇总。
+func GetAffCommissions(c *gin.Context) {
+	inviterId := c.GetInt("id")
+	var rows []model.InviteCommission
+	if err := model.DB.Where("inviter_id = ?", inviterId).
+		Order("id DESC").Limit(200).Find(&rows).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pending, credited, cancelled := 0, 0, 0
+	items := make([]affCommissionDTO, 0, len(rows))
+	for _, row := range rows {
+		switch row.Status {
+		case model.InviteCommissionStatusPending:
+			pending += row.Quota
+		case model.InviteCommissionStatusCredited:
+			credited += row.Quota
+		default:
+			cancelled += row.Quota
+		}
+		items = append(items, affCommissionDTO{
+			Id:          row.Id,
+			InviteeId:   row.InviteeId,
+			Money:       row.Money,
+			Quota:       row.Quota,
+			Status:      row.Status,
+			AvailableAt: row.AvailableAt,
+			CreditedAt:  row.CreditedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"pending":   pending,
+			"credited":  credited,
+			"cancelled": cancelled,
+			"items":     items,
+		},
+	})
+}
+
 func GetAffCode(c *gin.Context) {
 	id := c.GetInt("id")
 	affCode, err := model.EnsureUserAffCode(id)

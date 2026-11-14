@@ -33,6 +33,7 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
+import { AffiliateCommissionTable } from './components/affiliate-commission-table'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { MoneroPaymentDialog } from './components/dialogs/monero-payment-dialog'
@@ -578,6 +579,8 @@ export function Wallet(props: WalletProps) {
               }
               loading={affiliateLoading}
             />
+
+            <AffiliateCommissionTable />
 
             <SelfRefundRequestsCard />
           </div>
