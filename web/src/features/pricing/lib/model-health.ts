@@ -40,6 +40,12 @@ export type ModelPerfReading = {
   success_rate?: number
   /** The per-hour samples the strip draws. */
   recent_success_series?: { ts: number; success_rate: number }[]
+  /**
+   * Throughput. Only the perf summary carries it; the status-check rows this
+   * index also holds have no TPS at all. The resolver fills it in from the
+   * model-wide rollup so a health reading does not blank the card's throughput.
+   */
+  avg_tps?: number
 }
 
 /**
@@ -162,6 +168,19 @@ function aggregateGroupReadings<T extends ModelPerfReading>(
  * model measured at 100% into 0% because an unrelated group was listed first.
  * A probe reading is used only when there is no model-wide figure at all.
  */
+function withWideTps<T extends ModelPerfReading>(
+  index: ModelPerfIndex<T>,
+  modelName: string,
+  reading: T
+): T {
+  if (reading.avg_tps != null && reading.avg_tps > 0) return reading
+  const wide = index.modelWide.get(modelName)
+  if (wide?.avg_tps != null && wide.avg_tps > 0) {
+    return { ...reading, avg_tps: wide.avg_tps }
+  }
+  return reading
+}
+
 export function resolveModelPerf<T extends ModelPerfReading>(
   index: ModelPerfIndex<T>,
   modelName: string,
@@ -171,7 +190,7 @@ export function resolveModelPerf<T extends ModelPerfReading>(
   if (selectedGroup && selectedGroup !== FILTER_ALL) {
     const key = `${selectedGroup}|${modelName}`
     const own = index.probeByGroup.get(key) ?? index.rollupByGroup.get(key)
-    if (own) return own
+    if (own) return withWideTps(index, modelName, own)
     const wide = index.modelWide.get(modelName)
     if (!wide) return undefined
     // Borrowed from the model-wide rollup: it says nothing about this group.
@@ -184,9 +203,9 @@ export function resolveModelPerf<T extends ModelPerfReading>(
   // unconditionally, so every model whose upstream runs at ~60% painted the
   // whole page red while each of our groups read 98-100%.
   const aggregated = aggregateGroupReadings(index, modelName)
-  if (aggregated) return aggregated
+  if (aggregated) return withWideTps(index, modelName, aggregated)
   const own = firstOwnReading(index, modelName)
-  if (own) return own
+  if (own) return withWideTps(index, modelName, own)
   if (wide) return wide
   return undefined
 }
