@@ -532,6 +532,119 @@ MaiBot 不是容器，是 `maibot-kurisu.service`，配置在 `/opt/maibot-kuris
 验收标准：群里出现「已处理：兑换码将通过本群临时会话发送给 X（QQ号）」，
 被 @ 的人收到临时会话，`redemptions` 表新增一行且 `quota = 金额 × 500000`。
 
+### 4.17 未定价模型体检（含脚本）
+
+卡片显示 `-` 的判定口径（缺一即未定价）：
+
+```
+ModelRatio[m]
+或 ModelPrice[m]
+或 billing_mode[m] == "tiered_expr" 且 billing_expr[m] 存在
+或 group_model_ratio[g][m] / group_model_price[g][m]
+或 group_pricing_source[g][m] 明确 pin 了 ratio / price / tiered_expr
+```
+
+**只看 `ModelRatio` 会误判**：按次计费（`ModelPrice`）、表达式计费、分组级 pin 都算有价。
+
+脚本：`work/check_unpriced_models.py`
+
+```bash
+python work/check_unpriced_models.py          # 人类可读
+python work/check_unpriced_models.py --json   # 机器可读
+# 退出码 0=全部有价 1=有未定价 2=查询失败
+```
+
+首次跑出 14 个，处理方式分三类：
+
+| 情况 | 做法 | 例子 |
+|---|---|---|
+| 上游按 token 计费 | 照抄上游 `model_ratio`，并补 `CompletionRatio` / `CacheRatio` | `gemini-4-hydrogen` → ratio 0.75 / completion 5 / cache 0.05 |
+| 上游按次计费 | 写 `ModelPrice` | `nvidia/nemotron-3.5-bolt-e4b` → 0.0001 |
+| 免费分组 / 无价上游 | 写 `ModelRatio = 0` | `nvidia/nemotron-3.5-embed-1b`、`naiwa/gemini-4-argon` |
+
+### 4.18 邀请返利与套餐分组限制
+
+**返利表** `invite_commissions`（`model/invite_commission.go`）：
+
+- 规则：被邀请人前 10 笔、单笔实付 > 15 元、法币充值 → 邀请人 7.5%；
+- 下单时在同一事务里登记（`top_up_id` 唯一，回调重放不重复）；
+- `available_at = now + 86400`，`InviteCommissionLoop()` 每 5 分钟扫到期记录，
+  先 `UPDATE ... WHERE status='pending'` 抢占再入账，多实例也只给一次；
+- 排除：`IsRedemptionPurchase()`、`monero` / `nowpayments` / 余额抵扣；
+- 前端接口 `GET /api/user/aff/commissions`，钱包页「推荐计划」下方表格。
+
+**套餐只能用于某个分组**：用 `subscription_plans` 的三个字段，不需要改代码：
+
+```
+wallet_only_groups_enabled = 1
+wallet_only_groups_mode    = 'whitelist'
+wallet_only_groups         = 'ds套餐'
+```
+
+判定函数 `SubscriptionPlan.IsWalletOnlyForGroup`：白名单模式下**只有列出的分组**
+能消耗套餐额度，其它分组一律走钱包。黑名单模式相反。
+
+### 4.19 内容审查抓不到 AI 回复（时序坑）
+
+`ContentReviewCapture` 中间件把响应体 tee 到包装 writer，但
+`c.Set("content_review_captured_body", ...)` 是在 `c.Next()` **返回后**才执行；
+而 `captureReviewContent` 在 Relay 内部调用，此刻 context 里还没有 body，
+于是 `response_text` 永远为空。
+
+修法：中间件导出 `CapturedResponseBody(c)`，直接从包装 writer 读；
+`UpsertLogContent` 同时改成「只覆盖非空字段」，避免写回复时把请求文本清空。
+
+自检 SQL：
+
+```sql
+SELECT id, model_name, LENGTH(request_text), LENGTH(response_text)
+FROM log_contents ORDER BY id DESC LIMIT 5;
+```
+
+### 4.20 充值页的四个旋钮
+
+| 旋钮 | 存储 | 语义 |
+|---|---|---|
+| `Price` | options | 充值金额倍率（1.0 = 面值；1.035 = 加价 3.5%），也用于人民币显示换算 |
+| `fee_rate` | Epay 网关 `pay_methods[]` | **百分数**，7 表示 +7%；只在 Epay 网关里生效 |
+| `amount_discount` | `payment_setting.*` | `{"10":0.98}` 按充值面额打折；清空 `{}` 即关闭全部折扣 |
+| `min_topup` | 每个支付方式 | 方法级最小金额，前端取 `max(全局, 方法级)` |
+
+两个易踩点：
+
+1. `/api/user/topup/info` **只读 EpayGateways[].pay_methods**，顶层 `PayMethods` 不参与渲染——
+   加「进群充值」这类公告入口必须写进网关。
+2. 支付按钮原来对方法名 `truncate`，长名字会显示不全；已改为换行显示。
+
+### 4.21 本机 C 盘与编译缓存
+
+C 盘常年只剩几百 MB 时，本地 `go build` / `tsgo` 会直接 OOM（报
+`runtime: cannot allocate memory` 或栈溢出），**不要据此判断代码有问题**，以 CI 为准。
+
+可安全清理的缓存清单：
+
+```
+go clean -cache && go clean -modcache
+%USERPROFILE%\.nuget\packages
+%USERPROFILE%\.cargo\registry\cache  +  .cargo\git
+%LOCALAPPDATA%\pip\cache
+%LOCALAPPDATA%\electron-builder\Cache
+%LOCALAPPDATA%\uv
+%LOCALAPPDATA%\Temp
+%USERPROFILE%\.cache\opencode
+```
+
+大块空间（需要管理员/用户决策）：
+
+| 项 | 大小 |
+|---|---:|
+| `C:\pagefile.sys`（挪到 D 盘） | 9.5 GB |
+| `C:\hiberfil.sys`（`powercfg -h off`） | 6.3 GB |
+| `C:\ProgramData\Huorong`（火绒隔离区） | 12.9 GB |
+| `C:\Windows\WinSxS`（DISM StartComponentCleanup） | 9.0 GB |
+
+不要删 `%USERPROFILE%\.cache\codex-runtimes`：正在跑的 CLI 运行时就在里面。
+
 ---
 
 ## 五、源码陷阱
@@ -767,4 +880,8 @@ docker logs ReX-API 2>&1 | grep "syncing options" | tail -2
 | **新增上游渠道** | 见 4.13：channels+abilities+两张倍率表+UserUsableGroups+探测列表+镜像映射 |
 | **分组改名** | 见 4.14：9 张表 + 6 组配置，`logs.group` 不动 |
 | **MaiBot 换模型** | 见 4.15：key 有分组限制，先单模型试通再改 `model_config.toml` |
+| **卡片价格显示 `-`（未定价）** | `work/check_unpriced_models.py`，见 4.17 |
+| **套餐额度串组** | 见 4.18：`wallet_only_groups` whitelist |
+| **内容审查没回复** | 见 4.19：捕获时序 + `CapturedResponseBody` |
+| **充值手续费不对** | 见 4.20：`fee_rate` 是百分数且只认网关配置 |
 | **群内发码没反应** | 见 4.16：ON_MESSAGE 是死代码 / 自消息不回传 / 手打 @ 无 at 段 |
