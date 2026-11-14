@@ -350,12 +350,8 @@ export function RechargeFormCard({
                         preset.discount ||
                         topupInfo?.discount?.[preset.value] ||
                         1.0
-                      const {
-                        displayValue,
-                        actualPrice,
-                        savedAmount,
-                        hasDiscount,
-                      } = calculatePresetPricing(
+                      const { displayValue, hasDiscount } =
+                        calculatePresetPricing(
                         preset.value,
                         priceRatio,
                         discount,
@@ -381,16 +377,6 @@ export function RechargeFormCard({
                               <div className='text-success text-xs font-medium'>
                                 {getDiscountLabel(discount)}
                               </div>
-                            )}
-                          </div>
-                          <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            {t('Pay')} {formatCurrency(actualPrice)}
-                            {hasDiscount && savedAmount > 0 && (
-                              <span className='text-success'>
-                                {' '}
-                                • {t('Save amount')}{' '}
-                                {formatCurrency(savedAmount)}
-                              </span>
                             )}
                           </div>
                         </Button>
