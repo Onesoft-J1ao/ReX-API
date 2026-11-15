@@ -959,3 +959,35 @@ curl -s 'https://<上游>/api/perf-metrics?model=<模型>&hours=24' | python3 -c
 - **回调/对账不受窗口限制**，20:59 下单 21:02 到账照样入账；
 - 时间按 `Asia/Shanghai` 判断（容器是 UTC，代码里做了 +8 兜底）；
 - 后台「Epay 网关」编辑框有开关和起止时间，保存时不会把字段吞掉。
+## 4.25 Playground 包装成 API（2026-11-15）
+
+**背景**：build.nvidia.com 的 playground 现在把 hCaptcha 关在 sandbox iframe 里，顶层 window.hcaptcha 恒为 undefined（注入 api.js 也没用），老的「页面铸 token + 直连 buildapi」方案彻底失效。
+
+**可用方案**：不碰 token，直接驱动页面，读它自己的响应。
+
+1. Camoufox(Firefox) 打开 playground
+2. textarea.fill(prompt) 然后 press Enter
+3. 页面自己铸 token、自己 POST buildapi（Playwright expect_response 捕获）
+4. resp.text() 拿完整 SSE，解析 delta.content / reasoning_content / usage
+5. 对客户端暴露 OpenAI 兼容接口（真流式做不到，按 24 字切片合成）
+
+实现：D:\Code\NewApi\nim-proxy\playground_api.py（约 330 行，独立于老的 nim_proxy.py）
+
+**实测**（本机，1 worker）：
+
+```
+GET  /health              {"status":"ok","workers_ready":1}
+GET  /v1/models           kimi-k3.1-pro
+POST /v1/chat/completions 非流式 25.7s -> content="hello world"，usage 120 tokens
+POST 同上 stream:true     11.6s -> 标准 chat.completion.chunk + [DONE]
+```
+
+**渠道填法**：Base URL http://<host>:9766（不要带 /v1，new-api 自己拼），模型 kimi-k3.1-pro，密钥留空则随便填。
+
+**坑**：
+- textarea.click() 会被「Acknowledge & Continue」弹窗遮罩挡住（nv-modal-overlay 拦截 pointer events），只用 fill()，它走程序化聚焦。
+- 页面内容在 shadow DOM（nv-* 组件）里，document.body.innerText 只拿得到 cookie 横幅，别指望 DOM 抓答案。
+- 每个请求前 page.goto 重置页面，否则上一轮对话串进上下文；代价约 8-10s。
+- --workers N = 并发数 = 同时开 N 个 Camoufox（每个 400-500 MB）。
+
+**启动**：start-playground-api.bat（默认 2 workers，端口 9766）
