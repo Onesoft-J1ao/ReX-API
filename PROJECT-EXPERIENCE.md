@@ -1109,3 +1109,38 @@ WantedBy=multi-user.target
 **迁移后占用**：napcat 260MB / 1.25G 限额、CPU ~7%；老服务器内存可用约 424M（swap 1.5G 空闲）、磁盘剩 3.9G（90%）。香港机 NapCat 容器保持 stopped。
 
 **回滚**：香港 `docker start napcat-kurisu` + `systemctl stop napcat-tunnel`，MaiBot 无需改配置；老服务器容器可 `docker rm -f` 清理。
+
+## 4.31 Kimi K3.1 长回答“截断”：代理整段缓冲（2026-11-15）
+
+现象：Kimi K3.1（`K3.1限时免费` 组，channel 58 → 自建 playground 代理）长回答经常在中途断掉，Claude Code 侧表现为“答到一半没了”。
+
+**实测定位**：直接打代理 `/v1/messages`（`stream=true`）量 TTFB：
+
+```
+ttfb=57.55s total=57.56s lines=171   # 首字节 = 总耗时
+```
+
+说明代理把整段上游 SSE 收完才一次性写给客户端。链路是 Cloudflare → ReX → 代理，长回答（尤其是带 reasoning 的）超过 Cloudflare 100s 空闲阈值就被掐断，客户端看到的就是截断。
+
+根因在 `nim_proxy.py`：`_handle_anthropic` / `_handle_responses` 先 `_collect_sse()` 聚合成完整消息，再调 `ac.sse_events()` 补齐事件；期间客户端一个字节都收不到。
+
+**修法**：
+
+1. 新增 `_stream_anthropic` / `_stream_responses`，边读上游 SSE 边转发：
+   - Anthropic：`content_block_start/delta` 直接透传文本；工具调用走 `input_json_delta`，结束给 `message_delta(stop_reason)` + `message_stop`；
+   - Responses：`response.output_item.added` → `output_text.delta` → `*_done` → `response.completed`。
+2. reasoning 阶段每 5 秒发一次保活（Anthropic 用 `event: ping`，Responses 用 SSE 注释 `: ping`），避免上游长时间只出 `reasoning_content` 时链路被判空闲。
+3. 保留旧的非流式兜底：`max_tokens` 被 reasoning 吃光、content 为空时，把 reasoning 文本作为答案发出（否则客户端收到空消息，同样表现为“截断”）。
+4. 工具调用按 index 聚合，先拿到 name 再发 `content_block_start`，参数分片透传。
+
+**验证**（均为实测）：
+
+| 场景 | 修复前 | 修复后 |
+|---|---|---|
+| `/v1/messages` 800 tokens | ttfb 57.55s（= total） | ttfb 2.52s，174 个事件流式到达 |
+| reasoning 长（74s） | 无字节 | 每 5s 一个 ping，内容随后到达 |
+| tool_use | — | 8.1s 内 `tool_use` + `input_json_delta` + `stop_reason=tool_use` |
+| `/v1/responses` | 整段缓冲 | ttfb 2.43s，16 个 `output_text.delta` |
+| 经 `ai.j1ao.vip`（CF+ReX 全链路） | — | ttfb 2.56s，400 个 delta，正常 `message_stop` |
+
+改动文件仅 `/opt/nim-proxy/nim_proxy.py`（备份 `nim_proxy.py.bak-20261115-1930`），`systemctl restart nim-proxy` 生效。`max_tokens` 仍按 32768 上限，未动模型参数。
