@@ -2,7 +2,7 @@
 
 > 本文档汇总 ReX-API（new-api fork）运维与开发中沉淀的实战经验。
 > 每一节都是踩过坑之后写下的，**不是从文档抄的**。
-> 最后更新：2026-11-13
+> 最后更新：2026-11-15
 
 ---
 
@@ -1057,3 +1057,55 @@ WHERE mh.`group`='NIM' AND mh.error_code=404;
 **测试联动**：改 `placeholder` 会让按文案取输入框的测试（`getByPlaceholderText`）失败。要么同步改测试，要么别动文案——这次选了后者，把提示改到 `title` 上。
 
 **文案**：邀请返利的“法币充值”改成“人民币充值”（本站只有人民币充值）。
+
+## 4.30 NapCat 迁到阿里云老服务器（2026-11-15）
+
+背景：香港机 3.9G 内存要和 ReX-API、MySQL、Uptime-Kuma 等共用，NapCat 长期 300M+ 且 QQ 掉登录频繁；阿里云上海老服务器（2 vCPU / 1.8G RAM / 40G）常年空转，QQ 线路更稳。
+
+**迁移前老服务器占用**：磁盘 95%（剩 2.3G）、内存可用约 500M、load 0.05。清盘只动日志，不碰 MySQL/Redis：
+
+- `/var/log/proxypool.log` 3.6G → 保留尾部 20M（`tail -c 20M` 写临时文件再 `cat > 原文件`，保持进程 fd 有效）
+- `journalctl --vacuum-size=200M`（1.1G → 200M）
+- 合计腾出 4.3G，落到 83%
+
+**数据与镜像迁移**：
+
+- 香港机 `docker stop napcat-kurisu`，**容器和三个数据卷原样保留**做回滚点
+- `tar -C /opt -czf /tmp/napcat-data.tgz maibot-kurisu-napcat`：1.2G → 830M
+- `docker save <image-digest> | gzip -1 > /tmp/napcat-img.tgz`：593M
+- 香港机 → 老服务器 scp 直传，两端 `md5sum` 一致后再解包；`docker load -i` 恢复镜像
+- 老服务器 `tar -C /opt -xzf` 还原目录，容器按原参数重建（同一 digest、同一 env、同一挂载），**唯一改动是端口只绑 127.0.0.1**
+
+**Docker Hub 在阿里云上海不可达**：`registry-1.docker.io` 直接超时；`docker.1ms.run` / `docker.1panel.live` / `docker.xuanyuan.me` / `docker.m.daocloud.io` 对**按 digest 拉取**全部失败（manifest unknown / proxy not work / denied）。结论：这类镜像一律 `docker save` + `scp` + `docker load`，不要指望加速器能拉 digest。
+
+**网络拓扑（OneBot 不暴露公网）**：
+
+- 老服务器 NapCat 只绑 `127.0.0.1:3001`（OneBot ws）和 `127.0.0.1:6099`（WebUI）
+- 香港机 systemd `napcat-tunnel.service` 用 ssh `-L 3001 -L 6099` 转发到老服务器
+- 隧道公钥在 authorized_keys 里限制：`from="<香港机IP>"`、`permitopen="127.0.0.1:3001"`、`permitopen="127.0.0.1:6099"`、`no-pty`
+- `nc.j1ao.vip` 链路不变：Cloudflare → 香港 cloudflared → 香港 `127.0.0.1:6099` → SSH 隧道 → 老服务器 6099
+- MaiBot（`maibot-kurisu.service`）**配置零改动**，继续连 `127.0.0.1:3001`，适配器每 5 秒重试，NapCat 起来自动接上
+
+隧道 unit（香港机 `/etc/systemd/system/napcat-tunnel.service`）：
+
+```ini
+[Unit]
+Description=NapCat tunnel to old server (3001 OneBot + 6099 WebUI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=HOME=/root
+ExecStart=/usr/bin/ssh -F /dev/null -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /root/.ssh/napcat_tunnel -L 127.0.0.1:3001:127.0.0.1:3001 -L 127.0.0.1:6099:127.0.0.1:6099 root@<老服务器IP>
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**换机必然掉登录**：QQ 登录态和出口 IP 绑定，迁移后 quick login 报「登录态已失效」，必须在 WebUI（`https://nc.j1ao.vip`）重扫二维码。扫码成功后 OneBot 起来，MaiBot 自动重连，不需要重启 MaiBot。
+
+**迁移后占用**：napcat 260MB / 1.25G 限额、CPU ~7%；老服务器内存可用约 424M（swap 1.5G 空闲）、磁盘剩 3.9G（90%）。香港机 NapCat 容器保持 stopped。
+
+**回滚**：香港 `docker start napcat-kurisu` + `systemctl stop napcat-tunnel`，MaiBot 无需改配置；老服务器容器可 `docker rm -f` 清理。
