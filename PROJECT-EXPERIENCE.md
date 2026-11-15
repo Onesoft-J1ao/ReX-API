@@ -925,3 +925,37 @@ docker logs ReX-API 2>&1 | grep "syncing options" | tail -2
 | **充值手续费不对** | 见 4.20：`fee_rate` 是百分数且只认网关配置 |
 | **NapCat 掉登录** | 见 4.22：`serverErrorCode:168` 是风控；巡检日志 + 邮件告警 |
 | **群内发码没反应** | 见 4.16：ON_MESSAGE 是死代码 / 自消息不回传 / 手打 @ 无 at 段 |
+## 4.23 上游分组改名会让镜像静默失效（2026-11-15）
+
+**现象**：几个 Codex 分组的小绿条突然全变成自探测数据，卡片数值和上游对不上；`/api/status-check` 里这些分组 `models[].source` 不再是 `mirror:*`。
+
+**根因**：上游把 perf-metrics 里的分组名整体改了（例：`plus_0720` → `chatgpt-plus【特惠】`、`codex-不降智` → `chatgpt-plus【稳定】`、`codex-不降智-高缓` → `chatgpt-pro【稳定】`、`cc-max` → `claude-max【企业】`）。`UpstreamMirrorRow` 先按模型名在 summary 里命中，再要求 detail 里存在同名 group，名字对不上就返回 false，调用方无声退回自探测——不报错、不告警。
+
+**排查三步**（都在生产机跑，只读）：
+
+```bash
+# 1. 上游现在到底有哪些分组名：遍历 summary 的每个模型取 detail，并集
+curl -s 'https://<上游>/api/perf-metrics/summary?hours=24' | python3 -c 'import sys,json;print([m["model_name"] for m in json.load(sys.stdin)["data"]["models"]])'
+curl -s 'https://<上游>/api/perf-metrics?model=<模型>&hours=24' | python3 -c 'import sys,json;print([g["group"] for g in json.load(sys.stdin)["data"]["groups"]])'
+
+# 2. 本站在线的「本地分组 → base_url」对照（abilities join channels，去重）
+#    确认这个分组到底挂在哪家上游，再决定是改映射还是它根本不该镜像
+
+# 3. 本地 /api/status-check 看目标分组的 models[].source 是否 mirror:<source>
+```
+
+**改映射**：`options.perf_metrics_setting.upstream_health_groups`（JSON，source→本地组→上游组）。改库不会热加载，`docker restart ReX-API` 后镜像缓存重建（detail 循环 15 分钟一轮，重启即跑一次）。
+
+**命名对不上的判断依据**：用本站 `group_ratio_setting.group_ratio` 的售价从低到高，和上游分组档次（特惠 < 稳定 < 企业）对齐，别按字面猜——猜错就是两个分组显示同一份数据。
+
+**注意**：`?` 只是 mysql 客户端终端编码问题，库里 JSON 是好的；要核对就 `SELECT HEX(value)` 再本地解码，别被 `?` 误导去"修编码"。
+
+## 4.24 自建网关的营业时间
+
+网关（`EpayGateways[].pay_methods` 所在的那个对象）支持 `schedule_enabled` / `schedule_start` / `schedule_end` / `schedule_timezone`：
+
+- 窗口外 `GetAvailableEpayGateways()` 不返回该网关 → 充值页看不到这个支付方式；
+- `RequestEpay` 二次校验，直接拒绝并回「该支付方式仅在 08:00-21:00 开放」；
+- **回调/对账不受窗口限制**，20:59 下单 21:02 到账照样入账；
+- 时间按 `Asia/Shanghai` 判断（容器是 UTC，代码里做了 +8 兜底）；
+- 后台「Epay 网关」编辑框有开关和起止时间，保存时不会把字段吞掉。
