@@ -1144,3 +1144,30 @@ ttfb=57.55s total=57.56s lines=171   # 首字节 = 总耗时
 | 经 `ai.j1ao.vip`（CF+ReX 全链路） | — | ttfb 2.56s，400 个 delta，正常 `message_stop` |
 
 改动文件仅 `/opt/nim-proxy/nim_proxy.py`（备份 `nim_proxy.py.bak-20261115-1930`），`systemctl restart nim-proxy` 生效。`max_tokens` 仍按 32768 上限，未动模型参数。
+
+## 4.32 Codex 掉缓存 / 只出 1 个 token：上游静默 + 没有 SSE 心跳（2026-11-15）
+
+现象：用户（token `codex`，`Codex不降智` / `Codex不降智高缓`）的请求大量 `completion_tokens=1`、`cache_tokens=0`，日志里 `stream_status: end_reason=client_gone, end_error=context canceled`，每次重试都重新上传 2.7 万～33 万 prompt token。
+
+**定位（实测 sheapi）**：
+
+- 直接打 sheapi `/v1/responses`（`reasoning.effort=high`），事件间隔出现 **29.95s 空档**——推理阶段上游一个字节都不发。
+- Codex Desktop 在 15～25s 无数据后主动断开 → new-api 记录 `client_gone`，计费只记到 1 个 completion token，缓存也来不及写入 → 下一次重试又是全量 prompt。
+- 缓存本身是好的：sheapi `/v1/chat/completions` 同 prompt 第二次 `cached_tokens` 1382→4423→6497；`/v1/responses` 第二次也能 6497。问题只是请求被中途掐断。
+
+**修复**：开启 new-api 自带的 SSE 心跳（默认关闭）：
+
+```sql
+INSERT INTO options (`key`,value) VALUES ('general_setting.ping_interval_enabled','true')
+  ON DUPLICATE KEY UPDATE value='true';
+INSERT INTO options (`key`,value) VALUES ('general_setting.ping_interval_seconds','10')
+  ON DUPLICATE KEY UPDATE value='10';
+```
+
+`SyncOptions` 60s 内热加载，无需重启。`PingData` 写的是 SSE 注释 `: PING\n\n`，标准客户端会忽略，只起保活作用；`api_request.go` 在等上游响应头阶段、`stream_scanner.go` 在流读取阶段都会发。
+
+**验证**：同一 reasoning 请求经 `ai.j1ao.vip` 跑 43.9s，收到 4 个 ping、最大事件间隔 6.43s（修复前是 30s 空档）；近 10 分钟 `client_gone` 为 0，完成的请求 `end_reason=eof, status=ok`。
+
+**试过并否决的方案**：把渠道设成 `{"responses_to_chat_completions": true}`。sheapi 的 chat 端点缓存和流式都更好，但 Codex 请求里带 hosted tools（`custom` / `namespace` / `web_search`），Chat Completions 表达不了，转换诊断直接报 error，返回空内容（`completion=0`）。已把 49/50 的 setting 还原为 `{}`。
+
+**结论**：Codex 走原始 `/v1/responses` 透传 + 全局 10s 心跳；缓存靠请求正常完成来积累。
