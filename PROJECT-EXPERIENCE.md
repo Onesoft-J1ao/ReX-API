@@ -991,3 +991,69 @@ POST 同上 stream:true     11.6s -> 标准 chat.completion.chunk + [DONE]
 - --workers N = 并发数 = 同时开 N 个 Camoufox（每个 400-500 MB）。
 
 **启动**：start-playground-api.bat（默认 2 workers，端口 9766）
+## 4.26 Playground 代理的协议全兼容（2026-11-15）
+
+客户端会按自己那套协议打 `/v1/*`，而 ReX 对 OpenAI 型渠道是**原样转发路径**的（不做 Responses→Chat 转换），所以代理必须自己认全下面这些入口，否则就是 404：
+
+| 入口 | 处理 |
+|---|---|
+| `POST /v1/chat/completions` | 主路径 |
+| `POST /v1/completions` | legacy，`prompt` → messages，回 `text_completion` |
+| `POST /v1/messages` | Anthropic 信封（content 块 / tool_use / tool_result / thinking） |
+| `POST /v1/messages/count_tokens` | 本地估算（字符数/4），不打上游、不计费 |
+| `POST /v1/responses` | Responses API：`instructions`→system、`input`→messages、回 `output_text` |
+| `POST /v1/responses/compact` | 同 `/v1/responses`（Codex 压缩上下文用） |
+
+**三个必踩的坑**：
+
+1. **路由判断必须剥查询串**：`self.path` 带着 `?beta=true`，`path.rstrip("/")` 永远匹配不上 `/v1/messages`。用 `urlsplit(self.path).path`。
+2. **异常分支里的日志不能引用别的函数的局部变量**：`_forward` 里打 `clean_messages`（其实定义在 `do_POST`）→ 上游一报错就 `NameError`，请求线程死掉、socket 关闭，调用方看到的是 `do request failed` / EOF。日志一律包 `try/except`，只用本函数能拿到的变量。
+3. **reasoning 兜底不能污染工具轮**：content 为空、有 `tool_calls` 时若把 reasoning 填进 content，客户端会把这一轮当成“最终回答”，只跑一轮就停。条件必须是 `not tool_calls and finish_reason != "tool_calls"`。
+
+**NVCF 的校验口味**（错了就是 422/400）：
+
+- 422：`stream_options.continuous_usage_stats`、`seed`、`max_tokens` 超模型上限、content 是数组
+- 400：`role: tool/function`、空 content 消息、`reasoning_effort` 非 low/medium/high
+- 兜底：422 用最小 payload 重试；400 把历史裁到最后 6 轮、每轮 8000 字重试
+- `reasoning_effort` 默认值从 `max` 降到 `medium`，单轮从 20–60s 降到 7–11s（客户端超时多半是这个）
+
+## 4.27 渠道协议覆盖审计（同一天实测）
+
+| 渠道类型 | chat | messages | responses |
+|---|---|---|---|
+| type=1 OpenAI（furry / sheapi / mcapple / mjiutang） | ✅ | ✅（ReX 转 chat） | ✅（上游是 new-api） |
+| type=58 NIM | ✅ | ❌ `404 model not found` | ✅ |
+| 自建 playground 代理 | ✅ | ✅ | ✅ |
+
+**结论**：type=1 三条全通；NIM（type 58）的 adaptor 没做 Claude→chat 转换，Claude 客户端落到 NIM 组会 404。要么路由避开，要么在 nim adaptor 里补转换。
+
+另外 `relay-router.go` 里 `/v1/messages/count_tokens` 原来是被注释掉的（TODO），Claude Code 每轮前会调它，缺了就是 `404 Invalid URL`——已放开，复用现成的 `controller.CountClaudeTokens`。
+
+## 4.28 NIM 死模型清理（channel 12，50/78）
+
+`model_health` 里取每个模型**最新一次探测**，`error_code=404` 且 `error_msg` 含 `Function ... Not found` 的就是上游已下架的模型：
+
+```sql
+SELECT model_name FROM model_health mh
+JOIN (SELECT model_name, MAX(probe_ts) ts FROM model_health WHERE `group`='NIM' GROUP BY model_name) l
+  ON l.model_name=mh.model_name AND l.ts=mh.probe_ts
+WHERE mh.`group`='NIM' AND mh.error_code=404;
+```
+
+处理：只改 `channels.id=12` 的 `models` 列 + `DELETE FROM abilities WHERE channel_id=12 AND model IN (...)`，**不要动同组的另一个渠道**（NIM 组还有 furry 的 channel 14，它供的模型是活的）。改完重启 ReX 刷 abilities 缓存。
+
+结果：78 → 28，脚本 `work/_dead_models.py`（dry-run 默认，`--apply` 才写库），备份在 `/root/billing-backup/deadmodel-*.sql.gz`。
+
+## 4.29 使用日志页的五个问题（同一天）
+
+| 现象 | 根因 | 修法 |
+|---|---|---|
+| “总 Token”不是所选时间段 | 徽标用的是 `tpm`，后端只统计**最近 60 秒** | `Stat` 增加 `tokens`（按筛选条件 SUM prompt+completion），前端改用它 |
+| 排除用户只支持逗号 | `strings.Split(raw, ",")` | 逗号换空格后 `strings.Fields`，逗号/空格/混合都行 |
+| 排除用户不影响总数 | 统计接口没解析 `exclude_user_id` | 解析后加 `user_id NOT IN (...)`，列表和统计一致 |
+| 按模型筛选必须输全名 | 后端对 `model_name` 是精确匹配（除非值里带 `%`） | 前端 `buildApiParams` 统一包 `%...%`，列表/统计/导出一起生效 |
+| 悬浮层和背景糊在一起 | `popover`/`combobox` 只有 `ring-foreground/10`；liquid 主题的浮层选择器漏了 `combobox-content`/`context-menu`/`menubar`/`hover-card` | 组件加 `border + shadow-lg`，CSS 补全浮层 slot 列表 |
+
+**测试联动**：改 `placeholder` 会让按文案取输入框的测试（`getByPlaceholderText`）失败。要么同步改测试，要么别动文案——这次选了后者，把提示改到 `title` 上。
+
+**文案**：邀请返利的“法币充值”改成“人民币充值”（本站只有人民币充值）。
