@@ -179,12 +179,23 @@ export function buildApiParams(config: {
     return undefined
   }
 
+  // The backend matches model_name exactly unless the value carries a LIKE
+  // wildcard, so a partial name ("kimi") returned nothing. Wrap the typed text
+  // once here and every list/stat/export call gets substring behaviour.
+  const likeModel = (value: unknown): string | undefined => {
+    const text = String(value ?? '').trim()
+    if (!text) return undefined
+    return text.includes('%') ? text : `%${text}%`
+  }
+
   // Build base params from search params
   const params: GetLogsParams = {
     p: page,
     page_size: pageSize,
     ...(searchParams.type ? { type: processType(searchParams.type) } : {}),
-    ...(searchParams.model ? { model_name: String(searchParams.model) } : {}),
+    ...(likeModel(searchParams.model)
+      ? { model_name: likeModel(searchParams.model) }
+      : {}),
     ...(searchParams.token ? { token_name: String(searchParams.token) } : {}),
     ...(searchParams.group ? { group: String(searchParams.group) } : {}),
     ...(isAdmin && searchParams.channel
@@ -220,7 +231,7 @@ export function buildApiParams(config: {
           params.type = processType(value)
           break
         case 'model_name':
-          params.model_name = String(value)
+          params.model_name = likeModel(value)
           break
         case 'token_name':
           params.token_name = String(value)

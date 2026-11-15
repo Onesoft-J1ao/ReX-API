@@ -283,6 +283,8 @@ export interface LogStatistics {
   quota: number
   rpm: number
   tpm: number
+  /** Token total for the selected time range (tpm is only the last minute). */
+  tokens?: number
 }
 
 // ============================================================================

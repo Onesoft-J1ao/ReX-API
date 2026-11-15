@@ -530,8 +530,9 @@ export function CommonLogsFilterBar<TData>(
       </LogsFilterField>
       <LogsFilterField>
         <LogsFilterInput
-          placeholder={t('Exclude User IDs')}
-          className={cn(sensitiveInputClass, 'w-40')}
+          placeholder={t('Exclude User IDs (space separated)')}
+          title={t('Separate multiple IDs with spaces or commas')}
+          className={cn(sensitiveInputClass, 'w-44')}
           value={filters.excludeUserId || ''}
           onChange={(e) => handleChange('excludeUserId', e.target.value)}
           onKeyDown={handleKeyDown}

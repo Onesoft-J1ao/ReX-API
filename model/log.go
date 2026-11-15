@@ -747,6 +747,10 @@ type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
 	Tpm   int `json:"tpm"`
+	// Tokens is the token total for the selected range, not the last minute.
+	// The UI used Tpm for its "Total Tokens" badge, which is why the number
+	// never matched the time filter.
+	Tokens int64 `json:"tokens"`
 }
 
 // fillLogModelIcons populates the transient model/provider icon fields on each
@@ -990,8 +994,8 @@ func GetUserTokenIpStats(userID int, tokenIDs []int, maxIpsPerToken int) (map[in
 	return result, nil
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, excludeUserIds []int) (stat Stat, err error) {
+	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tokens")
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
@@ -1025,6 +1029,10 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if group != "" {
 		tx = tx.Where(logGroupCol+" = ?", group)
 		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
+	}
+	if len(excludeUserIds) > 0 {
+		tx = tx.Where("user_id NOT IN ?", excludeUserIds)
+		rpmTpmQuery = rpmTpmQuery.Where("user_id NOT IN ?", excludeUserIds)
 	}
 
 	tx = tx.Where("type = ?", LogTypeConsume)

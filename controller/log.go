@@ -168,7 +168,8 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	excludeUserIds := parseExcludedUserIds(c.Query("exclude_user_id"))
+	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, excludeUserIds)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -178,9 +179,10 @@ func GetLogsStat(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"quota": stat.Quota,
-			"rpm":   stat.Rpm,
-			"tpm":   stat.Tpm,
+			"quota":  stat.Quota,
+			"rpm":    stat.Rpm,
+			"tpm":    stat.Tpm,
+			"tokens": stat.Tokens,
 		},
 	})
 	return
@@ -195,7 +197,7 @@ func GetLogsSelfStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, nil)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -205,9 +207,10 @@ func GetLogsSelfStat(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"quota": quotaNum.Quota,
-			"rpm":   quotaNum.Rpm,
-			"tpm":   quotaNum.Tpm,
+			"quota":  quotaNum.Quota,
+			"rpm":    quotaNum.Rpm,
+			"tpm":    quotaNum.Tpm,
+			"tokens": quotaNum.Tokens,
 			//"token": tokenNum,
 		},
 	})
@@ -223,8 +226,10 @@ func parseExcludedUserIds(raw string) []int {
 		return nil
 	}
 	ids := make([]int, 0, 4)
-	for _, part := range strings.Split(raw, ",") {
-		part = strings.TrimSpace(part)
+	// Accept commas, spaces, and mixed separators: operators paste ids from
+	// spreadsheets ("7,12") and type them by hand ("7 12").
+	raw = strings.ReplaceAll(raw, ",", " ")
+	for _, part := range strings.Fields(raw) {
 		if part == "" {
 			continue
 		}

@@ -2464,6 +2464,8 @@
     "Exchange rate is required": "Exchange rate is required",
     "Exchange rate must be greater than 0": "Exchange rate must be greater than 0",
     "Exclude User IDs": "Exclude User IDs",
+  "Exclude User IDs (space separated)": "Exclude User IDs (space separated)",
+  "Separate multiple IDs with spaces or commas": "Separate multiple IDs with spaces or commas",
     "Exclude me from user leaderboards": "Exclude me from user leaderboards",
     "Exclude upstream HTTP 400 errors": "Exclude upstream HTTP 400 errors",
     "Excludes the first attempt. Counted per group.": "Excludes the first attempt. Counted per group.",

@@ -116,7 +116,7 @@ export function CommonLogsStats() {
       />
       <StatBadge
         label={t('Total Tokens')}
-        value={formatTokenCount(stats?.tpm || 0)}
+        value={formatTokenCount(stats?.tokens || 0)}
         accent='bg-neutral/70'
       />
     </div>

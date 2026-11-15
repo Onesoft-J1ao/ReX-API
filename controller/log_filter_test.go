@@ -20,6 +20,8 @@ func TestParseExcludedUserIds(t *testing.T) {
 		{name: "single id", raw: "7", want: []int{7}},
 		{name: "comma separated", raw: "7,12,30", want: []int{7, 12, 30}},
 		{name: "spaces around entries", raw: " 7 , 12 ", want: []int{7, 12}},
+		{name: "space separated", raw: "7 12 30", want: []int{7, 12, 30}},
+		{name: "mixed separators", raw: "7,12 30", want: []int{7, 12, 30}},
 		{name: "blank entries are skipped", raw: "7,,12,", want: []int{7, 12}},
 		{name: "non-numeric entries are skipped", raw: "7,abc,12", want: []int{7, 12}},
 		{name: "zero and negatives are skipped", raw: "0,-3,7", want: []int{7}},
