@@ -171,17 +171,48 @@ func UpstreamCoversModelInGroup(modelName string, groups []string) bool {
 	return false
 }
 
+// upstreamNameMatches reports whether a local model name refers to the same
+// model as an upstream entry. Upstreams that host vendor namespaces list the
+// model as "vendor/name" while we sell it as the bare "name"; comparing the
+// strings directly made every such model look unmapped and left its card with
+// zero health even though the upstream had data for it.
+func upstreamNameMatches(local, upstream string) bool {
+	if local == upstream {
+		return true
+	}
+	if slash := strings.LastIndex(upstream, "/"); slash >= 0 && slash+1 < len(upstream) {
+		return upstream[slash+1:] == local
+	}
+	return false
+}
+
+// findUpstreamModel returns the upstream entry for a local model name.
+func findUpstreamModel(models []ModelSummary, local string) (ModelSummary, bool) {
+	if model, ok := func() (ModelSummary, bool) {
+		for _, candidate := range models {
+			if candidate.ModelName == local {
+				return candidate, true
+			}
+		}
+		return ModelSummary{}, false
+	}(); ok {
+		return model, true
+	}
+	for _, candidate := range models {
+		if upstreamNameMatches(local, candidate.ModelName) {
+			return candidate, true
+		}
+	}
+	return ModelSummary{}, false
+}
+
 func upstreamSourceHasModel(source, modelName string) bool {
 	mirrored, ok := fetchUpstreamSummaryFor(source, 24)
 	if !ok {
 		return false
 	}
-	for _, model := range mirrored.Models {
-		if model.ModelName == modelName {
-			return true
-		}
-	}
-	return false
+	_, ok = findUpstreamModel(mirrored.Models, modelName)
+	return ok
 }
 
 // UpstreamMirrorRow returns the mirrored per-group numbers for one model.
@@ -202,19 +233,13 @@ func UpstreamMirrorRow(source, localGroup, modelName string, hours int) (GroupMo
 	if !ok {
 		return GroupModelSummary{}, false
 	}
-	var mirror ModelSummary
-	found := false
-	for _, item := range summary.Models {
-		if item.ModelName == modelName {
-			mirror = item
-			found = true
-			break
-		}
-	}
+	mirror, found := findUpstreamModel(summary.Models, modelName)
 	if !found {
 		return GroupModelSummary{}, false
 	}
-	detail, ok := fetchUpstreamDetailFor(source, modelName, hours)
+	// The detail endpoint is keyed by the upstream's own name, which may carry
+	// a vendor prefix the local name does not.
+	detail, ok := fetchUpstreamDetailFor(source, mirror.ModelName, hours)
 	if !ok {
 		return GroupModelSummary{}, false
 	}
@@ -280,12 +305,7 @@ func upstreamModelSummary(modelName string, hours int) (ModelSummary, bool) {
 	if !ok {
 		return ModelSummary{}, false
 	}
-	for _, model := range mirrored.Models {
-		if model.ModelName == modelName {
-			return model, true
-		}
-	}
-	return ModelSummary{}, false
+	return findUpstreamModel(mirrored.Models, modelName)
 }
 
 func upstreamConfigured() bool {

@@ -579,6 +579,9 @@ func checkAndPersistChannelUpstreamModelUpdates(
 	// upstream_model_update_auto_sync_enabled。有意剔除的模型走忽略列表，不靠关开关。
 	monitorSetting := operation_setting.GetMonitorSetting()
 	globalAutoAdd := monitorSetting.UpstreamModelSyncEnabled && monitorSetting.UpstreamModelSyncAutoAdd
+	if settings.UpstreamModelUpdateAutoSyncExcluded {
+		globalAutoAdd = false
+	}
 	if allowAutoApply && (settings.UpstreamModelUpdateAutoSyncEnabled || globalAutoAdd) && len(pendingAddModels) > 0 {
 		originModels := normalizeModelNames(channel.GetModels())
 		mergedModels := mergeModelNames(originModels, pendingAddModels)

@@ -127,7 +127,9 @@ function PlaygroundParameterContent({
                     className='h-5 max-w-24 shrink-0 px-1.5 font-mono text-xs'
                     variant='outline'
                   >
-                    {t(getParameterControlValueText(control.key, value))}
+                    {enabled
+                      ? t(getParameterControlValueText(control.key, value))
+                      : t('Off')}
                   </Badge>
                 </div>
                 <p className='text-muted-foreground text-xs leading-4'>

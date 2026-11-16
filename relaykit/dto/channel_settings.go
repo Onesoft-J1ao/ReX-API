@@ -128,6 +128,12 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
+
+	// UpstreamModelUpdateAutoSyncExcluded keeps this channel out of the global
+	// auto-add even when monitor_setting.upstream_model_sync_auto_add is on. A
+	// bundled group must ship an exact model list, and the global switch would
+	// otherwise repopulate it with every model the upstream hosts.
+	UpstreamModelUpdateAutoSyncExcluded bool `json:"upstream_model_update_auto_sync_excluded,omitempty"`
 	// OllamaOpenAIChat routes Ollama chat completions to the OpenAI-compatible
 	// /v1/chat/completions endpoint. When unset, chat completions keep using
 	// the native /api/chat protocol.
