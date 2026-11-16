@@ -28,11 +28,11 @@ For commercial licensing, please contact support@quantumnous.com
  * list alphabetical so merges stay trivial.
  */
 
-import type React from 'react'
-
 import I0 from '@lobehub/icons/es/AgnesAI'
 import I1 from '@lobehub/icons/es/Ai21'
 import I2 from '@lobehub/icons/es/Ai360'
+import I75 from '@lobehub/icons/es/AlibabaCloud'
+import I76 from '@lobehub/icons/es/AntGroup'
 import I3 from '@lobehub/icons/es/Anthropic'
 import I4 from '@lobehub/icons/es/AssemblyAI'
 import I5 from '@lobehub/icons/es/Aws'
@@ -41,12 +41,14 @@ import I7 from '@lobehub/icons/es/BAAI'
 import I8 from '@lobehub/icons/es/Baichuan'
 import I9 from '@lobehub/icons/es/Bedrock'
 import I10 from '@lobehub/icons/es/Bfl'
+import I77 from '@lobehub/icons/es/BilibiliIndex'
 import I11 from '@lobehub/icons/es/ChatGLM'
 import I12 from '@lobehub/icons/es/CherryStudio'
 import I13 from '@lobehub/icons/es/Claude'
 import I14 from '@lobehub/icons/es/Cloudflare'
 import I15 from '@lobehub/icons/es/Cohere'
 import I16 from '@lobehub/icons/es/ComfyUI'
+import I78 from '@lobehub/icons/es/Dbrx'
 import I17 from '@lobehub/icons/es/DeepSeek'
 import I18 from '@lobehub/icons/es/Dify'
 import I19 from '@lobehub/icons/es/Doubao'
@@ -63,6 +65,7 @@ import I29 from '@lobehub/icons/es/Groq'
 import I30 from '@lobehub/icons/es/Hedra'
 import I31 from '@lobehub/icons/es/HuggingFace'
 import I32 from '@lobehub/icons/es/Hunyuan'
+import I79 from '@lobehub/icons/es/IBM'
 import I33 from '@lobehub/icons/es/Ideogram'
 import I34 from '@lobehub/icons/es/InternLM'
 import I35 from '@lobehub/icons/es/Jimeng'
@@ -71,6 +74,7 @@ import I37 from '@lobehub/icons/es/Kimi'
 import I38 from '@lobehub/icons/es/Kling'
 import I39 from '@lobehub/icons/es/Kolors'
 import I40 from '@lobehub/icons/es/LangChain'
+import I80 from '@lobehub/icons/es/LongCat'
 import I41 from '@lobehub/icons/es/Luma'
 import I42 from '@lobehub/icons/es/Meshy'
 import I43 from '@lobehub/icons/es/Meta'
@@ -85,6 +89,7 @@ import I51 from '@lobehub/icons/es/NousResearch'
 import I52 from '@lobehub/icons/es/Nvidia'
 import I53 from '@lobehub/icons/es/Ollama'
 import I54 from '@lobehub/icons/es/OpenAI'
+import I81 from '@lobehub/icons/es/OpenCode'
 import I55 from '@lobehub/icons/es/OpenRouter'
 import I56 from '@lobehub/icons/es/Perplexity'
 import I57 from '@lobehub/icons/es/PixVerse'
@@ -104,84 +109,94 @@ import I70 from '@lobehub/icons/es/Vllm'
 import I71 from '@lobehub/icons/es/Wenxin'
 import I72 from '@lobehub/icons/es/XiaomiMiMo'
 import I73 from '@lobehub/icons/es/Yi'
+import I82 from '@lobehub/icons/es/ZAI'
 import I74 from '@lobehub/icons/es/Zhipu'
+import type React from 'react'
 
 const ICONS: Record<string, unknown> = {
-  'AgnesAI': I0,
-  'Ai21': I1,
-  'Ai360': I2,
-  'Anthropic': I3,
-  'AssemblyAI': I4,
-  'Aws': I5,
-  'Azure': I6,
-  'BAAI': I7,
-  'Baichuan': I8,
-  'Bedrock': I9,
-  'Bfl': I10,
-  'ChatGLM': I11,
-  'CherryStudio': I12,
-  'Claude': I13,
-  'Cloudflare': I14,
-  'Cohere': I15,
-  'ComfyUI': I16,
-  'DeepSeek': I17,
-  'Dify': I18,
-  'Doubao': I19,
-  'ElevenLabs': I20,
-  'Figma': I21,
-  'Fireworks': I22,
-  'FishAudio': I23,
-  'Flux': I24,
-  'Gemini': I25,
-  'Github': I26,
-  'Google': I27,
-  'Grok': I28,
-  'Groq': I29,
-  'Hedra': I30,
-  'HuggingFace': I31,
-  'Hunyuan': I32,
-  'Ideogram': I33,
-  'InternLM': I34,
-  'Jimeng': I35,
-  'Jina': I36,
-  'Kimi': I37,
-  'Kling': I38,
-  'Kolors': I39,
-  'LangChain': I40,
-  'Luma': I41,
-  'Meshy': I42,
-  'Meta': I43,
-  'Microsoft': I44,
-  'Midjourney': I45,
-  'Minimax': I46,
-  'Mistral': I47,
-  'Moonshot': I48,
-  'NewAPI': I49,
-  'Notion': I50,
-  'NousResearch': I51,
-  'Nvidia': I52,
-  'Ollama': I53,
-  'OpenAI': I54,
-  'OpenRouter': I55,
-  'Perplexity': I56,
-  'PixVerse': I57,
-  'Qwen': I58,
-  'Recraft': I59,
-  'Replicate': I60,
-  'Runway': I61,
-  'Sora': I62,
-  'Spark': I63,
-  'Stability': I64,
-  'Stepfun': I65,
-  'Suno': I66,
-  'Together': I67,
-  'Vercel': I68,
-  'Vidu': I69,
-  'Vllm': I70,
-  'Wenxin': I71,
-  'XiaomiMiMo': I72,
-  'Yi': I73,
-  'Zhipu': I74,
+  AgnesAI: I0,
+  Ai21: I1,
+  Ai360: I2,
+  Anthropic: I3,
+  AssemblyAI: I4,
+  Aws: I5,
+  Azure: I6,
+  BAAI: I7,
+  Baichuan: I8,
+  Bedrock: I9,
+  Bfl: I10,
+  ChatGLM: I11,
+  CherryStudio: I12,
+  Claude: I13,
+  Cloudflare: I14,
+  Cohere: I15,
+  ComfyUI: I16,
+  DeepSeek: I17,
+  Dify: I18,
+  Doubao: I19,
+  ElevenLabs: I20,
+  Figma: I21,
+  Fireworks: I22,
+  FishAudio: I23,
+  Flux: I24,
+  Gemini: I25,
+  Github: I26,
+  Google: I27,
+  Grok: I28,
+  Groq: I29,
+  Hedra: I30,
+  HuggingFace: I31,
+  Hunyuan: I32,
+  Ideogram: I33,
+  InternLM: I34,
+  Jimeng: I35,
+  Jina: I36,
+  Kimi: I37,
+  Kling: I38,
+  Kolors: I39,
+  LangChain: I40,
+  Luma: I41,
+  Meshy: I42,
+  Meta: I43,
+  Microsoft: I44,
+  Midjourney: I45,
+  Minimax: I46,
+  Mistral: I47,
+  Moonshot: I48,
+  NewAPI: I49,
+  Notion: I50,
+  NousResearch: I51,
+  Nvidia: I52,
+  Ollama: I53,
+  OpenAI: I54,
+  OpenRouter: I55,
+  Perplexity: I56,
+  PixVerse: I57,
+  Qwen: I58,
+  Recraft: I59,
+  Replicate: I60,
+  Runway: I61,
+  Sora: I62,
+  Spark: I63,
+  Stability: I64,
+  Stepfun: I65,
+  Suno: I66,
+  Together: I67,
+  Vercel: I68,
+  Vidu: I69,
+  Vllm: I70,
+  Wenxin: I71,
+  XiaomiMiMo: I72,
+  Yi: I73,
+  Zhipu: I74,
+  AlibabaCloud: I75,
+  AntGroup: I76,
+  BilibiliIndex: I77,
+  Dbrx: I78,
+  IBM: I79,
+  LongCat: I80,
+  OpenCode: I81,
+  ZAI: I82,
 }
 
 export const lobeIconRegistry = ICONS
