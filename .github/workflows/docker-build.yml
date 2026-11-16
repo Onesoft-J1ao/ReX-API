@@ -77,8 +77,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: mode=max
-          sbom: true
+          # Attestations add minutes to every build and the deployment
+          # does not consume them; keep provenance minimal and skip SBOM.
+          provenance: mode=min
+          sbom: false
 
       - name: Image summary
         run: |

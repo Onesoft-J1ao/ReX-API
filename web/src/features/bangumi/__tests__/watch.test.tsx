@@ -22,6 +22,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 
+// The watch view reads the operator switch from /api/status. Mock it so the
+// status query does not consume the per-test request mocks below.
+vi.mock('@/hooks/use-status', () => ({
+  useStatus: () => ({ status: undefined, isLoading: false, error: null }),
+}))
+
 import { BangumiSubjectPage } from '../bangumi-subject-dialog'
 import type { BangumiRelease } from '../types'
 
