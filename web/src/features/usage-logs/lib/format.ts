@@ -158,6 +158,28 @@ export function hasToolSurcharge(other: LogOtherData | null): boolean {
 /**
  * Parse the 'other' field from JSON string to object
  */
+/**
+ * Embedding requests carry only prompt/total tokens; the protocol has no
+ * completion count, so the usage table used to read "965 / 0" and look broken.
+ * The log already records the request path/conversion, which is enough to
+ * switch the second figure to total_tokens instead.
+ */
+export function isEmbeddingLog(
+  other: LogOtherData | null | undefined
+): boolean {
+  if (!other) return false
+  if (
+    Array.isArray(other.request_conversion) &&
+    other.request_conversion.includes('embedding')
+  ) {
+    return true
+  }
+  return (
+    typeof other.request_path === 'string' &&
+    other.request_path.includes('/embeddings')
+  )
+}
+
 export function parseLogOther(other: string): LogOtherData | null {
   if (!other) return null
   try {

@@ -60,6 +60,7 @@ import {
   getCacheHitPercent,
   getTieredBillingSummary,
   hasAnyCacheTokens,
+  isEmbeddingLog,
   parseLogOther,
   isViolationFeeLog,
   renderAuditContent,
@@ -783,6 +784,12 @@ export function useCommonLogsColumns(
         if (promptTokens === 0 && completionTokens === 0) {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
+        // Embeddings have no completion tokens; the second figure is the
+        // request's total_tokens so the row does not read "965 / 0".
+        const embedding = isEmbeddingLog(other)
+        const shownSecond = embedding
+          ? promptTokens + completionTokens
+          : completionTokens
 
         const cacheReadTokens = other?.cache_tokens || 0
         const cacheWrite5m = other?.cache_creation_tokens_5m || 0
@@ -804,8 +811,7 @@ export function useCommonLogsColumns(
         return (
           <div className='flex flex-col gap-0.5'>
             <span className='font-mono text-xs font-medium tabular-nums'>
-              {promptTokens.toLocaleString()} /{' '}
-              {completionTokens.toLocaleString()}
+              {promptTokens.toLocaleString()} / {shownSecond.toLocaleString()}
             </span>
             {(cacheReadTokens > 0 || cacheWriteTokens > 0) && (
               <div className='flex items-center gap-1 text-xs'>

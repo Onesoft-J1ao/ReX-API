@@ -75,6 +75,7 @@ import {
   decodeBillingExprB64,
   getTieredBillingSummary,
   hasAnyCacheTokens,
+  isEmbeddingLog,
   isViolationFeeLog,
   getFirstResponseTimeColor,
   getResponseTimeColor,
@@ -386,11 +387,21 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
 
   const rows: Array<{ label: string; value: string }> = []
 
+  const embedding = isEmbeddingLog(other)
   rows.push({ label: t('Input Tokens'), value: promptTokens.toLocaleString() })
-  rows.push({
-    label: t('Output Tokens'),
-    value: completionTokens.toLocaleString(),
-  })
+  if (embedding) {
+    // The embedding protocol reports prompt + total only; show the total so the
+    // detail does not claim a completion count of zero.
+    rows.push({
+      label: t('Total Tokens'),
+      value: (promptTokens + completionTokens).toLocaleString(),
+    })
+  } else {
+    rows.push({
+      label: t('Output Tokens'),
+      value: completionTokens.toLocaleString(),
+    })
+  }
 
   if (cacheRead > 0) {
     rows.push({
