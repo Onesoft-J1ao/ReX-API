@@ -512,9 +512,13 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 	// each source only onto groups whose enabled channels use that source, and
 	// only for models that group actually serves. This fills cold groups without
 	// pretending a different provider's traffic was local traffic.
-	localKeys := make(map[key]struct{}, len(out))
-	for _, row := range out {
-		localKeys[key{group: row.Group, model: row.ModelName}] = struct{}{}
+	// The mirror wins over a local row: a local probe can be a failure artifact
+	// (broken key, price not configured) that pins the card at 0% for the whole
+	// window while the upstream has healthy numbers. Keep the index so a mirror
+	// row can replace the local row in place instead of duplicating the card.
+	rowIndex := make(map[key]int, len(out))
+	for i, row := range out {
+		rowIndex[key{group: row.Group, model: row.ModelName}] = i
 	}
 	groupURLs, err := model.GetEnabledGroupBaseURLs(groups)
 	if err == nil {
@@ -557,9 +561,6 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 						continue
 					}
 					k := key{group: group, model: localName}
-					if _, exists := localKeys[k]; exists {
-						continue
-					}
 					upstreamGroups := upstreamHealthGroups(source, group)
 					if len(upstreamGroups) == 0 {
 						continue
@@ -580,7 +581,7 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 					if !matchedGroup {
 						continue
 					}
-					out = append(out, GroupModelSummary{
+					mirrorRow := GroupModelSummary{
 						Group:               group,
 						ModelName:           localName,
 						AvgLatencyMs:        mirror.AvgLatencyMs,
@@ -592,8 +593,13 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 						// reaches the public model square, and the supplier behind a
 						// group is not something visitors are meant to read.
 						Source: SourceMirror,
-					})
-					localKeys[k] = struct{}{}
+					}
+					if idx, exists := rowIndex[k]; exists {
+						out[idx] = mirrorRow
+					} else {
+						out = append(out, mirrorRow)
+						rowIndex[k] = len(out) - 1
+					}
 				}
 			}
 		}
