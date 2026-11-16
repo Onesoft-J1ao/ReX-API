@@ -574,6 +574,12 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 						if !containsGroup(upstreamGroups, detailGroup.Group) {
 							continue
 						}
+						// A mapped group can be silent for this model while the
+						// next mapped group has real samples; skipping the empty
+						// one keeps a dead probe from pinning the card at 0%.
+						if groupHasNoSuccessfulSample(detailGroup) {
+							continue
+						}
 						mirror = modelSummaryFromGroup(mirror, detailGroup)
 						matchedGroup = true
 						break
