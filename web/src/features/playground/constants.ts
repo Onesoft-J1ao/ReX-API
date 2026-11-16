@@ -153,7 +153,25 @@ export const DEFAULT_IMAGE_CONFIG = {
   quality: 'auto',
   n: 1,
   inputFidelity: '',
+  background: 'auto',
+  outputFormat: 'png',
+  moderation: 'auto',
+  compression: 100,
+  timeoutSeconds: 300,
+  provider: 'gateway',
+  baseUrl: '',
+  apiKey: '',
 } as const
+
+// Values the OpenAI image endpoints accept. Kept as plain lists: providers
+// that do not support one simply echo an error instead of silently dropping it.
+export const IMAGE_BACKGROUND_OPTIONS = [
+  'auto',
+  'transparent',
+  'opaque',
+] as const
+export const IMAGE_OUTPUT_FORMAT_OPTIONS = ['png', 'jpeg', 'webp'] as const
+export const IMAGE_MODERATION_OPTIONS = ['auto', 'low'] as const
 
 export const MAX_REFERENCE_IMAGES = 4
 

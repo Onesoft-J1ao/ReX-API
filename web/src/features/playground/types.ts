@@ -164,6 +164,8 @@ export interface GroupOption {
 // Image workbench types
 export type ImageWorkbenchMode = 'text-to-image' | 'image-to-image'
 
+export type ImageWorkbenchProvider = 'gateway' | 'thirdParty'
+
 export interface ImageWorkbenchConfig {
   model: string
   group: string
@@ -171,6 +173,16 @@ export interface ImageWorkbenchConfig {
   quality: string
   n: number
   inputFidelity: string
+  background: string
+  outputFormat: string
+  moderation: string
+  compression: number
+  timeoutSeconds: number
+  provider: ImageWorkbenchProvider
+  /** Third-party OpenAI-compatible endpoint, e.g. https://api.example.com/v1. */
+  baseUrl: string
+  /** Kept in memory only; never written to localStorage. */
+  apiKey: string
 }
 
 export interface GeneratedImage {

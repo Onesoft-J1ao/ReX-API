@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { editImages, generateImages } from '../api'
+import {
+  editImages,
+  editImagesThirdParty,
+  generateImages,
+  generateImagesThirdParty,
+} from '../api'
 import { DEFAULT_IMAGE_CONFIG, MAX_REFERENCE_IMAGES } from '../constants'
 import type {
   GeneratedImage,
@@ -64,8 +69,13 @@ export function useImageGeneration() {
 
   // Image-to-image needs at least one reference image; the provider rejects an
   // edit request without one, so the panel blocks it before spending quota.
+  const providerReady =
+    config.provider === 'thirdParty'
+      ? config.baseUrl.trim().length > 0 && config.apiKey.trim().length > 0
+      : true
   const canGenerate =
     !isGenerating &&
+    providerReady &&
     prompt.trim().length > 0 &&
     config.model.length > 0 &&
     (mode === 'text-to-image' || referenceImages.length > 0)
@@ -76,17 +86,43 @@ export function useImageGeneration() {
     }
     setIsGenerating(true)
     setError(null)
+    // A provider can hang for minutes; the timeout bounds the wait and aborts
+    // the request rather than leaving the panel spinning forever.
+    const controller = new AbortController()
+    const timeoutMs = Math.max(10, config.timeoutSeconds) * 1000
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
+      const thirdParty = config.provider === 'thirdParty'
       const response =
         mode === 'image-to-image'
-          ? await editImages(config, prompt, referenceImages, mask)
-          : await generateImages(config, prompt)
+          ? thirdParty
+            ? await editImagesThirdParty(
+                config,
+                prompt,
+                referenceImages,
+                mask,
+                controller.signal
+              )
+            : await editImages(
+                config,
+                prompt,
+                referenceImages,
+                mask,
+                controller.signal
+              )
+          : thirdParty
+            ? await generateImagesThirdParty(config, prompt, controller.signal)
+            : await generateImages(config, prompt, controller.signal)
       const produced = response?.data ?? []
       setImages(produced)
       if (produced.length === 0) {
         setError(t('The provider returned no image'))
       }
     } catch (requestError) {
+      if ((requestError as { name?: string })?.name === 'AbortError') {
+        setError(t('The request timed out'))
+        return
+      }
       const failure = requestError as {
         response?: { data?: { error?: { message?: string }; message?: string } }
         message?: string
@@ -98,6 +134,7 @@ export function useImageGeneration() {
           t('Request failed')
       )
     } finally {
+      clearTimeout(timer)
       setIsGenerating(false)
     }
   }, [canGenerate, config, mask, mode, prompt, referenceImages, t])

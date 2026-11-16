@@ -82,6 +82,10 @@ export async function generateImages(
       n: config.n,
       size: config.size,
       quality: config.quality,
+      background: config.background,
+      output_format: config.outputFormat,
+      moderation: config.moderation,
+      output_compression: config.compression,
     },
     {
       signal,
@@ -116,6 +120,16 @@ export async function editImages(
   if (config.inputFidelity) {
     formData.append('input_fidelity', config.inputFidelity)
   }
+  if (config.background) {
+    formData.append('background', config.background)
+  }
+  if (config.outputFormat) {
+    formData.append('output_format', config.outputFormat)
+  }
+  if (config.moderation) {
+    formData.append('moderation', config.moderation)
+  }
+  formData.append('output_compression', String(config.compression))
   for (const image of images) {
     formData.append('image[]', image)
   }
@@ -128,6 +142,116 @@ export async function editImages(
     headers: { [PLAYGROUND_FINGERPRINT_HEADER]: getPlaygroundFingerprint() },
   } as Record<string, unknown>)
   return res.data
+}
+
+// ---------------------------------------------------------------------------
+// Third-party OpenAI-compatible endpoints
+// ---------------------------------------------------------------------------
+
+/** Accepts `https://host`, `https://host/v1` and trims trailing slashes. */
+function thirdPartyBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  return /\/v\d+$/.test(trimmed) ? trimmed : `${trimmed}/v1`
+}
+
+async function readJsonOrThrow(
+  response: Response
+): Promise<ImageGenerationResponse> {
+  const raw = await response.text()
+  let payload: unknown = null
+  try {
+    payload = raw ? JSON.parse(raw) : null
+  } catch {
+    payload = null
+  }
+  if (!response.ok) {
+    const failure = payload as {
+      error?: { message?: string }
+      message?: string
+    } | null
+    throw new Error(
+      failure?.error?.message ??
+        failure?.message ??
+        `HTTP ${response.status} ${response.statusText}`
+    )
+  }
+  return (payload as ImageGenerationResponse) ?? { data: [] }
+}
+
+function thirdPartyFields(config: ImageWorkbenchConfig) {
+  return {
+    background: config.background,
+    output_format: config.outputFormat,
+    moderation: config.moderation,
+    output_compression: config.compression,
+  }
+}
+
+/**
+ * Call a third-party OpenAI-compatible /images/generations directly, bypassing
+ * this gateway. The key stays in memory: it is used for this fetch only.
+ */
+export async function generateImagesThirdParty(
+  config: ImageWorkbenchConfig,
+  prompt: string,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const base = thirdPartyBaseUrl(config.baseUrl)
+  if (!base) throw new Error('Base URL is required')
+  const response = await fetch(`${base}/images/generations`, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model,
+      prompt,
+      n: config.n,
+      size: config.size,
+      quality: config.quality,
+      ...thirdPartyFields(config),
+    }),
+  })
+  return readJsonOrThrow(response)
+}
+
+/** Same as above for the multipart /images/edits endpoint. */
+export async function editImagesThirdParty(
+  config: ImageWorkbenchConfig,
+  prompt: string,
+  images: File[],
+  mask: File | null,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const base = thirdPartyBaseUrl(config.baseUrl)
+  if (!base) throw new Error('Base URL is required')
+  const formData = new FormData()
+  formData.append('model', config.model)
+  formData.append('prompt', prompt)
+  formData.append('n', String(config.n))
+  formData.append('size', config.size)
+  formData.append('quality', config.quality)
+  for (const image of images) {
+    formData.append('image[]', image)
+  }
+  if (mask) {
+    formData.append('mask', mask)
+  }
+  const fields = thirdPartyFields(config)
+  formData.append('background', fields.background)
+  formData.append('output_format', fields.output_format)
+  formData.append('moderation', fields.moderation)
+  formData.append('output_compression', String(fields.output_compression))
+  const response = await fetch(`${base}/images/edits`, {
+    method: 'POST',
+    signal,
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+    body: formData,
+  })
+  return readJsonOrThrow(response)
 }
 
 /**

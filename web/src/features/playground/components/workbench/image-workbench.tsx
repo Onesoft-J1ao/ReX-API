@@ -26,6 +26,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -40,7 +41,10 @@ import { Textarea } from '@/components/ui/textarea'
 
 import { getUserGroups, getUserModels } from '../../api'
 import {
+  IMAGE_BACKGROUND_OPTIONS,
+  IMAGE_MODERATION_OPTIONS,
   IMAGE_N_MAX,
+  IMAGE_OUTPUT_FORMAT_OPTIONS,
   IMAGE_QUALITY_OPTIONS,
   IMAGE_SIZE_OPTIONS,
   MAX_REFERENCE_IMAGES,
@@ -163,15 +167,92 @@ export function ImageWorkbench() {
                 </Button>
               </div>
 
-              <ModelGroupSelector
-                selectedModel={config.model}
-                models={models}
-                onModelChange={(value) => updateConfig('model', value)}
-                selectedGroup={config.group}
-                groups={groups}
-                onGroupChange={(value) => updateConfig('group', value)}
-                disabled={isGenerating}
-              />
+              <div className='bg-muted flex rounded-md p-1'>
+                <Button
+                  className='flex-1'
+                  onClick={() => updateConfig('provider', 'gateway')}
+                  size='sm'
+                  variant={
+                    config.provider === 'gateway' ? 'secondary' : 'ghost'
+                  }
+                >
+                  {t('This gateway')}
+                </Button>
+                <Button
+                  className='flex-1'
+                  onClick={() => updateConfig('provider', 'thirdParty')}
+                  size='sm'
+                  variant={
+                    config.provider === 'thirdParty' ? 'secondary' : 'ghost'
+                  }
+                >
+                  {t('Third-party API')}
+                </Button>
+              </div>
+
+              {config.provider === 'gateway' ? (
+                <ModelGroupSelector
+                  selectedModel={config.model}
+                  models={models}
+                  onModelChange={(value) => updateConfig('model', value)}
+                  selectedGroup={config.group}
+                  groups={groups}
+                  onGroupChange={(value) => updateConfig('group', value)}
+                  disabled={isGenerating}
+                />
+              ) : (
+                <div className='space-y-3'>
+                  <div className='space-y-2'>
+                    <Label htmlFor='image-third-party-base'>
+                      {t('Base URL')}
+                    </Label>
+                    <Input
+                      disabled={isGenerating}
+                      id='image-third-party-base'
+                      onChange={(event) =>
+                        updateConfig('baseUrl', event.target.value)
+                      }
+                      placeholder='https://api.example.com/v1'
+                      value={config.baseUrl}
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='image-third-party-key'>
+                      {t('API key')}
+                    </Label>
+                    <Input
+                      autoComplete='off'
+                      disabled={isGenerating}
+                      id='image-third-party-key'
+                      onChange={(event) =>
+                        updateConfig('apiKey', event.target.value)
+                      }
+                      placeholder='sk-...'
+                      type='password'
+                      value={config.apiKey}
+                    />
+                    <p className='text-muted-foreground text-[11px]'>
+                      {t(
+                        'Sent only with this request; never stored on the server or in the browser.'
+                      )}
+                    </p>
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='image-third-party-model'>
+                      {t('Model')}
+                    </Label>
+                    <Input
+                      disabled={isGenerating}
+                      id='image-third-party-model'
+                      onChange={(event) =>
+                        updateConfig('model', event.target.value)
+                      }
+                      placeholder='gpt-image-1'
+                      value={config.model}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className='space-y-2'>
                 <Label htmlFor='image-prompt'>{t('Prompt')}</Label>
@@ -373,6 +454,112 @@ export function ImageWorkbench() {
                 </div>
               </div>
 
+              <div className='grid grid-cols-2 gap-3'>
+                <div className='space-y-2'>
+                  <Label htmlFor='image-background'>{t('Background')}</Label>
+                  <Select
+                    onValueChange={(value) =>
+                      updateConfig('background', value ?? config.background)
+                    }
+                    value={config.background}
+                  >
+                    <SelectTrigger id='image-background'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMAGE_BACKGROUND_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='image-output-format'>
+                    {t('Output format')}
+                  </Label>
+                  <Select
+                    onValueChange={(value) =>
+                      updateConfig('outputFormat', value ?? config.outputFormat)
+                    }
+                    value={config.outputFormat}
+                  >
+                    <SelectTrigger id='image-output-format'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMAGE_OUTPUT_FORMAT_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='image-moderation'>{t('Moderation')}</Label>
+                  <Select
+                    onValueChange={(value) =>
+                      updateConfig('moderation', value ?? config.moderation)
+                    }
+                    value={config.moderation}
+                  >
+                    <SelectTrigger id='image-moderation'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMAGE_MODERATION_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='image-compression'>{t('Compression')}</Label>
+                  <Input
+                    id='image-compression'
+                    max={100}
+                    min={0}
+                    onChange={(event) =>
+                      updateConfig(
+                        'compression',
+                        Math.min(
+                          100,
+                          Math.max(0, Number(event.target.value) || 0)
+                        )
+                      )
+                    }
+                    type='number'
+                    value={config.compression}
+                  />
+                </div>
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='image-timeout'>
+                  {t('Response timeout (seconds)')}
+                </Label>
+                <Input
+                  id='image-timeout'
+                  max={1800}
+                  min={10}
+                  onChange={(event) =>
+                    updateConfig(
+                      'timeoutSeconds',
+                      Math.min(
+                        1800,
+                        Math.max(10, Number(event.target.value) || 10)
+                      )
+                    )
+                  }
+                  type='number'
+                  value={config.timeoutSeconds}
+                />
+              </div>
+
               <div className='space-y-2'>
                 <Label htmlFor='image-count'>{t('Number of images')}</Label>
                 <Select
@@ -425,9 +612,14 @@ export function ImageWorkbench() {
 
             {images.length > 0 && (
               <div className='mb-3 flex items-center justify-between'>
-                <Badge variant='secondary'>
-                  {t('{{count}} images', { count: images.length })}
-                </Badge>
+                <div className='flex items-center gap-2'>
+                  <span className='text-sm font-medium'>
+                    {t('Session gallery')}
+                  </span>
+                  <Badge variant='secondary'>
+                    {t('{{count}} results', { count: images.length })}
+                  </Badge>
+                </div>
                 <Button
                   onClick={clearImages}
                   size='sm'
