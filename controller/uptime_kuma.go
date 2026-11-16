@@ -164,6 +164,81 @@ func getAndDecode(ctx context.Context, client *http.Client, url string, dest any
 	return common.DecodeJson(resp.Body, dest)
 }
 
+// fetchGroupedData returns one result per Kuma public group instead of
+// flattening them.
+//
+// A single Kuma status page can publish several groups - upstream providers,
+// CDN edges, the origin servers - and merging them into one list hides the very
+// distinction the page exists to show. Each Kuma group becomes one result, with
+// its name preserved; categoryName is only the fallback when Kuma publishes a
+// single unnamed group.
+func fetchGroupedData(ctx context.Context, client *http.Client, baseURL string, slug string, fallbackName string) []UptimeGroupResult {
+	baseURL = strings.TrimSuffix(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" || slug == "" {
+		return nil
+	}
+
+	var statusData struct {
+		PublicGroupList []struct {
+			ID          int    `json:"id"`
+			Name        string `json:"name"`
+			MonitorList []struct {
+				ID   int    `json:"id"`
+				Name string `json:"name"`
+			} `json:"monitorList"`
+		} `json:"publicGroupList"`
+	}
+
+	var heartbeatData struct {
+		HeartbeatList map[string][]UptimeHeartbeat `json:"heartbeatList"`
+		UptimeList    map[string]float64           `json:"uptimeList"`
+	}
+
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		return getAndDecode(gCtx, client, baseURL+apiStatusPath+slug, &statusData)
+	})
+	g.Go(func() error {
+		return getAndDecode(gCtx, client, baseURL+apiHeartbeatPath+slug, &heartbeatData)
+	})
+	if g.Wait() != nil {
+		return nil
+	}
+
+	results := make([]UptimeGroupResult, 0, len(statusData.PublicGroupList))
+	for _, pg := range statusData.PublicGroupList {
+		if len(pg.MonitorList) == 0 {
+			continue
+		}
+		name := strings.TrimSpace(pg.Name)
+		if name == "" {
+			name = fallbackName
+		}
+		group := UptimeGroupResult{CategoryName: name, Monitors: []Monitor{}}
+		for _, m := range pg.MonitorList {
+			monitor := Monitor{Name: m.Name, Group: name}
+			monitorID := strconv.Itoa(m.ID)
+			if uptime, exists := heartbeatData.UptimeList[monitorID+uptimeKeySuffix]; exists {
+				monitor.Uptime = uptime
+			}
+			if heartbeats, exists := heartbeatData.HeartbeatList[monitorID]; exists && len(heartbeats) > 0 {
+				start := max(0, len(heartbeats)-heartbeatLimit)
+				monitor.Heartbeats = append([]UptimeHeartbeat(nil), heartbeats[start:]...)
+				latest := monitor.Heartbeats[0]
+				for _, beat := range monitor.Heartbeats[1:] {
+					if beat.Time > latest.Time {
+						latest = beat
+					}
+				}
+				monitor.Status = latest.Status
+			}
+			group.Monitors = append(group.Monitors, monitor)
+		}
+		results = append(results, group)
+	}
+	return results
+}
+
 func fetchGroupData(ctx context.Context, client *http.Client, baseURL string, slug string, categoryName string) UptimeGroupResult {
 	result := UptimeGroupResult{
 		CategoryName: categoryName,
@@ -317,19 +392,26 @@ func GetUptimeKumaStatus(c *gin.Context) {
 		}
 	}
 
-	results := make([]UptimeGroupResult, len(targets))
+	// One configured status page can publish several groups; keep them apart so
+	// the console mirrors the operator's own grouping.
+	perTarget := make([][]UptimeGroupResult, len(targets))
 	g, gCtx := errgroup.WithContext(ctx)
 	for i, target := range targets {
 		g.Go(func() error {
 			if target.upstream {
-				results[i] = fetchUpstreamGroup(gCtx, client, target.baseURL, target.slug, target.categoryName)
+				perTarget[i] = []UptimeGroupResult{fetchUpstreamGroup(gCtx, client, target.baseURL, target.slug, target.categoryName)}
 			} else {
-				results[i] = fetchGroupData(gCtx, client, target.baseURL, target.slug, target.categoryName)
+				perTarget[i] = fetchGroupedData(gCtx, client, target.baseURL, target.slug, target.categoryName)
 			}
 			return nil
 		})
 	}
 
 	g.Wait()
+
+	results := make([]UptimeGroupResult, 0, len(targets))
+	for _, groups := range perTarget {
+		results = append(results, groups...)
+	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": results})
 }

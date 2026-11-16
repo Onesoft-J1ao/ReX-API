@@ -200,6 +200,7 @@ func GetBangumiTodayUpdates(c *gin.Context) {
 		sort.SliceStable(today, func(i, j int) bool {
 			return today[i].PublishedMs > today[j].PublishedMs
 		})
+		resolveMikanPosters(c.Request.Context(), today)
 		payload, err := json.Marshal(gin.H{
 			"date":     now.Format("2006-01-02"),
 			"count":    len(today),
@@ -211,6 +212,93 @@ func GetBangumiTodayUpdates(c *gin.Context) {
 		return string(payload), nil
 	})
 }
+
+// resolveMikanPosters fills PosterURL for each release.
+//
+// Mikan's RSS carries no artwork, so the cover has to come from the episode
+// page, which states it as a CSS background image. One request per distinct
+// series is acceptable because the result is memoised for a week and the whole
+// list is cached for five minutes; the fan-out is capped so a burst of new
+// releases cannot turn one page view into a hundred upstream calls.
+func resolveMikanPosters(ctx context.Context, releases []animeRelease) {
+	type target struct {
+		index int
+		link  string
+	}
+	pending := make([]target, 0, len(releases))
+	seen := make(map[string]string, len(releases))
+	for i := range releases {
+		link := strings.TrimSpace(releases[i].EpisodeLink)
+		if link == "" {
+			continue
+		}
+		if cached, ok := seen[link]; ok {
+			releases[i].PosterURL = cached
+			continue
+		}
+		pending = append(pending, target{index: i, link: link})
+	}
+	if len(pending) == 0 {
+		return
+	}
+
+	const workers = 8
+	sem := make(chan struct{}, workers)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	for _, item := range pending {
+		wg.Add(1)
+		go func(item target) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			poster := mikanPosterForEpisode(ctx, item.link)
+			mu.Lock()
+			releases[item.index].PosterURL = poster
+			seen[item.link] = poster
+			mu.Unlock()
+		}(item)
+	}
+	wg.Wait()
+}
+
+// mikanPosterForEpisode reads the cover path off one Mikan episode page.
+//
+// The caller has already bounded how many of these run at once. A page that
+// fails or has no poster yields "", which the card renders as a placeholder
+// instead of a broken image.
+func mikanPosterForEpisode(ctx context.Context, episodeLink string) string {
+	if !strings.HasPrefix(episodeLink, mikanWebBase) {
+		return ""
+	}
+	if common.RedisEnabled {
+		if cached, err := common.RedisGet("mikan:poster:" + episodeLink); err == nil && cached != "" {
+			if cached == "-" {
+				return ""
+			}
+			return cached
+		}
+	}
+	body, err := animeUpstreamGet(ctx, episodeLink, mikanHTMLHeaders(), mikanTimeout)
+	if err != nil {
+		return ""
+	}
+	match := mikanPosterPattern.FindSubmatch(body)
+	if match == nil {
+		if common.RedisEnabled {
+			_ = common.RedisSet("mikan:poster:"+episodeLink, "-", 7*24*time.Hour)
+		}
+		return ""
+	}
+	// The page states the cover as a rooted path; Mikan rejects an absolute
+	// URL here, so it is prefixed with the site origin the browser will load.
+	poster := mikanWebBase + string(match[1])
+	if common.RedisEnabled {
+		_ = common.RedisSet("mikan:poster:"+episodeLink, poster, 7*24*time.Hour)
+	}
+	return poster
+}
+
 
 // GetBangumiSubject returns one subject with its episode list.
 func GetBangumiSubject(c *gin.Context) {
@@ -476,6 +564,9 @@ type animeRelease struct {
 	// whether an episode can be watched is written once.
 	VideoCodec string `json:"videoCodec,omitempty"`
 	Container  string `json:"container,omitempty"`
+	// PosterURL is the series cover, resolved from Mikan's episode page. The
+	// RSS carries no artwork and today's list is unreadable without it.
+	PosterURL string `json:"posterUrl,omitempty"`
 	Playable   bool   `json:"playable"`
 	// MatchKind records how the subject was located. It is always EXACT: a
 	// candidate Mikan series is only accepted once its own page links back to
@@ -610,6 +701,11 @@ var mikanInfoHash = regexp.MustCompile(`^[0-9a-fA-F]{40}$`)
 // [1080p]" yields "LoliHouse". Splitting on the OPENING bracket instead would
 // return the empty string before it.
 var mikanAllianceSuffix = regexp.MustCompile(`[\]】]`)
+
+// mikanPosterPattern finds the cover on an episode page. Mikan renders it as an
+// inline background image rather than an <img>, so the CSS value is the only
+// place the path appears.
+var mikanPosterPattern = regexp.MustCompile(`background-image:\s*url\('/?(images/Bangumi/[^']+)'\)`)
 
 func mikanAllianceFromTitle(title string) string {
 	head := mikanAllianceSuffix.Split(strings.TrimSpace(title), 2)[0]
