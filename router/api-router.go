@@ -61,8 +61,8 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		bangumiRoute.Use(middleware.BangumiRateLimit())
 		{
-			bangumiRoute.GET("/sources/:sourceId/search", controller.SearchBangumiMediaSource)
-			bangumiRoute.GET("/sources/:sourceId/subjects/:sourceSubjectId", controller.BrowseBangumiMediaSource)
+			bangumiRoute.GET("/sources/:sourceId/search", middleware.BangumiWatchEnabled(), controller.SearchBangumiMediaSource)
+			bangumiRoute.GET("/sources/:sourceId/subjects/:sourceSubjectId", middleware.BangumiWatchEnabled(), controller.BrowseBangumiMediaSource)
 			bangumiRoute.GET("/calendar", controller.GetBangumiCalendar)
 			bangumiRoute.GET("/search", controller.GetBangumiSearch)
 			bangumiRoute.GET("/ranking", controller.GetBangumiRanking)
@@ -71,29 +71,30 @@ func SetApiRouter(router *gin.Engine) {
 			// bgm.tv subject id, and the releases come from Mikan. Both share the
 			// bangumi module gate and rate limiter above, because both spend a
 			// third party's quota on the visitor's behalf.
-			bangumiRoute.GET("/danmaku/:episodeId", controller.GetBangumiDanmaku)
-			bangumiRoute.GET("/releases/:subjectId", controller.GetBangumiReleases)
+			bangumiRoute.GET("/danmaku/:episodeId", middleware.BangumiWatchEnabled(), controller.GetBangumiDanmaku)
+			bangumiRoute.GET("/releases/:subjectId", middleware.BangumiWatchEnabled(), controller.GetBangumiReleases)
 			// Mikan serves the .torrent with no CORS headers, so the browser
 			// cannot fetch it itself; this same-origin hop is what lets
 			// WebTorrent load the torrent at all.
-			bangumiRoute.GET("/torrent/*path", controller.ProxyBangumiTorrent)
+			bangumiRoute.GET("/torrent/*path", middleware.BangumiWatchEnabled(), controller.ProxyBangumiTorrent)
 			// The segment is `:id`, not `:subjectId`: Gin's tree cannot carry two
 			// different wildcard names at the same position, and `/subjects/:id`
 			// is already registered above. A distinct name here panics at startup
 			// rather than failing the request.
-			bangumiRoute.GET("/subjects/:id/episodes", controller.GetBangumiEpisodes)
+			bangumiRoute.GET("/subjects/:id/episodes", middleware.BangumiWatchEnabled(), controller.GetBangumiEpisodes)
 			// Resolving picks the actual playable target for one episode of one
 			// source, which for a website source means parsing its player page and
 			// for a torrent source means registering the release with the local
 			// backend. Both spend upstream requests, so they sit behind the same
 			// gate and limiter as the metadata routes above.
-			bangumiRoute.GET("/sources/:sourceId/resolve", controller.ResolveBangumiMediaSource)
+			bangumiRoute.GET("/sources/:sourceId/resolve", middleware.BangumiWatchEnabled(), controller.ResolveBangumiMediaSource)
 		}
 		// The media route is registered outside the group above because it is
 		// requested once per byte range rather than once per upstream call, and a
 		// player issues a new range every time the viewer seeks.
 		apiRouter.GET("/bangumi/media/:mediaId/:resourceId",
 			middleware.HeaderNavModulePublicOrUserAuth("bangumi"),
+			middleware.BangumiWatchEnabled(),
 			middleware.BangumiStreamRateLimit(),
 			controller.GetBangumiSourceMedia)
 		// Registered outside the group above, which carries the metadata limiter:
@@ -101,6 +102,7 @@ func SetApiRouter(router *gin.Engine) {
 		// because a player asks for a new range every time the viewer seeks.
 		apiRouter.GET("/bangumi/stream/*path",
 			middleware.HeaderNavModulePublicOrUserAuth("bangumi"),
+			middleware.BangumiWatchEnabled(),
 			middleware.BangumiStreamRateLimit(),
 			controller.GetBangumiStream)
 		// The cover proxy reaches an upstream on the viewer's behalf, so it

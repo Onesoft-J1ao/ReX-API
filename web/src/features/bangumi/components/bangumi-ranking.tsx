@@ -43,7 +43,9 @@ export function BangumiRanking(props: {
   const query = useQuery({
     queryKey: ['bangumi', 'ranking', page],
     queryFn: () => getBangumiRanking(page),
-    staleTime: 30 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
     retry: false,
   })
   const items = query.data?.data ?? []

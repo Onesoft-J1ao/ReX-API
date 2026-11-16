@@ -77,6 +77,7 @@ func GetStatus(c *gin.Context) {
 		"wechat_login":                common.WeChatAuthEnabled,
 		"server_address":              system_setting.ServerAddress,
 		"turnstile_check":             common.TurnstileCheckEnabled,
+		"bangumi_watch_enabled":       middleware.BangumiWatchOptions(),
 		"turnstile_site_key":          common.TurnstileSiteKey,
 		"phantom_check":               common.PhantomCheckEnabled,
 		"phantom_service_url":         common.PhantomServiceURL,

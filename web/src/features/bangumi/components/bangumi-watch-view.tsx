@@ -26,6 +26,7 @@ import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useStatus } from '@/hooks/use-status'
 
 import {
   bangumiStreamUrl,
@@ -50,6 +51,23 @@ type WatchProps = {
 }
 
 export function BangumiWatchView(props: WatchProps) {
+  const { t } = useTranslation()
+  const { status } = useStatus()
+  // Operators can keep the catalogue readable while turning playback off.
+  if (status?.bangumi_watch_enabled === false) {
+    return (
+      <div className='space-y-4'>
+        <Button variant='ghost' onClick={props.onBack}>
+          <ArrowLeft className='size-4' />
+          {t('Back')}
+        </Button>
+        <EmptyState
+          title={t('Online watching is turned off')}
+          description={t('Only the broadcast calendar is available right now.')}
+        />
+      </div>
+    )
+  }
   return <BangumiWatchSession key={`${props.subjectId}:${props.title}`} {...props} />
 }
 

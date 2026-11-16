@@ -45,7 +45,9 @@ export function Bangumi(props: { keyword: string }) {
   const calendarQuery = useQuery({
     queryKey: ['bangumi', 'calendar'],
     queryFn: getBangumiCalendar,
-    staleTime: 30 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
     retry: false,
   })
 
