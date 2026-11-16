@@ -63,3 +63,12 @@ __pycache__/
 
 # 本地独立后端（本地预览用，不入库）
 .localdev/
+
+# Local project notes / handoff docs (never commit).
+PROJECT-EXPERIENCE.md
+DOCSMINT-MCP-SETUP.md
+
+
+# Local build/ops artifacts (packed scripts, archives).
+/dist/
+
