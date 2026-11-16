@@ -189,6 +189,31 @@ function thirdPartyFields(config: ImageWorkbenchConfig) {
 }
 
 /**
+ * Post to any OpenAI-compatible image endpoint directly. The payload is already
+ * in the provider's wire shape; only the host and the key differ from the
+ * gateway path.
+ */
+export async function postThirdPartyImage(
+  target: { baseUrl: string; apiKey: string },
+  path: 'generations' | 'edits',
+  payload: Record<string, unknown>,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const base = thirdPartyBaseUrl(target.baseUrl)
+  if (!base) throw new Error('Base URL is required')
+  const response = await fetch(`${base}/images/${path}`, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${target.apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  })
+  return readJsonOrThrow(response)
+}
+
+/**
  * Call a third-party OpenAI-compatible /images/generations directly, bypassing
  * this gateway. The key stays in memory: it is used for this fetch only.
  */

@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Empty,
@@ -38,7 +39,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-import { editImage, generateImage } from '../../api'
+import { editImage, generateImage, postThirdPartyImage } from '../../api'
 import type {
   GroupOption,
   ImageEditRequest,
@@ -100,6 +101,14 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
   const [customAspectRatio, setCustomAspectRatio] = useState('')
   const [quality, setQuality] = useState('default')
   const [count, setCount] = useState(1)
+  const [provider, setProvider] = useState<'gateway' | 'thirdParty'>('gateway')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [background, setBackground] = useState('auto')
+  const [outputFormat, setOutputFormat] = useState('png')
+  const [moderation, setModeration] = useState('auto')
+  const [compression, setCompression] = useState(100)
+  const [timeoutSeconds, setTimeoutSeconds] = useState(300)
   const [sourceImages, setSourceImages] = useState<ImageReference[]>([])
   const [result, setResult] = useState<ImageGenerationResponse | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -176,54 +185,82 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
       toast.error(t('Select an image to edit'))
       return
     }
+    if (provider === 'thirdParty' && (!baseUrl.trim() || !apiKey.trim())) {
+      toast.error(t('Base URL and API key are required'))
+      return
+    }
 
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
+    const timer = window.setTimeout(
+      () => controller.abort(),
+      Math.max(10, timeoutSeconds) * 1000
+    )
     setIsGenerating(true)
     try {
-      if (mode === 'edit') {
-        const images = await Promise.all(
-          sourceImages.map(async (image) => ({
-            image_url: image.file
-              ? await readFileAsDataURL(image.file)
-              : (image.imageURL ?? image.preview),
-          }))
+      const extra = {
+        background,
+        output_format: outputFormat,
+        moderation,
+        output_compression: compression,
+      }
+      const images =
+        mode === 'edit'
+          ? await Promise.all(
+              sourceImages.map(async (image) => ({
+                image_url: image.file
+                  ? await readFileAsDataURL(image.file)
+                  : (image.imageURL ?? image.preview),
+              }))
+            )
+          : undefined
+      const basePayload = {
+        model,
+        prompt: prompt.trim(),
+        size,
+        quality: quality === 'default' ? undefined : quality,
+        n: count,
+        response_format: 'url' as const,
+        ...extra,
+      }
+      if (provider === 'thirdParty') {
+        setResult(
+          await postThirdPartyImage(
+            { baseUrl, apiKey },
+            mode === 'edit' ? 'edits' : 'generations',
+            mode === 'edit' ? { ...basePayload, images } : basePayload,
+            controller.signal
+          )
         )
+      } else if (mode === 'edit') {
         const payload: ImageEditRequest = {
-          model,
+          ...basePayload,
           group,
-          prompt: prompt.trim(),
-          size,
-          quality: quality === 'default' ? undefined : quality,
-          n: count,
-          response_format: 'url',
-          images,
+          images: images ?? [],
         }
         setResult(await editImage(payload, controller.signal))
       } else {
         setResult(
           await generateImage(
             {
-              model,
+              ...basePayload,
               group,
-              prompt: prompt.trim(),
-              size,
-              quality: quality === 'default' ? undefined : quality,
-              n: count,
-              response_format: 'url',
             },
             controller.signal
           )
         )
       }
     } catch (error) {
-      if (!controller.signal.aborted) {
+      if (controller.signal.aborted) {
+        toast.error(t('The request timed out'))
+      } else {
         toast.error(
           await getGenerationErrorMessage(error, t('Image generation failed'))
         )
       }
     } finally {
+      window.clearTimeout(timer)
       if (abortRef.current === controller) abortRef.current = null
       setIsGenerating(false)
     }
@@ -267,16 +304,80 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
             </ToggleGroupItem>
           </ToggleGroup>
 
-          <GenerationControls
-            groups={props.groups}
-            group={group}
-            onGroupChange={setGroup}
-            models={props.models}
-            model={model}
-            onModelChange={setModel}
-            disabled={isGenerating}
-            groupModels={props.groupModels}
-          />
+          <ToggleGroup
+            value={[provider]}
+            onValueChange={(values) => {
+              const next = values[0]
+              if (next === 'gateway' || next === 'thirdParty') setProvider(next)
+            }}
+            className='w-full'
+          >
+            <ToggleGroupItem value='gateway' className='flex-1'>
+              {t('This gateway')}
+            </ToggleGroupItem>
+            <ToggleGroupItem value='thirdParty' className='flex-1'>
+              {t('Third-party API')}
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          {provider === 'gateway' ? (
+            <GenerationControls
+              groups={props.groups}
+              group={group}
+              onGroupChange={setGroup}
+              models={props.models}
+              model={model}
+              onModelChange={setModel}
+              disabled={isGenerating}
+              groupModels={props.groupModels}
+            />
+          ) : (
+            <FieldGroup className='gap-4'>
+              <Field>
+                <FieldLabel htmlFor='playground-image-base-url'>
+                  {t('Base URL')}
+                </FieldLabel>
+                <Input
+                  id='playground-image-base-url'
+                  disabled={isGenerating}
+                  onChange={(event) => setBaseUrl(event.target.value)}
+                  placeholder='https://api.example.com/v1'
+                  value={baseUrl}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='playground-image-api-key'>
+                  {t('API key')}
+                </FieldLabel>
+                <Input
+                  id='playground-image-api-key'
+                  autoComplete='off'
+                  disabled={isGenerating}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder='sk-...'
+                  type='password'
+                  value={apiKey}
+                />
+                <p className='text-muted-foreground text-[11px]'>
+                  {t(
+                    'Sent only with this request; never stored on the server or in the browser.'
+                  )}
+                </p>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='playground-image-remote-model'>
+                  {t('Model')}
+                </FieldLabel>
+                <Input
+                  id='playground-image-remote-model'
+                  disabled={isGenerating}
+                  onChange={(event) => setModel(event.target.value)}
+                  placeholder='gpt-image-1'
+                  value={model}
+                />
+              </Field>
+            </FieldGroup>
+          )}
 
           {mode === 'edit' && (
             <Field>
@@ -459,6 +560,93 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
             />
           </Field>
 
+          <FieldGroup className='grid grid-cols-2 gap-4'>
+            <Field>
+              <FieldLabel>{t('Background')}</FieldLabel>
+              <Select
+                value={background}
+                onValueChange={(value) => setBackground(value ?? background)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='auto'>auto</SelectItem>
+                  <SelectItem value='transparent'>transparent</SelectItem>
+                  <SelectItem value='opaque'>opaque</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel>{t('Output format')}</FieldLabel>
+              <Select
+                value={outputFormat}
+                onValueChange={(value) =>
+                  setOutputFormat(value ?? outputFormat)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='png'>png</SelectItem>
+                  <SelectItem value='jpeg'>jpeg</SelectItem>
+                  <SelectItem value='webp'>webp</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel>{t('Moderation')}</FieldLabel>
+              <Select
+                value={moderation}
+                onValueChange={(value) => setModeration(value ?? moderation)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='auto'>auto</SelectItem>
+                  <SelectItem value='low'>low</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor='playground-image-compression'>
+                {t('Compression')}
+              </FieldLabel>
+              <Input
+                id='playground-image-compression'
+                type='number'
+                min={0}
+                max={100}
+                value={compression}
+                onChange={(event) =>
+                  setCompression(
+                    Math.min(100, Math.max(0, Number(event.target.value) || 0))
+                  )
+                }
+              />
+            </Field>
+          </FieldGroup>
+
+          <Field>
+            <FieldLabel htmlFor='playground-image-timeout'>
+              {t('Response timeout (seconds)')}
+            </FieldLabel>
+            <Input
+              id='playground-image-timeout'
+              type='number'
+              min={10}
+              max={1800}
+              value={timeoutSeconds}
+              onChange={(event) =>
+                setTimeoutSeconds(
+                  Math.min(1800, Math.max(10, Number(event.target.value) || 10))
+                )
+              }
+            />
+          </Field>
+
           <Button
             className='w-full'
             disabled={
@@ -483,6 +671,12 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
       </section>
 
       <section className='min-h-[28rem] overflow-y-auto p-4 sm:p-6'>
+        <div className='mb-3 flex items-center gap-2'>
+          <span className='text-sm font-medium'>{t('Session gallery')}</span>
+          <Badge variant='secondary'>
+            {t('{{count}} results', { count: result?.data?.length ?? 0 })}
+          </Badge>
+        </div>
         {!result?.data?.length ? (
           <Empty className='h-full min-h-[24rem]'>
             <EmptyHeader>

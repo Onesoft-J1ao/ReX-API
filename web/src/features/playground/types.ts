@@ -226,6 +226,11 @@ export interface ImageGenerationRequest {
   size: string
   quality?: string
   response_format: 'url' | 'b64_json'
+  /** OpenAI image parameters; omitted when the panel leaves them at auto. */
+  background?: string
+  output_format?: string
+  moderation?: string
+  output_compression?: number
 }
 
 export interface ImageEditRequest extends ImageGenerationRequest {
