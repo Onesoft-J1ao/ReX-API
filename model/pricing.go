@@ -376,17 +376,20 @@ func updatePricing() {
 			pricing.VendorID = meta.VendorID
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
+		// A model can carry both a global per-call price and a per-token ratio:
+		// one group pins it to per-call while another (via group_billing_source)
+		// bills it by token. Publishing only the global mode left the second
+		// group with no ratio to render, so its card showed a dash or the wrong
+		// per-call figure. Both figures go out; QuotaType keeps describing the
+		// global default and the client picks per group.
+		if modelRatio, found := ratio_setting.GetModelRatioPrice(model); found {
+			pricing.ModelRatio = &modelRatio
+			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
+		}
 		if findPrice {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
 		} else {
-			// Only publish the ratio when the model actually has one. The
-			// fallback the accessor returns is not a price, and publishing it
-			// showed every unpriced model at the same made-up figure.
-			if modelRatio, found := ratio_setting.GetModelRatioPrice(model); found {
-				pricing.ModelRatio = &modelRatio
-				pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
-			}
 			pricing.QuotaType = 0
 		}
 		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {

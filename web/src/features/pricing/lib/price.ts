@@ -247,6 +247,30 @@ function applyRechargeRate(
 /**
  * Format token-based price for display
  */
+/**
+ * The billing source that actually applies to a model in a group.
+ *
+ * A group may pin a model to per-call billing even though its global mode is
+ * per token, or the other way round. Reading `quota_type` alone therefore shows
+ * the global mode on every card, which was the bug where a group billed by
+ * token still rendered the global per-call dash.
+ */
+function effectiveBillingSource(
+  model: PricingModel,
+  group: string | undefined,
+  overrides: GroupPricingOverrides
+): 'price' | 'ratio' {
+  if (group) {
+    const byGroup = overrides as Record<
+      string,
+      { source?: string } | undefined
+    >
+    const override = byGroup?.[group]?.source
+    if (override === 'price' || override === 'ratio') return override
+  }
+  return model.quota_type === QUOTA_TYPE_VALUES.REQUEST ? 'price' : 'ratio'
+}
+
 export function formatPrice(
   model: PricingModel,
   type: PriceType,
@@ -261,7 +285,14 @@ export function formatPrice(
   // A per-request model has no token price to show; its price belongs on the
   // request column. A free one still has a price of zero, so leave the label to
   // that column rather than claiming there is none.
-  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST && model.model_price) {
+  //
+  // The check is the billing source that actually applies here, not the global
+  // quota_type: a group can pin a model that is priced per call globally to
+  // per-token billing, and then the token columns are the ones to fill in.
+  if (
+    effectiveBillingSource(model, selectedGroup, overrides) === 'price' &&
+    model.model_price
+  ) {
     return '-'
   }
 
@@ -306,9 +337,12 @@ export function formatGroupPrice(
   groupRatio: Record<string, number>,
   overrides: GroupPricingOverrides = {}
 ): string {
-  // Same rule as formatPrice: a per-request model shows nothing on a token
-  // column, but a free one has a real price of zero.
-  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST && model.model_price) {
+  // Same rule as formatPrice: only a model this group actually bills per call
+  // shows nothing on a token column. A free one has a real price of zero.
+  if (
+    effectiveBillingSource(model, group, overrides) === 'price' &&
+    model.model_price
+  ) {
     return '-'
   }
 
