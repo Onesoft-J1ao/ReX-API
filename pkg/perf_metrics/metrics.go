@@ -406,6 +406,22 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 // Only locally measured rows are included: the mirrored upstream summary has no
 // group dimension at all, so lending its numbers to a group would put another
 // deployment's uptime on this group's card.
+// servedModelName finds the name this group serves for an upstream model entry.
+// Exact matches win; a namespaced upstream name falls back to its basename so
+// "vendor/model" lines up with the bare name sold here.
+func servedModelName(served map[string]struct{}, upstreamName string) (string, bool) {
+	if _, ok := served[upstreamName]; ok {
+		return upstreamName, true
+	}
+	if slash := strings.LastIndex(upstreamName, "/"); slash >= 0 && slash+1 < len(upstreamName) {
+		base := upstreamName[slash+1:]
+		if _, ok := served[base]; ok {
+			return base, true
+		}
+	}
+	return "", false
+}
+
 func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[string]struct{}) []GroupModelSummary {
 	rows, err := model.GetPerfMetricsGroupBucketsAll(startTs, endTs, groups)
 	if err != nil {
@@ -533,10 +549,14 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 					continue
 				}
 				for _, mirror := range summary.Models {
-					if _, served := servedByGroup[group][mirror.ModelName]; !served {
+					// The upstream may name a model "vendor/name" while this
+					// deployment sells the bare "name"; compare on both forms or
+					// every namespaced model looks unserved and gets no mirror row.
+					localName, served := servedModelName(servedByGroup[group], mirror.ModelName)
+					if !served {
 						continue
 					}
-					k := key{group: group, model: mirror.ModelName}
+					k := key{group: group, model: localName}
 					if _, exists := localKeys[k]; exists {
 						continue
 					}
@@ -562,7 +582,7 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 					}
 					out = append(out, GroupModelSummary{
 						Group:               group,
-						ModelName:           mirror.ModelName,
+						ModelName:           localName,
 						AvgLatencyMs:        mirror.AvgLatencyMs,
 						SuccessRate:         mirror.SuccessRate,
 						AvgTps:              mirror.AvgTps,
