@@ -28,10 +28,18 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { getBangumiCalendar, searchBangumi } from './api'
+import {
+  getBangumiCalendar,
+  getBangumiTodayUpdates,
+  searchBangumi,
+} from './api'
 import { BangumiCard } from './bangumi-card'
 import { BangumiRanking } from './components/bangumi-ranking'
-import type { BangumiCalendarDay, BangumiCalendarItem } from './types'
+import type {
+  BangumiCalendarDay,
+  BangumiCalendarItem,
+  BangumiRelease,
+} from './types'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -40,11 +48,22 @@ export function Bangumi(props: { keyword: string }) {
   const navigate = useNavigate()
   const submitted = props.keyword
   const [keyword, setKeyword] = useState(props.keyword)
-  const [view, setView] = useState<'calendar' | 'ranking'>('calendar')
+  const [view, setView] = useState<'today' | 'calendar' | 'ranking'>(
+    'today'
+  )
 
   const calendarQuery = useQuery({
     queryKey: ['bangumi', 'calendar'],
     queryFn: getBangumiCalendar,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    retry: false,
+  })
+
+  const todayQuery = useQuery({
+    queryKey: ['bangumi', 'today'],
+    queryFn: getBangumiTodayUpdates,
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
@@ -162,13 +181,28 @@ export function Bangumi(props: { keyword: string }) {
         <Tabs
           value={view}
           onValueChange={(value) => {
-            if (value === 'calendar' || value === 'ranking') setView(value)
+            if (
+              value === 'today' ||
+              value === 'calendar' ||
+              value === 'ranking'
+            ) {
+              setView(value)
+            }
           }}
         >
           <TabsList>
+            <TabsTrigger value='today'>{t('Today')}</TabsTrigger>
             <TabsTrigger value='calendar'>{t('Broadcast calendar')}</TabsTrigger>
             <TabsTrigger value='ranking'>{t('Ranking')}</TabsTrigger>
           </TabsList>
+          <TabsContent value='today'>
+            <TodayUpdates
+              releases={todayQuery.data?.releases ?? []}
+              date={todayQuery.data?.date ?? ''}
+              loading={todayQuery.isLoading}
+              errored={todayQuery.isError}
+            />
+          </TabsContent>
           <TabsContent value='calendar'>
             <Calendar
               days={days}
@@ -281,6 +315,75 @@ function SearchResults(props: {
           onSelect={() => props.onSelect(item)}
         />
       ))}
+    </div>
+  )
+}
+
+function TodayUpdates(props: {
+  releases: BangumiRelease[]
+  date: string
+  loading: boolean
+  errored: boolean
+}) {
+  const { t } = useTranslation()
+
+  if (props.loading) {
+    return (
+      <div className='space-y-2'>
+        {Array.from({ length: 8 }, (_, index) => (
+          <Skeleton key={index} className='h-16 w-full' />
+        ))}
+      </div>
+    )
+  }
+  if (props.errored) {
+    return (
+      <ErrorState
+        className='min-h-[200px]'
+        title={t('Could not reach the anime source. Try again later.')}
+      />
+    )
+  }
+  if (props.releases.length === 0) {
+    return (
+      <EmptyState
+        className='min-h-[200px]'
+        title={t('Nothing has been released today yet.')}
+      />
+    )
+  }
+
+  return (
+    <div className='space-y-3'>
+      <div className='text-muted-foreground text-xs'>
+        {t('{{count}} releases on {{date}}', {
+          count: props.releases.length,
+          date: props.date,
+        })}
+      </div>
+      <ul className='divide-y overflow-hidden rounded-xl border'>
+        {props.releases.map((release) => (
+          <li
+            key={`${release.topicId}:${release.title}`}
+            className='flex min-w-0 flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3'
+          >
+            <span className='min-w-0 flex-1 truncate text-sm'>
+              {release.title}
+            </span>
+            <span className='text-muted-foreground flex shrink-0 items-center gap-2 font-mono text-[11px]'>
+              {release.episodeNumber > 0 && (
+                <span>{t('EP {{n}}', { n: release.episodeNumber })}</span>
+              )}
+              {release.resolution && <span>{release.resolution}</span>}
+              {release.alliance && (
+                <span className='max-w-[10rem] truncate'>
+                  {release.alliance}
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

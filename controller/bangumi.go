@@ -15,6 +15,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -108,6 +109,9 @@ var bangumiCacheTTL = map[string]time.Duration{
 	"danmaku": 10 * time.Minute,
 	// A release feed grows a few times a day at most.
 	"releases": 30 * time.Minute,
+	// Today's releases change hourly; five minutes keeps the page live without
+	// spending Mikan's quota on every visitor.
+	"today": 5 * time.Minute,
 }
 
 // bangumiFetch retrieves a Bangumi path, serving a cached copy when it has one.
@@ -165,6 +169,46 @@ func bangumiGet(path string) (string, error) {
 func GetBangumiCalendar(c *gin.Context) {
 	bangumiFetch(c, "bangumi:calendar", bangumiCacheTTL["calendar"], func() (string, error) {
 		return bangumiGet("/calendar")
+	})
+}
+
+// GetBangumiTodayUpdates lists the releases published today, newest first.
+//
+// The broadcast calendar answers "what airs on Thursday", which is a constant
+// for the whole season and therefore looks frozen. This endpoint answers "what
+// came out today", which is the view a visitor actually wants to refresh. It
+// reads Mikan's site-wide RSS, not a per-subject feed, so it needs no keyword
+// resolution and costs one upstream call per cache window.
+func GetBangumiTodayUpdates(c *gin.Context) {
+	bangumiFetch(c, "bangumi:today", bangumiCacheTTL["today"], func() (string, error) {
+		body, err := animeUpstreamGet(c.Request.Context(), mikanAPIBase+"/RSS/Classic", mikanHTMLHeaders(), mikanTimeout)
+		if err != nil {
+			return "", err
+		}
+		releases := parseMikanFeed(body, "EXACT")
+		// Mikan's timestamps are UTC+8 wall clock; "today" means today in that
+		// zone, which is also the audience's zone.
+		now := time.Now().In(time.FixedZone("UTC+8", 8*60*60))
+		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).UnixMilli()
+		today := make([]animeRelease, 0, len(releases))
+		for _, release := range releases {
+			if release.PublishedMs >= startOfDay {
+				today = append(today, release)
+			}
+		}
+		// Newest first: the list is a "what is new" feed, not a catalogue.
+		sort.SliceStable(today, func(i, j int) bool {
+			return today[i].PublishedMs > today[j].PublishedMs
+		})
+		payload, err := json.Marshal(gin.H{
+			"date":     now.Format("2006-01-02"),
+			"count":    len(today),
+			"releases": today,
+		})
+		if err != nil {
+			return "", err
+		}
+		return string(payload), nil
 	})
 }
 

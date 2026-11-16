@@ -24,6 +24,7 @@ import type {
   BangumiEpisodesResponse,
   BangumiReleasesResponse,
   BangumiSearchResponse,
+  BangumiTodayUpdatesResponse,
   BangumiSourceBrowseResponse,
   BangumiSourceResolveResponse,
   BangumiSourceSearchResponse,
@@ -38,6 +39,17 @@ import type {
  */
 export async function getBangumiCalendar(): Promise<BangumiCalendarResponse> {
   const res = await api.get<BangumiCalendarResponse>('/api/bangumi/calendar')
+  return res.data
+}
+
+/**
+ * Today's releases across the whole site.
+ *
+ * The calendar answers "what airs on Thursday" and is constant for a season;
+ * this answers "what came out today" and is the list that actually changes.
+ */
+export async function getBangumiTodayUpdates(): Promise<BangumiTodayUpdatesResponse> {
+  const res = await api.get<BangumiTodayUpdatesResponse>('/api/bangumi/today')
   return res.data
 }
 

@@ -67,6 +67,16 @@ export type BangumiCalendarDay = {
 
 export type BangumiCalendarResponse = BangumiCalendarDay[]
 
+/**
+ * Today's releases. `releases` reuses the release shape the player already
+ * consumes, so a card can open the same episode dialog without a second model.
+ */
+export type BangumiTodayUpdatesResponse = {
+  date: string
+  count: number
+  releases: BangumiRelease[]
+}
+
 export type BangumiSearchItem = {
   id: number
   type: BangumiSubjectType

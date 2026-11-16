@@ -64,6 +64,7 @@ func SetApiRouter(router *gin.Engine) {
 			bangumiRoute.GET("/sources/:sourceId/search", middleware.BangumiWatchEnabled(), controller.SearchBangumiMediaSource)
 			bangumiRoute.GET("/sources/:sourceId/subjects/:sourceSubjectId", middleware.BangumiWatchEnabled(), controller.BrowseBangumiMediaSource)
 			bangumiRoute.GET("/calendar", controller.GetBangumiCalendar)
+			bangumiRoute.GET("/today", controller.GetBangumiTodayUpdates)
 			bangumiRoute.GET("/search", controller.GetBangumiSearch)
 			bangumiRoute.GET("/ranking", controller.GetBangumiRanking)
 			bangumiRoute.GET("/subjects/:id", controller.GetBangumiSubject)
