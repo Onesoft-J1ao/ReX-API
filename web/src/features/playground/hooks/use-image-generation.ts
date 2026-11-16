@@ -105,6 +105,7 @@ export function useImageGeneration() {
   return {
     config,
     updateConfig,
+    clearImages: () => setImages([]),
     mode,
     setMode,
     prompt,

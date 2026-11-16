@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { Copy, Download, ExternalLink, ImageIcon, Trash2 } from 'lucide-react'
 import { useEffect, useRef, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -46,6 +47,14 @@ import {
 } from '../../constants'
 import { useImageGeneration } from '../../hooks/use-image-generation'
 import type { GeneratedImage } from '../../types'
+
+const ASPECT_PRESETS = [
+  { label: '1:1', size: '1024x1024' },
+  { label: '3:2', size: '1536x1024' },
+  { label: '2:3', size: '1024x1536' },
+  { label: '16:9', size: '1792x1024' },
+  { label: '9:16', size: '1024x1792' },
+] as const
 
 const INPUT_FIDELITY_OPTIONS = [
   { value: 'default', label: 'Provider default' },
@@ -84,6 +93,7 @@ export function ImageWorkbench() {
     error,
     canGenerate,
     generate,
+    clearImages,
   } = useImageGeneration()
 
   const { data: groups = [] } = useQuery({
@@ -113,7 +123,7 @@ export function ImageWorkbench() {
   }, [config.model, models, updateConfig])
 
   const handleReferenceFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const picked = [...event.target.files ?? []]
+    const picked = [...(event.target.files ?? [])]
     if (picked.length > 0) {
       addReferenceImages(picked)
     }
@@ -169,9 +179,22 @@ export function ImageWorkbench() {
                   id='image-prompt'
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (
+                      (event.metaKey || event.ctrlKey) &&
+                      event.key === 'Enter' &&
+                      canGenerate
+                    ) {
+                      event.preventDefault()
+                      void generate()
+                    }
+                  }}
                   placeholder={t('Describe the image you want to generate')}
                   rows={4}
                 />
+                <p className='text-muted-foreground text-[11px]'>
+                  {t('Ctrl/⌘ + Enter to generate')}
+                </p>
               </div>
 
               {mode === 'image-to-image' && (
@@ -287,6 +310,26 @@ export function ImageWorkbench() {
                 </div>
               )}
 
+              <div className='space-y-2'>
+                <Label>{t('Aspect ratio')}</Label>
+                <div className='flex flex-wrap gap-1.5'>
+                  {ASPECT_PRESETS.map((preset) => (
+                    <Button
+                      className='h-7 px-2 font-mono text-xs'
+                      key={preset.label}
+                      onClick={() => updateConfig('size', preset.size)}
+                      size='sm'
+                      type='button'
+                      variant={
+                        config.size === preset.size ? 'secondary' : 'outline'
+                      }
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
               <div className='grid grid-cols-2 gap-3'>
                 <div className='space-y-2'>
                   <Label htmlFor='image-size'>{t('Size')}</Label>
@@ -374,15 +417,39 @@ export function ImageWorkbench() {
 
           <div className='min-w-0'>
             {images.length === 0 && !isGenerating && (
-              <div className='text-muted-foreground border-muted flex min-h-64 items-center justify-center rounded-xl border border-dashed p-8 text-center text-sm'>
-                {t('Generated images will appear here')}
+              <div className='text-muted-foreground border-muted flex min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-8 text-center text-sm'>
+                <ImageIcon className='h-8 w-8 opacity-60' />
+                <span>{t('Generated images will appear here')}</span>
+              </div>
+            )}
+
+            {images.length > 0 && (
+              <div className='mb-3 flex items-center justify-between'>
+                <Badge variant='secondary'>
+                  {t('{{count}} images', { count: images.length })}
+                </Badge>
+                <Button
+                  onClick={clearImages}
+                  size='sm'
+                  type='button'
+                  variant='ghost'
+                >
+                  <Trash2 className='mr-1 h-3.5 w-3.5' />
+                  {t('Clear')}
+                </Button>
               </div>
             )}
 
             {isGenerating && (
-              <div className='text-muted-foreground flex min-h-64 items-center justify-center gap-2 rounded-xl border border-dashed p-8 text-sm'>
-                <Spinner />
-                {t('Generating')}
+              <div className='grid gap-4 sm:grid-cols-2'>
+                {Array.from({ length: config.n }).map((_, index) => (
+                  <div
+                    className='bg-muted/40 flex aspect-square items-center justify-center rounded-xl border'
+                    key={`pending-${index}`}
+                  >
+                    <Spinner />
+                  </div>
+                ))}
               </div>
             )}
 
@@ -400,30 +467,47 @@ export function ImageWorkbench() {
                         />
                       )}
                       <CardContent className='flex items-center justify-between gap-2 py-3'>
-                        <span className='text-muted-foreground truncate text-xs'>
+                        <span className='text-muted-foreground min-w-0 flex-1 truncate text-xs'>
                           {image.revised_prompt ?? t('Generated image')}
                         </span>
                         {source && (
-                          <a
-                            className='text-primary shrink-0 text-xs hover:underline'
-                            download={`image-${index + 1}.png`}
-                            href={source}
-                          >
-                            {t('Download')}
-                          </a>
+                          <div className='flex shrink-0 items-center gap-1'>
+                            <Button
+                              aria-label={t('Copy prompt')}
+                              onClick={() =>
+                                void navigator.clipboard.writeText(
+                                  image.revised_prompt ?? prompt
+                                )
+                              }
+                              size='icon'
+                              type='button'
+                              variant='ghost'
+                            >
+                              <Copy className='h-3.5 w-3.5' />
+                            </Button>
+                            <a
+                              aria-label={t('Open in new tab')}
+                              className='text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md'
+                              href={source}
+                              rel='noreferrer'
+                              target='_blank'
+                            >
+                              <ExternalLink className='h-3.5 w-3.5' />
+                            </a>
+                            <a
+                              aria-label={t('Download')}
+                              className='text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md'
+                              download={`image-${index + 1}.png`}
+                              href={source}
+                            >
+                              <Download className='h-3.5 w-3.5' />
+                            </a>
+                          </div>
                         )}
                       </CardContent>
                     </Card>
                   )
                 })}
-              </div>
-            )}
-
-            {images.length > 0 && (
-              <div className='mt-3 flex justify-end'>
-                <Badge variant='secondary'>
-                  {t('{{count}} images', { count: images.length })}
-                </Badge>
               </div>
             )}
           </div>
