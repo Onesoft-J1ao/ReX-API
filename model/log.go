@@ -878,6 +878,9 @@ type TokenIpUsage struct {
 // the address was never recorded, so all such rows collapse into one bucket
 // rather than vanishing and making the totals look clean.
 type TokenIpStat struct {
+	// TokenID keys the client-side map; without it the response cannot be
+	// joined back to the table row and every key renders "no usage".
+	TokenID        int            `json:"token_id"`
 	TotalIps       int            `json:"total_ips"`
 	TotalTokens    int            `json:"total_tokens"`
 	TotalRequests  int64          `json:"total_requests"`
@@ -916,6 +919,7 @@ func GetUserTokenIpStats(userID int, tokenIDs []int, maxIpsPerToken int) (map[in
 	}
 	for _, tokenID := range ownedTokenIDs {
 		result[tokenID] = &TokenIpStat{
+			TokenID:        tokenID,
 			MaxIpsPerToken: maxIpsPerToken,
 			Ips:            []TokenIpUsage{},
 		}
