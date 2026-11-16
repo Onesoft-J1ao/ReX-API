@@ -60,6 +60,12 @@ export interface StatusModel {
 
 export interface StatusGroup {
   group: string
+  /**
+   * Multiplier this group charges on top of the base price. Absent on gateways
+   * older than this field, in which case the card hides the badge rather than
+   * inventing a 1x it never measured.
+   */
+  group_ratio?: number
   availability: number
   avg_latency_ms: number
   total_probes: number

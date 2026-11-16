@@ -239,7 +239,8 @@ func UpstreamMirrorRow(source, localGroup, modelName string, hours int) (GroupMo
 			AvgTps:              mirror.AvgTps,
 			RecentSuccessSeries: mirror.RecentSuccessSeries,
 			RecentLatencySeries: mirror.RecentLatencySeries,
-			Source:              SourceMirror + ":" + source,
+			// Marker only: the supplier name must not reach a public payload.
+			Source: SourceMirror,
 		}, true
 	}
 	return GroupModelSummary{
@@ -250,7 +251,8 @@ func UpstreamMirrorRow(source, localGroup, modelName string, hours int) (GroupMo
 		AvgTps:              mirror.AvgTps,
 		RecentSuccessSeries: mirror.RecentSuccessSeries,
 		RecentLatencySeries: mirror.RecentLatencySeries,
-		Source:              SourceMirror + ":" + source,
+		// Marker only: the supplier name must not reach a public payload.
+		Source: SourceMirror,
 	}, true
 }
 

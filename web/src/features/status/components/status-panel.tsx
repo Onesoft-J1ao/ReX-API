@@ -67,6 +67,17 @@ const STRIP_BUCKETS = 24
  * requests left the row showing 82% while the badge called it failing. Only a
  * row that is actually measured and actually below the warning line counts.
  */
+/**
+ * Renders a group multiplier the way the model square prints it: a trailing `x`
+ * and no padded zeros, so 0.04 reads as `0.04x` and 1 as `1x`. A free group is
+ * 0 and says so, because "free" is the number a visitor is looking for.
+ */
+function formatGroupRatio(ratio: number): string {
+  if (ratio === 0) return 'free'
+  const trimmed = Number(ratio.toFixed(4)).toString()
+  return `${trimmed}x`
+}
+
 function isFailingModel(model: StatusModel): boolean {
   if (model.has_data === false) return false
   if (!Number.isFinite(model.availability)) return false
@@ -230,6 +241,20 @@ function GroupCard(props: { group: StatusGroup; index: number }) {
             >
               {group.group}
             </h3>
+            {/* The multiplier sits beside the name so a visitor comparing two
+                cards sees what each group charges without leaving the page.
+                Older gateways do not report it; an invented 1x would be a lie
+                about the price, so the badge simply disappears. */}
+            {typeof group.group_ratio === 'number' &&
+              Number.isFinite(group.group_ratio) && (
+                <Badge
+                  variant='secondary'
+                  className='shrink-0 font-mono text-xs tabular-nums'
+                  title={t('Group multiplier')}
+                >
+                  {formatGroupRatio(group.group_ratio)}
+                </Badge>
+              )}
             {failed > 0 && (
               <Badge
                 variant='destructive'

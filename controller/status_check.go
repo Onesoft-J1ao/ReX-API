@@ -65,7 +65,11 @@ type modelHealthDTO struct {
 }
 
 type groupHealthDTO struct {
-	Group        string           `json:"group"`
+	Group string `json:"group"`
+	// GroupRatio is the multiplier this group charges on top of the base price.
+	// The card shows it next to the name so price and health can be compared in
+	// one glance instead of opening the model square in another tab.
+	GroupRatio   float64          `json:"group_ratio"`
 	Availability float64          `json:"availability"`
 	AvgLatencyMs int64            `json:"avg_latency_ms"`
 	TotalProbes  int              `json:"total_probes"`
@@ -215,8 +219,16 @@ func GetStatusCheck(c *gin.Context) {
 		Groups:       []groupHealthDTO{},
 		WindowStart:  earliestBucket,
 	}
+	groupRatios := ratio_setting.GetGroupRatioCopy()
 	for _, group := range groups {
 		dto := groupHealthDTO{Group: group, Models: []modelHealthDTO{}}
+		// A group missing from the ratio map charges the default multiplier,
+		// which is what GetGroupRatio would return for it too.
+		if ratio, ok := groupRatios[group]; ok {
+			dto.GroupRatio = ratio
+		} else {
+			dto.GroupRatio = 1
+		}
 
 		// The plaza lists a model only while a channel in the group still serves
 		// it. Probe rows and passive metrics outlive that, so without this filter
@@ -478,7 +490,11 @@ func mirrorHealthRow(row perfmetrics.GroupModelSummary) modelHealthDTO {
 		Ok:           row.SuccessRate >= 70,
 		Series:       series,
 		HasData:      len(series) > 0 || row.SuccessRate > 0,
-		Source:       row.Source,
+		// Only the marker goes out, never the upstream it names. This payload is
+		// public: `mirror:sheapi` told every visitor which supplier serves the
+		// group. The client only needs to know "not measured here", which is the
+		// prefix alone.
+		Source: perfmetrics.SourceMirror,
 	}
 }
 

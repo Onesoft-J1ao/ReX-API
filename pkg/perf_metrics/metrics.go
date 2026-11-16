@@ -568,7 +568,10 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 						AvgTps:              mirror.AvgTps,
 						RecentSuccessSeries: mirror.RecentSuccessSeries,
 						RecentLatencySeries: mirror.RecentLatencySeries,
-						Source:              SourceMirror + ":" + source,
+						// Only the marker, never the upstream's name: this value
+						// reaches the public model square, and the supplier behind a
+						// group is not something visitors are meant to read.
+						Source: SourceMirror,
 					})
 					localKeys[k] = struct{}{}
 				}
