@@ -4,6 +4,17 @@
 
 本项目 fork 自 [QuantumNous/new-api](https://github.com/QuantumNous/new-api)（AGPL-3.0），在前端交互、计费模型和多上游运营能力上做了较大改造。上游的版权声明、`NOTICE` 与第三方许可清单全部保留。
 
+## 站点与社区
+
+| 入口 | 地址 |
+|---|---|
+| 站点 | **https://ai.j1ao.vip** |
+| 使用文档 | https://docs.j1ao.vip |
+| 模型广场 | https://ai.j1ao.vip/pricing |
+| QQ 群 | **1014805259** |
+
+
+
 ## 能力概览
 
 | 能力 | 说明 |

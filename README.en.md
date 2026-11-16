@@ -4,6 +4,17 @@
 
 This repository is a fork of [QuantumNous/new-api](https://github.com/QuantumNous/new-api) (AGPL-3.0). The upstream copyright notices, `NOTICE` and third-party license list are preserved.
 
+## Site & community
+
+| Entry | Address |
+|---|---|
+| Site | **https://ai.j1ao.vip** |
+| Docs | https://docs.j1ao.vip |
+| Model square | https://ai.j1ao.vip/pricing |
+| QQ group | **1014805259** |
+
+
+
 ## What it does
 
 | Area | Detail |
