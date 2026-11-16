@@ -102,6 +102,27 @@ describe('StatusPanel group and model names', () => {
     expect(heading).toHaveAttribute('title', 'Codex不降智高缓')
   })
 
+  // The multiplier is the whole point of the badge: a card that hides it, or
+  // prints `1` for a group the server did not report, would show a price the
+  // group does not charge. Zero is free, and it has to read that way.
+  it('prints the group multiplier and treats zero as free', async () => {
+    const priced = { ...group('ds套餐'), group_ratio: 0.04 }
+    const free = { ...group('free1'), group_ratio: 0 }
+    renderPanel([priced, free])
+
+    expect(await screen.findByText('0.04x')).toBeInTheDocument()
+    expect(screen.getByText('free')).toBeInTheDocument()
+  })
+
+  // An older gateway never sends group_ratio. Inventing `1x` for it would claim
+  // a price nobody measured, so the badge is simply absent.
+  it('hides the multiplier when the gateway does not report it', async () => {
+    renderPanel([group('legacy')])
+
+    await screen.findByRole('heading', { level: 3, name: 'legacy' })
+    expect(screen.queryByTitle('Group multiplier')).toBeNull()
+  })
+
   it('shows the full model name and exposes it as a title', async () => {
     renderPanel([group('ClaudeMax', [model('claude-opus-4-5-20251101')])])
 
