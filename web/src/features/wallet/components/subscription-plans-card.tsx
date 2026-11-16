@@ -62,6 +62,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
+import { groupPlanFamilies } from '../lib/plan-families'
 import type { NowPaymentsInvoice, PaymentMethod, TopupInfo } from '../types'
 import { NowPaymentsPaymentDialog } from './dialogs/nowpayments-payment-dialog'
 
@@ -109,6 +110,7 @@ export function SubscriptionPlansCard({
   const { t } = useTranslation()
 
   const [plans, setPlans] = useState<PlanRecord[]>([])
+  const [activeTier, setActiveTier] = useState<Record<string, number>>({})
   const [activeSubscriptions, setActiveSubscriptions] = useState<
     UserSubscriptionRecord[]
   >([])
@@ -231,6 +233,11 @@ export function SubscriptionPlansCard({
     }
     return map
   }, [plans])
+
+  const planFamilies = useMemo(
+    () => groupPlanFamilies(plans, activeTier),
+    [plans, activeTier]
+  )
 
   const getRemainingDays = (sub: UserSubscriptionRecord) => {
     const endTime = sub?.subscription?.end_time || 0
@@ -596,9 +603,14 @@ export function SubscriptionPlansCard({
         {/* Available plans grid */}
         {plans.length > 0 ? (
           <div className='grid grid-cols-1 gap-3 2xl:grid-cols-2 2xl:gap-4'>
-            {plans.map((p, index) => {
-              const plan = p?.plan
-              if (!plan) return null
+            {planFamilies.map((family, index) => {
+              // A family is one plan offered at several allowance levels: the
+              // tier chips pick the tier, the card renders that tier's figures.
+              // Picking a tier is what used to require a separate card per tier.
+              const tierPlan = family.tiers[family.activeIndex]?.plan
+              if (!tierPlan) return null
+              const plan = tierPlan
+              const p = family.tiers[family.activeIndex]
               const totalAmount = Number(plan.total_amount || 0)
               const price = formatBillingCurrencyFromUSD(
                 Number(plan.price_amount || 0),
@@ -660,7 +672,7 @@ export function SubscriptionPlansCard({
 
               return (
                 <Card
-                  key={plan.id}
+                  key={family.key}
                   data-card-hover='false'
                   className={cn(isPopular && 'border-primary/70 shadow-sm')}
                 >
@@ -693,6 +705,38 @@ export function SubscriptionPlansCard({
                         {price}
                       </span>
                     </div>
+
+                    {/* One plan, three allowance levels. The chips switch the
+                        card's figures in place instead of spreading the same
+                        plan across three near-identical cards. */}
+                    {family.tiers.length > 1 && (
+                      <div className='mb-3 grid grid-cols-3 gap-1.5'>
+                        {family.tiers.map((tier, tierIndex) => {
+                          const active = tierIndex === family.activeIndex
+                          return (
+                            <button
+                              key={tier.plan?.id ?? tierIndex}
+                              type='button'
+                              onClick={() =>
+                                setActiveTier((prev) => ({
+                                  ...prev,
+                                  [family.key]: tierIndex,
+                                }))
+                              }
+                              className={cn(
+                                'rounded-md border px-2 py-1.5 text-center font-mono text-xs transition-colors',
+                                active
+                                  ? 'border-primary bg-primary/10 text-primary font-semibold'
+                                  : 'border-border text-muted-foreground hover:border-primary/50'
+                              )}
+                              aria-pressed={active}
+                            >
+                              {tier.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
 
                     <div className='flex-1 space-y-1.5 pb-3'>
                       {benefits.map((label) => (

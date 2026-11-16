@@ -32,6 +32,20 @@ export interface ApiResponse<T = unknown> {
 }
 
 /**
+ * One role a user holds alongside the others.
+ */
+export interface UserIdentity {
+  /** "group" | "distributor" | "subscription" */
+  kind: string
+  /** Human-readable name shown on the badge. */
+  label: string
+  /** The concrete group this badge came from, when there is one. */
+  detail?: string
+  /** 0 or absent for an identity that does not expire. */
+  expires_at?: number
+}
+
+/**
  * User profile data
  */
 export interface UserProfile {
@@ -51,6 +65,12 @@ export interface UserProfile {
   group: string
   /** True when this user group carries its own per-group price overrides. */
   is_distributor?: boolean
+  /**
+   * Every identity this account holds at once. The single `group` column can
+   * only name one, so a reseller who also bought a subscription used to lose
+   * the distributor badge the moment the plan rewrote their group.
+   */
+  identities?: UserIdentity[]
   /** Current quota balance */
   quota: number
   /** Total used quota */

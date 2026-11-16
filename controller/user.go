@@ -608,7 +608,14 @@ func buildSelfUserData(user *model.User) map[string]any {
 		// A distributor is a user group that carries its own per-group price
 		// overrides. The profile header shows that identity so a distributor can
 		// tell why their prices differ from the public ones.
-		"is_distributor":    ratio_setting.HasGroupGroupRatio(user.Group),
+		"is_distributor": ratio_setting.HasGroupGroupRatio(user.Group),
+		// Attributes are the independent identities a user can hold at once.
+		// The single `group` column can only say one thing, so a reseller who
+		// also bought a subscription lost the distributor badge the moment the
+		// plan moved them into its group. Everything here is read from data the
+		// account already has: the stored group, the override table, and the
+		// subscription rows.
+		"identities":        userIdentities(user),
 		"quota":             user.Quota,
 		"gift_quota":        user.GiftQuota,
 		"used_quota":        user.UsedQuota,
@@ -624,6 +631,71 @@ func buildSelfUserData(user *model.User) map[string]any {
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":       permissions,
 	}
+}
+
+// UserIdentity is one role a user holds at the same time as the others.
+//
+// The user row can only name a single group, so every derived identity used to
+// disappear when the group changed: buying a subscription rewrote `group` to
+// the plan's upgrade group and the distributor badge vanished. Identities are
+// collected independently so the profile can show all of them at once.
+type UserIdentity struct {
+	Kind  string `json:"kind"`
+	Label string `json:"label"`
+	// Detail names the concrete group a badge was derived from, so an operator
+	// can tell "distributor" apart when more than one reseller group exists.
+	Detail string `json:"detail,omitempty"`
+	// ExpiresAt is set for subscription-backed identities; 0 means permanent.
+	ExpiresAt int64 `json:"expires_at,omitempty"`
+}
+
+func userIdentities(user *model.User) []UserIdentity {
+	identities := make([]UserIdentity, 0, 4)
+	group := strings.TrimSpace(user.Group)
+
+	if group != "" {
+		identities = append(identities, UserIdentity{
+			Kind:   "group",
+			Label:  group,
+			Detail: group,
+		})
+	}
+	if ratio_setting.HasGroupGroupRatio(group) {
+		identities = append(identities, UserIdentity{
+			Kind:   "distributor",
+			Label:  "Distributor",
+			Detail: group,
+		})
+	}
+	// An active subscription is its own identity: it grants quota inside the
+	// plan's group without owning the user's group column. Plan titles come from
+	// the plan table because a subscription row only stores the id.
+	if subs, err := model.GetAllActiveUserSubscriptions(user.Id); err == nil {
+		for _, summary := range subs {
+			sub := summary.Subscription
+			if sub == nil {
+				continue
+			}
+			label := "Subscription"
+			detail := ""
+			if plan, planErr := model.GetSubscriptionPlanById(sub.PlanId); planErr == nil && plan != nil {
+				if title := strings.TrimSpace(plan.Title); title != "" {
+					label = title
+				}
+				detail = strings.TrimSpace(plan.WalletOnlyGroups)
+				if detail == "" {
+					detail = strings.TrimSpace(plan.UpgradeGroup)
+				}
+			}
+			identities = append(identities, UserIdentity{
+				Kind:      "subscription",
+				Label:     label,
+				Detail:    detail,
+				ExpiresAt: sub.EndTime,
+			})
+		}
+	}
+	return identities
 }
 
 // 计算用户权限的辅助函数

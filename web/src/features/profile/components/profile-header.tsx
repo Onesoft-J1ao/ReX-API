@@ -29,7 +29,7 @@ import { formatCompactNumber, formatQuota } from '@/lib/format'
 import { getRoleLabel } from '@/lib/roles'
 
 import { getDisplayName } from '../lib'
-import type { UserProfile } from '../types'
+import type { UserIdentity, UserProfile } from '../types'
 
 // ============================================================================
 // Profile Header Component
@@ -38,6 +38,19 @@ import type { UserProfile } from '../types'
 interface ProfileHeaderProps {
   profile: UserProfile | null
   loading: boolean
+}
+
+/**
+ * A badge label for one identity. The distributor badge keeps its plain name —
+ * it describes a capability, not a plan — while a subscription badge names the
+ * plan so a user can tell which top-up it came from.
+ */
+function identityBadgeLabel(
+  identity: UserIdentity,
+  t: (key: string) => string
+): string {
+  if (identity.kind === 'distributor') return t('Distributor')
+  return identity.label
 }
 
 export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
@@ -84,6 +97,11 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   const avatarFallback = getUserAvatarFallback(avatarName)
   const avatarFallbackStyle = getUserAvatarStyle(avatarName)
   const roleLabel = getRoleLabel(profile.role)
+  // Group badges are shown separately (the group picker already names it), so
+  // only the derived identities — distributor, subscription — get a badge.
+  const identityBadges = (profile.identities ?? []).filter(
+    (identity) => identity.kind !== 'group'
+  )
   const stats: {
     label: string
     value: string
@@ -142,13 +160,17 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
                 variant='info'
                 copyText={String(profile.id)}
               />
-              {profile.is_distributor && (
+              {/* Every identity the account holds, not just the one the group
+                  column names. Buying a subscription used to hide the
+                  distributor badge; both now show side by side. */}
+              {identityBadges.map((identity) => (
                 <StatusBadge
-                  label={t('Distributor')}
-                  variant='success'
+                  key={`${identity.kind}-${identity.label}-${identity.detail ?? ''}`}
+                  label={identityBadgeLabel(identity, t)}
+                  variant={identity.kind === 'distributor' ? 'success' : 'info'}
                   copyable={false}
                 />
-              )}
+              ))}
             </div>
 
             <div className='text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:gap-x-4 sm:text-sm'>
