@@ -22,21 +22,21 @@ func TestParseStatusPageURL(t *testing.T) {
 	}{
 		{
 			name:    "plain status page URL",
-			raw:     "https://status.s3.fan/status/s3ai-api",
-			baseURL: "https://status.s3.fan",
-			slug:    "s3ai-api",
+			raw:     "https://status.example.com/status/default",
+			baseURL: "https://status.example.com",
+			slug:    "default",
 		},
 		{
 			name:    "trailing slash",
-			raw:     "https://status.s3.fan/status/s3ai-api/",
-			baseURL: "https://status.s3.fan",
-			slug:    "s3ai-api",
+			raw:     "https://status.example.com/status/default/",
+			baseURL: "https://status.example.com",
+			slug:    "default",
 		},
 		{
 			name:    "surrounding whitespace",
-			raw:     "  https://status.s3.fan/status/s3ai-api  ",
-			baseURL: "https://status.s3.fan",
-			slug:    "s3ai-api",
+			raw:     "  https://status.example.com/status/default  ",
+			baseURL: "https://status.example.com",
+			slug:    "default",
 		},
 		{
 			name:    "query and fragment are ignored",
@@ -101,7 +101,7 @@ func TestFetchGroupDataReportsTheNewestHeartbeat(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/status-page/demo":
-			_, _ = w.Write([]byte(`{"publicGroupList":[{"id":13,"name":"S3AI API","monitorList":[{"id":29,"name":"主站"},{"id":37,"name":"源站"}]}]}`))
+			_, _ = w.Write([]byte(`{"publicGroupList":[{"id":13,"name":"Example API","monitorList":[{"id":29,"name":"主站"},{"id":37,"name":"源站"}]}]}`))
 		case "/api/status-page/heartbeat/demo":
 			_, _ = w.Write([]byte(`{"heartbeatList":{` +
 				`"29":[{"status":1,"time":"2026-01-01 00:00:00.000"},{"status":0,"time":"2026-01-01 00:05:00.000"}],` +
@@ -121,7 +121,7 @@ func TestFetchGroupDataReportsTheNewestHeartbeat(t *testing.T) {
 	// reported status is 0 even though the first element says 1.
 	assert.Equal(t, Monitor{
 		Name:   "主站",
-		Group:  "S3AI API",
+		Group:  "Example API",
 		Status: 0,
 		Uptime: 0.5,
 		Heartbeats: []UptimeHeartbeat{
@@ -131,7 +131,7 @@ func TestFetchGroupDataReportsTheNewestHeartbeat(t *testing.T) {
 	}, group.Monitors[0])
 	assert.Equal(t, Monitor{
 		Name:   "源站",
-		Group:  "S3AI API",
+		Group:  "Example API",
 		Status: 1,
 		Uptime: 1,
 		Heartbeats: []UptimeHeartbeat{
@@ -169,7 +169,7 @@ func TestMaskUpstreamIdentityScrubsHostsButKeepsModelNames(t *testing.T) {
 	}{
 		{"bare domain", "主站 ai.furry.vg", "主站 •••"},
 		{"own domain", "主站 ai.j1ao.vip", "主站 •••"},
-		{"full url", "https://status.s3.fan/status/s3ai-api", "•••"},
+		{"full url", "https://status.example.com/status/default", "•••"},
 		{"ipv4", "源站 192.168.1.1", "源站 •••"},
 		{"subdomain chain", "节点 a.b.c.example.com", "节点 •••"},
 		{"model version survives", "Gemini 2.5 Flash", "Gemini 2.5 Flash"},
@@ -214,14 +214,14 @@ func TestFetchUpstreamGroupServesTheMaskedForm(t *testing.T) {
 	assert.Equal(t, "上游状态", group.CategoryName)
 }
 
-// The provider's own group names ("S3AI API", "号池") must never reach the
+// The provider's own group names ("Example API", "号池") must never reach the
 // console: they advertise where our capacity comes from. The monitors
 // themselves stay, filed under the console's own heading.
 func TestFlattenUpstreamGroupsDropsProviderGroupNames(t *testing.T) {
 	group := flattenUpstreamGroups(UptimeGroupResult{
-		CategoryName: "S3AI API",
+		CategoryName: "Example API",
 		Monitors: []Monitor{
-			{Name: "主站 •••", Group: "S3AI API"},
+			{Name: "主站 •••", Group: "Example API"},
 			{Name: "Kiro", Group: "号池"},
 			{Name: "源站 •••", Group: "号池"},
 		},

@@ -42,7 +42,7 @@ const defaultContentSettings: ContentSettings = {
   'console_setting.announcements_enabled': true,
   'console_setting.faq_enabled': true,
   'console_setting.uptime_kuma_enabled': false,
-'console_setting.upstream_status_url': 'https://status.s3.fan/status/s3ai-api',
+  'console_setting.upstream_status_url': 'https://status.example.com/status/default',
   'console_setting.upstream_status_name': '上游状态',
   'console_setting.upstream_status_enabled': true,
   'console_setting.support_qq_url': '',

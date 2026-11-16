@@ -130,8 +130,9 @@ type GroupModelSummary struct {
 	AvgTps              float64            `json:"avg_tps"`
 	RecentSuccessSeries []SuccessRatePoint `json:"recent_success_series,omitempty"`
 	RecentLatencySeries []LatencyPoint     `json:"recent_latency_series,omitempty"`
-	// Source marks model-wide upstream mirrors mapped to a local group. The
-	// source is informational only; it is never treated as local traffic.
+	// Source marks a row filled from another deployment's public summary. Only
+	// the marker goes out: the supplier behind a group is internal, and this
+	// struct is serialised into public payloads.
 	Source string `json:"source,omitempty"`
 }
 

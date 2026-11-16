@@ -2386,7 +2386,7 @@
     "Enter the complete URL, supports": "Введите полный URL, поддерживает",
     "Enter the full QQ group join link": "Enter the full QQ group join link",
     "Enter the full URL of your Gotify server": "Введите полный URL вашего сервера Gotify",
-    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "Укажите полный URL страницы статуса, например https://status.s3.fan/status/s3ai-api",
+    "Enter the full status page URL, for example https://status.example.com/status/default": "Укажите полный URL страницы статуса, например https://status.example.com/status/default",
     "Enter the gateway secret key": "Введите секретный ключ шлюза",
     "Enter the knowledge base ID": "Введите ID базы знаний",
     "Enter the path before /suno, usually just the domain": "Введите путь перед /suno, обычно это просто домен",

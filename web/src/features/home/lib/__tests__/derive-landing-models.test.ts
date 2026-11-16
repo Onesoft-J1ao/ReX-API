@@ -82,8 +82,8 @@ describe('deriveLandingModels', () => {
   })
 
   it('never repeats the operator group notes on the public page', () => {
-    // Those notes name the upstream pool serving a group ("furry free 渠道",
-    // "第三方号池"), which members need and visitors should not see.
+    // Those notes name the upstream pool serving a group ("upstream free pool",
+    // "third-party pool"), which members need and visitors should not see.
     const derived = deriveLandingModels(
       pricing({
         data: [
@@ -91,8 +91,8 @@ describe('deriveLandingModels', () => {
           model({ model_name: 'b', vendor_id: 1, enable_groups: ['bare'] }),
         ],
         usable_group: {
-          described: '🟢furry free 渠道',
-          bare: '第三方号池 每15分钟补号',
+          described: '🟢upstream free pool',
+          bare: 'third-party pool, refilled every 15m',
         } as unknown as PricingData['usable_group'],
       }),
       OPTIONS

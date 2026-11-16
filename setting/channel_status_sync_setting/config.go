@@ -15,7 +15,7 @@ import (
 // caps how much of the fleet one response may disable.
 type ChannelStatusSyncSetting struct {
 	Enabled             bool    `json:"enabled"`
-	SourceURL           string  `json:"source_url"`            // status page URL, e.g. https://status.s3.fan/status/s3ai-api
+	SourceURL           string  `json:"source_url"`            // status page URL, e.g. https://status.example.com/status/default
 	SyncIntervalMinutes int     `json:"sync_interval_minutes"` // scheduled job cadence
 	Aliases             string  `json:"aliases"`               // "remote monitor name=local channel name", comma/newline separated
 	EnableOnUp          bool    `json:"enable_on_up"`          // re-enable channels this job auto-disabled once the monitor recovers
@@ -26,7 +26,7 @@ type ChannelStatusSyncSetting struct {
 
 var channelStatusSyncSetting = ChannelStatusSyncSetting{
 	Enabled:             false,
-	SourceURL:           "https://status.s3.fan/status/s3ai-api",
+	SourceURL:           "https://status.example.com/status/default",
 	SyncIntervalMinutes: 5,
 	Aliases:             "",
 	EnableOnUp:          true,

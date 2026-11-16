@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Fixtures mirror the live shape of https://status.s3.fan/status/s3ai-api
+// Fixtures mirror the live shape of https://status.example.com/status/default
 // (an Uptime Kuma status page): monitor metadata lives under publicGroupList,
 // heartbeats are keyed by monitor id as a JSON string, and status codes are
 // 0=down 1=up 2=pending 3=maintenance.
 const statusPageFixture = `{
-  "config": {"slug": "s3ai-api", "title": "S3AI API", "autoRefreshInterval": 300},
+  "config": {"slug": "default", "title": "Example API", "autoRefreshInterval": 300},
   "incidents": [],
   "publicGroupList": [
-    {"id": 13, "name": "S3AI API", "weight": 1, "monitorList": [
+    {"id": 13, "name": "Example API", "weight": 1, "monitorList": [
       {"id": 37, "name": "源站", "sendUrl": 0, "type": "ping"},
       {"id": 29, "name": "主站", "sendUrl": 0, "type": "json-query"}
     ]},
@@ -62,15 +62,15 @@ func TestParseStatusPageSource(t *testing.T) {
 	}{
 		{
 			name:        "spa url as given by the product owner",
-			raw:         "https://status.s3.fan/status/s3ai-api",
-			wantAPIBase: "https://status.s3.fan/api/status-page",
-			wantSlug:    "s3ai-api",
+			raw:         "https://status.example.com/status/default",
+			wantAPIBase: "https://status.example.com/api/status-page",
+			wantSlug:    "default",
 		},
 		{
 			name:        "json api url resolves identically",
-			raw:         "https://status.s3.fan/api/status-page/s3ai-api",
-			wantAPIBase: "https://status.s3.fan/api/status-page",
-			wantSlug:    "s3ai-api",
+			raw:         "https://status.example.com/api/status-page/default",
+			wantAPIBase: "https://status.example.com/api/status-page",
+			wantSlug:    "default",
 		},
 		{
 			name:        "trailing slash and host port are preserved",
@@ -78,8 +78,8 @@ func TestParseStatusPageSource(t *testing.T) {
 			wantAPIBase: "http://localhost:3001/api/status-page",
 			wantSlug:    "foo",
 		},
-		{name: "no slug", raw: "https://status.s3.fan/", wantErr: true},
-		{name: "non http scheme", raw: "ftp://status.s3.fan/status/x", wantErr: true},
+		{name: "no slug", raw: "https://status.example.com/", wantErr: true},
+		{name: "non http scheme", raw: "ftp://status.example.com/status/x", wantErr: true},
 		{name: "empty", raw: "   ", wantErr: true},
 		{name: "unparsable", raw: "://not-a-url", wantErr: true},
 	}
@@ -101,7 +101,7 @@ func TestParseStatusPageJSON(t *testing.T) {
 	metas, err := parseStatusPageJSON([]byte(statusPageFixture))
 	require.NoError(t, err)
 	require.Len(t, metas, 3)
-	assert.Equal(t, remoteMonitorMeta{name: "源站", group: "S3AI API"}, metas[37])
+	assert.Equal(t, remoteMonitorMeta{name: "源站", group: "Example API"}, metas[37])
 	assert.Equal(t, remoteMonitorMeta{name: "Antigravity 按次Flash", group: "号池"}, metas[42])
 }
 
@@ -111,7 +111,7 @@ func TestParseStatusPageJSONRejectsMalformedInput(t *testing.T) {
 	for name, body := range map[string]string{
 		"truncated":       `{"publicGroupList": [{"name": "x"`,
 		"html error page": `<html><body>502 Bad Gateway</body></html>`,
-		"missing field":   `{"config": {"slug": "s3ai-api"}}`,
+		"missing field":   `{"config": {"slug": "default"}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := parseStatusPageJSON([]byte(body))
@@ -122,8 +122,8 @@ func TestParseStatusPageJSONRejectsMalformedInput(t *testing.T) {
 
 func TestParseHeartbeatJSONMapsKumaStatusCodes(t *testing.T) {
 	metas := map[int]remoteMonitorMeta{
-		37: {name: "源站", group: "S3AI API"},
-		29: {name: "主站", group: "S3AI API"},
+		37: {name: "源站", group: "Example API"},
+		29: {name: "主站", group: "Example API"},
 		42: {name: "Antigravity 按次Flash", group: "号池"},
 		50: {name: "GPT Pro 20x/5x正价", group: "号池"},
 	}
@@ -215,7 +215,7 @@ func newTestChannel(id int, name string, status int) *model.Channel {
 
 func baseOptions() StatusSyncOptions {
 	return StatusSyncOptions{
-		SourceURL:          "https://status.s3.fan/status/s3ai-api",
+		SourceURL:          "https://status.example.com/status/default",
 		DisableOnDown:      true,
 		EnableOnUp:         true,
 		StaleAfterMinutes:  30,
@@ -310,7 +310,7 @@ func TestBuildStatusSyncPlanActions(t *testing.T) {
 				options = tc.options(options)
 			}
 			monitors := []RemoteMonitor{{
-				ID: 29, Name: "主站", Group: "S3AI API",
+				ID: 29, Name: "主站", Group: "Example API",
 				Status: tc.remoteStatus, AgeSec: tc.remoteAgeSec,
 			}}
 			channels := []*model.Channel{newTestChannel(7, "主站", tc.channelState)}
@@ -376,9 +376,9 @@ func TestBuildStatusSyncPlanRefusesAmbiguousAndUnmatchedMonitors(t *testing.T) {
 func TestBuildStatusSyncPlanUsesAliases(t *testing.T) {
 	t.Run("alias maps a remote name onto a differently named channel", func(t *testing.T) {
 		options := baseOptions()
-		options.Aliases = map[string]string{"主站": "s3-origin"}
+		options.Aliases = map[string]string{"主站": "origin-main"}
 		monitors := []RemoteMonitor{{ID: 29, Name: "主站", Status: RemoteStatusDown, AgeSec: 60}}
-		channels := []*model.Channel{newTestChannel(1, "s3-origin", common.ChannelStatusEnabled)}
+		channels := []*model.Channel{newTestChannel(1, "origin-main", common.ChannelStatusEnabled)}
 
 		plan := BuildStatusSyncPlan(options, monitors, channels)
 		require.Len(t, plan.Entries, 1)

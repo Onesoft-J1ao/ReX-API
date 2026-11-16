@@ -2405,7 +2405,7 @@
     "Enter the complete URL, supports": "输入完整的 URL，支持",
     "Enter the full QQ group join link": "请输入完整的 QQ 群加入链接",
     "Enter the full URL of your Gotify server": "输入您的 Gotify 服务器的完整 URL",
-    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "请输入完整的状态页地址，例如 https://status.s3.fan/status/s3ai-api",
+    "Enter the full status page URL, for example https://status.example.com/status/default": "请输入完整的状态页地址，例如 https://status.example.com/status/default",
     "Enter the gateway secret key": "请输入网关密钥",
     "Enter the knowledge base ID": "输入知识库 ID",
     "Enter the path before /suno, usually just the domain": "输入 /suno 之前的路径，通常只是域名",

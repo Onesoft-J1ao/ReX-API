@@ -114,7 +114,7 @@ var defaultConsoleSetting = ConsoleSetting{
 	HideUpstreamRequestID:           false,
 	HideModelsWithoutEnabledChannel: true,
 	// 默认镜像上游 S3AI 的公开状态页
-	UpstreamStatusUrl:     "https://status.s3.fan/status/s3ai-api",
+	UpstreamStatusUrl:     "https://status.example.com/status/default",
 	UpstreamStatusName:    "上游状态",
 	UpstreamStatusEnabled: true,
 

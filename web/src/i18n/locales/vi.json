@@ -2386,7 +2386,7 @@
     "Enter the complete URL, supports": "Nhập địa chỉ URL hoàn chỉnh, hỗ trợ",
     "Enter the full QQ group join link": "Enter the full QQ group join link",
     "Enter the full URL of your Gotify server": "Nhập URL đầy đủ của máy chủ Gotify của bạn",
-    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "Nhập URL đầy đủ của trang trạng thái, ví dụ https://status.s3.fan/status/s3ai-api",
+    "Enter the full status page URL, for example https://status.example.com/status/default": "Nhập URL đầy đủ của trang trạng thái, ví dụ https://status.example.com/status/default",
     "Enter the gateway secret key": "Nhập khóa bí mật của cổng",
     "Enter the knowledge base ID": "Nhập ID cơ sở tri thức",
     "Enter the path before /suno, usually just the domain": "Nhập đường dẫn trước /suno, thường chỉ là tên miền",

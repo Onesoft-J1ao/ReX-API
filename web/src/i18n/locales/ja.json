@@ -2386,7 +2386,7 @@
     "Enter the complete URL, supports": "完全なURLを入力、サポート",
     "Enter the full QQ group join link": "Enter the full QQ group join link",
     "Enter the full URL of your Gotify server": "Gotifyサーバーの完全なURLを入力",
-    "Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api": "完全なステータスページURLを入力してください（例：https://status.s3.fan/status/s3ai-api）",
+    "Enter the full status page URL, for example https://status.example.com/status/default": "完全なステータスページURLを入力してください（例：https://status.example.com/status/default）",
     "Enter the gateway secret key": "ゲートウェイの秘密鍵を入力してください",
     "Enter the knowledge base ID": "ナレッジベースIDを入力",
     "Enter the path before /suno, usually just the domain": "/suno の前のパスを入力してください。通常はドメインのみです",

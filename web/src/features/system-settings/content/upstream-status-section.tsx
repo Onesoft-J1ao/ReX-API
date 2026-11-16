@@ -56,7 +56,7 @@ const createUpstreamStatusSchema = (t: (key: string) => string) =>
       .trim()
       .refine((value) => value === '' || STATUS_PAGE_PATTERN.test(value), {
         error: t(
-          'Enter the full status page URL, for example https://status.s3.fan/status/s3ai-api'
+          'Enter the full status page URL, for example https://status.example.com/status/default'
         ),
       }),
     name: z
@@ -162,7 +162,7 @@ export function UpstreamStatusSection(props: UpstreamStatusSectionProps) {
                 <FormLabel>{t('Upstream status page URL')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder='https://status.s3.fan/status/s3ai-api'
+                    placeholder='https://status.example.com/status/default'
                     {...field}
                   />
                 </FormControl>
