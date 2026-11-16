@@ -885,6 +885,7 @@
     "Bring channels back online after successful checks": "Bring channels back online after successful checks",
     "Online watching is turned off": "Online watching is turned off",
     "Only the broadcast calendar is available right now.": "Only the broadcast calendar is available right now.",
+    "Allow online anime playback": "When off, visitors can still browse the broadcast calendar and subject pages, but every playback endpoint is blocked.",
     "Broadcast calendar": "Broadcast calendar",
     "Browse and compare": "Browse and compare",
     "Browse available models and pricing": "Browse available models and pricing",

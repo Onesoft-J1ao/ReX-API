@@ -885,6 +885,7 @@
     "Bring channels back online after successful checks": "检查成功后使渠道恢复在线",
     "在线观看已关闭": "在线观看已关闭",
     "当前仅提供放送日历。": "当前仅提供放送日历。",
+    "允许在线观看动漫": "关闭后仍可浏览放送日历与番剧详情，但所有观看相关接口都会被拒绝。",
     "Broadcast calendar": "放送日历",
     "Browse and compare": "浏览和比较",
     "Browse available models and pricing": "浏览可用模型和价格",

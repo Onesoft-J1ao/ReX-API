@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
@@ -31,6 +31,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
+import { useStatus } from '@/hooks/use-status'
 
 import {
   SettingsControlChildren,
@@ -103,6 +104,15 @@ export function HeaderNavigationSection({
 }: HeaderNavigationSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const { status } = useStatus()
+  const [watchEnabled, setWatchEnabled] = useState(
+    status?.bangumi_watch_enabled !== false
+  )
+
+  useEffect(() => {
+    setWatchEnabled(status?.bangumi_watch_enabled !== false)
+  }, [status?.bangumi_watch_enabled])
+
   const formDefaults = useMemo(() => toFormValues(config), [config])
 
   const form = useForm<HeaderNavFormValues>({
@@ -296,6 +306,26 @@ export function HeaderNavigationSection({
           </div>
         </SettingsForm>
       </Form>
+      <SettingsSwitchItem className='mt-4'>
+        <SettingsSwitchContent>
+          <FormLabel>{t('Allow online anime playback')}</FormLabel>
+          <FormDescription>
+            {t(
+              'When off, visitors can still browse the broadcast calendar and subject pages, but every playback endpoint is blocked.'
+            )}
+          </FormDescription>
+        </SettingsSwitchContent>
+        <Switch
+          checked={watchEnabled}
+          onCheckedChange={async (checked: boolean) => {
+            setWatchEnabled(checked)
+            await updateOption.mutateAsync({
+              key: 'BangumiWatchEnabled',
+              value: checked,
+            })
+          }}
+        />
+      </SettingsSwitchItem>
     </SettingsSection>
   )
 }
