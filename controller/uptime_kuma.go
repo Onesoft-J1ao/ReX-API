@@ -62,6 +62,12 @@ func maskUpstreamIdentity(group UptimeGroupResult) UptimeGroupResult {
 	for i := range group.Monitors {
 		group.Monitors[i].Name = hostnamePattern.ReplaceAllString(group.Monitors[i].Name, maskedHost)
 		group.Monitors[i].Group = hostnamePattern.ReplaceAllString(group.Monitors[i].Group, maskedHost)
+		// Tags are free text the provider typed; a tag named after their own
+		// domain would leak as surely as a monitor name would.
+		for j := range group.Monitors[i].Tags {
+			group.Monitors[i].Tags[j].Name = hostnamePattern.ReplaceAllString(group.Monitors[i].Tags[j].Name, maskedHost)
+			group.Monitors[i].Tags[j].Value = hostnamePattern.ReplaceAllString(group.Monitors[i].Tags[j].Value, maskedHost)
+		}
 	}
 	return group
 }
@@ -85,12 +91,24 @@ type UptimeHeartbeat struct {
 	Time   string `json:"time"`
 }
 
+// MonitorTag is one Kuma tag attached to a monitor. The operator writes the
+// group name into the tag and the multiplier into its value, so the public
+// status page can show which model groups a line serves and what each charges
+// without a second data source.
+type MonitorTag struct {
+	Name  string `json:"name"`
+	Value string `json:"value,omitempty"`
+	Color string `json:"color,omitempty"`
+}
+
 type Monitor struct {
 	Name       string            `json:"name"`
 	Uptime     float64           `json:"uptime"`
 	Status     int               `json:"status"`
 	Group      string            `json:"group,omitempty"`
 	Heartbeats []UptimeHeartbeat `json:"heartbeats,omitempty"`
+	// Tags carries the group + multiplier pairs published on the Kuma page.
+	Tags []MonitorTag `json:"tags,omitempty"`
 }
 
 type UptimeGroupResult struct {
@@ -185,6 +203,14 @@ func fetchGroupedData(ctx context.Context, client *http.Client, baseURL string, 
 			MonitorList []struct {
 				ID   int    `json:"id"`
 				Name string `json:"name"`
+				// Kuma returns a monitor's tags only when the status page has
+				// showTags on. The value field is where the operator puts the
+				// multiplier, so it is read verbatim.
+				Tags []struct {
+					Name  string `json:"name"`
+					Value string `json:"value"`
+					Color string `json:"color"`
+				} `json:"tags"`
 			} `json:"monitorList"`
 		} `json:"publicGroupList"`
 	}
@@ -217,6 +243,9 @@ func fetchGroupedData(ctx context.Context, client *http.Client, baseURL string, 
 		group := UptimeGroupResult{CategoryName: name, Monitors: []Monitor{}}
 		for _, m := range pg.MonitorList {
 			monitor := Monitor{Name: m.Name, Group: name}
+			for _, tag := range m.Tags {
+				monitor.Tags = append(monitor.Tags, MonitorTag{Name: tag.Name, Value: tag.Value, Color: tag.Color})
+			}
 			monitorID := strconv.Itoa(m.ID)
 			if uptime, exists := heartbeatData.UptimeList[monitorID+uptimeKeySuffix]; exists {
 				monitor.Uptime = uptime
@@ -257,6 +286,11 @@ func fetchGroupData(ctx context.Context, client *http.Client, baseURL string, sl
 			MonitorList []struct {
 				ID   int    `json:"id"`
 				Name string `json:"name"`
+				Tags []struct {
+					Name  string `json:"name"`
+					Value string `json:"value"`
+					Color string `json:"color"`
+				} `json:"tags"`
 			} `json:"monitorList"`
 		} `json:"publicGroupList"`
 	}
@@ -287,6 +321,9 @@ func fetchGroupData(ctx context.Context, client *http.Client, baseURL string, sl
 			monitor := Monitor{
 				Name:  m.Name,
 				Group: pg.Name,
+			}
+			for _, tag := range m.Tags {
+				monitor.Tags = append(monitor.Tags, MonitorTag{Name: tag.Name, Value: tag.Value, Color: tag.Color})
 			}
 
 			monitorID := strconv.Itoa(m.ID)

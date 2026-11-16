@@ -173,12 +173,24 @@ export interface UptimeHeartbeat {
   time: string
 }
 
+/**
+ * One Kuma tag on a monitor. The operator names the tag after a model group and
+ * puts that group's multiplier in the value, so a line card can list what it
+ * serves and what it charges.
+ */
+export interface UptimeMonitorTag {
+  name: string
+  value?: string
+  color?: string
+}
+
 export interface UptimeMonitor {
   name: string
   uptime: number
   status: number
   group?: string
   heartbeats?: UptimeHeartbeat[]
+  tags?: UptimeMonitorTag[]
 }
 
 export interface UptimeGroupResult {

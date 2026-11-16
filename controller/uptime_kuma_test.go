@@ -141,6 +141,46 @@ func TestFetchGroupDataReportsTheNewestHeartbeat(t *testing.T) {
 	}, group.Monitors[1])
 }
 
+// The group + multiplier pair the operator publishes lives in a Kuma tag, so a
+// fetcher that drops tags renders the whole feature as blank. This pins the
+// mapping: tag name is the group, tag value is the multiplier.
+func TestFetchGroupedDataCarriesMonitorTagsThrough(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/status-page/demo":
+			_, _ = w.Write([]byte(`{"publicGroupList":[{"id":1,"name":"线路状态","monitorList":[{"id":5,"name":"线路 B","tags":[{"name":"ClaudeMax","value":"1x","color":"#10b981"},{"name":"Kiro企业","value":"0.4x","color":"#f59e0b"}]}]}]}`))
+		case "/api/status-page/heartbeat/demo":
+			_, _ = w.Write([]byte(`{"heartbeatList":{"5":[{"status":1,"time":"2026-01-01 00:00:00.000"}]},"uptimeList":{"5_24":1}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	groups := fetchGroupedData(context.Background(), server.Client(), server.URL, "demo", "监控")
+	require.Len(t, groups, 1)
+	require.Len(t, groups[0].Monitors, 1)
+	assert.Equal(t, []MonitorTag{
+		{Name: "ClaudeMax", Value: "1x", Color: "#10b981"},
+		{Name: "Kiro企业", Value: "0.4x", Color: "#f59e0b"},
+	}, groups[0].Monitors[0].Tags)
+}
+
+// A tag is free text the provider typed, so it is scrubbed the same way a
+// monitor name is: a mirrored page must not republish a supplier's domain.
+func TestMaskUpstreamIdentityScrubsTags(t *testing.T) {
+	group := UptimeGroupResult{Monitors: []Monitor{{
+		Name: "主站",
+		Tags: []MonitorTag{{Name: "api.example.com", Value: "1x"}},
+	}}}
+
+	masked := maskUpstreamIdentity(group)
+
+	require.Len(t, masked.Monitors[0].Tags, 1)
+	assert.Equal(t, maskedHost, masked.Monitors[0].Tags[0].Name)
+	assert.Equal(t, "1x", masked.Monitors[0].Tags[0].Value)
+}
+
 func TestFetchGroupDataReturnsNoMonitorsWhenTheStatusPageIsUnreachable(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

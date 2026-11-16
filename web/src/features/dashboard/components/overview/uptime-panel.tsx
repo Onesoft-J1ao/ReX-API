@@ -247,6 +247,32 @@ export function UptimePanel() {
                       </span>
                     </div>
                     <UptimeHistoryDots monitor={monitor} />
+                    {/* The line card lists every model group the line serves,
+                        each with the multiplier the group charges. Kuma has no
+                        such field, so the operator encodes the pair as a tag
+                        (name = group, value = multiplier) and this renders it. */}
+                    {monitor.tags && monitor.tags.length > 0 && (
+                      <div className='flex flex-wrap items-center gap-1.5'>
+                        {monitor.tags.map((tag) => (
+                          <span
+                            key={`${tag.name}-${tag.value ?? ''}`}
+                            className='border-border/60 bg-muted/40 text-muted-foreground inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px] leading-4'
+                            title={
+                              tag.value
+                                ? `${tag.name} · ${tag.value}`
+                                : tag.name
+                            }
+                          >
+                            <span className='text-foreground/80'>{tag.name}</span>
+                            {tag.value && (
+                              <span className='text-foreground font-semibold tabular-nums'>
+                                {tag.value}
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               )}
