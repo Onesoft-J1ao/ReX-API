@@ -157,16 +157,22 @@ export function useSidebarData(): SidebarData {
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
           },
+          ...customItems('general'),
+        ],
+      },
+      {
+        id: 'detection',
+        title: t('Detection'),
+        items: [
           {
             // Static gallery of model-generated HTML animations. The page is
             // served by nginx at /detection/ (outside the SPA), so it opens in
             // a new tab and stays readable even when the API is degraded.
-            title: t('Quality Samples'),
+            title: t('Detection Results'),
             url: '/detection/',
             icon: FlaskConical,
             external: true,
           },
-          ...customItems('general'),
         ],
       },
       {
