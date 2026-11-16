@@ -222,6 +222,14 @@ func UpstreamMirrorRow(source, localGroup, modelName string, hours int) (GroupMo
 		if detailGroup.Group != upstreamGroup {
 			continue
 		}
+		// Some upstream groups run their probe with a key the group itself
+		// rejects: every bucket records a failure while the model-level
+		// aggregate - the number the upstream's own model square shows - is
+		// healthy. Mirroring those buckets paints a working group red, so fall
+		// back to the aggregate when the group produced no successful sample.
+		if groupHasNoSuccessfulSample(detailGroup) {
+			break
+		}
 		mirror = modelSummaryFromGroup(mirror, detailGroup)
 		return GroupModelSummary{
 			Group:               localGroup,
@@ -234,7 +242,35 @@ func UpstreamMirrorRow(source, localGroup, modelName string, hours int) (GroupMo
 			Source:              SourceMirror + ":" + source,
 		}, true
 	}
-	return GroupModelSummary{}, false
+	return GroupModelSummary{
+		Group:               localGroup,
+		ModelName:           mirror.ModelName,
+		AvgLatencyMs:        mirror.AvgLatencyMs,
+		SuccessRate:         mirror.SuccessRate,
+		AvgTps:              mirror.AvgTps,
+		RecentSuccessSeries: mirror.RecentSuccessSeries,
+		RecentLatencySeries: mirror.RecentLatencySeries,
+		Source:              SourceMirror + ":" + source,
+	}, true
+}
+
+// groupHasNoSuccessfulSample reports whether an upstream group's series holds
+// no successful probe at all. Dead probe keys and genuinely quiet groups look
+// identical here, so the caller treats it as "no group-level signal" and uses
+// the model aggregate instead.
+func groupHasNoSuccessfulSample(group GroupResult) bool {
+	if group.SuccessRate > 0 {
+		return false
+	}
+	if len(group.Series) == 0 {
+		return true
+	}
+	for _, point := range group.Series {
+		if point.SuccessRate > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func upstreamModelSummary(modelName string, hours int) (ModelSummary, bool) {
