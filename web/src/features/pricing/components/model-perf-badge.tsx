@@ -75,7 +75,13 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
   // Another deployment's blended figure. It has no group dimension, so it cannot
   // answer "how is this model doing in this group" — only "how is it doing
   // somewhere". The number stays useful, but it says where it came from.
-  const mirrored = props.perf?.source?.startsWith('mirror') === true
+  // A mirror row that is already scoped to this group (the gateway maps the
+  // local group to one upstream group) is that group's own measurement, so it
+  // renders like ours. Only a model-wide fallback is another deployment's
+  // blended figure and needs the marker.
+  const mirrored =
+    props.perf?.source?.startsWith('mirror') === true &&
+    props.perf?.groupScoped === false
   // The card fell back to the model-wide rollup because this group had no
   // traffic for the model. The figure is real, but it is the model's, not this
   // group's — which is why two groups without data otherwise look identical.
@@ -209,10 +215,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
                 </span>
               )}
             </span>
-            <span
-              className='font-mono'
-              title={rateTitle}
-            >
+            <span className='font-mono' title={rateTitle}>
               {shownRateText}
             </span>
           </dt>
