@@ -10,12 +10,27 @@ on:
       - 'deploy/**'
     tags:
       - 'v*'
+    # A README or docs edit does not change the image; rebuilding it wastes a
+    # runner slot that a real change could use.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'docs-site/**'
+      - 'LICENSE'
+      - 'NOTICE'
   workflow_dispatch:
     inputs:
       export_tgz:
         description: '同时导出 80MB 镜像 tgz（消耗 Artifacts 配额）'
         type: boolean
         default: false
+
+# Pushing the same commit to both deploy and main used to build the image twice.
+# Key the group on the commit so the second run cancels the first; both push the
+# same :<sha> tag, so nothing is lost.
+concurrency:
+  group: image-${{ github.sha }}
+  cancel-in-progress: true
 
 env:
   IMAGE: ghcr.io/onesoft-j1ao/rex-api
