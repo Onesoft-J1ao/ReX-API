@@ -1,0 +1,53 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+Legacy WebView (Android 9 system WebView, Chrome < 80)
+------------------------------------------------------
+That engine cannot composite backdrop-filter, drops flex `gap`, and its
+scroll anchoring re-runs while lists of images decode. The result on a
+phone is janky scrolling, cramped/overlapping rows and the page jumping
+back after a fling. This block only applies when index.html flags the
+engine; modern browsers keep every effect.
+*/
+
+html.legacy-webview {
+  scroll-behavior: auto !important;
+  /* Stop the engine from re-anchoring the viewport while cards above the
+   * fold change height (images, skeletons). That re-anchor is what reads as
+   * "it drags me back". */
+  overflow-anchor: none;
+}
+
+html.legacy-webview body {
+  overscroll-behavior-y: contain;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Blur is the single most expensive paint on these devices. */
+html.legacy-webview *,
+html.legacy-webview *::before,
+html.legacy-webview *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Keep feedback instant: long transitions hold the compositor while the
+ * finger is still moving. */
+html.legacy-webview * {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* Large blurred shadows are re-rasterised on every scroll frame. */
+html.legacy-webview .shadow-lg,
+html.legacy-webview .shadow-xl,
+html.legacy-webview .shadow-2xl {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%) !important;
+}
