@@ -560,8 +560,8 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 					if _, exists := localKeys[k]; exists {
 						continue
 					}
-					upstreamGroup := upstreamHealthGroup(source, group)
-					if upstreamGroup == "" {
+					upstreamGroups := upstreamHealthGroups(source, group)
+					if len(upstreamGroups) == 0 {
 						continue
 					}
 					detail, ok := fetchUpstreamDetailFor(source, mirror.ModelName, 24)
@@ -570,7 +570,7 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 					}
 					matchedGroup := false
 					for _, detailGroup := range detail.Groups {
-						if detailGroup.Group != upstreamGroup {
+						if !containsGroup(upstreamGroups, detailGroup.Group) {
 							continue
 						}
 						mirror = modelSummaryFromGroup(mirror, detailGroup)
@@ -607,14 +607,33 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 	return out
 }
 
-func upstreamHealthGroup(source, localGroup string) string {
-	// An explicit mapping wins. Otherwise the local group is assumed to be named
-	// the same as the upstream's — which is true for most groups, and is the only
-	// way a newly added group gets a reading without a config change.
-	if mapped := perf_metrics_setting.GetSetting().UpstreamHealthGroups[source][localGroup]; mapped != "" {
-		return mapped
+func upstreamHealthGroups(source, localGroup string) []string {
+	// An explicit mapping wins. A local group can bundle models from several
+	// upstream groups (a plan group), so the value is a comma-separated list and
+	// the caller takes the first upstream group that actually measured the model.
+	if mapped := strings.TrimSpace(perf_metrics_setting.GetSetting().UpstreamHealthGroups[source][localGroup]); mapped != "" {
+		parts := strings.Split(mapped, ",")
+		groups := make([]string, 0, len(parts))
+		for _, part := range parts {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				groups = append(groups, trimmed)
+			}
+		}
+		if len(groups) > 0 {
+			return groups
+		}
 	}
-	return localGroup
+	// Otherwise the local group is assumed to be named the same as the upstream's.
+	return []string{localGroup}
+}
+
+func containsGroup(groups []string, want string) bool {
+	for _, group := range groups {
+		if group == want {
+			return true
+		}
+	}
+	return false
 }
 
 func modelSummaryFromGroup(model ModelSummary, group GroupResult) ModelSummary {

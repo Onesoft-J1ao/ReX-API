@@ -225,8 +225,8 @@ func UpstreamMirrorRow(source, localGroup, modelName string, hours int) (GroupMo
 	if strings.TrimSpace(source) == "" || strings.TrimSpace(modelName) == "" {
 		return GroupModelSummary{}, false
 	}
-	upstreamGroup := upstreamHealthGroup(source, localGroup)
-	if upstreamGroup == "" {
+	upstreamGroups := upstreamHealthGroups(source, localGroup)
+	if len(upstreamGroups) == 0 {
 		return GroupModelSummary{}, false
 	}
 	summary, ok := fetchUpstreamSummaryFor(source, hours)
@@ -244,7 +244,7 @@ func UpstreamMirrorRow(source, localGroup, modelName string, hours int) (GroupMo
 		return GroupModelSummary{}, false
 	}
 	for _, detailGroup := range detail.Groups {
-		if detailGroup.Group != upstreamGroup {
+		if !containsGroup(upstreamGroups, detailGroup.Group) {
 			continue
 		}
 		// Some upstream groups run their probe with a key the group itself
@@ -382,8 +382,8 @@ func refreshAllUpstreamDetails() {
 	for group, bases := range groupURLs {
 		for _, base := range bases {
 			source := upstreamSourceForBaseURL(base)
-			upstreamGroup := upstreamHealthGroup(source, group)
-			if source == "" || upstreamGroup == "" {
+			upstreamGroups := upstreamHealthGroups(source, group)
+			if source == "" || len(upstreamGroups) == 0 {
 				continue
 			}
 			if modelsBySource[source] == nil {
