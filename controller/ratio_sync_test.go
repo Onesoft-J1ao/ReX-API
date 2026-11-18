@@ -29,6 +29,10 @@ func TestPricingSyncExpressionPriority(t *testing.T) {
 		{"expression imports without legacy conflicts", map[string]any{"model_ratio": map[string]float64{"m": 1}}, map[string]any{"billing_mode": map[string]string{"m": "tiered_expr"}, "billing_expr": map[string]string{"m": expression}, "model_ratio": map[string]float64{"m": 3}, "model_price": map[string]float64{"m": 2}}, []string{"billing_mode", "billing_expr"}},
 		{"inactive expression follows explicit ratio mode", map[string]any{"model_ratio": map[string]float64{"m": 1}}, map[string]any{"billing_mode": map[string]string{"m": "ratio"}, "billing_expr": map[string]string{"m": expression}, "model_ratio": map[string]float64{"m": 3}}, []string{"model_ratio"}},
 		{"empty active expression never imports a false free price", map[string]any{}, map[string]any{"billing_mode": map[string]string{"m": "tiered_expr"}, "billing_expr": map[string]string{"m": " "}, "model_ratio": map[string]float64{"m": 0}}, nil},
+		{"unpriced 37.5 sentinel is excluded from differences", map[string]any{}, map[string]any{"model_ratio": map[string]float64{"m": 37.5}, "completion_ratio": map[string]float64{"m": 1}}, nil},
+		{"37.5 with non-sentinel completion remains a real ratio", map[string]any{}, map[string]any{"model_ratio": map[string]float64{"m": 37.5}, "completion_ratio": map[string]float64{"m": 2}}, []string{"model_ratio", "completion_ratio", billing_setting.BillingModeField}},
+		{"tiered expression takes precedence over sentinel ratio", map[string]any{}, map[string]any{"billing_mode": map[string]string{"m": "tiered_expr"}, "billing_expr": map[string]string{"m": expression}, "model_ratio": map[string]float64{"m": 37.5}, "completion_ratio": map[string]float64{"m": 1}}, []string{"billing_mode", "billing_expr"}},
+		{"per-call price takes precedence over sentinel ratio", map[string]any{}, map[string]any{"model_ratio": map[string]float64{"m": 37.5}, "completion_ratio": map[string]float64{"m": 1}, "model_price": map[string]float64{"m": 0.02}}, []string{"model_price", billing_setting.BillingModeField}},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

@@ -131,6 +131,24 @@ func normalizeSyncValue(field string, value any) any {
 	return value
 }
 
+// isUnpricedRatioSentinel identifies the upstream placeholder used when a
+// model has no configured price. A real tiered expression or per-call price
+// takes precedence, and 37.5 alone is not enough to classify a model as a
+// sentinel because it can also be a legitimate ratio.
+func isUnpricedRatioSentinel(data map[string]any, model string) bool {
+	if valueMap(data[billing_setting.BillingModeField])[model] == billing_setting.BillingModeTieredExpr {
+		if expression, _ := valueMap(data[billing_setting.BillingExprField])[model].(string); strings.TrimSpace(expression) != "" {
+			return false
+		}
+	}
+	if price, ok := asFloat64(valueMap(data["model_price"])[model]); ok && price > 0 {
+		return false
+	}
+	ratio, ratioOK := asFloat64(valueMap(data["model_ratio"])[model])
+	completion, completionOK := asFloat64(valueMap(data["completion_ratio"])[model])
+	return ratioOK && completionOK && nearlyEqual(ratio, 37.5) && nearlyEqual(completion, 1)
+}
+
 func getLocalPricingSyncData() map[string]any {
 	data := billing_setting.GetPricingSyncData(map[string]any(ratio_setting.GetExposedData()))
 	data["image_ratio"] = ratio_setting.GetImageRatioCopy()
@@ -160,6 +178,18 @@ func effectivePricingSyncData(data map[string]any) map[string]any {
 		}
 		result[field] = entries
 	}
+	// Remove the unpriced sentinel before diff generation and before pricing
+	// preview construction, so neither the UI nor apply can treat 37.5 as a
+	// sellable ratio. Keep expression-priced and per-call-priced rows intact.
+	for name := range names {
+		if !isUnpricedRatioSentinel(result, name) {
+			continue
+		}
+		for _, field := range pricingSyncFields {
+			delete(valueMap(result[field]), name)
+		}
+	}
+
 	modes := valueMap(result[billing_setting.BillingModeField])
 	expressions := valueMap(result[billing_setting.BillingExprField])
 	for name := range names {
