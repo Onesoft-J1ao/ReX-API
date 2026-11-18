@@ -18,7 +18,7 @@ func TestApplyUsagePostProcessingNormalizesStandardCacheFields(t *testing.T) {
 		},
 	}
 
-	ApplyUsagePostProcessing(&relaycommon.RelayInfo{ChannelType: constant.ChannelTypeOpenAI}, usage, nil)
+	ApplyUsagePostProcessing(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI}}, usage, nil)
 
 	require.Equal(t, 30, usage.PromptTokensDetails.CachedTokens)
 	require.Equal(t, 12, usage.PromptTokensDetails.CacheWriteTokens)
@@ -28,7 +28,7 @@ func TestApplyUsagePostProcessingExtractsStandardCacheAliases(t *testing.T) {
 	usage := &dto.Usage{}
 	response := []byte(`{"usage":{"cached_tokens":17,"cache_write_tokens":9}}`)
 
-	ApplyUsagePostProcessing(&relaycommon.RelayInfo{ChannelType: constant.ChannelTypeOpenAI}, usage, response)
+	ApplyUsagePostProcessing(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI}}, usage, response)
 
 	require.Equal(t, 17, usage.PromptTokensDetails.CachedTokens)
 	require.Equal(t, 9, usage.PromptTokensDetails.CacheWriteTokens)

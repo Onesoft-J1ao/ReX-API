@@ -11,7 +11,7 @@ import (
 )
 
 func TestXAIUsageMergePreservesCacheDetails(t *testing.T) {
-	info := &relaycommon.RelayInfo{ChannelType: constant.ChannelTypeOpenAI}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI}}
 	accumulated := &dto.Usage{}
 	terminalUsage := &dto.Usage{
 		PromptTokens:         5080,

@@ -25,14 +25,14 @@ import { getCacheHitPercent } from '../format'
 describe('getCacheHitPercent', () => {
   test('reads a DeepSeek row where prompt_tokens already includes the cache hit', () => {
     // prompt_tokens 23,384 already contains the 23,168 cached tokens.
-    expect(getCacheHitPercent(23384, 23168, 0)).toBeCloseTo(99.08, 2)
+    expect(getCacheHitPercent(23384, 23168)).toBeCloseTo(99.08, 2)
   })
 
   test('reads an Anthropic row normalised to the same total', () => {
     // Three real rows all land on ~78%, which only holds when prompt_tokens is
     // the whole prompt rather than the uncached remainder.
-    expect(getCacheHitPercent(897, 700, 0)).toBeCloseTo(78.04, 2)
-    expect(getCacheHitPercent(601, 469, 0)).toBeCloseTo(78.04, 2)
+    expect(getCacheHitPercent(897, 700)).toBeCloseTo(78.04, 2)
+    expect(getCacheHitPercent(601, 469)).toBeCloseTo(78.04, 2)
   })
 
   test('matches the usage-log cache read percentage and keeps writes separate', () => {
