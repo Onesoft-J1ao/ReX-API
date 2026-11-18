@@ -191,6 +191,10 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		var success bool
 		var matchName string
 		modelRatio, success, matchName = ratio_setting.GetModelRatio(billingModelName)
+		if groupRatio, ok := billing_setting.GetGroupModelRatio(info.UsingGroup, billingModelName); ok {
+			modelRatio = groupRatio
+			success = true
+		}
 		if !success {
 			// Self-use mode means "serve unpriced models anyway"; it is not a
 			// price. Without it the request is rejected rather than billed at
@@ -204,9 +208,6 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		// A model can be fed by a different upstream in each group, so its
 		// per-token cost differs by group. Resolved after the global ratio so a
 		// group without an override keeps the global figure untouched.
-		if groupRatio, ok := billing_setting.GetGroupModelRatio(info.UsingGroup, billingModelName); ok {
-			modelRatio = groupRatio
-		}
 		completionRatio = ratio_setting.GetCompletionRatio(billingModelName)
 		if groupCompletion, ok := billing_setting.GetGroupModelCompletionRatio(info.UsingGroup, billingModelName); ok {
 			completionRatio = groupCompletion
