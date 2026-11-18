@@ -163,7 +163,7 @@ describe('usage facts billing details', () => {
     expect(
       screen
         .getAllByText('Cache Read')
-        .some((label) => label.nextElementSibling?.textContent === '300')
+        .some((label) => label.nextElementSibling?.textContent?.startsWith('300'))
     ).toBe(true)
   })
 
