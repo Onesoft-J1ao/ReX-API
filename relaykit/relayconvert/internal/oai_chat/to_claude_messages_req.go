@@ -24,9 +24,10 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 			continue
 		}
 		claudeTools = append(claudeTools, &dto.Tool{
-			Name:        tool.Function.Name,
-			Description: tool.Function.Description,
-			InputSchema: sharedclaude.FunctionParametersToInputSchema(tool.Function.Parameters),
+			Name:         tool.Function.Name,
+			Description:  tool.Function.Description,
+			InputSchema:  sharedclaude.FunctionParametersToInputSchema(tool.Function.Parameters),
+			CacheControl: tool.CacheControl,
 		})
 	}
 
@@ -196,8 +197,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 				for _, ctx := range message.ParseContent() {
 					if ctx.Type == "text" && ctx.Text != "" {
 						systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
-							Type: "text",
-							Text: kitutil.GetPointer[string](ctx.Text),
+							Type:         "text",
+							Text:         kitutil.GetPointer[string](ctx.Text),
+							CacheControl: ctx.CacheControl,
 						})
 					}
 				}
@@ -256,8 +258,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 				case "text":
 					if mediaMessage.Text != "" {
 						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
-							Type: "text",
-							Text: kitutil.GetPointer[string](mediaMessage.Text),
+							Type:         "text",
+							Text:         kitutil.GetPointer[string](mediaMessage.Text),
+							CacheControl: mediaMessage.CacheControl,
 						})
 					}
 				default:
@@ -282,6 +285,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 
 					claudeMediaMessage.Source.MediaType = mimeType
 					claudeMediaMessage.Source.Data = base64Data
+					claudeMediaMessage.CacheControl = mediaMessage.CacheControl
 					claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
 					continue
 				}

@@ -386,10 +386,11 @@ func (r *GeneralOpenAIRequest) GetSystemRoleName() string {
 const CustomType = "custom"
 
 type ToolCallRequest struct {
-	ID       string          `json:"id,omitempty"`
-	Type     string          `json:"type"`
-	Function FunctionRequest `json:"function"`
-	Custom   json.RawMessage `json:"custom,omitempty"`
+	ID           string          `json:"id,omitempty"`
+	Type         string          `json:"type"`
+	Function     FunctionRequest `json:"function"`
+	Custom       json.RawMessage `json:"custom,omitempty"`
+	CacheControl json.RawMessage `json:"cache_control,omitempty"`
 }
 
 type FunctionRequest struct {
@@ -731,13 +732,20 @@ func (m *Message) ParseContent() []MediaContent {
 		if !ok {
 			continue
 		}
+		var cacheControl json.RawMessage
+		if value := contentItem["cache_control"]; value != nil {
+			if raw, err := kitutil.Marshal(value); err == nil {
+				cacheControl = raw
+			}
+		}
 
 		switch contentType {
 		case ContentTypeText:
 			if text, ok := contentItem["text"].(string); ok {
 				contentList = append(contentList, MediaContent{
-					Type: ContentTypeText,
-					Text: text,
+					Type:         ContentTypeText,
+					Text:         text,
+					CacheControl: cacheControl,
 				})
 			}
 
@@ -760,8 +768,9 @@ func (m *Message) ParseContent() []MediaContent {
 				}
 			}
 			contentList = append(contentList, MediaContent{
-				Type:     ContentTypeImageURL,
-				ImageUrl: temp,
+				Type:         ContentTypeImageURL,
+				ImageUrl:     temp,
+				CacheControl: cacheControl,
 			})
 
 		case ContentTypeInputAudio:
@@ -774,8 +783,9 @@ func (m *Message) ParseContent() []MediaContent {
 						Format: format,
 					}
 					contentList = append(contentList, MediaContent{
-						Type:       ContentTypeInputAudio,
-						InputAudio: temp,
+						Type:         ContentTypeInputAudio,
+						InputAudio:   temp,
+						CacheControl: cacheControl,
 					})
 				}
 			}
@@ -784,7 +794,8 @@ func (m *Message) ParseContent() []MediaContent {
 				fileId, ok3 := fileData["file_id"].(string)
 				if ok3 {
 					contentList = append(contentList, MediaContent{
-						Type: ContentTypeFile,
+						Type:         ContentTypeFile,
+						CacheControl: cacheControl,
 						File: &MessageFile{
 							FileId: fileId,
 						},
@@ -794,7 +805,8 @@ func (m *Message) ParseContent() []MediaContent {
 					fileDataStr, ok2 := fileData["file_data"].(string)
 					if ok1 && ok2 {
 						contentList = append(contentList, MediaContent{
-							Type: ContentTypeFile,
+							Type:         ContentTypeFile,
+							CacheControl: cacheControl,
 							File: &MessageFile{
 								FileName: fileName,
 								FileData: fileDataStr,
@@ -806,7 +818,8 @@ func (m *Message) ParseContent() []MediaContent {
 		case ContentTypeVideoUrl:
 			if videoUrl, ok := contentItem["video_url"].(string); ok {
 				contentList = append(contentList, MediaContent{
-					Type: ContentTypeVideoUrl,
+					Type:         ContentTypeVideoUrl,
+					CacheControl: cacheControl,
 					VideoUrl: &MessageVideoUrl{
 						Url: videoUrl,
 					},
