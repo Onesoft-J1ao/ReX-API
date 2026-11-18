@@ -180,6 +180,7 @@ func TestChatCompletionsResponseToResponsesPreservesCacheReadAndWriteUsage(t *te
 	require.NotNil(t, response.Usage.InputTokensDetails)
 	assert.Equal(t, 4768, response.Usage.InputTokensDetails.CachedTokens)
 	assert.Equal(t, 161, response.Usage.InputTokensDetails.CacheWriteTokens)
-	assert.Equal(t, 4768, usage.PromptTokensDetails.CachedTokens)
-	assert.Equal(t, 161, usage.PromptTokensDetails.CacheWriteTokens)
+	require.NotNil(t, usage.InputTokensDetails)
+	assert.Equal(t, 4768, usage.InputTokensDetails.CachedTokens)
+	assert.Equal(t, 161, usage.InputTokensDetails.CacheWriteTokens)
 }

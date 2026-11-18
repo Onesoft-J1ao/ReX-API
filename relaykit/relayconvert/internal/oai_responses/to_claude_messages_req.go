@@ -184,7 +184,7 @@ func applyResponsesClaudePromptCaching(req *dto.OpenAIResponsesRequest, out *dto
 			if len(blocks[i].CacheControl) == 0 {
 				continue
 			}
-		explicit++
+			explicit++
 			if explicit > maxBreakpoints {
 				blocks[i].CacheControl = nil
 			}
@@ -199,7 +199,7 @@ func applyResponsesClaudePromptCaching(req *dto.OpenAIResponsesRequest, out *dto
 		return nil
 	}
 	hasCacheKey := kitutil.GetJsonType(req.PromptCacheKey) == "string" && kitutil.JsonRawMessageToString(req.PromptCacheKey) != ""
-	if options.Mode == "implicit" || explicit > 0 || len(out.Messages) > 1 || hasCacheKey {
+	if options.Mode == "implicit" || (explicit == 0 && (len(out.Messages) > 1 || hasCacheKey)) {
 		out.CacheControl = json.RawMessage(claudeEphemeralCacheControl)
 	}
 	return nil
