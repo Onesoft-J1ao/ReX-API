@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -45,6 +46,61 @@ func GetGroupEnabledModels(group string) []string {
 	// Find distinct models
 	DB.Table("abilities").Where(commonGroupCol+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &models)
 	return models
+}
+
+type EnabledGroupModelMapping struct {
+	Group             string
+	BaseURL           string
+	ModelName         string
+	UpstreamModelName string
+}
+
+// GetEnabledGroupModelMappings returns the upstream model identity used by
+// each enabled channel for the model name advertised in its group.
+func GetEnabledGroupModelMappings(groups []string) ([]EnabledGroupModelMapping, error) {
+	if len(groups) == 0 {
+		return nil, nil
+	}
+	var rows []struct {
+		Group        string  `gorm:"column:group_name"`
+		BaseURL      string  `gorm:"column:base_url"`
+		ModelName    string  `gorm:"column:model_name"`
+		ModelMapping *string `gorm:"column:model_mapping"`
+	}
+	if err := DB.Table("abilities").
+		Select("abilities.`group` AS group_name, channels.base_url, abilities.model AS model_name, channels.model_mapping").
+		Joins("JOIN channels ON channels.id = abilities.channel_id").
+		Where("abilities.enabled = ? AND channels.status = ? AND abilities.`group` IN ?", true, common.ChannelStatusEnabled, groups).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	mappings := make([]EnabledGroupModelMapping, 0, len(rows))
+	for _, row := range rows {
+		upstreamName := row.ModelName
+		if row.ModelMapping != nil && *row.ModelMapping != "" {
+			var mapping map[string]string
+			if err := json.Unmarshal([]byte(*row.ModelMapping), &mapping); err != nil {
+				return nil, fmt.Errorf("decode channel model mapping for group %q model %q: %w", row.Group, row.ModelName, err)
+			}
+			seen := map[string]struct{}{upstreamName: {}}
+			for {
+				next := mapping[upstreamName]
+				if next == "" {
+					break
+				}
+				if _, exists := seen[next]; exists {
+					return nil, fmt.Errorf("channel model mapping cycle for group %q model %q", row.Group, row.ModelName)
+				}
+				seen[next] = struct{}{}
+				upstreamName = next
+			}
+		}
+		mappings = append(mappings, EnabledGroupModelMapping{
+			Group: row.Group, BaseURL: row.BaseURL, ModelName: row.ModelName, UpstreamModelName: upstreamName,
+		})
+	}
+	return mappings, nil
 }
 
 func GetEnabledModels() []string {

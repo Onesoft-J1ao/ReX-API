@@ -347,6 +347,18 @@ func TestMergeUpstreamModelsKeepsMirrorWhenServedSetIsUnknown(t *testing.T) {
 	assert.Contains(t, names, "retired-model")
 }
 
+func TestServedModelNameWithMappingUsesChannelAlias(t *testing.T) {
+	served := map[string]struct{}{"deepseek-v4.1-flash-1017": {}}
+	mappings := map[string]string{"deepseek-v4.1-flash-1017": "deepseek-v4.1-flash"}
+
+	local, ok := servedModelNameWithMapping(served, mappings, "deepseek-v4.1-flash")
+	require.True(t, ok)
+	assert.Equal(t, "deepseek-v4.1-flash-1017", local)
+
+	_, ok = servedModelNameWithMapping(served, mappings, "deepseek-v4-pro")
+	assert.False(t, ok, "an unrelated upstream model must not match through the alias")
+}
+
 // seedUpstreamMirror publishes a mirrored summary into the cache the readers
 // consult, and restores the previous mirror and settings afterwards.
 func seedUpstreamMirror(t *testing.T, hours int, models ...ModelSummary) {

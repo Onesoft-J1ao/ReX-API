@@ -536,6 +536,24 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 				servedByGroup[group][name] = struct{}{}
 			}
 		}
+		groupModelMappings, mappingErr := model.GetEnabledGroupModelMappings(groups)
+		if mappingErr != nil {
+			common.SysLog(fmt.Sprintf("perf metrics upstream model mapping failed: %s", mappingErr.Error()))
+		}
+		mappedByGroupSource := make(map[string]map[string]map[string]string)
+		for _, mapping := range groupModelMappings {
+			source := upstreamSourceForBaseURL(mapping.BaseURL)
+			if source == "" {
+				continue
+			}
+			if mappedByGroupSource[mapping.Group] == nil {
+				mappedByGroupSource[mapping.Group] = make(map[string]map[string]string)
+			}
+			if mappedByGroupSource[mapping.Group][source] == nil {
+				mappedByGroupSource[mapping.Group][source] = make(map[string]string)
+			}
+			mappedByGroupSource[mapping.Group][source][mapping.ModelName] = mapping.UpstreamModelName
+		}
 		summaries := make(map[string]SummaryAllResult)
 		for group, bases := range groupURLs {
 			for _, base := range bases {
@@ -556,7 +574,9 @@ func buildGroupModels(startTs int64, endTs int64, groups []string, allowed map[s
 					// The upstream may name a model "vendor/name" while this
 					// deployment sells the bare "name"; compare on both forms or
 					// every namespaced model looks unserved and gets no mirror row.
-					localName, served := servedModelName(servedByGroup[group], mirror.ModelName)
+					localName, served := servedModelNameWithMapping(
+						servedByGroup[group], mappedByGroupSource[group][source], mirror.ModelName,
+					)
 					if !served {
 						continue
 					}

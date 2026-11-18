@@ -186,6 +186,18 @@ func upstreamNameMatches(local, upstream string) bool {
 	return false
 }
 
+func servedModelNameWithMapping(served map[string]struct{}, mappings map[string]string, upstreamName string) (string, bool) {
+	if local, ok := servedModelName(served, upstreamName); ok {
+		return local, true
+	}
+	for local, mapped := range mappings {
+		if _, enabled := served[local]; enabled && upstreamNameMatches(mapped, upstreamName) {
+			return local, true
+		}
+	}
+	return "", false
+}
+
 // findUpstreamModel returns the upstream entry for a local model name.
 func findUpstreamModel(models []ModelSummary, local string) (ModelSummary, bool) {
 	if model, ok := func() (ModelSummary, bool) {
@@ -373,7 +385,27 @@ func refreshAllUpstreamDetails() {
 		common.SysLog(fmt.Sprintf("perf metrics upstream detail mapping failed: %s", err.Error()))
 		return
 	}
+	modelMappings, err := model.GetEnabledGroupModelMappings(groups)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("perf metrics upstream model mapping failed: %s", err.Error()))
+		return
+	}
+	mappedByGroupSource := make(map[string]map[string]map[string]string)
+	for _, mapping := range modelMappings {
+		source := upstreamSourceForBaseURL(mapping.BaseURL)
+		if source == "" {
+			continue
+		}
+		if mappedByGroupSource[mapping.Group] == nil {
+			mappedByGroupSource[mapping.Group] = make(map[string]map[string]string)
+		}
+		if mappedByGroupSource[mapping.Group][source] == nil {
+			mappedByGroupSource[mapping.Group][source] = make(map[string]string)
+		}
+		mappedByGroupSource[mapping.Group][source][mapping.ModelName] = mapping.UpstreamModelName
+	}
 	modelsBySource := make(map[string]map[string]struct{})
+	groupsByModel := make(map[string][]string)
 	disabledModel, disabledErr := model.GetDisabledModelMatcher()
 	if disabledErr != nil {
 		common.SysLog(fmt.Sprintf("perf metrics disabled-model lookup failed: %s", disabledErr.Error()))
@@ -393,7 +425,12 @@ func refreshAllUpstreamDetails() {
 				if disabledModel != nil && disabledModel(modelName) {
 					continue
 				}
-				modelsBySource[source][modelName] = struct{}{}
+				upstreamModel := mappedByGroupSource[group][source][modelName]
+				if upstreamModel == "" {
+					upstreamModel = modelName
+				}
+				modelsBySource[source][upstreamModel] = struct{}{}
+				groupsByModel[source+"\x00"+upstreamModel] = append(groupsByModel[source+"\x00"+upstreamModel], group)
 			}
 		}
 	}
@@ -428,18 +465,6 @@ func refreshAllUpstreamDetails() {
 	// with no strip rather than an error.
 	coveredGroups := make(map[string]struct{}, len(groupURLs))
 	var coveredLock sync.Mutex
-	groupsByModel := make(map[string][]string)
-	for group, bases := range groupURLs {
-		for _, base := range bases {
-			source := upstreamSourceForBaseURL(base)
-			if source == "" {
-				continue
-			}
-			for _, modelName := range model.GetGroupEnabledModels(group) {
-				groupsByModel[source+"\x00"+modelName] = append(groupsByModel[source+"\x00"+modelName], group)
-			}
-		}
-	}
 	for _, job := range jobs {
 		job := job
 		waitGroup.Add(1)
