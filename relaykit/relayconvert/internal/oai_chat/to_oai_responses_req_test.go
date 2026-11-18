@@ -112,6 +112,7 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheFields(t *t
 	req := &dto.GeneralOpenAIRequest{
 		Model:                "gpt-test",
 		PromptCacheKey:       "stable-conversation-key",
+		PromptCacheOptions:   json.RawMessage(`{"mode":"implicit","ttl":"30m","prewarm":false}`),
 		PromptCacheRetention: json.RawMessage(`"24h"`),
 		Messages: []dto.Message{
 			{Role: "user", Content: "hello"},
@@ -121,6 +122,7 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheFields(t *t
 	got, err := ChatCompletionsRequestToResponsesRequest(context.Background(), req)
 	require.NoError(t, err)
 	assert.JSONEq(t, `"stable-conversation-key"`, string(got.PromptCacheKey))
+	assert.JSONEq(t, `{"mode":"implicit","ttl":"30m","prewarm":false}`, string(got.PromptCacheOptions))
 	assert.JSONEq(t, `"24h"`, string(got.PromptCacheRetention))
 
 	encoded, err := kitutil.Marshal(got)

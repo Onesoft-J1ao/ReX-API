@@ -7,9 +7,31 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
-func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
+func ApplyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
 	if info == nil || usage == nil {
 		return
+	}
+
+	// Normalize standard OpenAI-compatible cache fields before applying
+	// provider-specific aliases. This covers vendors without a dedicated case.
+	if usage.PromptTokensDetails.CachedTokens == 0 {
+		switch {
+		case usage.InputTokensDetails != nil && usage.InputTokensDetails.CachedTokens > 0:
+			usage.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
+		case usage.PromptCacheHitTokens > 0:
+			usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
+		default:
+			if cachedTokens, ok := extractCachedTokensFromBody(responseBody); ok {
+				usage.PromptTokensDetails.CachedTokens = cachedTokens
+			}
+		}
+	}
+	if usage.PromptTokensDetails.CacheWriteTokens == 0 {
+		if usage.InputTokensDetails != nil && usage.InputTokensDetails.CacheWriteTokens > 0 {
+			usage.PromptTokensDetails.CacheWriteTokens = usage.InputTokensDetails.CacheWriteTokens
+		} else if cacheWriteTokens, ok := extractCacheWriteTokensFromBody(responseBody); ok {
+			usage.PromptTokensDetails.CacheWriteTokens = cacheWriteTokens
+		}
 	}
 
 	switch info.ChannelType {
@@ -81,8 +103,40 @@ func extractCachedTokensFromBody(body []byte) (int, bool) {
 	return 0, false
 }
 
-// extractMoonshotCachedTokensFromBody 从Moonshot的非标准位置提取cached_tokens
-// Moonshot的流式响应格式: {"choices":[{"usage":{"cached_tokens":111}}]}
+func extractCacheWriteTokensFromBody(body []byte) (int, bool) {
+	if len(body) == 0 {
+		return 0, false
+	}
+
+	var payload struct {
+		Usage struct {
+			PromptTokensDetails struct {
+				CacheWriteTokens *int `json:"cache_write_tokens"`
+			} `json:"prompt_tokens_details"`
+			InputTokensDetails struct {
+				CacheWriteTokens *int `json:"cache_write_tokens"`
+			} `json:"input_tokens_details"`
+			CacheWriteTokens *int `json:"cache_write_tokens"`
+		} `json:"usage"`
+	}
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return 0, false
+	}
+
+	if value := payload.Usage.PromptTokensDetails.CacheWriteTokens; value != nil {
+		return *value, true
+	}
+	if value := payload.Usage.InputTokensDetails.CacheWriteTokens; value != nil {
+		return *value, true
+	}
+	if value := payload.Usage.CacheWriteTokens; value != nil {
+		return *value, true
+	}
+	return 0, false
+}
+
+// extractMoonshotCachedTokensFromBody reads Moonshot's non-standard stream usage
+// shape: choices[].usage.cached_tokens.
 func extractMoonshotCachedTokensFromBody(body []byte) (int, bool) {
 	if len(body) == 0 {
 		return 0, false

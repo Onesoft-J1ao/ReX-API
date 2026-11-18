@@ -159,3 +159,27 @@ func mustResponsesEventsFromChatChunk(t *testing.T, state *ChatToResponsesStream
 	require.NoError(t, err)
 	return events
 }
+
+func TestChatCompletionsResponseToResponsesPreservesCacheReadAndWriteUsage(t *testing.T) {
+	chat := &dto.OpenAITextResponse{
+		Usage: dto.Usage{
+			PromptTokens:     5080,
+			CompletionTokens: 14,
+			TotalTokens:      5094,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens:     4768,
+				CacheWriteTokens: 161,
+			},
+		},
+	}
+
+	response, usage, err := ChatCompletionsResponseToResponsesResponse(chat, "resp_cache")
+	require.NoError(t, err)
+	require.NotNil(t, response.Usage)
+	require.NotNil(t, usage)
+	require.NotNil(t, response.Usage.InputTokensDetails)
+	assert.Equal(t, 4768, response.Usage.InputTokensDetails.CachedTokens)
+	assert.Equal(t, 161, response.Usage.InputTokensDetails.CacheWriteTokens)
+	assert.Equal(t, 4768, usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 161, usage.PromptTokensDetails.CacheWriteTokens)
+}

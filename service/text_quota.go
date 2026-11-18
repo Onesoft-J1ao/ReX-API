@@ -60,6 +60,8 @@ type textQuotaSummary struct {
 	CacheCreationRatio1h   float64
 	Quota                  int
 	IsClaudeUsageSemantic  bool
+	PromptTokensExcludeCache bool
+	OpenRouterClaudeBilling bool
 	UsageSemantic          string
 	AudioInputPrice        float64
 	ToolSurchargeItems     []ToolSurchargeItem
@@ -84,6 +86,16 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 		return splitCacheWriteTokens
 	}
 	return summary.CacheCreationTokens
+}
+
+func (summary textQuotaSummary) consumeLogPromptTokens() int {
+	if !summary.PromptTokensExcludeCache {
+		return summary.PromptTokens
+	}
+	if summary.OpenRouterClaudeBilling {
+		return summary.PromptTokens + summary.CacheTokens + summary.CacheCreationTokens
+	}
+	return summary.PromptTokens + summary.CacheTokens + cacheWriteTokensTotal(summary)
 }
 
 func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
@@ -268,11 +280,12 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
-	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
+	summary.PromptTokensExcludeCache = summary.IsClaudeUsageSemantic || legacyClaudeDerived
+	summary.OpenRouterClaudeBilling = relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
 		summary.IsClaudeUsageSemantic
 
-	if isOpenRouterClaudeBilling {
+	if summary.OpenRouterClaudeBilling {
 		summary.PromptTokens -= summary.CacheTokens
 		isUsingCustomSettings := relayInfo.PriceData.UsePrice || hasCustomModelRatio(summary.ModelName, relayInfo.PriceData.ModelRatio)
 		if summary.CacheCreationTokens == 0 && relayInfo.PriceData.CacheCreationRatio != 1 && usage.Cost != 0 && !isUsingCustomSettings {
@@ -557,7 +570,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
-		PromptTokens:     summary.PromptTokens,
+		PromptTokens:     summary.consumeLogPromptTokens(),
 		CompletionTokens: summary.CompletionTokens,
 		ModelName:        logModel,
 		TokenName:        summary.TokenName,

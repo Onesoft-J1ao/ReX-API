@@ -407,6 +407,7 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		Store:                req.Store,
 		Metadata:             req.Metadata,
 		PromptCacheKey:       promptCacheKeyRaw,
+		PromptCacheOptions:   req.PromptCacheOptions,
 		PromptCacheRetention: req.PromptCacheRetention,
 		EnableThinking:       req.EnableThinking,
 		ThinkingBudget:       req.ThinkingBudget,

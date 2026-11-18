@@ -347,7 +347,10 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	require.Equal(t, messageSummary.CacheCreationTokens5m, chatSummary.CacheCreationTokens5m)
 	require.Equal(t, messageSummary.CacheCreationTokens1h, chatSummary.CacheCreationTokens1h)
 	require.True(t, chatSummary.IsClaudeUsageSemantic)
+	require.True(t, chatSummary.PromptTokensExcludeCache)
 	require.Equal(t, 1488, chatSummary.Quota)
+	require.Equal(t, 1150, chatSummary.consumeLogPromptTokens())
+	require.Equal(t, 1150, messageSummary.consumeLogPromptTokens())
 }
 
 func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.T) {
@@ -757,6 +760,48 @@ func TestCacheWriteTokensTotal(t *testing.T) {
 			CacheCreationTokens1h: 20,
 		}
 		require.Equal(t, 30, cacheWriteTokensTotal(summary))
+	})
+}
+
+func TestConsumeLogPromptTokensNormalizesCacheAcrossSemantics(t *testing.T) {
+	t.Run("OpenAI usage already includes cache reads", func(t *testing.T) {
+		assert.Equal(t, 5080, (textQuotaSummary{
+			PromptTokens:             5080,
+			CacheTokens:              4768,
+			CacheCreationTokens:      161,
+			PromptTokensExcludeCache: false,
+		}).consumeLogPromptTokens())
+	})
+
+	t.Run("Anthropic adds cache read and write back for logs", func(t *testing.T) {
+		assert.Equal(t, 590823, (textQuotaSummary{
+			PromptTokens:             2,
+			CacheTokens:              589733,
+			CacheCreationTokens:      1088,
+			PromptTokensExcludeCache: true,
+		}).consumeLogPromptTokens())
+	})
+
+	t.Run("Anthropic uses split cache write tokens when total is absent", func(t *testing.T) {
+		assert.Equal(t, 1300, (textQuotaSummary{
+			PromptTokens:             100,
+			CacheTokens:              1000,
+			CacheCreationTokens5m:    150,
+			CacheCreationTokens1h:    50,
+			PromptTokensExcludeCache: true,
+		}).consumeLogPromptTokens())
+	})
+
+	t.Run("OpenRouter restores exact removed cache counts", func(t *testing.T) {
+		assert.Equal(t, 2604, (textQuotaSummary{
+			PromptTokens:             172,
+			CacheTokens:              2152,
+			CacheCreationTokens:      280,
+			CacheCreationTokens5m:    210,
+			CacheCreationTokens1h:    180,
+			PromptTokensExcludeCache: true,
+			OpenRouterClaudeBilling:  true,
+		}).consumeLogPromptTokens())
 	})
 }
 

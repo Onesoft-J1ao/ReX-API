@@ -38,7 +38,7 @@ func TestResponsesUsageAccumulatorTerminalAccounting(t *testing.T) {
 			}
 			image := dto.ResponsesOutput{ID: "image-1", Type: dto.ResponsesOutputTypeImageGenerationCall, Status: "completed", Result: "image-data"}
 			accumulator.Observe(&dto.ResponsesStreamResponse{Type: dto.ResponsesOutputTypeItemDone, Item: &image})
-			upstream := &dto.Usage{InputTokens: 20, OutputTokens: 5, TotalTokens: 25, InputTokensDetails: &dto.InputTokenDetails{CachedTokens: 4}}
+			upstream := &dto.Usage{InputTokens: 20, OutputTokens: 5, TotalTokens: 25, InputTokensDetails: &dto.InputTokenDetails{CachedTokens: 4, CacheWriteTokens: 2}}
 			upstream.BillingUsage = dto.NewOpenAIResponsesBillingUsage(upstream)
 			terminal := &dto.ResponsesStreamResponse{
 				Type: tc.eventType,
@@ -56,6 +56,7 @@ func TestResponsesUsageAccumulatorTerminalAccounting(t *testing.T) {
 			assert.Equal(t, 5, usage.CompletionTokens)
 			assert.Equal(t, 25, usage.TotalTokens)
 			assert.Equal(t, 4, usage.PromptTokensDetails.CachedTokens)
+			assert.Equal(t, 2, usage.PromptTokensDetails.CacheWriteTokens)
 			require.NotNil(t, usage.BillingUsage)
 			assert.Equal(t, upstream.BillingUsage, usage.BillingUsage)
 			assert.NotSame(t, upstream.BillingUsage, usage.BillingUsage)

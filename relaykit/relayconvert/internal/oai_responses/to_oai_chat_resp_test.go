@@ -588,3 +588,23 @@ func mustStreamChunks(t *testing.T, state *ResponsesToChatStreamState, event *dt
 	require.NoError(t, err)
 	return chunks
 }
+
+func TestResponsesResponseToChatCompletionsPreservesCacheReadAndWriteUsage(t *testing.T) {
+	response := &dto.OpenAIResponsesResponse{
+		Usage: &dto.Usage{
+			InputTokens:  5080,
+			OutputTokens: 14,
+			TotalTokens:  5094,
+			InputTokensDetails: &dto.InputTokenDetails{
+				CachedTokens:     4768,
+				CacheWriteTokens: 161,
+			},
+		},
+	}
+
+	_, usage, err := ResponsesResponseToChatCompletionsResponse(response, "chat_cache")
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	assert.Equal(t, 4768, usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 161, usage.PromptTokensDetails.CacheWriteTokens)
+}

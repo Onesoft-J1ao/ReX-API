@@ -153,7 +153,7 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		usage.CompletionTokens += toolCount * 7
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
-	applyUsagePostProcessing(info, usage, lastStreamPayload)
+	ApplyUsagePostProcessing(info, usage, lastStreamPayload)
 
 	choiceIndices := make([]int, 0, len(choices))
 	for index := range choices {

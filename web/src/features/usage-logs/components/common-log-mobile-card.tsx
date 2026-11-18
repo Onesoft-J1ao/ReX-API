@@ -32,7 +32,11 @@ import dayjs from '@/lib/dayjs'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 
 import type { UsageLog } from '../data/schema'
-import { formatModelName, parseLogOther } from '../lib/format'
+import {
+  formatModelName,
+  getCacheHitPercent,
+  parseLogOther,
+} from '../lib/format'
 import {
   getLogTypeConfig,
   isDisplayableLogType,
@@ -131,8 +135,10 @@ export function CommonLogMobileCard<TData>(props: {
   const cacheWrite =
     (other?.cache_creation_tokens_5m || 0) +
       (other?.cache_creation_tokens_1h || 0) ||
+    other?.cache_write_tokens ||
     other?.cache_creation_tokens ||
     0
+  const cacheHitPercent = getCacheHitPercent(log.prompt_tokens || 0, cacheRead)
   const showTokens =
     displayable &&
     props.cells.has('prompt_tokens') &&
@@ -307,6 +313,7 @@ export function CommonLogMobileCard<TData>(props: {
           {cacheRead > 0 && (
             <span>
               {t('Cache')} ↓ {cacheRead.toLocaleString()}
+              {cacheHitPercent > 0 && ` (${cacheHitPercent.toFixed(2)}%)`}
             </span>
           )}
           {cacheWrite > 0 && (

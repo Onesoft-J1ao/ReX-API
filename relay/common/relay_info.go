@@ -971,6 +971,8 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 	}
 	if info != nil {
 		if info.ChannelMeta != nil {
+			options.Claude.ResponsesPromptCaching = info.GetChannelType() == constant.ChannelTypeAnthropic &&
+				info.ChannelOtherSettings.ClaudeCacheControl
 			options.ToolLossPolicy = types.ConversionLossPolicy(info.ChannelOtherSettings.ToolLossPolicy)
 		}
 		info.convOptions = options

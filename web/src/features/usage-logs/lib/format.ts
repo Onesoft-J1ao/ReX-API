@@ -365,23 +365,15 @@ export function hasAnyCacheTokens(
 /**
  * Share of the prompt that was served from cache, as a percentage.
  *
- * prompt_tokens is already the whole prompt: Anthropic's uncached remainder
- * and OpenAI's prompt_cache_hit_tokens are normalised into one figure before
- * the log row is written. Adding cache reads back on top double-counts them,
- * which made every DeepSeek request read near 50% regardless of how much of it
- * actually hit cache.
- *
- * Cache writes are added because they are billed separately and are not part
- * of the read fraction.
+ * prompt_tokens is the normalized total input count. Cache writes are shown as
+ * a separate count and must not change the read-hit percentage.
  */
 export function getCacheHitPercent(
   promptTokens: number,
-  cacheReadTokens: number,
-  cacheWriteTokens: number
+  cacheReadTokens: number
 ): number {
-  const denominator = promptTokens + cacheWriteTokens
-  if (denominator <= 0) return 0
-  return (cacheReadTokens / denominator) * 100
+  if (promptTokens <= 0) return 0
+  return Math.min((cacheReadTokens / promptTokens) * 100, 100)
 }
 
 export function getTieredBillingSummary(

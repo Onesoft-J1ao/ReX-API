@@ -2,6 +2,7 @@ package oairesponses
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -32,6 +33,7 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 	if err := ValidateRequestChatUnsupportedFields(req); err != nil {
 		return nil, err
 	}
+	promptCaching := convmeta.OptionsOf(info).Claude.ResponsesPromptCaching
 
 	claudeRequest := &dto.ClaudeRequest{
 		Model:       req.Model,
@@ -102,7 +104,7 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		default:
 			sourceRole := strings.TrimSpace(kitutil.Interface2String(item["role"]))
 			role := responsesClaudeRole(sourceRole)
-			parts, err := responsesInputContentToClaudeMediaMessages(c, item["content"])
+			parts, err := responsesInputContentToClaudeMediaMessages(c, item["content"], promptCaching)
 			if err != nil {
 				return nil, err
 			}
@@ -143,6 +145,11 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 	if claudeRequest.MaxTokens == nil {
 		return nil, sharedclaude.ErrMissingMaxTokens
 	}
+	if promptCaching {
+		if err := applyResponsesClaudePromptCaching(req, claudeRequest, systemMessages); err != nil {
+			return nil, err
+		}
+	}
 	return claudeRequest, nil
 }
 
@@ -158,7 +165,47 @@ func responsesFunctionDeclarationsToClaudeTools(functions []dto.FunctionRequest)
 	return tools
 }
 
-func responsesInputContentToClaudeMediaMessages(c context.Context, content any) ([]dto.ClaudeMediaMessage, error) {
+const claudeEphemeralCacheControl = `{"type":"ephemeral"}`
+
+func applyResponsesClaudePromptCaching(req *dto.OpenAIResponsesRequest, out *dto.ClaudeRequest, system []dto.ClaudeMediaMessage) error {
+	var options struct {
+		Mode string `json:"mode"`
+	}
+	if RawJSONPresent(req.PromptCacheOptions) {
+		if err := kitutil.Unmarshal(req.PromptCacheOptions, &options); err != nil {
+			return fmt.Errorf("invalid prompt_cache_options: %w", err)
+		}
+	}
+
+	const maxBreakpoints = 4
+	explicit := 0
+	keepBreakpoints := func(blocks []dto.ClaudeMediaMessage) {
+		for i := range blocks {
+			if len(blocks[i].CacheControl) == 0 {
+				continue
+			}
+		explicit++
+			if explicit > maxBreakpoints {
+				blocks[i].CacheControl = nil
+			}
+		}
+	}
+	keepBreakpoints(system)
+	for _, message := range out.Messages {
+		blocks, _ := message.Content.([]dto.ClaudeMediaMessage)
+		keepBreakpoints(blocks)
+	}
+	if explicit >= maxBreakpoints || (options.Mode != "" && options.Mode != "implicit") {
+		return nil
+	}
+	hasCacheKey := kitutil.GetJsonType(req.PromptCacheKey) == "string" && kitutil.JsonRawMessageToString(req.PromptCacheKey) != ""
+	if options.Mode == "implicit" || explicit > 0 || len(out.Messages) > 1 || hasCacheKey {
+		out.CacheControl = json.RawMessage(claudeEphemeralCacheControl)
+	}
+	return nil
+}
+
+func responsesInputContentToClaudeMediaMessages(c context.Context, content any, promptCaching bool) ([]dto.ClaudeMediaMessage, error) {
 	contentParts, err := ContentParts(content)
 	if err != nil {
 		return nil, err
@@ -166,14 +213,19 @@ func responsesInputContentToClaudeMediaMessages(c context.Context, content any) 
 
 	parts := make([]dto.ClaudeMediaMessage, 0, len(contentParts))
 	for _, contentPart := range contentParts {
+		var cacheControl json.RawMessage
+		if marker, ok := contentPart["prompt_cache_breakpoint"].(map[string]any); promptCaching && ok && marker["mode"] == "explicit" {
+			cacheControl = json.RawMessage(`{"type":"ephemeral"}`)
+		}
 		partType := strings.TrimSpace(kitutil.Interface2String(contentPart["type"]))
 		switch partType {
 		case "input_text", "output_text", "text":
 			text := kitutil.Interface2String(contentPart["text"])
 			if text != "" {
 				parts = append(parts, dto.ClaudeMediaMessage{
-					Type: "text",
-					Text: kitutil.GetPointer(text),
+					Type:         "text",
+					Text:         kitutil.GetPointer(text),
+					CacheControl: cacheControl,
 				})
 			}
 		case "input_image", "input_file", "input_audio", "input_video":
@@ -197,6 +249,7 @@ func responsesInputContentToClaudeMediaMessages(c context.Context, content any) 
 			} else {
 				claudePart.Type = "image"
 			}
+			claudePart.CacheControl = cacheControl
 			parts = append(parts, claudePart)
 		}
 	}

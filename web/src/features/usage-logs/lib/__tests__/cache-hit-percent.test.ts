@@ -35,17 +35,19 @@ describe('getCacheHitPercent', () => {
     expect(getCacheHitPercent(601, 469, 0)).toBeCloseTo(78.04, 2)
   })
 
-  test('counts cache writes in the denominator without counting reads twice', () => {
-    // 1,000 prompt + 500 written = 1,500 billed input; 300 of it was read back.
-    expect(getCacheHitPercent(1000, 300, 500)).toBeCloseTo(20, 6)
+  test('matches the usage-log cache read percentage and keeps writes separate', () => {
+    // Reference row: 4,768 / 5,080 = 93.86%; 161 cache-write tokens render separately.
+    expect(getCacheHitPercent(5080, 4768)).toBeCloseTo(93.86, 2)
+    expect(getCacheHitPercent(1000, 300)).toBeCloseTo(30, 6)
   })
 
   test('returns zero rather than dividing by zero', () => {
-    expect(getCacheHitPercent(0, 0, 0)).toBe(0)
-    expect(getCacheHitPercent(0, 100, 0)).toBe(0)
+    expect(getCacheHitPercent(0, 0)).toBe(0)
+    expect(getCacheHitPercent(0, 100)).toBe(0)
   })
 
   test('never exceeds one hundred percent', () => {
-    expect(getCacheHitPercent(1000, 1000, 0)).toBeCloseTo(100, 6)
+    expect(getCacheHitPercent(1000, 1000)).toBeCloseTo(100, 6)
+    expect(getCacheHitPercent(1000, 1200)).toBeCloseTo(100, 6)
   })
 })

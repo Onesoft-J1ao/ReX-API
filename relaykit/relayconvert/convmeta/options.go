@@ -34,6 +34,9 @@ type Options struct {
 }
 
 type ClaudeOptions struct {
+	// ResponsesPromptCaching enables Responses API cache controls when the
+	// destination is the native Anthropic Messages endpoint.
+	ResponsesPromptCaching bool
 	// ThinkingAdapterEnabled controls whether suffix-derived reasoning intent
 	// is rendered onto Claude thinking / output_config. Suffix parsing itself
 	// is the host entry layer's job (standalone users call Parse* themselves).

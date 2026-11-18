@@ -797,15 +797,11 @@ export function useCommonLogsColumns(
         const hasSplitCache = cacheWrite5m > 0 || cacheWrite1h > 0
         const cacheWriteTokens = hasSplitCache
           ? cacheWrite5m + cacheWrite1h
-          : other?.cache_creation_tokens || 0
+          : other?.cache_write_tokens || other?.cache_creation_tokens || 0
 
         // A cache hit is what makes a request cheap, so the share of the prompt
         // that was served from cache is shown next to the raw counts.
-        const cacheHitPct = getCacheHitPercent(
-          promptTokens,
-          cacheReadTokens,
-          cacheWriteTokens
-        )
+        const cacheHitPct = getCacheHitPercent(promptTokens, cacheReadTokens)
         const showCacheHitPct = cacheReadTokens > 0 && cacheHitPct > 0
 
         return (
